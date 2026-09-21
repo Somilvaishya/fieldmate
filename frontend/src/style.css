@@ -1,0 +1,31 @@
+/* Field constraints, not preferences. See docs/DESIGN.md.
+   48px touch targets, 16px minimum body text, 4.5:1 contrast - a rep uses this
+   standing, one-handed, in sunlight. */
+:root {
+  --bg: #faf8ff;
+  --surface: #ffffff;
+  --ink: #131b2e;
+  --muted: #434655;
+  --line: #c3c6d7;
+  --primary: #004ac6;
+  --on-primary: #ffffff;
+  --ok: #006c49;
+  --warn: #8a5a0b;
+  --crit: #ba1a1a;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; min-height: 48px; border-radius: 6px; cursor: pointer; }
+input { font: inherit; min-height: 48px; padding: 0 12px; border: 1px solid var(--line);
+        border-radius: 6px; width: 100%; background: var(--surface); color: var(--ink); }
+.btn-primary { background: var(--primary); color: var(--on-primary); border: 0; width: 100%;
+               font-weight: 600; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 16px; }
+.tnum { font-variant-numeric: tabular-nums; }
