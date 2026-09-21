@@ -157,3 +157,69 @@ by hand would cost time and produce something no design tool can round-trip.
 - The exports have **no offline state strip**. Every screen needs one added.
 - Placeholder imagery from `lh3.googleusercontent.com` must be stripped; it will fail offline and
   under our CSP.
+
+---
+
+## ADR-013 — Outlets are never billed directly
+
+**Decision.** `FieldMate Outlet.customer` stays dormant. Every outlet is served through a
+distributor. The only billable party is the distributor, as an ERPNext `Customer`.
+
+**Reason.** Owner decision, 21 Sep 2026: the business runs on the primary/secondary model.
+Primary (company -> distributor) is the billable transaction and produces a real Sales Invoice.
+Secondary (distributor -> retailer) is captured as field intelligence and never billed, never
+posted to the GL. See ADR-001 and ADR-003, which this confirms rather than changes.
+
+**Consequences.**
+- No outlet-to-Customer promotion flow is built. Phase 1 masters get simpler.
+- `FieldMate Outlet.customer` is still created as an optional field, unset, so the schema stays
+  additive if a direct-billing channel ever appears. It must not be populated by any code path.
+- Credit checks resolve against the outlet's **distributor**, never the outlet itself.
+- `FieldMate Collection` settles distributor invoices. A rep collecting at a shop door is
+  collecting on the distributor's behalf.
+
+---
+
+## ADR-014 — CI evidence may come from a local lane, not only GitHub Actions
+
+**Decision.** `scripts/ci-local.sh` runs the same lint, test and frontend-build steps as
+`.github/workflows/ci.yml`, against any bench and site. A phase gate accepts its output as
+evidence. GitHub Actions stays in the repo and becomes the default once it can run.
+
+**Reason.** The GitHub account is locked over an unrelated metered Copilot balance, which blocks
+Actions entirely. The repo is public, so Actions minutes themselves are free — the lock is
+collateral. Blocking a phase gate on someone else's billing state would be the wrong dependency:
+what the gate needs is proof that lint and tests pass on a given host version, and where that
+proof is produced does not change its value.
+
+**Consequences.**
+- Each lane must be recorded with the host versions it ran against, not just "passed".
+- The v16 lane still needs a v16 bench. Until one exists, criterion 1 and 5 stay open for v16.
+- When Actions is unblocked, it becomes authoritative again because it builds each lane from
+  scratch, which a reused local bench cannot prove.
+
+---
+
+## ADR-015 — v15 only for now; v16/v17 support is unverified, not abandoned
+
+**Decision.** FieldMate targets **Frappe/ERPNext v15 only**. Gate criteria reference v15 alone.
+`compat.py`, the capability probes and the CI matrix file all stay exactly as they are.
+
+**Reason.** Owner decision, 21 Sep 2026: the work is on v15. There is no v16 site or bench here,
+GitHub Actions is blocked by an account billing lock, and building a second bench to satisfy a
+gate nobody is deploying against is effort spent on the wrong thing.
+
+**This amends ADR-005.** That ADR described the facade as the v15/v16/v17 boundary and the plan
+still claims three-major support. **That claim is now unverified and must not be repeated as
+fact.** What is true: the architecture that would make it cheap is in place and costs nothing to
+keep — one module holds every ERPNext-specific call, capabilities are probed rather than assumed,
+custom fields ship as fixtures, and no core file is edited.
+
+**Consequences.**
+- Say "built so v16 support is cheap to add", never "supports v16".
+- The `version-16` and `develop` CI lanes stay in the workflow but gate nothing.
+- The rules that keep the option open are still binding: nothing outside `compat.py` imports
+  `erpnext`, no raw SQL against ERPNext tables, no core edits, additive schema only. Dropping
+  those would make later v16 work expensive rather than cheap, which is the whole point.
+- When a v16 bench appears, the work is: run `scripts/ci-local.sh` against it, fix `compat.py`,
+  refresh fixtures.

@@ -1,0 +1,191 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:batch_uuid",
+ "creation": "2026-09-21 07:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "batch_uuid",
+  "device",
+  "user",
+  "column_break_head",
+  "direction",
+  "status",
+  "app_version",
+  "section_break_counts",
+  "record_count",
+  "accepted_count",
+  "column_break_counts",
+  "rejected_count",
+  "conflict_count",
+  "section_break_timing",
+  "received_on",
+  "completed_on",
+  "column_break_timing",
+  "duration_ms",
+  "payload_bytes",
+  "section_break_error",
+  "error_log"
+ ],
+ "fields": [
+  {
+   "fieldname": "batch_uuid",
+   "fieldtype": "Data",
+   "label": "Batch UUID",
+   "reqd": 1,
+   "unique": 1,
+   "set_only_once": 1,
+   "in_list_view": 1,
+   "description": "Client-generated. Replaying a batch must never double-apply it."
+  },
+  {
+   "fieldname": "device",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Direction",
+   "options": "Push\nPull",
+   "default": "Push",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Received\nProcessing\nCompleted\nPartial\nFailed",
+   "default": "Received",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version"
+  },
+  {
+   "fieldname": "section_break_counts",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "record_count",
+   "fieldtype": "Int",
+   "label": "Records In Batch",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "accepted_count",
+   "fieldtype": "Int",
+   "label": "Accepted"
+  },
+  {
+   "fieldname": "column_break_counts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rejected_count",
+   "fieldtype": "Int",
+   "label": "Rejected"
+  },
+  {
+   "fieldname": "conflict_count",
+   "fieldtype": "Int",
+   "label": "Conflicts"
+  },
+  {
+   "fieldname": "section_break_timing",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "fieldname": "received_on",
+   "fieldtype": "Datetime",
+   "label": "Received On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_timing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "duration_ms",
+   "fieldtype": "Int",
+   "label": "Duration (ms)",
+   "read_only": 1,
+   "description": "Budget: a 200-record push completes in under 8 s on 3G at p95."
+  },
+  {
+   "fieldname": "payload_bytes",
+   "fieldtype": "Int",
+   "label": "Payload (bytes)"
+  },
+  {
+   "fieldname": "section_break_error",
+   "fieldtype": "Section Break",
+   "label": "Diagnostics"
+  },
+  {
+   "fieldname": "error_log",
+   "fieldtype": "Long Text",
+   "label": "Error Log"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-21 07:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Sync Batch",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1, "report": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1, "if_owner": 1
+  }
+ ],
+ "search_fields": "device,user,status,direction",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

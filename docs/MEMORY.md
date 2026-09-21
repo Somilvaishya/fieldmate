@@ -7,44 +7,45 @@ Current state only. Permanent decisions go in DECISIONS.md.
 
 ## Current status
 
-**App scaffolded.** `fieldmate` exists at `apps/fieldmate`, imports cleanly, `required_apps` set.
-No DocTypes, no APIs, no frontend yet. Not installed on any site.
+**Phase 0 complete. Gate 0 passed on 21 Sep 2026** (v15 scope, ADR-015).
+
+`fieldmate` is installed on `testerp2`, serving an installable offline-first PWA at
+`/assets/fieldmate/pwa/index.html`. 3 DocTypes, 7 whitelisted methods, 42 tests green, ruff clean.
 
 Last updated: 21 Sep 2026
 
 ## Completed
 
-- Market and category research (Bizom, FieldAssist, BeatRoute, Ivy, SalesDiary, pharma SFA)
-- ERPNext / HRMS reuse audit against the live bench (Frappe 15.118.0, ERPNext 15.119.1)
-- Full build plan: 68 DocTypes, 1,078 fields, 46 APIs, 11 phases, 4 process diagrams
-  - `C:\Users\Abhishek Kumar\Desktop\SFA-Build-Plan.html` (written before the rename; content valid)
-  - https://claude.ai/artifact/JDPUCtn6yMAZZ5WrGKRWRe
-- Claude skills in `.claude/skills/`: `fieldmate` (+4 references), `fieldmate-doctype`,
-  `fieldmate-api`, `fieldmate-pwa`, `fieldmate-testing`
-- Planning documents in `fieldmate-docs/`: PRD, ARCHITECTURE, DESIGN, RULES, TASKS, DECISIONS,
-  MEMORY, TEST_PLAN, SECURITY, .env.example
-- ADR-001 through ADR-012 recorded
-- **Task 0.1 (partial)** — `bench new-app fieldmate --no-git` run 21 Sep 2026.
-  `app_title` FieldMate, publisher somilvaishya, MIT, module `FieldMate`.
-  `required_apps = ["erpnext", "hrms"]` set. Skeleton dirs created: `api/`, `services/`,
-  `fieldmate/doctype/`.
+- Market research, ERPNext/HRMS reuse audit, full build plan (68 DocTypes, 46 APIs, 11 phases)
+  - Canonical plan: https://kgopldummy.m.frappe.cloud/sfa_plan (predates the FieldMate rename)
+- Claude skills in `.claude/skills/`: `fieldmate` (+4 references) and four sibling skills
+- Planning docs in `apps/fieldmate/docs/`, ADR-001 to ADR-015
+- **Phase 0, all 14 tasks**, on `feature/phase-0-foundation`:
+  - 0.1 app scaffold, 0.1b git init and push
+  - 0.2 six roles, 0.3 install-time version guard, 0.4 `compat.py`
+  - 0.5-0.7 Device Registry, Sync Batch, Sync Conflict
+  - 0.8-0.10 `api/_base.py` envelope plus the auth and sync contract
+  - 0.11-0.13 Vue 3 + Vite + Dexie + Workbox PWA, offline-first
+  - 0.14 CI matrix written; `scripts/ci-local.sh` is the lane that actually runs
+- Bugs found by manual testing and fixed: service worker scope, Jinja-rendered www assets,
+  unregistered device on a returning session, Frappe errors rendered as data, a `start_url`
+  pointing at a 404, `DataCloneError` from caching a Vue proxy, and "Failed to fetch" shown
+  to a rep as a red error
 
 ## Current task
 
-**Task 0.1 remainder** — git init + first feature branch. Deliberately not done: the app was
-scaffolded with `--no-git` to respect the no-git-writes-without-approval rule. Needs a go-ahead.
+None. **Phase 1 (masters) is next** — 14 DocTypes led by `FieldMate Outlet` and `FieldMate Beat`.
 
 ## Known issues
 
-- **`bench build` fails bench-wide, pre-existing, not FieldMate's fault.** `sites/apps.txt`
-  contains `ai-interface`; the hyphen is not a valid Python module name, so
-  `frappe.build.generate_assets_map` raises `ModuleNotFoundError: No module named 'ai-interface'`
-  for *any* app. Blocks asset builds — will matter from Phase 0.11 (PWA scaffold) onward.
-  Fix is either renaming that app to `ai_interface` or removing it from apps.txt. **Owner's call —
-  do not change it unilaterally.**
-- `node`/`yarn` are not on the non-interactive PATH (they live under nvm: v18.20.8, v20.20.2).
-  The PWA build will need nvm sourced explicitly.
-- Nothing installed on a site yet — install target not decided.
+- **GitHub Actions blocked** by an account billing lock over a metered Copilot balance,
+  unrelated to this repo. The repo is public, so Actions minutes are free. Support ticket
+  drafted. `scripts/ci-local.sh` covers gates meanwhile.
+- `developer_mode` is off on testerp2. Not needed while DocTypes are authored as JSON on disk,
+  but required to edit them through the Desk UI.
+- v16/v17 compatibility is **unverified** (ADR-015). Do not claim it.
+- Test accounts on testerp2: `rep1@fieldmate.test` and `mgr1@fieldmate.test`, both
+  `FieldMate@2026`. Test-site credentials, not for production.
 
 ## Open decisions
 
