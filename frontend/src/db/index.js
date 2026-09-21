@@ -14,8 +14,27 @@ db.version(1).stores({
   meta: 'key',
 })
 
+/** Strip anything IndexedDB cannot structured-clone.
+ *
+ * Vue refs hand back reactive Proxies, and a Proxy throws DataCloneError on put(). Everything
+ * we persist is plain JSON anyway, so a round-trip both sanitises the value and guarantees no
+ * caller can poison the store by passing something live.
+ */
+function plain(value) {
+  if (value === null || typeof value !== 'object') return value
+  try {
+    return JSON.parse(JSON.stringify(value))
+  } catch {
+    return null
+  }
+}
+
 export async function setMeta(key, value) {
-  await db.meta.put({ key, value })
+  await db.meta.put({ key, value: plain(value) })
+}
+
+export async function putRecord(doctype, row) {
+  await db.records.put(plain({ doctype, ...row }))
 }
 
 export async function getMeta(key, fallback = null) {

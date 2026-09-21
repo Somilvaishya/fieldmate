@@ -36,9 +36,12 @@ async function showCached() {
 
 async function load() {
   try {
-    boot.value = await api.bootstrap()
+    // Cache the raw response. boot.value would hand back a reactive Proxy, which
+    // IndexedDB cannot structured-clone.
+    const profile = await api.bootstrap()
+    await setMeta('profile', profile)
+    boot.value = profile
     stale.value = false
-    await setMeta('profile', boot.value)
 
     // Registration is idempotent; a returning session may hold a device id the server
     // has never seen, which used to fail with DEVICE_UNKNOWN.

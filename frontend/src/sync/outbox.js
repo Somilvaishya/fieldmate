@@ -1,4 +1,4 @@
-import { db, deviceUuid, getMeta, setMeta } from '../db'
+import { db, deviceUuid, getMeta, setMeta, putRecord } from '../db'
 import { api, ApiError } from '../api/client'
 
 const BATCH_SIZE = 50
@@ -110,7 +110,7 @@ export async function pull() {
 
   for (const [doctype, rows] of Object.entries(result.changes || {})) {
     for (const row of rows) {
-      await db.records.put({ doctype, ...row, name: row.name || row[Object.keys(row)[0]] })
+      await putRecord(doctype, { ...row, name: row.name || row[Object.keys(row)[0]] })
     }
   }
   await setMeta('watermark', result.watermark)
