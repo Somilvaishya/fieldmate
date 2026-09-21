@@ -34,7 +34,11 @@ Last updated: 21 Sep 2026
 
 ## Current task
 
-None. **Phase 1 (masters) is next** — 14 DocTypes led by `FieldMate Outlet` and `FieldMate Beat`.
+**Phase 1 in progress** on `feature/phase-1-masters` (branched off main after PR #1 merged).
+Task 1.1 `FieldMate Settings` done: 24 fields, bounds validation, cached service accessor,
+sales-mode resolution, and a curated subset exposed through bootstrap. 55 tests green.
+
+**Next: task 1.2** `FieldMate Field User` with `sales_mode` and territory User Permission generation.
 
 ## Known issues
 
