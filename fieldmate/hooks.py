@@ -247,10 +247,5 @@ after_install = "fieldmate.setup.install.after_install"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
-# ---------------------------------------------------------------------------
-# Field PWA
-# ---------------------------------------------------------------------------
-# Every path under /fieldmate resolves to the SPA shell; vue-router takes it from there.
-website_route_rules = [
-	{"from_route": "/fieldmate/<path:app_path>", "to_route": "fieldmate"},
-]
+# The PWA is served straight from fieldmate/www/fieldmate/ and routes on the hash,
+# so no website_route_rules rewrite is needed.

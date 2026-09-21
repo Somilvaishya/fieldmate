@@ -5,7 +5,9 @@ Everything automation can cover is already covered: 32 tests, green on v15
 phone, real airplane mode.
 
 **Site:** https://testerp2.web.gargsystems.com
-**App:** https://testerp2.web.gargsystems.com/fieldmate
+**App:** https://testerp2.web.gargsystems.com/assets/fieldmate/pwa/
+(`/fieldmate` redirects there. The app lives under `/assets/` because that is the only path
+Frappe serves as true static, and a service worker can only control pages inside its own path.)
 
 | Login | Password | Role |
 |---|---|---|
@@ -21,6 +23,7 @@ Test accounts on a test site. Not for production.
 ### M1 — PWA installs to an Android home screen and opens offline ← **blocks Gate 0 criterion 2**
 
 1. On an **Android phone**, open Chrome → `https://testerp2.web.gargsystems.com/fieldmate`
+   (it redirects to `/assets/fieldmate/pwa/` — install from there)
 2. Menu (⋮) → **Add to Home screen** / **Install app**
 3. Confirm the icon appears on the home screen, named **FieldMate**
 4. Close Chrome completely (swipe away from recents)
@@ -40,7 +43,7 @@ Test accounts on a test site. Not for production.
 ## Browser checks (desktop Chrome is fine)
 
 ### M2 — Login rejects an account with no FieldMate role
-1. Open `/fieldmate` in an incognito window
+1. Open `/assets/fieldmate/pwa/` in an incognito window
 2. Sign in as any existing non-FieldMate user on the site
 
 **Expect:** *"This account is not set up for the field app. Ask your manager."*

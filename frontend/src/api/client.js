@@ -39,6 +39,20 @@ async function call(method, params = {}, { post = false } = {}) {
     throw new ApiError('INTERNAL', 'The server sent something we could not read.', res.status)
   }
 
+  // Frappe-level failures (not our envelope) arrive as { exception, exc_type }.
+  // Returning those as data is how a signed-out phone ended up rendering a card of blanks.
+  if (body && (body.exc_type || body.exception)) {
+    const authish = ['PermissionError', 'AuthenticationError', 'SessionExpired']
+    throw new ApiError(
+      authish.includes(body.exc_type) ? 'AUTH_REQUIRED' : 'INTERNAL',
+      authish.includes(body.exc_type) ? 'Please sign in again.' : 'Something went wrong.',
+      res.status
+    )
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new ApiError('AUTH_REQUIRED', 'Please sign in again.', res.status)
+  }
+
   // Frappe wraps whitelisted return values in { message: ... }
   const payload = body.message ?? body
   if (payload && payload.ok === false) {

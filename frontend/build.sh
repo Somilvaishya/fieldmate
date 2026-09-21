@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Build the PWA and publish the shell as the Frappe web page.
+# Build the PWA into fieldmate/public/pwa. Served at /assets/fieldmate/pwa/ as true static,
+# which is both where the service worker's scope must be and the only path Frappe does not
+# run through Jinja.
 set -e
 cd "$(dirname "$0")"
 npm run build
-cp ../fieldmate/public/pwa/index.html ../fieldmate/www/fieldmate.html
-echo "built and published to www/fieldmate.html"
+echo "built into fieldmate/public/pwa"
