@@ -34,7 +34,10 @@ export default defineConfig({
         background_color: '#faf8ff',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: BASE,
+        // /assets/ has no directory index: /assets/fieldmate/pwa/ returns 404 and only
+        // .../index.html resolves. start_url must name the file, or an installed icon
+        // launches straight into a 404. scope stays the directory - it is a path prefix.
+        start_url: BASE + 'index.html',
         scope: BASE,
       },
       workbox: {
