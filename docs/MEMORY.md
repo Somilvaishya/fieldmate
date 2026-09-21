@@ -56,7 +56,8 @@ Blocking Phase 1 (masters):
    assumed FMCG. This changes outlet types, beat frequency, scheme shapes and the must-sell model.
    **Highest priority.**
 2. Does any outlet get billed directly? → affects `FieldMate Outlet.customer`
-3. Van sales in scope, or order-booking only? → most of Phase 5 (2 weeks)
+3. ~~Van sales in scope?~~ **RESOLVED 21 Sep 2026** — both models ship, switched by
+   FieldMate Settings with a per-rep override. See ADR-016.
 4. The three most complicated live schemes → the engine is designed around the real worst case
 
 Wanted soon:

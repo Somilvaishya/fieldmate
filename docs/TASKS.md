@@ -39,10 +39,12 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 ## Phase 1 — Masters and hierarchy · 2 weeks
 
-- [ ] 1.1 `FieldMate Settings` (single) + feature flags
-- [ ] 1.2 `FieldMate Field User` + territory User Permission generation
+- [ ] 1.1 `FieldMate Settings` (single) + feature flags, incl. `enable_order_booking`,
+      `enable_van_sales`, `default_sales_mode` (ADR-016)
+- [ ] 1.2 `FieldMate Field User` (+ `sales_mode`) + territory User Permission generation
 - [ ] 1.3 `FieldMate Outlet Channel`, `FieldMate Outlet Class`
-- [ ] 1.4 `FieldMate Outlet` (46 fields) + `FieldMate Outlet Contact`
+- [ ] 1.4 `FieldMate Outlet` (46 fields) + `FieldMate Outlet Contact` — `customer` and
+      outlet credit fields present but dormant unless van sales is on
 - [ ] 1.5 `FieldMate Beat` + `FieldMate Beat Outlet`
 - [ ] 1.6 `FieldMate Distributor Profile`
 - [ ] 1.7 `FieldMate Product Catalogue` + `FieldMate Catalogue Item`
@@ -95,7 +97,7 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [ ] 4.12 PWA: catalogue, cart with repeat-order prefill, scheme preview, review and submit
 - [ ] **Gate 4** — verify all 6 criteria on testerp2
 
-## Phase 5 — Secondary sales and van · 2 weeks *(scope pending decision 2)*
+## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016)*
 
 - [ ] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
 - [ ] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline
