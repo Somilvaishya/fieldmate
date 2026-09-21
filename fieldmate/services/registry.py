@@ -76,6 +76,16 @@ register(
 		uuid_field="client_uuid",
 		push=True,
 		pull=True,
+		# Without this, pull sends all 46 columns of every outlet: 5,000 shops measured at
+		# 6.6 MB on the wire against a 2.5 MB budget. The device needs what a list row, a
+		# map pin and a check-in decision require, and nothing else.
+		pull_fields=(
+			"name", "outlet_name", "outlet_status", "approval_status",
+			"channel", "outlet_class", "outlet_type", "territory", "primary_beat",
+			"distributor", "city", "mobile_no", "owner_name",
+			"latitude", "longitude", "enable_geo_fence", "geo_fence_radius_m",
+			"monthly_potential", "modified",
+		),
 		# Approval and provenance are the server's to set. A device that could send
 		# approval_status would make manager approval decorative.
 		server_owned=("approval_status", "approved_by", "created_by_rep", "outstanding_amount",
@@ -83,7 +93,10 @@ register(
 	)
 )
 
-register(Syncable(doctype="FieldMate Beat", push=False, pull=True))
+register(Syncable(doctype="FieldMate Beat", push=False, pull=True,
+                  pull_fields=("name", "beat_name", "territory", "assigned_to",
+                               "frequency", "visit_day", "week_pattern", "is_active",
+                               "outlet_count", "modified")))
 
 register(Syncable(doctype="FieldMate Outlet Channel", push=False, pull=True,
                   pull_fields=("name", "channel_name", "is_active", "default_visit_frequency")))

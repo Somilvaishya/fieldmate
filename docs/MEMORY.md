@@ -7,43 +7,32 @@ Current state only. Permanent decisions go in DECISIONS.md.
 
 ## Current status
 
-**Phase 0 complete. Gate 0 passed on 21 Sep 2026** (v15 scope, ADR-015).
+**Phase 0 and Phase 1 complete. Gate 0 and Gate 1 both passed.**
+17 DocTypes, 14 whitelisted methods, **171 tests green**, ruff clean.
 
-`fieldmate` is installed on `testerp2`, serving an installable offline-first PWA at
-`/assets/fieldmate/pwa/index.html`. 3 DocTypes, 7 whitelisted methods, 42 tests green, ruff clean.
+Branch `feature/phase-1-masters`, off main after PR #1.
 
 Last updated: 21 Sep 2026
 
 ## Completed
 
-- Market research, ERPNext/HRMS reuse audit, full build plan (68 DocTypes, 46 APIs, 11 phases)
-  - Canonical plan: https://kgopldummy.m.frappe.cloud/sfa_plan (predates the FieldMate rename)
-- Claude skills in `.claude/skills/`: `fieldmate` (+4 references) and four sibling skills
-- Planning docs in `apps/fieldmate/docs/`, ADR-001 to ADR-015
-- **Phase 0, all 14 tasks**, on `feature/phase-0-foundation`:
-  - 0.1 app scaffold, 0.1b git init and push
-  - 0.2 six roles, 0.3 install-time version guard, 0.4 `compat.py`
-  - 0.5-0.7 Device Registry, Sync Batch, Sync Conflict
-  - 0.8-0.10 `api/_base.py` envelope plus the auth and sync contract
-  - 0.11-0.13 Vue 3 + Vite + Dexie + Workbox PWA, offline-first
-  - 0.14 CI matrix written; `scripts/ci-local.sh` is the lane that actually runs
-- Bugs found by manual testing and fixed: service worker scope, Jinja-rendered www assets,
-  unregistered device on a returning session, Frappe errors rendered as data, a `start_url`
-  pointing at a 404, `DataCloneError` from caching a Vue proxy, and "Failed to fetch" shown
-  to a rep as a red error
+- **Phase 0** — app scaffold, roles, version guard, `compat.py`, three sync DocTypes, the
+  `fieldmate.api.*` facade and sync contract, offline-first Vue PWA, local CI lane.
+  Gate 0 passed on a real Android device.
+- **Phase 1** — Settings, Field User, Outlet Channel, Outlet Class, Outlet, Outlet Contact,
+  Beat, Beat Outlet, Distributor Profile, Product Catalogue, Catalogue Item, Must Sell List,
+  Must Sell Item, Geo Fence Exception. Seven outlet endpoints, a per-row bulk importer, and
+  four PWA screens (outlet list, Outlet 360, onboarding, beats).
+- Two security fixes found by testing rather than review: `sync.pull` used `frappe.get_all`,
+  which forces `ignore_permissions=True` and would have sent every outlet to every rep; and
+  `pull_fields` was unset for Outlet, putting a 500-outlet pull at 6.6 MB against a 2.5 MB
+  budget. Both fixed and covered.
+- `docs/MANUAL_TESTS.md` now covers both phases: 8 Phase 0 checks, 12 Phase 1 checks, plus setup.
 
 ## Current task
 
-**Phase 1 in progress** on `feature/phase-1-masters`. **17 DocTypes, 142 tests green.**
-
-Done: 1.1 Settings · 1.2 Field User · 1.3 Channel + Class · 1.4 Outlet + Contact ·
-1.5 Beat + Beat Outlet · 1.6 Distributor Profile · 1.7 Product Catalogue + Item ·
-1.8 Must Sell List + Item · 1.9 Geo Fence Exception.
-
-All nine master DocTypes for Phase 1 exist. What remains is behaviour rather than schema:
-
-**Next: 1.10** the five outlet APIs (search, detail, create, update, approve), then
-**1.11** bulk import templates with geo validation, **1.12** PWA screens, then **Gate 1**.
+None. **Phase 2 (journey plan and attendance) is next** — 7 DocTypes, and the first phase that
+writes into HRMS, so it exercises the compat layer for real.
 
 ## Known issues
 

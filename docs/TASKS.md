@@ -53,7 +53,12 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
       `outlet.approve`, plus `outlet.import_template` and `outlet.bulk_import`
 - [x] 1.11 Bulk import with per-row geo validation and dry run
 - [x] 1.12 PWA: outlet list, Outlet 360, new-outlet onboarding, beat browse
-- [ ] **Gate 1** — verify all 4 criteria on testerp2
+- [x] **Gate 1 — PASSED** (21 Sep 2026)
+  - [x] 1. 5,000 outlets and 200 beats imported clean; mixed files report per row
+  - [x] 2. A rep sees only their territory — proven in tests three ways
+  - [x] 3. Field-created outlet lands Pending, visitable, not sellable
+  - [x] 4. 500-outlet pull: **8 KB gzipped**, 224 KB raw, budget 2,560 KB
+        (first measured 6,614 KB — `pull_fields` was unset, sending all 46 columns)
 
 ## Phase 2 — Journey plan and attendance · 1.5 weeks
 
