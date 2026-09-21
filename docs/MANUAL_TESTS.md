@@ -17,6 +17,14 @@ Frappe serves as true static, and a service worker can only control pages inside
 
 Test accounts on a test site. Not for production.
 
+> Run `scripts/reset-test-users.sh` before a manual pass. The suite creates and deletes Users on
+> the same site, which can clear the stored auth rows of these fixtures and leave login failing
+> with "Wrong username or password" even though the accounts look fine.
+
+`rep1` is a **Website User**, not a System User. That is correct: `FieldMate Field Rep` has
+`desk_access = 0`, so Frappe classifies reps as Website Users, which is what keeps them out of
+`/app`. Login still works, and M11 depends on this.
+
 ---
 
 ## The one that closes Gate 0
