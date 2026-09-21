@@ -15,20 +15,25 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 - [x] 0.1 `bench new-app fieldmate` (--no-git), module layout, `hooks.py`, `required_apps`
 - [ ] 0.1b `git init` + first feature branch (needs approval)
-- [ ] 0.2 Roles: Field Rep, Area Manager, Regional Manager, Sales Head, Admin, Distributor
-- [ ] 0.3 `required_apps` + `after_install` version guard (Frappe/ERPNext/HRMS minimums)
-- [ ] 0.4 `fieldmate/compat.py` skeleton + first four adapters + capability probe
-- [ ] 0.5 DocType `FieldMate Device Registry`
-- [ ] 0.6 DocType `FieldMate Sync Batch`
-- [ ] 0.7 DocType `FieldMate Sync Conflict`
-- [ ] 0.8 `fieldmate/api/_base.py` — auth helper, `ok()` / `fail()` envelopes, `v` param handling
-- [ ] 0.9 APIs: `auth.login`, `auth.bootstrap`, `sync.register_device`
-- [ ] 0.10 APIs: `sync.pull`, `sync.push`, `sync.status`, `sync.resolve_conflict`
-- [ ] 0.11 PWA scaffold: Vite + Vue 3, routing, `website_route_rules` mount
-- [ ] 0.12 Dexie schema + outbox with dependency ordering and backoff
-- [ ] 0.13 Workbox service worker, install prompt, offline state strip
-- [ ] 0.14 Three-lane CI matrix (version-15 / version-16 / develop)
-- [ ] **Gate 0** — verify all 5 criteria on testerp2
+- [x] 0.2 Roles: Field Rep, Area Manager, Regional Manager, Sales Head, Admin, Distributor
+- [x] 0.3 `required_apps` + `after_install` version guard (Frappe/ERPNext/HRMS minimums)
+- [x] 0.4 `fieldmate/compat.py` skeleton + first four adapters + capability probe
+- [x] 0.5 DocType `FieldMate Device Registry` (16 fields)
+- [x] 0.6 DocType `FieldMate Sync Batch` (21 fields)
+- [x] 0.7 DocType `FieldMate Sync Conflict` (20 fields)
+- [x] 0.8 `fieldmate/api/_base.py` — auth helper, `ok()` / `fail()` envelopes, `v` param handling
+- [x] 0.9 APIs: `auth.login`, `auth.bootstrap`, `sync.register_device`
+- [x] 0.10 APIs: `sync.pull`, `sync.push`, `sync.status`, `sync.resolve_conflict`
+- [x] 0.11 PWA scaffold: Vite + Vue 3, routing, `website_route_rules` mount
+- [x] 0.12 Dexie schema + outbox with dependency ordering and backoff
+- [x] 0.13 Workbox service worker, install prompt, offline state strip
+- [x] 0.14 Three-lane CI matrix written (`.github/workflows/ci.yml`) — NOT yet run
+- [ ] **Gate 0** — 2 of 5 criteria met. NOT passed.
+  - [x] 3. Same batch of 20 pushed 3x creates exactly 20 documents *(test_sync.py)*
+  - [x] 4. A bad record becomes one Sync Conflict; the rest of the batch still commits
+  - [ ] 1. Installs clean on v15 **and v16** — v15 verified on testerp2; no v16 site exists here
+  - [ ] 2. PWA installs to an Android home screen and opens offline — needs a real device
+  - [ ] 5. CI green on version-15 and version-16 — workflow written, never run
 
 ## Phase 1 — Masters and hierarchy · 2 weeks
 

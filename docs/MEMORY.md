@@ -17,8 +17,12 @@ Last updated: 21 Sep 2026
 - Market and category research (Bizom, FieldAssist, BeatRoute, Ivy, SalesDiary, pharma SFA)
 - ERPNext / HRMS reuse audit against the live bench (Frappe 15.118.0, ERPNext 15.119.1)
 - Full build plan: 68 DocTypes, 1,078 fields, 46 APIs, 11 phases, 4 process diagrams
-  - `C:\Users\Abhishek Kumar\Desktop\SFA-Build-Plan.html` (written before the rename; content valid)
+  - **Canonical: https://kgopldummy.m.frappe.cloud/sfa_plan** (our Frappe Cloud site)
   - https://claude.ai/artifact/JDPUCtn6yMAZZ5WrGKRWRe
+  - `C:\Users\Abhishek Kumar\Desktop\SFA-Build-Plan.html` (local, one machine)
+  - **All three predate the FieldMate rename** — they say app `sfa`, module `SFA`, prefix `SFA `,
+    fields `sfa_`, series `SFA-`. Content verified identical to `references/build-plan.md`
+    (14 sections, 11 phases, 68/1,078/46/21). Names in the skills win; see ADR-010.
 - Claude skills in `.claude/skills/`: `fieldmate` (+4 references), `fieldmate-doctype`,
   `fieldmate-api`, `fieldmate-pwa`, `fieldmate-testing`
 - Planning documents in `fieldmate-docs/`: PRD, ARCHITECTURE, DESIGN, RULES, TASKS, DECISIONS,

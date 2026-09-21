@@ -157,3 +157,23 @@ by hand would cost time and produce something no design tool can round-trip.
 - The exports have **no offline state strip**. Every screen needs one added.
 - Placeholder imagery from `lh3.googleusercontent.com` must be stripped; it will fail offline and
   under our CSP.
+
+---
+
+## ADR-013 — Outlets are never billed directly
+
+**Decision.** `FieldMate Outlet.customer` stays dormant. Every outlet is served through a
+distributor. The only billable party is the distributor, as an ERPNext `Customer`.
+
+**Reason.** Owner decision, 21 Sep 2026: the business runs on the primary/secondary model.
+Primary (company -> distributor) is the billable transaction and produces a real Sales Invoice.
+Secondary (distributor -> retailer) is captured as field intelligence and never billed, never
+posted to the GL. See ADR-001 and ADR-003, which this confirms rather than changes.
+
+**Consequences.**
+- No outlet-to-Customer promotion flow is built. Phase 1 masters get simpler.
+- `FieldMate Outlet.customer` is still created as an optional field, unset, so the schema stays
+  additive if a direct-billing channel ever appears. It must not be populated by any code path.
+- Credit checks resolve against the outlet's **distributor**, never the outlet itself.
+- `FieldMate Collection` settles distributor invoices. A rep collecting at a shop door is
+  collecting on the distributor's behalf.
