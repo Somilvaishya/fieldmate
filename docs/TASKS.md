@@ -52,7 +52,7 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [x] 1.10 APIs: `outlet.search`, `outlet.detail`, `outlet.create`, `outlet.update`,
       `outlet.approve`, plus `outlet.import_template` and `outlet.bulk_import`
 - [x] 1.11 Bulk import with per-row geo validation and dry run
-- [ ] 1.12 PWA: outlet list, Outlet 360, new-outlet onboarding, beat browse
+- [x] 1.12 PWA: outlet list, Outlet 360, new-outlet onboarding, beat browse
 - [ ] **Gate 1** — verify all 4 criteria on testerp2
 
 ## Phase 2 — Journey plan and attendance · 1.5 weeks

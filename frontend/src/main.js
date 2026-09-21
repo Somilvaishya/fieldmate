@@ -3,6 +3,10 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import App from './App.vue'
 import Login from './screens/Login.vue'
 import Today from './screens/Today.vue'
+import Outlets from './screens/Outlets.vue'
+import OutletDetail from './screens/OutletDetail.vue'
+import OutletNew from './screens/OutletNew.vue'
+import Beats from './screens/Beats.vue'
 import './style.css'
 
 const router = createRouter({
@@ -13,6 +17,10 @@ const router = createRouter({
     { path: '/', redirect: '/today' },
     { path: '/login', component: Login, name: 'login' },
     { path: '/today', component: Today, name: 'today' },
+    { path: '/outlets', component: Outlets, name: 'outlets' },
+    { path: '/outlet/new', component: OutletNew, name: 'outlet-new' },
+    { path: '/outlet/:name', component: OutletDetail, name: 'outlet' },
+    { path: '/beats', component: Beats, name: 'beats' },
   ],
 })
 

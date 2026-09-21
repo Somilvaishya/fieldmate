@@ -81,4 +81,9 @@ export const api = {
       { device_uuid: deviceUuid, batch_uuid: batchUuid, records, app_version: appVersion },
       { post: true }),
   batchStatus: (batchUuid) => call('sync.status', { batch_uuid: batchUuid }),
+
+  outlets: (q, beat) => call('outlet.search', { q, beat, limit: 200 }),
+  outlet: (name) => call('outlet.detail', { outlet: name }),
+  createOutlet: (payload) => call('outlet.create', { payload }, { post: true }),
+  updateOutlet: (name, payload) => call('outlet.update', { outlet: name, payload }, { post: true }),
 }
