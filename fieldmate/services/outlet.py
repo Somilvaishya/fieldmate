@@ -1,0 +1,191 @@
+"""Outlet reads and writes, with the field's constraints rather than the Desk's.
+
+Two things differ from ordinary CRUD:
+
+- **Reads are territory-scoped by construction.** Everything here goes through `frappe.get_list`,
+  never `frappe.get_all`, because the latter forces `ignore_permissions=True` and would hand a rep
+  every shop on the site.
+- **Writes are field-shaped.** A rep may correct what they can see standing in front of the shop -
+  a phone number, a pin on the map - and nothing else. Approval, credit and provenance are not
+  theirs to set, whatever the payload says.
+"""
+
+from __future__ import annotations
+
+import frappe
+from frappe.utils import cint, flt, now_datetime
+
+from fieldmate import compat
+from fieldmate.services import field_user as field_user_service
+from fieldmate.services import settings as settings_service
+
+# What a rep is allowed to change from the app. Anything else is ignored silently on update
+# rather than rejected, so a newer app build sending an extra field never breaks an old server.
+REP_EDITABLE = {
+	"outlet_name", "owner_name", "mobile_no", "alternate_mobile", "email_id",
+	"address_line1", "address_line2", "city", "district", "state", "pincode",
+	"latitude", "longitude", "geo_accuracy_m",
+	"opening_time", "closing_time", "weekly_off",
+	"channel", "outlet_type", "monthly_potential",
+	"gstin", "pan", "fssai_no",
+	"shop_photo", "shop_board_photo",
+}
+
+LIST_FIELDS = [
+	"name", "outlet_name", "outlet_status", "approval_status", "channel", "outlet_class",
+	"territory", "primary_beat", "distributor", "city", "mobile_no",
+	"latitude", "longitude", "geo_fence_radius_m", "monthly_potential", "modified",
+]
+
+
+def search(query: str | None = None, beat: str | None = None, limit: int = 50,
+           user: str | None = None) -> list[dict]:
+	"""Outlets this user may see, newest first, optionally filtered.
+
+	For a rep whose territory is too large to mirror on the device, this is the fallback path.
+	"""
+	filters = {}
+	if beat:
+		filters["primary_beat"] = beat
+
+	or_filters = None
+	if query:
+		like = f"%{query}%"
+		or_filters = {"outlet_name": ["like", like], "city": ["like", like],
+		              "mobile_no": ["like", like], "name": ["like", like]}
+
+	return frappe.get_list(
+		"FieldMate Outlet",
+		filters=filters,
+		or_filters=or_filters,
+		fields=LIST_FIELDS,
+		limit_page_length=min(cint(limit) or 50, 200),
+		order_by="modified desc",
+		user=user or frappe.session.user,
+	)
+
+
+def detail(outlet: str, user: str | None = None) -> dict:
+	"""Everything the Outlet 360 screen shows, in one call.
+
+	`frappe.get_doc` does not apply user permissions on its own, so the read is gated here
+	explicitly. Skipping that would let a rep fetch any shop by guessing its name.
+	"""
+	user = user or frappe.session.user
+	if not frappe.has_permission("FieldMate Outlet", "read", doc=outlet, user=user):
+		raise frappe.PermissionError(frappe._("This outlet is not in your territory."))
+
+	doc = frappe.get_doc("FieldMate Outlet", outlet)
+	allowed, reason = doc.can_take_order()
+	party = doc.billing_party()
+	company = doc.get("company") or settings_service.value("default_company")
+
+	credit = {}
+	if party and company:
+		credit = compat.get_credit_status(party, company)
+
+	return {
+		"outlet": {f: doc.get(f) for f in LIST_FIELDS if f != "name"} | {"name": doc.name},
+		"contacts": [
+			{"person_name": c.person_name, "role_at_outlet": c.role_at_outlet,
+			 "mobile_no": c.mobile_no, "is_primary": bool(c.is_primary)}
+			for c in (doc.contacts or [])
+		],
+		"can_take_order": allowed,
+		"blocked_reason": reason,
+		"billing_party": party,
+		"credit": credit,
+		"geo_fence_radius_m": doc.effective_geo_fence_radius(),
+	}
+
+
+def create(payload: dict, user: str | None = None) -> dict:
+	"""Field onboarding. Always lands unapproved, whatever the payload claims."""
+	user = user or frappe.session.user
+	rep = field_user_service.get(user)
+	if rep and not rep.can_create_outlet:
+		raise frappe.PermissionError(frappe._("You are not set up to add new shops."))
+
+	client_uuid = payload.get("client_uuid")
+	if client_uuid:
+		existing = frappe.db.get_value("FieldMate Outlet", {"client_uuid": client_uuid}, "name")
+		if existing:
+			# Idempotent: a retried onboarding returns the shop it already created.
+			return {"name": existing, "created": False}
+
+	data = {k: v for k, v in payload.items() if k in REP_EDITABLE}
+	data.update({
+		"doctype": "FieldMate Outlet",
+		"distributor": payload.get("distributor") or (rep.distributor if rep else None),
+		"territory": payload.get("territory") or (rep.territory if rep else None),
+		"client_uuid": client_uuid,
+		"created_offline": cint(payload.get("created_offline")),
+		"device_id": payload.get("device_id"),
+		"approval_status": "Pending Approval",
+	})
+
+	doc = frappe.get_doc(data)
+	doc.insert()
+	return {"name": doc.name, "created": True, "approval_status": doc.approval_status}
+
+
+def update(outlet: str, payload: dict, user: str | None = None) -> dict:
+	"""Correct what a rep can see from the doorstep. Nothing else."""
+	user = user or frappe.session.user
+	# Read permission, not write. A rep holds no write access on the DocType at all, which
+	# keeps generic endpoints like frappe.client.set_value closed to them. The read check
+	# proves the shop is in their territory; REP_EDITABLE decides what may change; the server
+	# then saves on their behalf. Same shape as ADR-004 keeps for the ledger.
+	if not frappe.has_permission("FieldMate Outlet", "read", doc=outlet, user=user):
+		raise frappe.PermissionError(frappe._("This outlet is not in your territory."))
+
+	doc = frappe.get_doc("FieldMate Outlet", outlet)
+	changed = []
+	for key, value in payload.items():
+		if key in REP_EDITABLE and doc.get(key) != value:
+			doc.set(key, value)
+			changed.append(key)
+
+	if not changed:
+		return {"name": doc.name, "changed": []}
+
+	if {"latitude", "longitude"} & set(changed):
+		doc.geo_captured_on = now_datetime()
+
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, "changed": changed}
+
+
+def approve(outlet: str, decision: str, notes: str | None = None, user: str | None = None) -> dict:
+	"""A manager's decision on a shop a rep onboarded."""
+	if decision not in ("Approved", "Rejected"):
+		raise ValueError("decision must be Approved or Rejected")
+
+	user = user or frappe.session.user
+
+	rep = field_user_service.get(user)
+	if rep and rep.designation == "Field Rep":
+		# A rep approving their own onboarding would make the queue decorative.
+		raise frappe.PermissionError(frappe._("Only a manager can approve a new shop."))
+
+	if not frappe.has_permission("FieldMate Outlet", "read", doc=outlet, user=user):
+		raise frappe.PermissionError(frappe._("This outlet is not in your territory."))
+
+	doc = frappe.get_doc("FieldMate Outlet", outlet)
+	doc.approval_status = decision
+	if notes:
+		doc.add_comment("Comment", notes)
+	doc.save(ignore_permissions=True)
+
+	return {"name": doc.name, "approval_status": doc.approval_status,
+	        "approved_by": doc.approved_by}
+
+
+def refresh_outstanding(outlet: str) -> float:
+	"""Live from the ledger. Stored only so a list view has something to show."""
+	doc = frappe.get_doc("FieldMate Outlet", outlet)
+	party = doc.billing_party()
+	company = doc.get("company") or settings_service.value("default_company")
+	amount = flt(compat.get_outstanding(party, company)) if (party and company) else 0.0
+	doc.db_set("outstanding_amount", amount, update_modified=False)
+	return amount

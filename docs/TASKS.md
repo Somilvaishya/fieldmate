@@ -49,8 +49,9 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [x] 1.7 `FieldMate Product Catalogue` (12) + `FieldMate Catalogue Item` (8)
 - [x] 1.8 `FieldMate Must Sell List` (12) + `FieldMate Must Sell Item` (5)
 - [x] 1.9 `FieldMate Geo Fence Exception` (submittable, 17 data fields)
-- [ ] 1.10 APIs: `outlet.search`, `outlet.detail`, `outlet.create`, `outlet.update`, `outlet.approve`
-- [ ] 1.11 Bulk import templates with geo validation
+- [x] 1.10 APIs: `outlet.search`, `outlet.detail`, `outlet.create`, `outlet.update`,
+      `outlet.approve`, plus `outlet.import_template` and `outlet.bulk_import`
+- [x] 1.11 Bulk import with per-row geo validation and dry run
 - [ ] 1.12 PWA: outlet list, Outlet 360, new-outlet onboarding, beat browse
 - [ ] **Gate 1** — verify all 4 criteria on testerp2
 
