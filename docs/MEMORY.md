@@ -34,17 +34,16 @@ Last updated: 21 Sep 2026
 
 ## Current task
 
-**Phase 1 in progress** on `feature/phase-1-masters`.
+**Phase 1 in progress** on `feature/phase-1-masters`. 103 tests green.
 
-- 1.1 `FieldMate Settings` done — 24 fields, bounds validation, cached accessor, sales-mode
-  resolution, curated client subset on bootstrap.
-- 1.2 `FieldMate Field User` done — 22 fields, reporting-loop detection, van-sales requires a
-  vehicle warehouse, and territory `User Permission` generated on save. Bootstrap now carries
-  the rep profile. 74 tests green.
+- 1.1 `FieldMate Settings` — 24 fields, bounds validation, cached accessor, sales-mode resolution
+- 1.2 `FieldMate Field User` — 22 fields, reporting-loop detection, territory `User Permission`
+- 1.3 `FieldMate Outlet Channel` (6), `FieldMate Outlet Class` (8)
+- 1.4 `FieldMate Outlet` (46 data fields) + `FieldMate Outlet Contact` (7). First genuinely
+  syncable master: reps pull outlets down and push new ones up, with approval and provenance
+  stripped server-side. **Territory scoping proven end-to-end**, including through `sync.pull`.
 
-**Next: task 1.3** `FieldMate Outlet Channel` and `FieldMate Outlet Class`, then 1.4 `FieldMate
-Outlet` — which is also where territory scoping finally gets an end-to-end proof, since it is the
-first doctype that links Territory.
+**Next: task 1.5** `FieldMate Beat` + `FieldMate Beat Outlet`.
 
 ## Known issues
 

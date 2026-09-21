@@ -41,7 +41,7 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 - [ ] 1.1 `FieldMate Settings` (single) + feature flags
 - [ ] 1.2 `FieldMate Field User` + territory User Permission generation
-- [ ] 1.3 `FieldMate Outlet Channel`, `FieldMate Outlet Class`
+- [x] 1.3 `FieldMate Outlet Channel` (6), `FieldMate Outlet Class` (8)
 - [ ] 1.4 `FieldMate Outlet` (46 fields) + `FieldMate Outlet Contact`
 - [ ] 1.5 `FieldMate Beat` + `FieldMate Beat Outlet`
 - [ ] 1.6 `FieldMate Distributor Profile`

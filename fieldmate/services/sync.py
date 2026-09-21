@@ -45,11 +45,15 @@ def pull(user: str, since: str | None = None, doctypes: list[str] | None = None)
 		if since:
 			filters["modified"] = [">", since]
 
-		changes[entry.doctype] = frappe.get_all(
+		# frappe.get_all forces ignore_permissions=True and silently discards any value passed
+		# for it, so using it here would hand every rep every outlet on the site. get_list is
+		# the permission-respecting query, and `user` is what applies that rep's territory.
+		changes[entry.doctype] = frappe.get_list(
 			entry.doctype,
 			filters=filters,
 			fields=list(entry.pull_fields) or ["*"],
 			limit_page_length=0,
+			user=user,
 			ignore_permissions=False,
 		)
 

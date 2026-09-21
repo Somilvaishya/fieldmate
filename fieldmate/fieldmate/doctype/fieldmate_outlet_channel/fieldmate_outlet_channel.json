@@ -1,0 +1,39 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:channel_name",
+ "creation": "2026-09-21 18:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["channel_name", "is_active", "column_break_1", "default_visit_frequency", "default_credit_days", "description"],
+ "fields": [
+  {"fieldname": "channel_name", "fieldtype": "Data", "label": "Channel Name", "reqd": 1, "unique": 1, "in_list_view": 1,
+   "description": "How the shop buys and sells: Kirana, Modern Trade, Chemist, HoReCa, Wholesale."},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "default_visit_frequency", "fieldtype": "Select", "label": "Default Visit Frequency",
+   "options": "Weekly\nFortnightly\nMonthly", "default": "Weekly"},
+  {"fieldname": "default_credit_days", "fieldtype": "Int", "label": "Default Credit Days"},
+  {"fieldname": "description", "fieldtype": "Small Text", "label": "Description"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-21 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Outlet Channel",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1},
+  {"role": "FieldMate Regional Manager", "read": 1},
+  {"role": "FieldMate Area Manager", "read": 1},
+  {"role": "FieldMate Field Rep", "read": 1}
+ ],
+ "sort_field": "channel_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

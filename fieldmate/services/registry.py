@@ -70,6 +70,25 @@ def clear() -> None:
 # Phase 4 adds: FieldMate Order, FieldMate Scheme (pull only).
 # Phase 6 adds: FieldMate Collection.
 #
+register(
+	Syncable(
+		doctype="FieldMate Outlet",
+		uuid_field="client_uuid",
+		push=True,
+		pull=True,
+		# Approval and provenance are the server's to set. A device that could send
+		# approval_status would make manager approval decorative.
+		server_owned=("approval_status", "approved_by", "created_by_rep", "outstanding_amount",
+		              "avg_monthly_business", "sync_status", "synced_at"),
+	)
+)
+
+register(Syncable(doctype="FieldMate Outlet Channel", push=False, pull=True,
+                  pull_fields=("name", "channel_name", "is_active", "default_visit_frequency")))
+register(Syncable(doctype="FieldMate Outlet Class", push=False, pull=True,
+                  pull_fields=("name", "class_name", "is_active", "visits_per_month",
+                               "min_visit_duration_minutes")))
+
 # The device's own record is readable by the device, but it is created through
 # sync.register_device rather than pushed as part of a batch.
 register(

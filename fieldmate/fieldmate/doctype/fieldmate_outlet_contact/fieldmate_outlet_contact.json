@@ -1,0 +1,32 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 18:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": ["person_name", "role_at_outlet", "mobile_no", "email_id", "is_primary", "birthday", "notes"],
+ "fields": [
+  {"fieldname": "person_name", "fieldtype": "Data", "label": "Name", "reqd": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "role_at_outlet", "fieldtype": "Select", "label": "Role",
+   "options": "Owner\nManager\nPurchaser\nAccountant\nStaff", "default": "Owner", "in_list_view": 1, "columns": 2},
+  {"fieldname": "mobile_no", "fieldtype": "Data", "label": "Mobile", "in_list_view": 1, "columns": 2},
+  {"fieldname": "email_id", "fieldtype": "Data", "label": "Email", "options": "Email"},
+  {"fieldname": "is_primary", "fieldtype": "Check", "label": "Primary", "in_list_view": 1, "columns": 1},
+  {"fieldname": "birthday", "fieldtype": "Date", "label": "Birthday",
+   "description": "Small thing, but remembering it is most of what field relationships are made of."},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-21 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Outlet Contact",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
