@@ -33,7 +33,9 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
   - [x] 4. A bad record becomes one Sync Conflict; the rest of the batch still commits
   - [ ] 1. Installs clean on v15 **and v16** — v15 verified on testerp2; no v16 site exists here
   - [ ] 2. PWA installs to an Android home screen and opens offline — needs a real device
-  - [ ] 5. CI green on version-15 and version-16 — workflow written, never run
+  - [~] 5. CI green on version-15 and version-16 — v15 lane GREEN locally via
+        `scripts/ci-local.sh` (ruff clean, 32/32 tests). v16 lane needs a v16 bench.
+        GitHub Actions is blocked by an account billing lock, not by our code.
 
 ## Phase 1 — Masters and hierarchy · 2 weeks
 

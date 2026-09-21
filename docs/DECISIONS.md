@@ -177,3 +177,23 @@ posted to the GL. See ADR-001 and ADR-003, which this confirms rather than chang
 - Credit checks resolve against the outlet's **distributor**, never the outlet itself.
 - `FieldMate Collection` settles distributor invoices. A rep collecting at a shop door is
   collecting on the distributor's behalf.
+
+---
+
+## ADR-014 — CI evidence may come from a local lane, not only GitHub Actions
+
+**Decision.** `scripts/ci-local.sh` runs the same lint, test and frontend-build steps as
+`.github/workflows/ci.yml`, against any bench and site. A phase gate accepts its output as
+evidence. GitHub Actions stays in the repo and becomes the default once it can run.
+
+**Reason.** The GitHub account is locked over an unrelated metered Copilot balance, which blocks
+Actions entirely. The repo is public, so Actions minutes themselves are free — the lock is
+collateral. Blocking a phase gate on someone else's billing state would be the wrong dependency:
+what the gate needs is proof that lint and tests pass on a given host version, and where that
+proof is produced does not change its value.
+
+**Consequences.**
+- Each lane must be recorded with the host versions it ran against, not just "passed".
+- The v16 lane still needs a v16 bench. Until one exists, criterion 1 and 5 stay open for v16.
+- When Actions is unblocked, it becomes authoritative again because it builds each lane from
+  scratch, which a reused local bench cannot prove.
