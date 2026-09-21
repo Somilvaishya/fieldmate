@@ -39,10 +39,10 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 ## Phase 1 — Masters and hierarchy · 2 weeks
 
-- [ ] 1.1 `FieldMate Settings` (single) + feature flags
-- [ ] 1.2 `FieldMate Field User` + territory User Permission generation
+- [x] 1.1 `FieldMate Settings` (single) + feature flags
+- [x] 1.2 `FieldMate Field User` + territory User Permission generation
 - [x] 1.3 `FieldMate Outlet Channel` (6), `FieldMate Outlet Class` (8)
-- [ ] 1.4 `FieldMate Outlet` (46 fields) + `FieldMate Outlet Contact`
+- [x] 1.4 `FieldMate Outlet` (46 fields) + `FieldMate Outlet Contact`
 - [x] 1.5 `FieldMate Beat` (18 data fields) + `FieldMate Beat Outlet` (8), plus the
       `primary_beat` back-reference on Outlet
 - [x] 1.6 `FieldMate Distributor Profile` (20 data fields)
