@@ -2,30 +2,46 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
-import { deviceUuid } from '../db'
+import { deviceUuid, getMeta, setMeta } from '../db'
 import { pull, drain, pendingCount } from '../sync/outbox'
 
 const router = useRouter()
 const boot = ref(null)
 const error = ref('')
+const stale = ref(false)
 const queued = ref(0)
 const syncing = ref(false)
+const online = ref(navigator.onLine)
+window.addEventListener('online', () => (online.value = true))
+window.addEventListener('offline', () => (online.value = false))
 
-function handle(e) {
-  if (e instanceof ApiError && ['AUTH_REQUIRED', 'LOGIN_FAILED'].includes(e.code)) {
-    router.replace('/login')
+function isOffline(e) {
+  return e instanceof ApiError && e.code === 'OFFLINE'
+}
+
+function isAuth(e) {
+  return e instanceof ApiError && ['AUTH_REQUIRED', 'LOGIN_FAILED'].includes(e.code)
+}
+
+/** Show the last known profile rather than an empty screen. */
+async function showCached() {
+  const cached = await getMeta('profile')
+  if (cached) {
+    boot.value = cached
+    stale.value = true
     return true
   }
-  error.value = e.message
   return false
 }
 
 async function load() {
   try {
     boot.value = await api.bootstrap()
-    // A returning session has a device id in IndexedDB that the server may not know about -
-    // only login used to register it, so any later visit failed with DEVICE_UNKNOWN.
-    // Registration is idempotent, so just do it every boot.
+    stale.value = false
+    await setMeta('profile', boot.value)
+
+    // Registration is idempotent; a returning session may hold a device id the server
+    // has never seen, which used to fail with DEVICE_UNKNOWN.
     await api.registerDevice(await deviceUuid(), {
       platform: 'Web',
       app_version: '0.0.1',
@@ -33,21 +49,29 @@ async function load() {
     })
     await pull()
   } catch (e) {
-    handle(e)
+    if (isAuth(e)) return router.replace('/login')
+    // Being offline is the expected state for this app, not a failure worth shouting about.
+    // The strip at the top already says so.
+    if (isOffline(e) || !navigator.onLine) await showCached()
+    else error.value = e.message
   }
   queued.value = await pendingCount()
 }
 
 async function syncNow() {
-  syncing.value = true
   error.value = ''
+  if (!navigator.onLine) {
+    error.value = 'Still offline. Everything you captured is saved and will sync on its own.'
+    return
+  }
+  syncing.value = true
   try {
     await drain()
-    await pull()
+    await load()
   } catch (e) {
-    handle(e)
+    if (isAuth(e)) return router.replace('/login')
+    if (!isOffline(e)) error.value = e.message
   }
-  queued.value = await pendingCount()
   syncing.value = false
 }
 
@@ -62,10 +86,15 @@ onMounted(load)
     <div v-if="boot" class="card">
       <p><b>{{ boot.full_name }}</b></p>
       <p class="muted">{{ (boot.roles || []).join(', ') || 'No FieldMate role' }}</p>
-      <p class="muted tnum">Server {{ boot.server_time }}</p>
-      <p class="muted">API v{{ boot.api_version }}</p>
+      <p v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</p>
+      <template v-else>
+        <p class="muted tnum">Server {{ boot.server_time }}</p>
+        <p class="muted">API v{{ boot.api_version }}</p>
+      </template>
     </div>
-    <div v-else-if="!error" class="card muted">Loading your day…</div>
+    <div v-else class="card muted">
+      {{ online ? 'Loading your day…' : 'Offline. Sign in once online to get started.' }}
+    </div>
 
     <p class="muted">Phase 0 shell. Beat, visits and orders arrive in Phases 1–4.</p>
     <button class="btn-primary" :disabled="syncing" @click="syncNow">

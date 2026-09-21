@@ -31,7 +31,15 @@ async function call(method, params = {}, { post = false } = {}) {
     if (qs) target += '?' + qs
   }
 
-  const res = await fetch(target, opts)
+  let res
+  try {
+    res = await fetch(target, opts)
+  } catch {
+    // fetch rejects with a bare TypeError("Failed to fetch") when there is no connection.
+    // That string is a browser internal, not something to show a rep standing in a market.
+    throw new ApiError('OFFLINE', 'No connection. Your work is saved on this phone.', 0)
+  }
+
   let body
   try {
     body = await res.json()
