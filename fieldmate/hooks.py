@@ -8,7 +8,7 @@ app_license = "mit"
 # Apps
 # ------------------
 
-required_apps = ["erpnext", "hrms"]
+required_apps = ["erpnext"]  # hrms is optional - probed via fieldmate.compat.capabilities()
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -82,8 +82,8 @@ required_apps = ["erpnext", "hrms"]
 # Installation
 # ------------
 
-# before_install = "fieldmate.install.before_install"
-# after_install = "fieldmate.install.after_install"
+before_install = "fieldmate.setup.install.before_install"
+after_install = "fieldmate.setup.install.after_install"
 
 # Uninstallation
 # ------------
@@ -247,3 +247,10 @@ required_apps = ["erpnext", "hrms"]
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# ---------------------------------------------------------------------------
+# Field PWA
+# ---------------------------------------------------------------------------
+# Every path under /fieldmate resolves to the SPA shell; vue-router takes it from there.
+website_route_rules = [
+	{"from_route": "/fieldmate/<path:app_path>", "to_route": "fieldmate"},
+]
