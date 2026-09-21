@@ -1,0 +1,17 @@
+{
+ "actions": [], "creation": "2026-09-21 20:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["item_code", "item_name", "min_qty", "weightage", "uom"],
+ "fields": [
+  {"fieldname": "item_code", "fieldtype": "Link", "label": "Item", "options": "Item", "reqd": 1, "in_list_view": 1, "columns": 4},
+  {"fieldname": "item_name", "fieldtype": "Data", "label": "Name", "fetch_from": "item_code.item_name", "read_only": 1, "in_list_view": 1, "columns": 4},
+  {"fieldname": "min_qty", "fieldtype": "Float", "label": "Min Qty", "default": "1", "in_list_view": 1, "columns": 1},
+  {"fieldname": "weightage", "fieldtype": "Float", "label": "Weight", "default": "1", "in_list_view": 1, "columns": 1,
+   "description": "Not every must-sell line matters equally when scoring compliance."},
+  {"fieldname": "uom", "fieldtype": "Link", "label": "UOM", "options": "UOM"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-21 20:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Must Sell Item",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

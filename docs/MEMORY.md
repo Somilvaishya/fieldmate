@@ -34,17 +34,16 @@ Last updated: 21 Sep 2026
 
 ## Current task
 
-**Phase 1 in progress** on `feature/phase-1-masters`. 11 DocTypes, 122 tests green.
+**Phase 1 in progress** on `feature/phase-1-masters`. **17 DocTypes, 142 tests green.**
 
-- 1.1 `FieldMate Settings` — sales-model switch, bounds validation, cached accessor
-- 1.2 `FieldMate Field User` — territory `User Permission`, reporting-loop detection
-- 1.3 `FieldMate Outlet Channel`, `FieldMate Outlet Class`
-- 1.4 `FieldMate Outlet` + `Outlet Contact` — first syncable master, scoping proven end-to-end
-- 1.5 `FieldMate Beat` + `Beat Outlet` — one active beat per outlet, outlets confined to the
-  beat's territory subtree, rep must cover it, `primary_beat` back-reference maintained
+Done: 1.1 Settings · 1.2 Field User · 1.3 Channel + Class · 1.4 Outlet + Contact ·
+1.5 Beat + Beat Outlet · 1.6 Distributor Profile · 1.7 Product Catalogue + Item ·
+1.8 Must Sell List + Item · 1.9 Geo Fence Exception.
 
-**Next: task 1.6** `FieldMate Distributor Profile`, then 1.7-1.9 (catalogue, must-sell, geo-fence
-exception), 1.10 outlet APIs, 1.11 import templates, 1.12 PWA screens, then Gate 1.
+All nine master DocTypes for Phase 1 exist. What remains is behaviour rather than schema:
+
+**Next: 1.10** the five outlet APIs (search, detail, create, update, approve), then
+**1.11** bulk import templates with geo validation, **1.12** PWA screens, then **Gate 1**.
 
 ## Known issues
 

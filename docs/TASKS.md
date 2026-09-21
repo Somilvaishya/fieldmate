@@ -45,10 +45,10 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [ ] 1.4 `FieldMate Outlet` (46 fields) + `FieldMate Outlet Contact`
 - [x] 1.5 `FieldMate Beat` (18 data fields) + `FieldMate Beat Outlet` (8), plus the
       `primary_beat` back-reference on Outlet
-- [ ] 1.6 `FieldMate Distributor Profile`
-- [ ] 1.7 `FieldMate Product Catalogue` + `FieldMate Catalogue Item`
-- [ ] 1.8 `FieldMate Must Sell List` + `FieldMate Must Sell Item`
-- [ ] 1.9 `FieldMate Geo Fence Exception`
+- [x] 1.6 `FieldMate Distributor Profile` (20 data fields)
+- [x] 1.7 `FieldMate Product Catalogue` (12) + `FieldMate Catalogue Item` (8)
+- [x] 1.8 `FieldMate Must Sell List` (12) + `FieldMate Must Sell Item` (5)
+- [x] 1.9 `FieldMate Geo Fence Exception` (submittable, 17 data fields)
 - [ ] 1.10 APIs: `outlet.search`, `outlet.detail`, `outlet.create`, `outlet.update`, `outlet.approve`
 - [ ] 1.11 Bulk import templates with geo validation
 - [ ] 1.12 PWA: outlet list, Outlet 360, new-outlet onboarding, beat browse
