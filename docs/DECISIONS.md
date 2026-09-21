@@ -223,3 +223,48 @@ custom fields ship as fixtures, and no core file is edited.
   those would make later v16 work expensive rather than cheap, which is the whole point.
 - When a v16 bench appears, the work is: run `scripts/ci-local.sh` against it, fix `compat.py`,
   refresh fixtures.
+
+---
+
+## ADR-016 — Both sales models ship, switched by FieldMate Settings
+
+**Decision.** FieldMate supports **order booking** and **van sales**, chosen by configuration
+rather than by a fork in the codebase.
+
+`FieldMate Settings` gains:
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `enable_order_booking` | Check | 1 | The rep books an order; the distributor delivers later |
+| `enable_van_sales` | Check | 0 | The rep sells and delivers from a vehicle, billing on the spot |
+| `default_sales_mode` | Select | Order Booking | Used when a rep has no explicit mode |
+
+`FieldMate Field User` gains `sales_mode` (Select: *Company Default* / *Order Booking* /
+*Van Sales*), because in practice the two models coexist in one company: a van route in a town
+and order-booking reps in the district around it.
+
+**Reason.** Owner decision, 21 Sep 2026. Both models are needed. Making it configuration keeps a
+single codebase and a single test suite.
+
+**This amends ADR-013.** That ADR said outlets are never billed directly. That remains true in
+**order booking**, which is the default. In **van sales the shop is billed on the spot**, so
+`FieldMate Outlet.customer` becomes live in that mode, along with an outlet-level credit limit.
+The field was already planned as optional and dormant, so the schema does not change — only when
+it is populated.
+
+**This does NOT weaken ADR-004.** A rep still never holds write permission on an accounting
+DocType. A van sale calls a whitelisted method; the **server** validates it and posts the
+resulting documents with elevated permission, exactly as `FieldMate Order` already creates a
+Sales Order. What a rep can do is still bounded by what the server will do on their behalf, not
+by what their role can touch.
+
+**Consequences.**
+- Credit resolves against the **distributor** in order booking and against the **outlet** in van
+  sales. One branch point, in `fieldmate/services/credit.py`, never scattered.
+- Van sales posts a Sales Invoice plus a stock movement out of the vehicle warehouse at the time
+  of sale. Order booking posts a Sales Order and nothing else.
+- The vehicle is an ERPNext `Warehouse`. Load-out and settle-in are `Stock Entry` documents.
+- Phase 1 must build the settings and the mode field even though van sales itself lands in
+  Phase 5, so no outlet data has to be migrated later.
+- Every scheme, credit and collection test gets a van-sales variant. Two modes means two paths
+  through the same money, and an untested second path is where the money goes missing.

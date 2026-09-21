@@ -67,3 +67,9 @@ Wanted soon:
 
 Confirm the vertical (decision 1), then either continue Phase 0 (Task 0.2 roles → 0.14 CI) or
 pause to rework the masters model if this is automotive rather than FMCG.
+
+## Settled decisions worth remembering
+
+- Van sales **and** order booking both ship, switched by `FieldMate Settings` with a per-rep
+  override on `FieldMate Field User.sales_mode` (ADR-016). Outlets are billed directly only in
+  van sales; in order booking the distributor is the billing party (ADR-013).
