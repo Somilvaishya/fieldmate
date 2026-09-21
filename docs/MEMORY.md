@@ -34,16 +34,17 @@ Last updated: 21 Sep 2026
 
 ## Current task
 
-**Phase 1 in progress** on `feature/phase-1-masters`. 103 tests green.
+**Phase 1 in progress** on `feature/phase-1-masters`. 11 DocTypes, 122 tests green.
 
-- 1.1 `FieldMate Settings` — 24 fields, bounds validation, cached accessor, sales-mode resolution
-- 1.2 `FieldMate Field User` — 22 fields, reporting-loop detection, territory `User Permission`
-- 1.3 `FieldMate Outlet Channel` (6), `FieldMate Outlet Class` (8)
-- 1.4 `FieldMate Outlet` (46 data fields) + `FieldMate Outlet Contact` (7). First genuinely
-  syncable master: reps pull outlets down and push new ones up, with approval and provenance
-  stripped server-side. **Territory scoping proven end-to-end**, including through `sync.pull`.
+- 1.1 `FieldMate Settings` — sales-model switch, bounds validation, cached accessor
+- 1.2 `FieldMate Field User` — territory `User Permission`, reporting-loop detection
+- 1.3 `FieldMate Outlet Channel`, `FieldMate Outlet Class`
+- 1.4 `FieldMate Outlet` + `Outlet Contact` — first syncable master, scoping proven end-to-end
+- 1.5 `FieldMate Beat` + `Beat Outlet` — one active beat per outlet, outlets confined to the
+  beat's territory subtree, rep must cover it, `primary_beat` back-reference maintained
 
-**Next: task 1.5** `FieldMate Beat` + `FieldMate Beat Outlet`.
+**Next: task 1.6** `FieldMate Distributor Profile`, then 1.7-1.9 (catalogue, must-sell, geo-fence
+exception), 1.10 outlet APIs, 1.11 import templates, 1.12 PWA screens, then Gate 1.
 
 ## Known issues
 

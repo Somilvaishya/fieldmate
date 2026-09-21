@@ -7,108 +7,494 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "naming_series", "outlet_name", "outlet_status", "column_identity", "approval_status",
-  "approved_by", "onboarding_date",
-  "section_classification", "channel", "outlet_class", "outlet_type",
-  "column_classification", "is_key_outlet", "monthly_potential", "avg_monthly_business",
-  "section_commercial", "distributor", "customer", "price_list",
-  "column_commercial", "credit_limit", "credit_days", "outstanding_amount",
-  "section_geography", "territory", "address_line1", "address_line2", "city",
-  "column_geography", "district", "state", "pincode", "country",
-  "section_geo", "latitude", "longitude", "geo_accuracy_m",
-  "column_geo", "geo_captured_on", "enable_geo_fence", "geo_fence_radius_m",
-  "section_contact", "owner_name", "mobile_no", "alternate_mobile",
-  "column_contact", "email_id", "contacts",
-  "section_compliance", "gstin", "pan", "column_compliance", "fssai_no", "kyc_verified",
-  "section_operations", "opening_time", "closing_time", "weekly_off",
-  "column_operations", "shop_photo", "shop_board_photo",
-  "section_sync", "created_by_rep", "client_uuid", "created_offline",
-  "column_sync", "sync_status", "synced_at", "device_id"
+  "naming_series",
+  "outlet_name",
+  "outlet_status",
+  "column_identity",
+  "approval_status",
+  "approved_by",
+  "onboarding_date",
+  "section_classification",
+  "channel",
+  "outlet_class",
+  "outlet_type",
+  "column_classification",
+  "is_key_outlet",
+  "monthly_potential",
+  "avg_monthly_business",
+  "section_commercial",
+  "distributor",
+  "customer",
+  "price_list",
+  "column_commercial",
+  "credit_limit",
+  "credit_days",
+  "outstanding_amount",
+  "section_geography",
+  "territory",
+  "primary_beat",
+  "address_line1",
+  "address_line2",
+  "city",
+  "column_geography",
+  "district",
+  "state",
+  "pincode",
+  "country",
+  "section_geo",
+  "latitude",
+  "longitude",
+  "geo_accuracy_m",
+  "column_geo",
+  "geo_captured_on",
+  "enable_geo_fence",
+  "geo_fence_radius_m",
+  "section_contact",
+  "owner_name",
+  "mobile_no",
+  "alternate_mobile",
+  "column_contact",
+  "email_id",
+  "contacts",
+  "section_compliance",
+  "gstin",
+  "pan",
+  "column_compliance",
+  "fssai_no",
+  "kyc_verified",
+  "section_operations",
+  "opening_time",
+  "closing_time",
+  "weekly_off",
+  "column_operations",
+  "shop_photo",
+  "shop_board_photo",
+  "section_sync",
+  "created_by_rep",
+  "client_uuid",
+  "created_offline",
+  "column_sync",
+  "sync_status",
+  "synced_at",
+  "device_id"
  ],
  "fields": [
-  {"fieldname": "naming_series", "fieldtype": "Select", "label": "Series", "options": "FM-OUT-.#####", "default": "FM-OUT-.#####", "reqd": 1},
-  {"fieldname": "outlet_name", "fieldtype": "Data", "label": "Outlet Name", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
-  {"fieldname": "outlet_status", "fieldtype": "Select", "label": "Status", "options": "Active\nInactive\nClosed", "default": "Active", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
-  {"fieldname": "column_identity", "fieldtype": "Column Break"},
-  {"fieldname": "approval_status", "fieldtype": "Select", "label": "Approval", "options": "Pending Approval\nApproved\nRejected", "default": "Pending Approval", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1,
-   "description": "A rep can onboard a shop and visit it immediately, but it cannot receive an order until a manager approves it."},
-  {"fieldname": "approved_by", "fieldtype": "Link", "label": "Approved By", "options": "User", "read_only": 1},
-  {"fieldname": "onboarding_date", "fieldtype": "Date", "label": "Onboarded On", "read_only": 1},
-
-  {"fieldname": "section_classification", "fieldtype": "Section Break", "label": "Classification"},
-  {"fieldname": "channel", "fieldtype": "Link", "label": "Channel", "options": "FieldMate Outlet Channel", "in_standard_filter": 1},
-  {"fieldname": "outlet_class", "fieldtype": "Link", "label": "Class", "options": "FieldMate Outlet Class", "in_list_view": 1, "in_standard_filter": 1},
-  {"fieldname": "outlet_type", "fieldtype": "Select", "label": "Type", "options": "\nKirana\nGrocery\nModern Trade\nChemist\nHoReCa\nWholesale\nOther"},
-  {"fieldname": "column_classification", "fieldtype": "Column Break"},
-  {"fieldname": "is_key_outlet", "fieldtype": "Check", "label": "Key Outlet"},
-  {"fieldname": "monthly_potential", "fieldtype": "Currency", "label": "Monthly Potential", "description": "What this shop could buy, not what it does buy. Drives class and visit frequency."},
-  {"fieldname": "avg_monthly_business", "fieldtype": "Currency", "label": "Avg Monthly Business", "read_only": 1},
-
-  {"fieldname": "section_commercial", "fieldtype": "Section Break", "label": "Commercial"},
-  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "Customer", "reqd": 1, "in_standard_filter": 1,
-   "description": "The billing party. In order booking this is who invoices the shop."},
-  {"fieldname": "customer", "fieldtype": "Link", "label": "Customer", "options": "Customer",
-   "description": "Only used in van sales, where we bill the shop directly. Leave empty otherwise (ADR-013, ADR-016)."},
-  {"fieldname": "price_list", "fieldtype": "Link", "label": "Price List", "options": "Price List"},
-  {"fieldname": "column_commercial", "fieldtype": "Column Break"},
-  {"fieldname": "credit_limit", "fieldtype": "Currency", "label": "Credit Limit", "description": "Van sales only. In order booking, credit is the distributor's."},
-  {"fieldname": "credit_days", "fieldtype": "Int", "label": "Credit Days"},
-  {"fieldname": "outstanding_amount", "fieldtype": "Currency", "label": "Outstanding", "read_only": 1, "description": "Read live from the ledger, never stored as truth."},
-
-  {"fieldname": "section_geography", "fieldtype": "Section Break", "label": "Address"},
-  {"fieldname": "territory", "fieldtype": "Link", "label": "Territory", "options": "Territory", "reqd": 1, "in_standard_filter": 1,
-   "description": "Decides which reps can see this shop at all."},
-  {"fieldname": "address_line1", "fieldtype": "Data", "label": "Address Line 1"},
-  {"fieldname": "address_line2", "fieldtype": "Data", "label": "Address Line 2"},
-  {"fieldname": "city", "fieldtype": "Data", "label": "City", "in_standard_filter": 1},
-  {"fieldname": "column_geography", "fieldtype": "Column Break"},
-  {"fieldname": "district", "fieldtype": "Data", "label": "District"},
-  {"fieldname": "state", "fieldtype": "Data", "label": "State"},
-  {"fieldname": "pincode", "fieldtype": "Data", "label": "Pincode"},
-  {"fieldname": "country", "fieldtype": "Link", "label": "Country", "options": "Country", "default": "India"},
-
-  {"fieldname": "section_geo", "fieldtype": "Section Break", "label": "Location"},
-  {"fieldname": "latitude", "fieldtype": "Float", "label": "Latitude", "precision": "8"},
-  {"fieldname": "longitude", "fieldtype": "Float", "label": "Longitude", "precision": "8"},
-  {"fieldname": "geo_accuracy_m", "fieldtype": "Float", "label": "GPS Accuracy (m)"},
-  {"fieldname": "column_geo", "fieldtype": "Column Break"},
-  {"fieldname": "geo_captured_on", "fieldtype": "Datetime", "label": "Location Captured On", "read_only": 1},
-  {"fieldname": "enable_geo_fence", "fieldtype": "Check", "label": "Enable Geo Fence", "default": "1"},
-  {"fieldname": "geo_fence_radius_m", "fieldtype": "Int", "label": "Geo Fence Radius (m)", "description": "Blank falls back to FieldMate Settings."},
-
-  {"fieldname": "section_contact", "fieldtype": "Section Break", "label": "Contact"},
-  {"fieldname": "owner_name", "fieldtype": "Data", "label": "Owner Name"},
-  {"fieldname": "mobile_no", "fieldtype": "Data", "label": "Mobile No", "reqd": 1, "in_list_view": 1},
-  {"fieldname": "alternate_mobile", "fieldtype": "Data", "label": "Alternate Mobile"},
-  {"fieldname": "column_contact", "fieldtype": "Column Break"},
-  {"fieldname": "email_id", "fieldtype": "Data", "label": "Email", "options": "Email"},
-  {"fieldname": "contacts", "fieldtype": "Table", "label": "People", "options": "FieldMate Outlet Contact"},
-
-  {"fieldname": "section_compliance", "fieldtype": "Section Break", "label": "Compliance", "collapsible": 1},
-  {"fieldname": "gstin", "fieldtype": "Data", "label": "GSTIN"},
-  {"fieldname": "pan", "fieldtype": "Data", "label": "PAN"},
-  {"fieldname": "column_compliance", "fieldtype": "Column Break"},
-  {"fieldname": "fssai_no", "fieldtype": "Data", "label": "FSSAI No"},
-  {"fieldname": "kyc_verified", "fieldtype": "Check", "label": "KYC Verified"},
-
-  {"fieldname": "section_operations", "fieldtype": "Section Break", "label": "Operations", "collapsible": 1},
-  {"fieldname": "opening_time", "fieldtype": "Time", "label": "Opens At"},
-  {"fieldname": "closing_time", "fieldtype": "Time", "label": "Closes At"},
-  {"fieldname": "weekly_off", "fieldtype": "Select", "label": "Weekly Off", "options": "\nMonday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
-   "description": "Journey planning skips the shop on this day rather than sending a rep to a shutter."},
-  {"fieldname": "column_operations", "fieldtype": "Column Break"},
-  {"fieldname": "shop_photo", "fieldtype": "Attach Image", "label": "Shop Photo"},
-  {"fieldname": "shop_board_photo", "fieldtype": "Attach Image", "label": "Shop Board Photo"},
-
-  {"fieldname": "section_sync", "fieldtype": "Section Break", "label": "Origin", "collapsible": 1},
-  {"fieldname": "created_by_rep", "fieldtype": "Link", "label": "Onboarded By", "options": "FieldMate Field User", "read_only": 1},
-  {"fieldname": "client_uuid", "fieldtype": "Data", "label": "Client UUID", "unique": 1, "read_only": 1,
-   "description": "Device-assigned identity. A replayed sync returns this record rather than creating a second one."},
-  {"fieldname": "created_offline", "fieldtype": "Check", "label": "Created Offline", "read_only": 1},
-  {"fieldname": "column_sync", "fieldtype": "Column Break"},
-  {"fieldname": "sync_status", "fieldtype": "Select", "label": "Sync Status", "options": "Synced\nPending\nConflict", "default": "Synced", "read_only": 1},
-  {"fieldname": "synced_at", "fieldtype": "Datetime", "label": "Synced At", "read_only": 1},
-  {"fieldname": "device_id", "fieldtype": "Link", "label": "Device", "options": "FieldMate Device Registry", "read_only": 1}
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "FM-OUT-.#####",
+   "default": "FM-OUT-.#####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "outlet_name",
+   "fieldtype": "Data",
+   "label": "Outlet Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "outlet_status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive\nClosed",
+   "default": "Active",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval",
+   "options": "Pending Approval\nApproved\nRejected",
+   "default": "Pending Approval",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "A rep can onboard a shop and visit it immediately, but it cannot receive an order until a manager approves it."
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "onboarding_date",
+   "fieldtype": "Date",
+   "label": "Onboarded On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_classification",
+   "fieldtype": "Section Break",
+   "label": "Classification"
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Link",
+   "label": "Channel",
+   "options": "FieldMate Outlet Channel",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "outlet_class",
+   "fieldtype": "Link",
+   "label": "Class",
+   "options": "FieldMate Outlet Class",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "outlet_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "\nKirana\nGrocery\nModern Trade\nChemist\nHoReCa\nWholesale\nOther"
+  },
+  {
+   "fieldname": "column_classification",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "is_key_outlet",
+   "fieldtype": "Check",
+   "label": "Key Outlet"
+  },
+  {
+   "fieldname": "monthly_potential",
+   "fieldtype": "Currency",
+   "label": "Monthly Potential",
+   "description": "What this shop could buy, not what it does buy. Drives class and visit frequency."
+  },
+  {
+   "fieldname": "avg_monthly_business",
+   "fieldtype": "Currency",
+   "label": "Avg Monthly Business",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_commercial",
+   "fieldtype": "Section Break",
+   "label": "Commercial"
+  },
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Distributor",
+   "options": "Customer",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "description": "The billing party. In order booking this is who invoices the shop."
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "description": "Only used in van sales, where we bill the shop directly. Leave empty otherwise (ADR-013, ADR-016)."
+  },
+  {
+   "fieldname": "price_list",
+   "fieldtype": "Link",
+   "label": "Price List",
+   "options": "Price List"
+  },
+  {
+   "fieldname": "column_commercial",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "credit_limit",
+   "fieldtype": "Currency",
+   "label": "Credit Limit",
+   "description": "Van sales only. In order booking, credit is the distributor's."
+  },
+  {
+   "fieldname": "credit_days",
+   "fieldtype": "Int",
+   "label": "Credit Days"
+  },
+  {
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "read_only": 1,
+   "description": "Read live from the ledger, never stored as truth."
+  },
+  {
+   "fieldname": "section_geography",
+   "fieldtype": "Section Break",
+   "label": "Address"
+  },
+  {
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "label": "Territory",
+   "options": "Territory",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "description": "Decides which reps can see this shop at all."
+  },
+  {
+   "fieldname": "primary_beat",
+   "fieldtype": "Link",
+   "label": "Beat",
+   "options": "FieldMate Beat",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "Set from the beat's outlet list. The beat is the truth; this is a pointer so a visit screen need not scan every beat."
+  },
+  {
+   "fieldname": "address_line1",
+   "fieldtype": "Data",
+   "label": "Address Line 1"
+  },
+  {
+   "fieldname": "address_line2",
+   "fieldtype": "Data",
+   "label": "Address Line 2"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_geography",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "district",
+   "fieldtype": "Data",
+   "label": "District"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "pincode",
+   "fieldtype": "Data",
+   "label": "Pincode"
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Link",
+   "label": "Country",
+   "options": "Country",
+   "default": "India"
+  },
+  {
+   "fieldname": "section_geo",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "geo_accuracy_m",
+   "fieldtype": "Float",
+   "label": "GPS Accuracy (m)"
+  },
+  {
+   "fieldname": "column_geo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "geo_captured_on",
+   "fieldtype": "Datetime",
+   "label": "Location Captured On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "enable_geo_fence",
+   "fieldtype": "Check",
+   "label": "Enable Geo Fence",
+   "default": "1"
+  },
+  {
+   "fieldname": "geo_fence_radius_m",
+   "fieldtype": "Int",
+   "label": "Geo Fence Radius (m)",
+   "description": "Blank falls back to FieldMate Settings."
+  },
+  {
+   "fieldname": "section_contact",
+   "fieldtype": "Section Break",
+   "label": "Contact"
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Data",
+   "label": "Owner Name"
+  },
+  {
+   "fieldname": "mobile_no",
+   "fieldtype": "Data",
+   "label": "Mobile No",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "alternate_mobile",
+   "fieldtype": "Data",
+   "label": "Alternate Mobile"
+  },
+  {
+   "fieldname": "column_contact",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "contacts",
+   "fieldtype": "Table",
+   "label": "People",
+   "options": "FieldMate Outlet Contact"
+  },
+  {
+   "fieldname": "section_compliance",
+   "fieldtype": "Section Break",
+   "label": "Compliance",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "gstin",
+   "fieldtype": "Data",
+   "label": "GSTIN"
+  },
+  {
+   "fieldname": "pan",
+   "fieldtype": "Data",
+   "label": "PAN"
+  },
+  {
+   "fieldname": "column_compliance",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "fssai_no",
+   "fieldtype": "Data",
+   "label": "FSSAI No"
+  },
+  {
+   "fieldname": "kyc_verified",
+   "fieldtype": "Check",
+   "label": "KYC Verified"
+  },
+  {
+   "fieldname": "section_operations",
+   "fieldtype": "Section Break",
+   "label": "Operations",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "opening_time",
+   "fieldtype": "Time",
+   "label": "Opens At"
+  },
+  {
+   "fieldname": "closing_time",
+   "fieldtype": "Time",
+   "label": "Closes At"
+  },
+  {
+   "fieldname": "weekly_off",
+   "fieldtype": "Select",
+   "label": "Weekly Off",
+   "options": "\nMonday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
+   "description": "Journey planning skips the shop on this day rather than sending a rep to a shutter."
+  },
+  {
+   "fieldname": "column_operations",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shop_photo",
+   "fieldtype": "Attach Image",
+   "label": "Shop Photo"
+  },
+  {
+   "fieldname": "shop_board_photo",
+   "fieldtype": "Attach Image",
+   "label": "Shop Board Photo"
+  },
+  {
+   "fieldname": "section_sync",
+   "fieldtype": "Section Break",
+   "label": "Origin",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "created_by_rep",
+   "fieldtype": "Link",
+   "label": "Onboarded By",
+   "options": "FieldMate Field User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "label": "Client UUID",
+   "unique": 1,
+   "read_only": 1,
+   "description": "Device-assigned identity. A replayed sync returns this record rather than creating a second one."
+  },
+  {
+   "fieldname": "created_offline",
+   "fieldtype": "Check",
+   "label": "Created Offline",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "label": "Sync Status",
+   "options": "Synced\nPending\nConflict",
+   "default": "Synced",
+   "read_only": 1
+  },
+  {
+   "fieldname": "synced_at",
+   "fieldtype": "Datetime",
+   "label": "Synced At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry",
+   "read_only": 1
+  }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
@@ -119,12 +505,51 @@
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
-  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
-  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
-  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1, "report": 1, "export": 1},
-  {"role": "FieldMate Regional Manager", "read": 1, "write": 1, "create": 1, "report": 1},
-  {"role": "FieldMate Area Manager", "read": 1, "write": 1, "create": 1, "report": 1},
-  {"role": "FieldMate Field Rep", "read": 1, "create": 1}
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Sales Head",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Regional Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1,
+   "create": 1
+  }
  ],
  "search_fields": "outlet_name,city,mobile_no",
  "sort_field": "modified",

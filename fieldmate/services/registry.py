@@ -83,6 +83,8 @@ register(
 	)
 )
 
+register(Syncable(doctype="FieldMate Beat", push=False, pull=True))
+
 register(Syncable(doctype="FieldMate Outlet Channel", push=False, pull=True,
                   pull_fields=("name", "channel_name", "is_active", "default_visit_frequency")))
 register(Syncable(doctype="FieldMate Outlet Class", push=False, pull=True,
