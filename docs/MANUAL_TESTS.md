@@ -37,7 +37,8 @@ Test accounts on a test site. Not for production.
 > If it shows the browser's offline page, the service worker did not precache the shell. Send me
 > what `chrome://inspect` → Service Workers reports for the origin.
 
-- [ ] Pass  / [ ] Fail — notes:
+- [x] **PASS** — 21 Sep 2026. Installed as a home-screen icon, launches standalone with no
+  address bar, renders the shell offline and shows the cached profile.
 
 ---
 
@@ -145,8 +146,8 @@ is the check finance will ask about.
 | 4. Bad record → one conflict, rest commits | Automated — `test_sync.py` |
 | 5. CI green on v15 | Automated — `scripts/ci-local.sh`, ruff + 32/32 |
 | 1. Installs clean on v15 | Verified on testerp2 |
-| 1 & 5 for **v16** | Needs a v16 bench — not a manual test |
-| 2. PWA on Android, offline | **M1 above — the only true blocker** |
+| v16 | **Out of scope** — see ADR-015 |
+| 2. PWA on Android, offline | **PASSED on a real device** |
 
 ---
 

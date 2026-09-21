@@ -28,14 +28,14 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [x] 0.12 Dexie schema + outbox with dependency ordering and backoff
 - [x] 0.13 Workbox service worker, install prompt, offline state strip
 - [x] 0.14 Three-lane CI matrix written (`.github/workflows/ci.yml`) — NOT yet run
-- [ ] **Gate 0** — 2 of 5 criteria met. NOT passed.
-  - [x] 3. Same batch of 20 pushed 3x creates exactly 20 documents *(test_sync.py)*
+- [x] **Gate 0 — PASSED** (21 Sep 2026, v15 scope per ADR-015)
+  - [x] 1. Installs clean on v15, and refuses an unsupported host with a readable message
+        *(installed on testerp2; 6 guard tests in `test_install.py`)*
+  - [x] 2. PWA installs to an Android home screen and opens offline
+        *(confirmed on a real device: standalone, no address bar, offline shell + cached profile)*
+  - [x] 3. Same batch of 20 pushed 3x creates exactly 20 documents *(`test_sync.py`)*
   - [x] 4. A bad record becomes one Sync Conflict; the rest of the batch still commits
-  - [ ] 1. Installs clean on v15 **and v16** — v15 verified on testerp2; no v16 site exists here
-  - [ ] 2. PWA installs to an Android home screen and opens offline — needs a real device
-  - [~] 5. CI green on version-15 and version-16 — v15 lane GREEN locally via
-        `scripts/ci-local.sh` (ruff clean, 32/32 tests). v16 lane needs a v16 bench.
-        GitHub Actions is blocked by an account billing lock, not by our code.
+  - [x] 5. Lint and tests green on v15 *(`scripts/ci-local.sh` — ruff clean, 42 tests)*
 
 ## Phase 1 — Masters and hierarchy · 2 weeks
 

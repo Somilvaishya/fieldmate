@@ -197,3 +197,29 @@ proof is produced does not change its value.
 - The v16 lane still needs a v16 bench. Until one exists, criterion 1 and 5 stay open for v16.
 - When Actions is unblocked, it becomes authoritative again because it builds each lane from
   scratch, which a reused local bench cannot prove.
+
+---
+
+## ADR-015 — v15 only for now; v16/v17 support is unverified, not abandoned
+
+**Decision.** FieldMate targets **Frappe/ERPNext v15 only**. Gate criteria reference v15 alone.
+`compat.py`, the capability probes and the CI matrix file all stay exactly as they are.
+
+**Reason.** Owner decision, 21 Sep 2026: the work is on v15. There is no v16 site or bench here,
+GitHub Actions is blocked by an account billing lock, and building a second bench to satisfy a
+gate nobody is deploying against is effort spent on the wrong thing.
+
+**This amends ADR-005.** That ADR described the facade as the v15/v16/v17 boundary and the plan
+still claims three-major support. **That claim is now unverified and must not be repeated as
+fact.** What is true: the architecture that would make it cheap is in place and costs nothing to
+keep — one module holds every ERPNext-specific call, capabilities are probed rather than assumed,
+custom fields ship as fixtures, and no core file is edited.
+
+**Consequences.**
+- Say "built so v16 support is cheap to add", never "supports v16".
+- The `version-16` and `develop` CI lanes stay in the workflow but gate nothing.
+- The rules that keep the option open are still binding: nothing outside `compat.py` imports
+  `erpnext`, no raw SQL against ERPNext tables, no core edits, additive schema only. Dropping
+  those would make later v16 work expensive rather than cheap, which is the whole point.
+- When a v16 bench appears, the work is: run `scripts/ci-local.sh` against it, fix `compat.py`,
+  refresh fixtures.
