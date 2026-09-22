@@ -1,0 +1,23 @@
+{
+ "actions": [], "creation": "2026-09-22 15:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["competitor", "product", "pack_size", "mrp", "selling_price", "facings",
+                 "has_scheme", "scheme_note", "photo", "note"],
+ "fields": [
+  {"fieldname": "competitor", "fieldtype": "Data", "label": "Competitor", "reqd": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "product", "fieldtype": "Data", "label": "Product", "reqd": 1, "in_list_view": 1, "columns": 3},
+  {"fieldname": "pack_size", "fieldtype": "Data", "label": "Pack", "in_list_view": 1, "columns": 1},
+  {"fieldname": "mrp", "fieldtype": "Currency", "label": "MRP", "in_list_view": 1, "columns": 1},
+  {"fieldname": "selling_price", "fieldtype": "Currency", "label": "Selling", "in_list_view": 1, "columns": 1,
+   "description": "What the shop actually charges, which is often not the MRP and is the number that matters."},
+  {"fieldname": "facings", "fieldtype": "Int", "label": "Facings", "columns": 1},
+  {"fieldname": "has_scheme", "fieldtype": "Check", "label": "Running A Scheme", "in_list_view": 1, "columns": 1},
+  {"fieldname": "scheme_note", "fieldtype": "Data", "label": "Scheme"},
+  {"fieldname": "photo", "fieldtype": "Attach Image", "label": "Photo"},
+  {"fieldname": "note", "fieldtype": "Data", "label": "Note"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Competitor Capture",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

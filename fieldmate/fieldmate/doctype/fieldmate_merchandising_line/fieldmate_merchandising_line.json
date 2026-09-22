@@ -1,0 +1,25 @@
+{
+ "actions": [], "creation": "2026-09-22 15:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["item_code", "item_name", "is_available", "facings", "shelf_position",
+                 "mrp", "expiry_qty", "damage_qty", "is_must_sell", "note"],
+ "fields": [
+  {"fieldname": "item_code", "fieldtype": "Link", "label": "Item", "options": "Item", "reqd": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "item_name", "fieldtype": "Data", "label": "Name", "fetch_from": "item_code.item_name", "read_only": 1, "in_list_view": 1, "columns": 3},
+  {"fieldname": "is_available", "fieldtype": "Check", "label": "On Shelf", "in_list_view": 1, "columns": 1,
+   "description": "The single most useful field here. Numeric distribution is counted from it."},
+  {"fieldname": "facings", "fieldtype": "Int", "label": "Facings", "in_list_view": 1, "columns": 1,
+   "description": "How many packs face the shopper. Shelf share is facings over total facings."},
+  {"fieldname": "shelf_position", "fieldtype": "Select", "label": "Position",
+   "options": "\nEye Level\nAbove Eye\nBelow Eye\nFloor\nCounter\nNot Displayed", "in_list_view": 1, "columns": 2},
+  {"fieldname": "mrp", "fieldtype": "Currency", "label": "MRP", "columns": 1},
+  {"fieldname": "expiry_qty", "fieldtype": "Float", "label": "Near Expiry"},
+  {"fieldname": "damage_qty", "fieldtype": "Float", "label": "Damaged"},
+  {"fieldname": "is_must_sell", "fieldtype": "Check", "label": "Must Sell", "read_only": 1},
+  {"fieldname": "note", "fieldtype": "Data", "label": "Note"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Merchandising Line",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

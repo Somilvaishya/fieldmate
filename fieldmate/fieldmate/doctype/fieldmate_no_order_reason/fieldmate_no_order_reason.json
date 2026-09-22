@@ -1,0 +1,29 @@
+{
+ "actions": [], "allow_rename": 1, "autoname": "field:reason",
+ "creation": "2026-09-22 15:00:00.000000", "doctype": "DocType", "engine": "InnoDB",
+ "field_order": ["reason", "is_active", "column_break_1", "category", "requires_note", "counts_as_productive", "description"],
+ "fields": [
+  {"fieldname": "reason", "fieldtype": "Data", "label": "Reason", "reqd": 1, "unique": 1, "in_list_view": 1,
+   "description": "Why the shop did not order. A rep picks this from a list while standing at the counter, so keep it short."},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "category", "fieldtype": "Select", "label": "Category",
+   "options": "Stock\nCredit\nPrice\nShop\nRep\nOther", "default": "Other", "in_list_view": 1,
+   "description": "Groups reasons for reporting. 'Credit' and 'Stock' are acted on very differently."},
+  {"fieldname": "requires_note", "fieldtype": "Check", "label": "Requires A Note"},
+  {"fieldname": "counts_as_productive", "fieldtype": "Check", "label": "Still Counts As Productive",
+   "description": "Rare, but real: a shop that is fully stocked did not need an order, and penalising the rep for it teaches them to write bad orders."},
+  {"fieldname": "description", "fieldtype": "Small Text", "label": "Description"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate No Order Reason",
+ "naming_rule": "By fieldname", "owner": "Administrator", "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "write": 1, "report": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1},
+  {"role": "FieldMate Field Rep", "read": 1}
+ ],
+ "sort_field": "reason", "sort_order": "ASC", "states": [], "track_changes": 0
+}
