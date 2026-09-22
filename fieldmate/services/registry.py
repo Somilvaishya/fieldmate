@@ -93,6 +93,12 @@ register(
 	)
 )
 
+register(Syncable(doctype="FieldMate Deviation Reason", push=False, pull=True,
+                  pull_fields=("name", "reason", "is_active", "applies_to", "requires_note")))
+
+register(Syncable(doctype="FieldMate Journey Plan", push=False, pull=True,
+                  pull_fields=("name", "field_user", "from_date", "to_date", "modified")))
+
 register(Syncable(doctype="FieldMate Beat", push=False, pull=True,
                   pull_fields=("name", "beat_name", "territory", "assigned_to",
                                "frequency", "visit_day", "week_pattern", "is_active",

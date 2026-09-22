@@ -65,15 +65,15 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 ## Phase 2 — Journey plan and attendance · 1.5 weeks
 
-- [ ] 2.1 `FieldMate Deviation Reason`
-- [ ] 2.2 `FieldMate Journey Plan` + `FieldMate Journey Plan Day`
-- [ ] 2.3 Plan generator (frequency, week pattern, holidays, approved leave)
-- [ ] 2.4 `FieldMate Day Start`, `FieldMate Day End`
-- [ ] 2.5 `FieldMate Location Trail` (one row per rep per day)
-- [ ] 2.6 `FieldMate Attendance Summary`
-- [ ] 2.7 `Employee Checkin` write-through via compat
-- [ ] 2.8 Mock-location detection + trail plausibility
-- [ ] 2.9 APIs: `day.start`, `day.current`, `day.end`, `day.trail_upload`, `beat.today`, `beat.outlets`
+- [x] 2.1 `FieldMate Deviation Reason`
+- [x] 2.2 `FieldMate Journey Plan` + `FieldMate Journey Plan Day`
+- [x] 2.3 Plan generator (frequency, week pattern, holidays, approved leave)
+- [x] 2.4 `FieldMate Day Start`, `FieldMate Day End`
+- [x] 2.5 `FieldMate Location Trail` (one row per rep per day)
+- [x] 2.6 `FieldMate Attendance Summary`
+- [x] 2.7 `Employee Checkin` write-through via compat
+- [x] 2.8 Mock-location detection + trail plausibility
+- [x] 2.9 APIs: `day.start`, `day.current`, `day.end`, `day.trail_upload`, `beat.today`, `beat.outlets`
 - [ ] 2.10 PWA: Day Start (selfie + GPS), Today board, Day End, background ping batching
 - [ ] **Gate 2** — verify all 5 criteria on testerp2
 
