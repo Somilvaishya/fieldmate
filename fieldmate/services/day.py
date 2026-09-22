@@ -12,6 +12,7 @@ from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, time_di
 
 from fieldmate import compat
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import files as file_service
 from fieldmate.services import journey as journey_service
 from fieldmate.services import settings as settings_service
 from fieldmate.services import trail as trail_service
@@ -79,7 +80,6 @@ def start(field_user: str, payload: dict) -> dict:
 		"accuracy_m": payload.get("accuracy_m"),
 		"is_mock_location": cint(payload.get("is_mock_location")),
 		"location_provider": payload.get("location_provider"),
-		"selfie": payload.get("selfie"),
 		"odometer_start": payload.get("odometer_start"),
 		"device_id": payload.get("device_id"),
 		"journey_plan": planned.get("journey_plan"),
@@ -88,6 +88,22 @@ def start(field_user: str, payload: dict) -> dict:
 		"created_offline": cint(payload.get("created_offline")),
 	})
 	doc.insert(ignore_permissions=True)
+
+	# The photo arrives as a base64 data URL and has to become a real private file: the field
+	# holds a path, not an image. Saved after the insert so it attaches to a document that
+	# exists, and before submit so the record is complete when it is finalised.
+	selfie = file_service.attach_photo(
+		payload.get("selfie"),
+		filename=f"day-start-{doc.name}",
+		doctype="FieldMate Day Start",
+		name=doc.name,
+		fieldname="selfie",
+		max_kb=settings.get("photo_max_kb"),
+	)
+	if selfie:
+		doc.selfie = selfie
+		doc.save(ignore_permissions=True)
+
 	doc.submit()
 
 	mirror_to_hrms(doc, "IN")
