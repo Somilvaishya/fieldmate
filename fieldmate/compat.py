@@ -243,6 +243,15 @@ def create_employee_checkin(
 	if not is_installed("hrms"):
 		return None
 
+	# An Employee Checkin whose employee does not exist is worse than no checkin at all: it
+	# lands in HR reporting as a real attendance row that nobody can trace back to a person.
+	# A stale link on a field user must degrade to silence, not to garbage.
+	if not employee or not frappe.db.exists("Employee", employee):
+		frappe.logger("fieldmate").warning(
+			f"skipped attendance mirror: employee {employee!r} does not exist"
+		)
+		return None
+
 	doc = frappe.new_doc("Employee Checkin")
 	doc.employee = employee
 	doc.log_type = log_type

@@ -21,6 +21,7 @@ class TestHrmsAttendanceMirror(DayFixture):
 		if not compat.is_installed("hrms"):
 			self.skipTest("hrms not installed on this site")
 
+		self._started_at = frappe.utils.now_datetime()
 		self.company = frappe.db.get_value("Company", {}, "name")
 		if not self.company:
 			self.skipTest("no company on this site")
@@ -54,9 +55,15 @@ class TestHrmsAttendanceMirror(DayFixture):
 		)
 
 	def tearDown(self):
-		for row in self.checkins():
+		# Everything created during the test, not only rows for this employee: a test that
+		# deliberately breaks the link would otherwise leave orphans on a shared site.
+		for name in frappe.get_all(
+			"Employee Checkin",
+			filters={"creation": [">", self._started_at]},
+			pluck="name",
+		):
 			try:
-				frappe.delete_doc("Employee Checkin", row.name, force=True, ignore_permissions=True)
+				frappe.delete_doc("Employee Checkin", name, force=True, ignore_permissions=True)
 			except Exception:
 				pass
 		super().tearDown()
@@ -111,12 +118,22 @@ class TestHrmsAttendanceMirror(DayFixture):
 			frappe.db.get_value("FieldMate Day Start", result["day_start"], "employee_checkin")
 		)
 
-	def test_the_mirror_does_not_block_a_day_when_it_fails(self):
-		"""A broken HR link must never stop a rep starting work."""
-		self.rep.employee = "EMP-DOES-NOT-EXIST"
-		self.rep.flags.ignore_permissions = True
+	def test_a_broken_hr_link_degrades_to_silence_not_garbage(self):
+		"""A stale employee link must neither block the rep nor invent an attendance row.
+
+		An Employee Checkin pointing at an employee that does not exist reads as a real
+		attendance record in HR reporting that nobody can trace back to a person.
+		"""
 		self.rep.db_set("employee", "EMP-DOES-NOT-EXIST", update_modified=False)
 		frappe.db.commit()
 
 		result = self.start_day()
-		self.assertTrue(result["created"])
+		self.assertTrue(result["created"], "a broken HR link must not stop a rep working")
+
+		orphans = frappe.get_all(
+			"Employee Checkin", filters={"employee": "EMP-DOES-NOT-EXIST"}, pluck="name"
+		)
+		self.assertEqual(orphans, [], "mirror created an untraceable attendance row")
+		self.assertFalse(
+			frappe.db.get_value("FieldMate Day Start", result["day_start"], "employee_checkin")
+		)
