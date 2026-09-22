@@ -6,6 +6,8 @@ import { deviceUuid, getMeta, setMeta } from '../db'
 import { pull, drain, pendingCount } from '../sync/outbox'
 import { pendingPings, configure as configurePinger, resumeIfDayOpen } from '../sync/pinger'
 import * as dayStore from '../stores/day'
+import * as visitStore from '../stores/visit'
+import * as photoQueue from '../sync/photos'
 
 const router = useRouter()
 const boot = ref(null)
@@ -16,6 +18,15 @@ const queued = ref(0)
 const pings = ref(0)
 const syncing = ref(false)
 const online = ref(navigator.onLine)
+const photosWaiting = ref(0)
+const doneToday = ref([])
+
+const openVisit = visitStore.activeVisit
+
+/** Shops already visited today, so a rep can see their progress down the route. */
+const visitedOutlets = computed(
+  () => new Set(doneToday.value.filter((v) => v.state === 'closed').map((v) => v.outlet))
+)
 
 const onOnline = () => (online.value = true)
 const onOffline = () => (online.value = false)
@@ -59,13 +70,20 @@ async function load() {
     await dayStore.refresh()
     if (openDay.value) beat.value = await api.todayBeat()
     await pull()
+    // Survey definitions and no-order reasons are cached whole: a rep in a basement market
+    // still has to be able to open the form and say why no order came of the visit.
+    await visitStore.refreshForms()
+    await visitStore.refreshReasons()
   } catch (e) {
     if (handle(e)) return
     await showCached()
     await dayStore.refresh().catch(() => {})
   }
+  await visitStore.resume()
+  doneToday.value = await visitStore.todaysVisits()
   queued.value = await pendingCount()
   pings.value = await pendingPings()
+  photosWaiting.value = await photoQueue.pendingCount()
 }
 
 async function syncNow() {
@@ -74,7 +92,10 @@ async function syncNow() {
     return
   }
   syncing.value = true
+  // Records first, photos after. A day of coverage must not sit behind one shelf photo
+  // crawling up a slow link.
   await drain().catch(() => {})
+  await photoQueue.drain().catch(() => {})
   await load()
   syncing.value = false
 }
@@ -104,6 +125,14 @@ onUnmounted(() => {
         <span v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</span>
       </div>
 
+      <!-- A visit left open. Top of the screen, because it is the only thing that matters
+           until it is closed: an open visit blocks the next check-in. -->
+      <RouterLink v-if="openVisit" class="card resume"
+                  :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
+        <b>Still in {{ openVisit.outletName }}</b>
+        <span class="muted">Tap to carry on, or to finish the visit.</span>
+      </RouterLink>
+
       <!-- The day -->
       <div v-if="openDay" class="card open">
         <div class="row">
@@ -129,14 +158,18 @@ onUnmounted(() => {
 
       <!-- Today's shops -->
       <template v-if="openDay && beat?.outlets?.length">
-        <h3>{{ beat.outlets.length }} shops on this beat</h3>
-        <RouterLink v-for="o in beat.outlets" :key="o.name" :to="`/outlet/${o.name}`" class="shop">
+        <h3 class="tnum">
+          {{ visitedOutlets.size }} of {{ beat.outlets.length }} shops done
+        </h3>
+        <RouterLink v-for="o in beat.outlets" :key="o.name" :to="`/outlet/${o.name}`"
+                    class="shop" :class="{ visited: visitedOutlets.has(o.name) }">
           <span class="seq tnum">{{ o.sequence }}</span>
           <span class="info">
             <b>{{ o.outlet_name }}</b>
             <span class="muted">{{ o.city || '—' }}<em v-if="o.is_mandatory"> · must visit</em></span>
           </span>
-          <span v-if="o.approval_status !== 'Approved'" class="pill">Pending</span>
+          <span v-if="visitedOutlets.has(o.name)" class="pill done">Visited</span>
+          <span v-else-if="o.approval_status !== 'Approved'" class="pill">Pending</span>
         </RouterLink>
       </template>
     </div>
@@ -146,7 +179,7 @@ onUnmounted(() => {
       <RouterLink v-if="!openDay" to="/day/start" class="btn-primary">Start day</RouterLink>
       <RouterLink v-else to="/day/end" class="btn-primary">Finish day</RouterLink>
       <button class="ghost" :disabled="syncing" @click="syncNow">
-        {{ syncing ? 'Syncing…' : `Sync now (${queued} queued)` }}
+        {{ syncing ? 'Syncing…' : `Sync now (${queued + photosWaiting} queued)` }}
       </button>
     </div>
   </div>
@@ -164,6 +197,10 @@ h3 { margin: 20px 0 8px; font-size: 1rem; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
         padding: 12px; margin-bottom: 12px; }
 .card.open { border-color: var(--ok); }
+.card.resume { display: grid; gap: 2px; border-color: var(--primary); text-decoration: none;
+               color: inherit; }
+.shop.visited { opacity: 0.72; }
+.pill.done { border-color: var(--ok); color: var(--ok); }
 .card p { margin: 4px 0 0; }
 .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .shop { display: flex; align-items: center; gap: 10px; padding: 12px; margin-bottom: 8px;

@@ -9,6 +9,11 @@ import OutletNew from './screens/OutletNew.vue'
 import Beats from './screens/Beats.vue'
 import DayStart from './screens/DayStart.vue'
 import DayEnd from './screens/DayEnd.vue'
+import VisitCheckIn from './screens/VisitCheckIn.vue'
+import Visit from './screens/Visit.vue'
+import VisitChecklist from './screens/VisitChecklist.vue'
+import VisitMerchandising from './screens/VisitMerchandising.vue'
+import VisitCheckOut from './screens/VisitCheckOut.vue'
 import './style.css'
 
 const router = createRouter({
@@ -25,6 +30,15 @@ const router = createRouter({
     { path: '/beats', component: Beats, name: 'beats' },
     { path: '/day/start', component: DayStart, name: 'day-start' },
     { path: '/day/end', component: DayEnd, name: 'day-end' },
+
+    // The visit is one flow with one open record, so the sub-screens carry no id of their
+    // own - they act on whichever visit is currently open. That keeps a reloaded phone from
+    // landing on a checklist for a visit it has already closed.
+    { path: '/visit/start/:name', component: VisitCheckIn, name: 'visit-start' },
+    { path: '/visit/:uuid', component: Visit, name: 'visit' },
+    { path: '/visit/:uuid/checklist', component: VisitChecklist, name: 'visit-checklist' },
+    { path: '/visit/:uuid/shelf', component: VisitMerchandising, name: 'visit-merchandising' },
+    { path: '/visit/:uuid/finish', component: VisitCheckOut, name: 'visit-checkout' },
   ],
 })
 

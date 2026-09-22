@@ -3,6 +3,9 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { localOutlet } from '../stores/outlets'
+import * as visitStore from '../stores/visit'
+
+const openVisit = visitStore.activeVisit
 
 const route = useRoute()
 const outlet = ref(null)
@@ -54,6 +57,21 @@ onMounted(async () => {
           <b>{{ c.mobile_no || '—' }}</b>
         </div>
       </div>
+
+      <div class="actions">
+        <RouterLink v-if="openVisit && openVisit.outlet === outlet.name" class="btn-primary"
+                    :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
+          Carry on with this visit
+        </RouterLink>
+        <RouterLink v-else class="btn-primary"
+                    :to="{ name: 'visit-start', params: { name: outlet.name } }">
+          Check in here
+        </RouterLink>
+        <p v-if="openVisit && openVisit.outlet !== outlet.name" class="muted note">
+          You are still checked in at {{ openVisit.outletName }}. Checking in here will
+          close that visit.
+        </p>
+      </div>
     </div>
     <p v-else class="muted">Shop not found on this phone yet.</p>
   </div>
@@ -67,6 +85,10 @@ h2 { margin: 4px 0; }
         padding: 12px; margin: 12px 0; }
 .card.ok { border-color: var(--ok); }
 .card.blocked { border-color: var(--warn); }
+.actions { margin: 20px 0 8px; display: grid; gap: 8px; }
+.actions .btn-primary { display: block; text-align: center; text-decoration: none;
+                        padding: 14px; }
+.note { text-align: center; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
 .kv span { color: var(--muted); }
 em { font-style: normal; color: var(--muted); }
