@@ -14,6 +14,15 @@ db.version(1).stores({
   meta: 'key',
 })
 
+// GPS pings collected while a day is open. Held here rather than in memory so a reload, a
+// backgrounded tab or a killed app does not lose the morning's trail.
+db.version(2).stores({
+  outbox: '++seq, clientUuid, doctype, state, dependsOn',
+  records: '[doctype+name], doctype, modified',
+  meta: 'key',
+  pings: '++id, t, sent',
+})
+
 /** Strip anything IndexedDB cannot structured-clone.
  *
  * Vue refs hand back reactive Proxies, and a Proxy throws DataCloneError on put(). Everything

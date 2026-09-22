@@ -86,4 +86,14 @@ export const api = {
   outlet: (name) => call('outlet.detail', { outlet: name }),
   createOutlet: (payload) => call('outlet.create', { payload }, { post: true }),
   updateOutlet: (name, payload) => call('outlet.update', { outlet: name, payload }, { post: true }),
+
+  dayCurrent: () => call('day.current'),
+  dayStart: (deviceUuid, payload) =>
+    call('day.start', { device_uuid: deviceUuid, payload }, { post: true }),
+  dayEnd: (deviceUuid, payload) =>
+    call('day.end', { device_uuid: deviceUuid, payload }, { post: true }),
+  uploadPings: (deviceUuid, pings) =>
+    call('day.trail_upload', { device_uuid: deviceUuid, pings }, { post: true }),
+  todayBeat: () => call('day.today'),
+  beatOutlets: (beat) => call('day.outlets', { beat }),
 }

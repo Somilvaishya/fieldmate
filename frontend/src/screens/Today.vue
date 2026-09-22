@@ -1,116 +1,181 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { deviceUuid, getMeta, setMeta } from '../db'
 import { pull, drain, pendingCount } from '../sync/outbox'
+import { pendingPings, configure as configurePinger, resumeIfDayOpen } from '../sync/pinger'
+import * as dayStore from '../stores/day'
 
 const router = useRouter()
 const boot = ref(null)
+const beat = ref(null)
 const error = ref('')
 const stale = ref(false)
 const queued = ref(0)
+const pings = ref(0)
 const syncing = ref(false)
 const online = ref(navigator.onLine)
-window.addEventListener('online', () => (online.value = true))
-window.addEventListener('offline', () => (online.value = false))
 
-function isOffline(e) {
-  return e instanceof ApiError && e.code === 'OFFLINE'
+const onOnline = () => (online.value = true)
+const onOffline = () => (online.value = false)
+
+const openDay = dayStore.openDay
+const started = computed(() =>
+  openDay.value?.started_at ? openDay.value.started_at.slice(11, 16) : null
+)
+
+function handle(e) {
+  if (e instanceof ApiError && ['AUTH_REQUIRED', 'LOGIN_FAILED'].includes(e.code)) {
+    router.replace('/login')
+    return true
+  }
+  if (!(e instanceof ApiError && e.code === 'OFFLINE')) error.value = e.message
+  return false
 }
 
-function isAuth(e) {
-  return e instanceof ApiError && ['AUTH_REQUIRED', 'LOGIN_FAILED'].includes(e.code)
-}
-
-/** Show the last known profile rather than an empty screen. */
 async function showCached() {
   const cached = await getMeta('profile')
   if (cached) {
     boot.value = cached
     stale.value = true
-    return true
   }
-  return false
 }
 
 async function load() {
+  error.value = ''
   try {
-    // Cache the raw response. boot.value would hand back a reactive Proxy, which
-    // IndexedDB cannot structured-clone.
     const profile = await api.bootstrap()
     await setMeta('profile', profile)
     boot.value = profile
     stale.value = false
+    configurePinger(profile.settings || {})
 
-    // Registration is idempotent; a returning session may hold a device id the server
-    // has never seen, which used to fail with DEVICE_UNKNOWN.
     await api.registerDevice(await deviceUuid(), {
-      platform: 'Web',
-      app_version: '0.0.1',
+      platform: 'Web', app_version: '0.0.1',
       device_name: navigator.userAgent.slice(0, 60),
     })
+
+    await dayStore.refresh()
+    if (openDay.value) beat.value = await api.todayBeat()
     await pull()
   } catch (e) {
-    if (isAuth(e)) return router.replace('/login')
-    // Being offline is the expected state for this app, not a failure worth shouting about.
-    // The strip at the top already says so.
-    if (isOffline(e) || !navigator.onLine) await showCached()
-    else error.value = e.message
+    if (handle(e)) return
+    await showCached()
+    await dayStore.refresh().catch(() => {})
   }
   queued.value = await pendingCount()
+  pings.value = await pendingPings()
 }
 
 async function syncNow() {
-  error.value = ''
-  if (!navigator.onLine) {
+  if (!online.value) {
     error.value = 'Still offline. Everything you captured is saved and will sync on its own.'
     return
   }
   syncing.value = true
-  try {
-    await drain()
-    await load()
-  } catch (e) {
-    if (isAuth(e)) return router.replace('/login')
-    if (!isOffline(e)) error.value = e.message
-  }
+  await drain().catch(() => {})
+  await load()
   syncing.value = false
 }
 
-onMounted(load)
+onMounted(async () => {
+  window.addEventListener('online', onOnline)
+  window.addEventListener('offline', onOffline)
+  await resumeIfDayOpen()
+  await load()
+})
+onUnmounted(() => {
+  window.removeEventListener('online', onOnline)
+  window.removeEventListener('offline', onOffline)
+})
 </script>
 
 <template>
-  <div class="wrap">
-    <h2>Today</h2>
-    <p v-if="error" class="err">{{ error }}</p>
+  <div class="wrap screen">
+    <div class="top">
+      <h2>Today</h2>
+      <p v-if="error" class="err">{{ error }}</p>
 
-    <div v-if="boot" class="card">
-      <p><b>{{ boot.full_name }}</b></p>
-      <p class="muted">{{ (boot.roles || []).join(', ') || 'No FieldMate role' }}</p>
-      <p v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</p>
-      <template v-else>
-        <p class="muted tnum">Server {{ boot.server_time }}</p>
-        <p class="muted">API v{{ boot.api_version }}</p>
+      <!-- Who you are, and whether this is live or remembered -->
+      <div v-if="boot" class="who">
+        <b>{{ boot.full_name }}</b>
+        <span class="muted">{{ (boot.roles || []).join(', ') || 'No FieldMate role' }}</span>
+        <span v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</span>
+      </div>
+
+      <!-- The day -->
+      <div v-if="openDay" class="card open">
+        <div class="row">
+          <b>Day running</b>
+          <span class="muted tnum" v-if="started">since {{ started }}</span>
+        </div>
+        <p class="muted" v-if="openDay.planned_beat">Beat: {{ openDay.planned_beat }}</p>
+        <p class="muted" v-else>No beat planned for today.</p>
+        <p class="muted tnum" v-if="pings">{{ pings }} location points waiting to upload</p>
+      </div>
+
+      <div v-else class="card">
+        <b>Day not started</b>
+        <p class="muted" v-if="dayStore.plannedToday.value?.beat">
+          Planned: {{ dayStore.plannedToday.value.beat }}
+          ({{ dayStore.plannedToday.value.outlet_count }} shops)
+        </p>
+        <p class="muted" v-else-if="dayStore.plannedToday.value?.status === 'Holiday'">
+          Today is a holiday.
+        </p>
+        <p class="muted" v-else>Start your day to load your route.</p>
+      </div>
+
+      <!-- Today's shops -->
+      <template v-if="openDay && beat?.outlets?.length">
+        <h3>{{ beat.outlets.length }} shops on this beat</h3>
+        <RouterLink v-for="o in beat.outlets" :key="o.name" :to="`/outlet/${o.name}`" class="shop">
+          <span class="seq tnum">{{ o.sequence }}</span>
+          <span class="info">
+            <b>{{ o.outlet_name }}</b>
+            <span class="muted">{{ o.city || '—' }}<em v-if="o.is_mandatory"> · must visit</em></span>
+          </span>
+          <span v-if="o.approval_status !== 'Approved'" class="pill">Pending</span>
+        </RouterLink>
       </template>
     </div>
-    <div v-else class="card muted">
-      {{ online ? 'Loading your day…' : 'Offline. Sign in once online to get started.' }}
-    </div>
 
-    <p class="muted">Phase 0 shell. Beat, visits and orders arrive in Phases 1–4.</p>
-    <button class="btn-primary" :disabled="syncing" @click="syncNow">
-      {{ syncing ? 'Syncing…' : `Sync now (${queued} queued)` }}
-    </button>
+    <!-- Primary action in the bottom third, where a thumb reaches -->
+    <div class="bottom">
+      <RouterLink v-if="!openDay" to="/day/start" class="btn-primary">Start day</RouterLink>
+      <RouterLink v-else to="/day/end" class="btn-primary">Finish day</RouterLink>
+      <button class="ghost" :disabled="syncing" @click="syncNow">
+        {{ syncing ? 'Syncing…' : `Sync now (${queued} queued)` }}
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
-h2 { margin: 8px 0 16px; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-        padding: 12px; margin-bottom: 16px; }
-.card p { margin: 0 0 4px; }
+.screen { display: flex; flex-direction: column; min-height: 100%; }
+.top { flex: 1; }
+.bottom { padding-top: 16px; display: grid; gap: 8px; }
+h2 { margin: 8px 0 12px; }
+h3 { margin: 20px 0 8px; font-size: 1rem; }
 .muted { color: var(--muted); font-size: 14px; }
 .err { color: var(--crit); }
+.who { display: grid; gap: 2px; margin-bottom: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+        padding: 12px; margin-bottom: 12px; }
+.card.open { border-color: var(--ok); }
+.card p { margin: 4px 0 0; }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.shop { display: flex; align-items: center; gap: 10px; padding: 12px; margin-bottom: 8px;
+        background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+        text-decoration: none; color: inherit; min-height: 48px; }
+.seq { width: 24px; color: var(--muted); font-size: 14px; }
+.info { flex: 1; display: grid; gap: 1px; min-width: 0; }
+.info b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+em { font-style: normal; }
+.pill { font-size: 12px; padding: 2px 6px; border-radius: 3px; border: 1px solid var(--warn);
+        color: var(--warn); }
+.btn-primary { display: block; text-align: center; text-decoration: none; padding: 14px; }
+.ghost { width: 100%; background: transparent; color: var(--primary);
+         border: 1px solid var(--primary); }
 </style>

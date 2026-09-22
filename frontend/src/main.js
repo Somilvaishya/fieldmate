@@ -7,6 +7,8 @@ import Outlets from './screens/Outlets.vue'
 import OutletDetail from './screens/OutletDetail.vue'
 import OutletNew from './screens/OutletNew.vue'
 import Beats from './screens/Beats.vue'
+import DayStart from './screens/DayStart.vue'
+import DayEnd from './screens/DayEnd.vue'
 import './style.css'
 
 const router = createRouter({
@@ -21,6 +23,8 @@ const router = createRouter({
     { path: '/outlet/new', component: OutletNew, name: 'outlet-new' },
     { path: '/outlet/:name', component: OutletDetail, name: 'outlet' },
     { path: '/beats', component: Beats, name: 'beats' },
+    { path: '/day/start', component: DayStart, name: 'day-start' },
+    { path: '/day/end', component: DayEnd, name: 'day-end' },
   ],
 })
 

@@ -74,7 +74,7 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [x] 2.7 `Employee Checkin` write-through via compat
 - [x] 2.8 Mock-location detection + trail plausibility
 - [x] 2.9 APIs: `day.start`, `day.current`, `day.end`, `day.trail_upload`, `beat.today`, `beat.outlets`
-- [ ] 2.10 PWA: Day Start (selfie + GPS), Today board, Day End, background ping batching
+- [x] 2.10 PWA: Day Start (selfie + GPS), Today board, Day End, background ping batching
 - [ ] **Gate 2** — verify all 5 criteria on testerp2
 
 ## Phase 3 — Visit execution · 3 weeks
