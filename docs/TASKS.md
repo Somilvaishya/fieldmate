@@ -79,15 +79,15 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 ## Phase 3 — Visit execution · 3 weeks
 
-- [ ] 3.1 `FieldMate No Order Reason`
-- [ ] 3.2 `FieldMate Visit` (42 fields) + `FieldMate Visit Task` + `FieldMate Visit Photo`
-- [ ] 3.3 Geo-fence evaluation + exception workflow + short-visit detection
-- [ ] 3.4 `FieldMate Checklist Template` / `Question` / `Answer` with versioning
-- [ ] 3.5 `FieldMate Merchandising Audit` + `Line` + `FieldMate Competitor Capture`
-- [ ] 3.6 APIs: `visit.check_in`, `visit.save_tasks`, `visit.upload_photo`, `visit.check_out`
-- [ ] 3.7 Client-side image compression + out-of-band photo queue
-- [ ] 3.8 PWA: check-in sheet, visit hub, merchandising capture, survey renderer, no-order sheet, check-out
-- [ ] **Gate 3** — verify all 5 criteria on testerp2
+- [x] 3.1 `FieldMate No Order Reason`
+- [x] 3.2 `FieldMate Visit` (42 fields) + `FieldMate Visit Task` + `FieldMate Visit Photo`
+- [x] 3.3 Geo-fence evaluation + exception workflow + short-visit detection
+- [x] 3.4 `FieldMate Checklist Template` / `Question` / `Answer` with versioning
+- [x] 3.5 `FieldMate Merchandising Audit` + `Line` + `FieldMate Competitor Capture`
+- [x] 3.6 APIs: `visit.check_in`, `visit.save_tasks`, `visit.upload_photo`, `visit.check_out`
+- [x] 3.7 Client-side image compression + out-of-band photo queue
+- [x] 3.8 PWA: check-in sheet, visit hub, merchandising capture, survey renderer, no-order sheet, check-out
+- [x] **Gate 3** — verify all 5 criteria on testerp2
 
 ## Phase 4 — Orders and scheme engine · 3 weeks
 

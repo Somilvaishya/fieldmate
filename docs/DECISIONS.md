@@ -268,3 +268,100 @@ by what their role can touch.
   Phase 5, so no outlet data has to be migrated later.
 - Every scheme, credit and collection test gets a van-sales variant. Two modes means two paths
   through the same money, and an untested second path is where the money goes missing.
+
+## ADR-017 — Nothing is blocked in the field except an answerable question
+
+**Decision.** A visit is never refused for being in the wrong place, off the planned route, too
+short, or reported from a mocked location. Each is recorded, flagged, and surfaced on the
+**Visit Exceptions** report. The single exception: a required checklist question must be
+answered before check-out **when the shop was actually open** — outcomes of *Outlet Closed* and
+*Owner Absent* skip the requirement.
+
+**Reason.** A rep who is blocked stops using the app, and an app nobody uses produces no data at
+all. Blocking a 400 m check-in does not make the rep walk closer; it makes them stop checking in.
+The bargain is that everything unusual is captured rather than prevented — which only holds if
+somebody reads it, hence the report shipping in the same phase as the flags.
+
+A required question is different in kind: the rep is standing in the shop and can answer it. But
+they cannot describe a shelf behind a shutter, so the requirement lifts when the shop was never
+open.
+
+**Consequences.**
+- `is_geo_fence_breach`, `is_short_visit`, `is_deviation` and `is_mock_location` are evidence,
+  not gates.
+- The **Visit Exceptions** report is the other half of the bargain and is not optional.
+- Off-beat alone is excluded from that report by default. A rep covering for a colleague is
+  ordinary, and listing every one of them would bury the visits that need a look.
+- `auto_close` does not demand required answers: the rep has already walked into the next shop,
+  and refusing would strand them outside it.
+
+## ADR-018 — Evidence is recomputed on every save, not validated on one path
+
+**Decision.** Distance from the shop, fence breach, planned-vs-deviation, duration and
+short-visit are derived in `FieldMateVisit.validate()` — the DocType controller — not in the
+API service. Checklist question wording, version and requiredness are re-snapshotted from the
+template in the same place. The sync registry additionally lists them as `server_owned` so a
+push cannot even propose a value.
+
+**Reason.** `visit.check_in` is not the only way a visit arrives. The offline queue pushes rows
+straight through `frappe.get_doc`, and `read_only` in a DocType JSON only greys out a desk
+field — it stops nothing over REST. Validating in the service would have left the offline path,
+which is the majority path, entirely unguarded.
+
+The same argument applies to the checklist: a phone with a stale or edited cache could otherwise
+record a visit as having asked a question it never asked, which is the one thing a checklist
+exists to prove. The rep's *answer* is kept exactly as sent; everything describing the question
+is rewritten from the template.
+
+**Consequences.**
+- Belt and braces on purpose: `server_owned` strips the fields, and the controller recomputes
+  them anyway. Either alone would be a single point of failure.
+- An answer to a question since retired is kept but disclaims itself — `template` cleared,
+  `is_required` 0. The rep did the work; nothing about it is claimed as current.
+- An approved Geo Fence Exception clears the breach flag; a pending one does not. Until a human
+  has looked, the breach stands.
+
+## ADR-019 — Photos travel on their own queue, and land after the record
+
+**Decision.** Visit photos are not outbox rows. They live in a separate IndexedDB queue, upload
+one request at a time through `visit.upload_photo`, and are keyed to the visit's `client_uuid`
+rather than its server name. `FieldMate Visit.photos` is `allow_on_submit`.
+
+**Reason.** A compressed shelf photo is ~120 KB against a visit record's ~2 KB. Sharing one FIFO
+means a whole day of records waits behind a single photo crawling up a 2G uplink, and a manager
+sees no coverage until the pictures finish. Records must go first.
+
+The consequence is that a photo routinely arrives **after** its visit has synced and been
+submitted. Without `allow_on_submit` the picture has nowhere to go — which is exactly what Gate 3
+criterion 3 caught.
+
+**Consequences.**
+- The client-to-server name mapping has to outlive the outbox row that produced it, so
+  successful pushes write into a `names` table.
+- A replayed batch must therefore still return per-record results. It does, rebuilt from the
+  `client_uuid` unique index rather than stored on the batch — see the note in `sync._replay_results`.
+  Answering a replay with only a summary would orphan every queued photo.
+- Images are deleted from the device the moment the server confirms them. They are the heaviest
+  thing the phone holds.
+- A cancelled visit is the one case where a late photo is refused.
+
+## ADR-020 — Scope is matched against the territory tree, never by name equality
+
+**Decision.** Checklist templates, must-sell lists and every future scoped master are matched
+through `fieldmate/services/scope.py`. A scope territory covers itself **and all its
+descendants**. Blank means everywhere.
+
+**Reason.** A survey scoped to *North* must reach a shop in *North / Delhi / South Delhi*.
+Comparing names for equality silently excluded every shop not pinned to the exact node a planner
+happened to pick. Worse, Frappe fills an empty Territory link from the session's own defaults, so
+templates nobody ever scoped arrived pinned to the root and matched nothing at all — the bug
+presented as "checklists never appear", with no error anywhere.
+
+**Consequences.**
+- One module, because getting this subtly wrong in four places is how a rep ends up answering the
+  wrong survey at the right shop.
+- The phone cannot evaluate a tree it holds only leaves of, so its client-side match ignores
+  territory. That decides what the rep is *shown*; the server re-snapshots what is *recorded*.
+- The same session-default injection breaks `Customer` inserts when Selling Settings names a
+  group node, which is why test fixtures now name a non-group Customer Group explicitly rather
+  than inheriting one.
