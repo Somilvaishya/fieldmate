@@ -249,3 +249,16 @@ after_install = "fieldmate.setup.install.after_install"
 
 # The PWA is served straight from fieldmate/www/fieldmate/ and routes on the hash,
 # so no website_route_rules rewrite is needed.
+
+# ---------------------------------------------------------------------------
+# Scheduled work
+# ---------------------------------------------------------------------------
+scheduler_events = {
+	"daily": [
+		# Close days a rep forgot to end, so tomorrow starts cleanly. The record is marked
+		# Auto Closed rather than Closed: a forgotten day is not a finished one.
+		"fieldmate.tasks.close_stale_days",
+		# GPS trails track a named employee. Keep them only as long as FieldMate Settings says.
+		"fieldmate.tasks.purge_old_trails",
+	],
+}

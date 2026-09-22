@@ -1,0 +1,199 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 16:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "issingle": 1,
+ "field_order": [
+  "section_sales_model",
+  "enable_order_booking",
+  "enable_van_sales",
+  "column_sales_model",
+  "default_sales_mode",
+  "section_general",
+  "default_company",
+  "default_price_list",
+  "column_general",
+  "support_contact",
+  "section_visit",
+  "enforce_geo_fence",
+  "default_geo_fence_radius_m",
+  "allow_geo_fence_exception",
+  "column_visit",
+  "min_visit_duration_minutes",
+  "flag_mock_location",
+  "section_day",
+  "require_day_start_selfie",
+  "day_start_alert_time",
+  "column_day",
+  "auto_close_day_after_hours",
+  "gps_ping_interval_seconds",
+  "section_credit",
+  "block_order_on_credit_breach",
+  "allow_credit_override",
+  "section_sync",
+  "sync_batch_size",
+  "sync_max_retries",
+  "column_sync",
+  "photo_max_kb",
+  "photo_max_dimension_px",
+  "section_retention",
+  "gps_trail_retention_days",
+  "selfie_retention_days",
+  "column_retention",
+  "visit_photo_retention_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_sales_model",
+   "fieldtype": "Section Break",
+   "label": "Sales Model",
+   "description": "Which selling model this company runs. Both may be enabled; a rep's own setting on FieldMate Field User wins over the default."
+  },
+  {
+   "fieldname": "enable_order_booking",
+   "fieldtype": "Check",
+   "label": "Enable Order Booking",
+   "default": "1",
+   "description": "The rep books an order and the distributor delivers later. The shop is never billed directly."
+  },
+  {
+   "fieldname": "enable_van_sales",
+   "fieldtype": "Check",
+   "label": "Enable Van Sales",
+   "default": "0",
+   "description": "The rep sells and delivers from a vehicle, billing the shop on the spot. Activates outlet-level billing and credit."
+  },
+  {"fieldname": "column_sales_model", "fieldtype": "Column Break"},
+  {
+   "fieldname": "default_sales_mode",
+   "fieldtype": "Select",
+   "label": "Default Sales Mode",
+   "options": "Order Booking\nVan Sales",
+   "default": "Order Booking",
+   "reqd": 1,
+   "description": "Used for any rep who has not been given a mode of their own."
+  },
+
+  {"fieldname": "section_general", "fieldtype": "Section Break", "label": "General"},
+  {"fieldname": "default_company", "fieldtype": "Link", "label": "Default Company", "options": "Company"},
+  {"fieldname": "default_price_list", "fieldtype": "Link", "label": "Default Price List", "options": "Price List"},
+  {"fieldname": "column_general", "fieldtype": "Column Break"},
+  {
+   "fieldname": "support_contact",
+   "fieldtype": "Data",
+   "label": "Support Contact",
+   "description": "Shown in the app when a rep is stuck. A number a rep can actually reach."
+  },
+
+  {"fieldname": "section_visit", "fieldtype": "Section Break", "label": "Visit & Location"},
+  {
+   "fieldname": "enforce_geo_fence",
+   "fieldtype": "Check",
+   "label": "Enforce Geo Fence",
+   "default": "1",
+   "description": "Flag check-ins made outside the radius. Flagging, not blocking - blocking pushes reps to stop using the app."
+  },
+  {
+   "fieldname": "default_geo_fence_radius_m",
+   "fieldtype": "Int",
+   "label": "Geo Fence Radius (m)",
+   "default": "100",
+   "description": "Used when an outlet has no radius of its own."
+  },
+  {"fieldname": "allow_geo_fence_exception", "fieldtype": "Check", "label": "Allow Geo Fence Exception", "default": "1"},
+  {"fieldname": "column_visit", "fieldtype": "Column Break"},
+  {
+   "fieldname": "min_visit_duration_minutes",
+   "fieldtype": "Int",
+   "label": "Minimum Visit Duration (min)",
+   "default": "3",
+   "description": "Shorter visits are marked as short, not rejected."
+  },
+  {
+   "fieldname": "flag_mock_location",
+   "fieldtype": "Check",
+   "label": "Flag Mock Location",
+   "default": "1",
+   "description": "Record when a device reports a simulated GPS fix."
+  },
+
+  {"fieldname": "section_day", "fieldtype": "Section Break", "label": "Working Day"},
+  {"fieldname": "require_day_start_selfie", "fieldtype": "Check", "label": "Require Day Start Selfie", "default": "1"},
+  {
+   "fieldname": "day_start_alert_time",
+   "fieldtype": "Time",
+   "label": "Day Start Alert Time",
+   "default": "11:00:00",
+   "description": "Alert a manager about any rep who has not started by this time."
+  },
+  {"fieldname": "column_day", "fieldtype": "Column Break"},
+  {
+   "fieldname": "auto_close_day_after_hours",
+   "fieldtype": "Int",
+   "label": "Auto Close Day After (hours)",
+   "default": "14",
+   "description": "Close a day the rep forgot to end, so the next day can start cleanly."
+  },
+  {
+   "fieldname": "gps_ping_interval_seconds",
+   "fieldtype": "Int",
+   "label": "GPS Ping Interval (s)",
+   "default": "90",
+   "description": "Lower values drain the battery. Budget is under 20% over a nine hour day."
+  },
+
+  {"fieldname": "section_credit", "fieldtype": "Section Break", "label": "Credit"},
+  {
+   "fieldname": "block_order_on_credit_breach",
+   "fieldtype": "Check",
+   "label": "Block Order On Credit Breach",
+   "default": "1",
+   "description": "Checked against the distributor in order booking, and against the outlet in van sales."
+  },
+  {"fieldname": "allow_credit_override", "fieldtype": "Check", "label": "Allow Manager Override", "default": "1"},
+
+  {"fieldname": "section_sync", "fieldtype": "Section Break", "label": "Sync"},
+  {"fieldname": "sync_batch_size", "fieldtype": "Int", "label": "Sync Batch Size", "default": "50"},
+  {"fieldname": "sync_max_retries", "fieldtype": "Int", "label": "Max Retries", "default": "6"},
+  {"fieldname": "column_sync", "fieldtype": "Column Break"},
+  {
+   "fieldname": "photo_max_kb",
+   "fieldtype": "Int",
+   "label": "Photo Max Size (KB)",
+   "default": "120",
+   "description": "Enforced on the device and again on the server."
+  },
+  {"fieldname": "photo_max_dimension_px", "fieldtype": "Int", "label": "Photo Max Dimension (px)", "default": "1280"},
+
+  {
+   "fieldname": "section_retention",
+   "fieldtype": "Section Break",
+   "label": "Retention",
+   "description": "GPS trails and selfies track a named employee. Keep them only as long as there is a reason to."
+  },
+  {"fieldname": "gps_trail_retention_days", "fieldtype": "Int", "label": "GPS Trail Retention (days)", "default": "180"},
+  {"fieldname": "selfie_retention_days", "fieldtype": "Int", "label": "Selfie Retention (days)", "default": "30"},
+  {"fieldname": "column_retention", "fieldtype": "Column Break"},
+  {"fieldname": "visit_photo_retention_days", "fieldtype": "Int", "label": "Visit Photo Retention (days)", "default": "365"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-21 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1},
+  {"role": "FieldMate Sales Head", "read": 1},
+  {"role": "FieldMate Regional Manager", "read": 1},
+  {"role": "FieldMate Area Manager", "read": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

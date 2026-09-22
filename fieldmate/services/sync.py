@@ -45,11 +45,15 @@ def pull(user: str, since: str | None = None, doctypes: list[str] | None = None)
 		if since:
 			filters["modified"] = [">", since]
 
-		changes[entry.doctype] = frappe.get_all(
+		# frappe.get_all forces ignore_permissions=True and silently discards any value passed
+		# for it, so using it here would hand every rep every outlet on the site. get_list is
+		# the permission-respecting query, and `user` is what applies that rep's territory.
+		changes[entry.doctype] = frappe.get_list(
 			entry.doctype,
 			filters=filters,
 			fields=list(entry.pull_fields) or ["*"],
 			limit_page_length=0,
+			user=user,
 			ignore_permissions=False,
 		)
 
@@ -75,9 +79,9 @@ def push(user: str, device, batch_uuid: str, records: list[dict], app_version: s
 
 	batch = _open_batch(batch_uuid, device, user, records, app_version)
 
-	# A batch already completed is replayed from its stored results rather than re-applied.
+	# A batch already completed is answered from what is on the server rather than re-applied.
 	if batch.status in ("Completed", "Partial", "Failed") and batch.get("__already_done"):
-		return _batch_summary(batch, replayed=True)
+		return {**_batch_summary(batch, replayed=True), "results": _replay_results(records)}
 
 	results = []
 	resolved: dict[str, str] = {}  # client_uuid -> server name, within this batch
@@ -135,6 +139,11 @@ def _apply(record: dict, user: str, device, batch, resolved: dict) -> dict:
 	for owned in entry.server_owned:
 		data.pop(owned, None)
 
+	# A submittable record must go in as a draft and then be submitted, never inserted with
+	# docstatus already 1 - Frappe would take that at face value and skip before_submit
+	# entirely, which is where the visit checks it is actually finished.
+	wants_submit = cint(data.pop("docstatus", 0)) == 1 and entry.submit_on_push
+
 	data.update({"doctype": doctype, entry.uuid_field: client_uuid})
 
 	# One record per savepoint. A bad record must undo only itself — a bare rollback would
@@ -146,8 +155,11 @@ def _apply(record: dict, user: str, device, batch, resolved: dict) -> dict:
 	try:
 		doc = frappe.get_doc(data)
 		doc.insert()
+		if wants_submit:
+			doc.submit()
 		resolved[client_uuid] = doc.name
-		return {**base, "status": "created", "name": doc.name}
+		return {**base, "status": "created", "name": doc.name,
+		        "docstatus": cint(doc.docstatus)}
 
 	except frappe.DuplicateEntryError:
 		# Lost a race with a concurrent replay of the same record. Still idempotent.
@@ -238,6 +250,48 @@ def _open_batch(batch_uuid: str, device, user: str, records: list, app_version: 
 	batch.insert(ignore_permissions=True)
 	batch.set("__already_done", False)
 	return batch
+
+
+def _replay_results(records: list[dict]) -> list[dict]:
+	"""Rebuild per-record outcomes for a batch the server has already applied.
+
+	A replay is the normal end of a bad connection: the server finished the work and the
+	response never arrived, so the phone sends the identical batch again. Answering with only
+	a summary would be worse than useless - the device would never learn the server names, and
+	anything queued against them (a shelf photo waiting for its visit) would be orphaned for
+	good. The names are not stored on the batch, but they do not need to be: every record
+	carries a client_uuid with a unique index, which is exactly what it is for.
+	"""
+	results = []
+	for record in records:
+		doctype = record.get("doctype")
+		client_uuid = record.get("client_uuid")
+		entry = registry.get(doctype)
+		base = {"doctype": doctype, "client_uuid": client_uuid}
+
+		if not entry or not client_uuid:
+			results.append({**base, "status": "rejected", "code": "BAD_RECORD"})
+			continue
+
+		name = frappe.db.get_value(doctype, {entry.uuid_field: client_uuid}, "name")
+		if name:
+			results.append({**base, "status": "duplicate", "name": name,
+			                "docstatus": cint(frappe.db.get_value(doctype, name, "docstatus"))})
+			continue
+
+		conflict = frappe.db.get_value(
+			"FieldMate Sync Conflict",
+			{"client_uuid": client_uuid, "reference_doctype": doctype},
+			"name",
+		)
+		results.append({
+			**base,
+			"status": "conflict" if conflict else "rejected",
+			"conflict": conflict,
+			"code": "VALIDATION_FAILED" if conflict else "NOT_APPLIED",
+			"message": "This record did not apply on the first attempt.",
+		})
+	return results
 
 
 def _batch_summary(batch, replayed: bool = False) -> dict:

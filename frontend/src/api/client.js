@@ -81,4 +81,32 @@ export const api = {
       { device_uuid: deviceUuid, batch_uuid: batchUuid, records, app_version: appVersion },
       { post: true }),
   batchStatus: (batchUuid) => call('sync.status', { batch_uuid: batchUuid }),
+
+  outlets: (q, beat) => call('outlet.search', { q, beat, limit: 200 }),
+  outlet: (name) => call('outlet.detail', { outlet: name }),
+  createOutlet: (payload) => call('outlet.create', { payload }, { post: true }),
+  updateOutlet: (name, payload) => call('outlet.update', { outlet: name, payload }, { post: true }),
+
+  dayCurrent: () => call('day.current'),
+  dayStart: (deviceUuid, payload) =>
+    call('day.start', { device_uuid: deviceUuid, payload }, { post: true }),
+  dayEnd: (deviceUuid, payload) =>
+    call('day.end', { device_uuid: deviceUuid, payload }, { post: true }),
+  uploadPings: (deviceUuid, pings) =>
+    call('day.trail_upload', { device_uuid: deviceUuid, pings }, { post: true }),
+  todayBeat: () => call('day.today'),
+  beatOutlets: (beat) => call('day.outlets', { beat }),
+
+  checkIn: (deviceUuid, payload) =>
+    call('visit.check_in', { device_uuid: deviceUuid, payload }, { post: true }),
+  currentVisit: () => call('visit.current'),
+  saveVisitTasks: (visit, payload) =>
+    call('visit.save_tasks', { visit, payload }, { post: true }),
+  uploadPhoto: (visit, payload) =>
+    call('visit.upload_photo', { visit, payload }, { post: true }),
+  checkOut: (deviceUuid, visit, payload) =>
+    call('visit.check_out', { device_uuid: deviceUuid, visit, payload }, { post: true }),
+  visitHistory: (date) => call('visit.history', { date }),
+  checklistForms: () => call('visit.forms'),
+  noOrderReasons: () => call('visit.no_order_reasons'),
 }

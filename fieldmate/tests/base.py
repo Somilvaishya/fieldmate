@@ -24,6 +24,14 @@ class FieldMateTestCase(FrappeTestCase):
 	def tearDown(self):
 		for doctype, name in reversed(self._created):
 			try:
+				# A submitted document refuses deletion until it is cancelled. Without this
+				# every submittable doctype leaks fixtures into the next test.
+				if frappe.get_meta(doctype).is_submittable:
+					docstatus = frappe.db.get_value(doctype, name, "docstatus")
+					if docstatus == 1:
+						doc = frappe.get_doc(doctype, name)
+						doc.flags.ignore_permissions = True
+						doc.cancel()
 				frappe.delete_doc(doctype, name, force=True, ignore_permissions=True)
 			except frappe.DoesNotExistError:
 				pass

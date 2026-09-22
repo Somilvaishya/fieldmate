@@ -1,0 +1,29 @@
+{
+ "actions": [], "creation": "2026-09-22 15:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["question_code", "question", "answer_type", "options", "is_required", "sequence",
+                 "depends_on_code", "depends_on_value", "min_value", "max_value", "help_text", "photo_required"],
+ "fields": [
+  {"fieldname": "question_code", "fieldtype": "Data", "label": "Code", "reqd": 1, "in_list_view": 1, "columns": 1,
+   "description": "Stable across template versions. Answers are stored against this, so a reworded question keeps its history."},
+  {"fieldname": "question", "fieldtype": "Data", "label": "Question", "reqd": 1, "in_list_view": 1, "columns": 4},
+  {"fieldname": "answer_type", "fieldtype": "Select", "label": "Type",
+   "options": "Yes/No\nNumber\nText\nSingle Choice\nMulti Choice\nPhoto\nRating", "default": "Yes/No",
+   "reqd": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "options", "fieldtype": "Small Text", "label": "Options",
+   "description": "One per line, for the choice types."},
+  {"fieldname": "is_required", "fieldtype": "Check", "label": "Required", "in_list_view": 1, "columns": 1},
+  {"fieldname": "sequence", "fieldtype": "Int", "label": "Seq", "columns": 1},
+  {"fieldname": "depends_on_code", "fieldtype": "Data", "label": "Show If Code",
+   "description": "Only ask this when another answer matches. Keeps the form short at the counter."},
+  {"fieldname": "depends_on_value", "fieldtype": "Data", "label": "Show If Value"},
+  {"fieldname": "min_value", "fieldtype": "Float", "label": "Min"},
+  {"fieldname": "max_value", "fieldtype": "Float", "label": "Max"},
+  {"fieldname": "help_text", "fieldtype": "Data", "label": "Help"},
+  {"fieldname": "photo_required", "fieldtype": "Check", "label": "Photo Required"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Checklist Question",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

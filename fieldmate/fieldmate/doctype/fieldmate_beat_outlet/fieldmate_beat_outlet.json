@@ -1,0 +1,32 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 19:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": ["sequence", "outlet", "outlet_name", "outlet_class", "expected_duration_min", "is_mandatory", "monthly_potential", "last_visit_date"],
+ "fields": [
+  {"fieldname": "sequence", "fieldtype": "Int", "label": "Seq", "in_list_view": 1, "columns": 1,
+   "description": "Walking order. Renumbered on save so gaps never accumulate."},
+  {"fieldname": "outlet", "fieldtype": "Link", "label": "Outlet", "options": "FieldMate Outlet", "reqd": 1, "in_list_view": 1, "columns": 3},
+  {"fieldname": "outlet_name", "fieldtype": "Data", "label": "Name", "fetch_from": "outlet.outlet_name", "read_only": 1, "in_list_view": 1, "columns": 3},
+  {"fieldname": "outlet_class", "fieldtype": "Link", "label": "Class", "options": "FieldMate Outlet Class", "fetch_from": "outlet.outlet_class", "read_only": 1, "in_list_view": 1, "columns": 1},
+  {"fieldname": "expected_duration_min", "fieldtype": "Int", "label": "Mins", "in_list_view": 1, "columns": 1},
+  {"fieldname": "is_mandatory", "fieldtype": "Check", "label": "Must Visit", "in_list_view": 1, "columns": 1},
+  {"fieldname": "monthly_potential", "fieldtype": "Currency", "label": "Potential", "fetch_from": "outlet.monthly_potential", "read_only": 1},
+  {"fieldname": "last_visit_date", "fieldtype": "Date", "label": "Last Visit", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-21 19:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Beat Outlet",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

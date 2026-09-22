@@ -14,6 +14,47 @@ db.version(1).stores({
   meta: 'key',
 })
 
+// GPS pings collected while a day is open. Held here rather than in memory so a reload, a
+// backgrounded tab or a killed app does not lose the morning's trail.
+db.version(2).stores({
+  outbox: '++seq, clientUuid, doctype, state, dependsOn',
+  records: '[doctype+name], doctype, modified',
+  meta: 'key',
+  pings: '++id, t, sent',
+})
+
+// Visits and their photos.
+//
+// `visits` is the working copy a screen reads and writes while the rep is in the shop. It
+// exists even online, because a check-in that only lives on the server is a check-in that
+// vanishes when the lift doors close.
+//
+// `photos` is deliberately its own queue rather than outbox rows. A shelf photo is two orders
+// of magnitude larger than a visit record, and putting them in one FIFO means a day's records
+// sit behind a single photo crawling up a 2G link.
+//
+// `names` maps a clientUuid to the server name it was given, which is how a queued photo finds
+// the visit it belongs to once that visit has synced.
+db.version(3).stores({
+  outbox: '++seq, clientUuid, doctype, state, dependsOn',
+  records: '[doctype+name], doctype, modified',
+  meta: 'key',
+  pings: '++id, t, sent',
+  visits: 'clientUuid, serverName, outlet, visitDate, state',
+  photos: '++id, visitClientUuid, state',
+  names: 'clientUuid, name',
+})
+
+export async function rememberName(clientUuid, doctype, name) {
+  if (!clientUuid || !name) return
+  await db.names.put({ clientUuid, doctype, name })
+}
+
+export async function serverNameFor(clientUuid) {
+  const row = await db.names.get(clientUuid)
+  return row ? row.name : null
+}
+
 /** Strip anything IndexedDB cannot structured-clone.
  *
  * Vue refs hand back reactive Proxies, and a Proxy throws DataCloneError on put(). Everything

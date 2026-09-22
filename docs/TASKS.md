@@ -39,45 +39,55 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 ## Phase 1 — Masters and hierarchy · 2 weeks
 
-- [ ] 1.1 `FieldMate Settings` (single) + feature flags
-- [ ] 1.2 `FieldMate Field User` + territory User Permission generation
-- [ ] 1.3 `FieldMate Outlet Channel`, `FieldMate Outlet Class`
-- [ ] 1.4 `FieldMate Outlet` (46 fields) + `FieldMate Outlet Contact`
-- [ ] 1.5 `FieldMate Beat` + `FieldMate Beat Outlet`
-- [ ] 1.6 `FieldMate Distributor Profile`
-- [ ] 1.7 `FieldMate Product Catalogue` + `FieldMate Catalogue Item`
-- [ ] 1.8 `FieldMate Must Sell List` + `FieldMate Must Sell Item`
-- [ ] 1.9 `FieldMate Geo Fence Exception`
-- [ ] 1.10 APIs: `outlet.search`, `outlet.detail`, `outlet.create`, `outlet.update`, `outlet.approve`
-- [ ] 1.11 Bulk import templates with geo validation
-- [ ] 1.12 PWA: outlet list, Outlet 360, new-outlet onboarding, beat browse
-- [ ] **Gate 1** — verify all 4 criteria on testerp2
+- [x] 1.1 `FieldMate Settings` (single, 24 fields) + feature flags, incl.
+      `enable_order_booking`, `enable_van_sales`, `default_sales_mode` (ADR-016)
+- [x] 1.2 `FieldMate Field User` (22 fields, + `sales_mode`) + territory User Permission
+      generation
+- [x] 1.3 `FieldMate Outlet Channel` (6), `FieldMate Outlet Class` (8)
+- [x] 1.4 `FieldMate Outlet` (46 data fields) + `FieldMate Outlet Contact` — `customer` and
+      outlet credit present but refused unless van sales is on (ADR-013, ADR-016)
+- [x] 1.5 `FieldMate Beat` (18 data fields) + `FieldMate Beat Outlet` (8), plus the
+      `primary_beat` back-reference on Outlet
+- [x] 1.6 `FieldMate Distributor Profile` (20 data fields)
+- [x] 1.7 `FieldMate Product Catalogue` (12) + `FieldMate Catalogue Item` (8)
+- [x] 1.8 `FieldMate Must Sell List` (12) + `FieldMate Must Sell Item` (5)
+- [x] 1.9 `FieldMate Geo Fence Exception` (submittable, 17 data fields)
+- [x] 1.10 APIs: `outlet.search`, `outlet.detail`, `outlet.create`, `outlet.update`,
+      `outlet.approve`, plus `outlet.import_template` and `outlet.bulk_import`
+- [x] 1.11 Bulk import with per-row geo validation and dry run
+- [x] 1.12 PWA: outlet list, Outlet 360, new-outlet onboarding, beat browse
+- [x] **Gate 1 — PASSED** (21 Sep 2026)
+  - [x] 1. 5,000 outlets and 200 beats imported clean; mixed files report per row
+  - [x] 2. A rep sees only their territory — proven in tests three ways
+  - [x] 3. Field-created outlet lands Pending, visitable, not sellable
+  - [x] 4. 500-outlet pull: **8 KB gzipped**, 224 KB raw, budget 2,560 KB
+        (first measured 6,614 KB — `pull_fields` was unset, sending all 46 columns)
 
 ## Phase 2 — Journey plan and attendance · 1.5 weeks
 
-- [ ] 2.1 `FieldMate Deviation Reason`
-- [ ] 2.2 `FieldMate Journey Plan` + `FieldMate Journey Plan Day`
-- [ ] 2.3 Plan generator (frequency, week pattern, holidays, approved leave)
-- [ ] 2.4 `FieldMate Day Start`, `FieldMate Day End`
-- [ ] 2.5 `FieldMate Location Trail` (one row per rep per day)
-- [ ] 2.6 `FieldMate Attendance Summary`
-- [ ] 2.7 `Employee Checkin` write-through via compat
-- [ ] 2.8 Mock-location detection + trail plausibility
-- [ ] 2.9 APIs: `day.start`, `day.current`, `day.end`, `day.trail_upload`, `beat.today`, `beat.outlets`
-- [ ] 2.10 PWA: Day Start (selfie + GPS), Today board, Day End, background ping batching
+- [x] 2.1 `FieldMate Deviation Reason`
+- [x] 2.2 `FieldMate Journey Plan` + `FieldMate Journey Plan Day`
+- [x] 2.3 Plan generator (frequency, week pattern, holidays, approved leave)
+- [x] 2.4 `FieldMate Day Start`, `FieldMate Day End`
+- [x] 2.5 `FieldMate Location Trail` (one row per rep per day)
+- [x] 2.6 `FieldMate Attendance Summary`
+- [x] 2.7 `Employee Checkin` write-through via compat
+- [x] 2.8 Mock-location detection + trail plausibility
+- [x] 2.9 APIs: `day.start`, `day.current`, `day.end`, `day.trail_upload`, `beat.today`, `beat.outlets`
+- [x] 2.10 PWA: Day Start (selfie + GPS), Today board, Day End, background ping batching
 - [ ] **Gate 2** — verify all 5 criteria on testerp2
 
 ## Phase 3 — Visit execution · 3 weeks
 
-- [ ] 3.1 `FieldMate No Order Reason`
-- [ ] 3.2 `FieldMate Visit` (42 fields) + `FieldMate Visit Task` + `FieldMate Visit Photo`
-- [ ] 3.3 Geo-fence evaluation + exception workflow + short-visit detection
-- [ ] 3.4 `FieldMate Checklist Template` / `Question` / `Answer` with versioning
-- [ ] 3.5 `FieldMate Merchandising Audit` + `Line` + `FieldMate Competitor Capture`
-- [ ] 3.6 APIs: `visit.check_in`, `visit.save_tasks`, `visit.upload_photo`, `visit.check_out`
-- [ ] 3.7 Client-side image compression + out-of-band photo queue
-- [ ] 3.8 PWA: check-in sheet, visit hub, merchandising capture, survey renderer, no-order sheet, check-out
-- [ ] **Gate 3** — verify all 5 criteria on testerp2
+- [x] 3.1 `FieldMate No Order Reason`
+- [x] 3.2 `FieldMate Visit` (42 fields) + `FieldMate Visit Task` + `FieldMate Visit Photo`
+- [x] 3.3 Geo-fence evaluation + exception workflow + short-visit detection
+- [x] 3.4 `FieldMate Checklist Template` / `Question` / `Answer` with versioning
+- [x] 3.5 `FieldMate Merchandising Audit` + `Line` + `FieldMate Competitor Capture`
+- [x] 3.6 APIs: `visit.check_in`, `visit.save_tasks`, `visit.upload_photo`, `visit.check_out`
+- [x] 3.7 Client-side image compression + out-of-band photo queue
+- [x] 3.8 PWA: check-in sheet, visit hub, merchandising capture, survey renderer, no-order sheet, check-out
+- [x] **Gate 3** — verify all 5 criteria on testerp2
 
 ## Phase 4 — Orders and scheme engine · 3 weeks
 
@@ -95,7 +105,7 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [ ] 4.12 PWA: catalogue, cart with repeat-order prefill, scheme preview, review and submit
 - [ ] **Gate 4** — verify all 6 criteria on testerp2
 
-## Phase 5 — Secondary sales and van · 2 weeks *(scope pending decision 2)*
+## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016)*
 
 - [ ] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
 - [ ] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline

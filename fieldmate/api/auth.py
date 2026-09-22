@@ -6,6 +6,8 @@ import frappe
 
 from fieldmate import compat
 from fieldmate.api._base import API_VERSION, Err, FieldMateError, endpoint, ok
+from fieldmate.services import field_user as field_user_service
+from fieldmate.services import settings as settings_service
 
 FIELDMATE_ROLES = (
 	"FieldMate Field Rep",
@@ -71,6 +73,11 @@ def bootstrap(**kwargs):
 			"api_version": API_VERSION,
 			"server_time": str(frappe.utils.now_datetime()),
 			"capabilities": compat.capabilities(),
+			"settings": settings_service.client_settings(),
+			"field_user": field_user_service.profile(),
+			"sales_mode": settings_service.resolve_sales_mode(
+				field_user_service.for_user()
+			),
 			"versions": compat.version_report(),
 			"syncable": _syncable_manifest(),
 		}

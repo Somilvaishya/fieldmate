@@ -1,0 +1,41 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:class_name",
+ "creation": "2026-09-21 18:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["class_name", "is_active", "visits_per_month", "column_break_1", "min_monthly_potential", "max_monthly_potential", "min_visit_duration_minutes", "description"],
+ "fields": [
+  {"fieldname": "class_name", "fieldtype": "Data", "label": "Class", "reqd": 1, "unique": 1, "in_list_view": 1,
+   "description": "Grade by value, typically A to D. Drives how often the shop is visited."},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1},
+  {"fieldname": "visits_per_month", "fieldtype": "Int", "label": "Visits Per Month", "default": "4", "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "min_monthly_potential", "fieldtype": "Currency", "label": "Min Monthly Potential"},
+  {"fieldname": "max_monthly_potential", "fieldtype": "Currency", "label": "Max Monthly Potential"},
+  {"fieldname": "min_visit_duration_minutes", "fieldtype": "Int", "label": "Min Visit Duration (min)",
+   "description": "Overrides FieldMate Settings for shops of this grade. A large outlet warrants longer than a tiny one."},
+  {"fieldname": "description", "fieldtype": "Small Text", "label": "Description"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-21 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Outlet Class",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1},
+  {"role": "FieldMate Regional Manager", "read": 1},
+  {"role": "FieldMate Area Manager", "read": 1},
+  {"role": "FieldMate Field Rep", "read": 1}
+ ],
+ "sort_field": "class_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

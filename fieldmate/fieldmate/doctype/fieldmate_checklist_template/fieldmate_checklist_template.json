@@ -1,0 +1,39 @@
+{
+ "actions": [], "allow_rename": 0, "autoname": "naming_series:",
+ "creation": "2026-09-22 15:00:00.000000", "doctype": "DocType", "engine": "InnoDB",
+ "field_order": ["naming_series", "template_name", "version", "column_head", "is_active", "applies_to", "effective_from",
+   "section_scope", "territory", "channel", "column_scope", "outlet_class", "beat",
+   "section_questions", "questions", "question_count"],
+ "fields": [
+  {"fieldname": "naming_series", "fieldtype": "Select", "label": "Series", "options": "FM-CHK-.####", "default": "FM-CHK-.####", "reqd": 1},
+  {"fieldname": "template_name", "fieldtype": "Data", "label": "Template Name", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "version", "fieldtype": "Int", "label": "Version", "default": "1", "read_only": 1, "in_list_view": 1,
+   "description": "Bumped whenever the questions change. Answers record the version they were given, so an old answer is never read against a new form."},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "applies_to", "fieldtype": "Select", "label": "Applies To",
+   "options": "Every Visit\nFirst Visit Of Month\nNew Outlet Only", "default": "Every Visit", "reqd": 1},
+  {"fieldname": "effective_from", "fieldtype": "Date", "label": "Effective From"},
+  {"fieldname": "section_scope", "fieldtype": "Section Break", "label": "Where It Applies", "description": "Blank means everywhere."},
+  {"fieldname": "territory", "fieldtype": "Link", "label": "Territory", "options": "Territory"},
+  {"fieldname": "channel", "fieldtype": "Link", "label": "Channel", "options": "FieldMate Outlet Channel"},
+  {"fieldname": "column_scope", "fieldtype": "Column Break"},
+  {"fieldname": "outlet_class", "fieldtype": "Link", "label": "Outlet Class", "options": "FieldMate Outlet Class"},
+  {"fieldname": "beat", "fieldtype": "Link", "label": "Beat", "options": "FieldMate Beat"},
+  {"fieldname": "section_questions", "fieldtype": "Section Break", "label": "Questions"},
+  {"fieldname": "questions", "fieldtype": "Table", "label": "Questions", "options": "FieldMate Checklist Question"},
+  {"fieldname": "question_count", "fieldtype": "Int", "label": "Questions", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Checklist Template",
+ "naming_rule": "By \"Naming Series\" field", "owner": "Administrator", "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "write": 1, "report": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1},
+  {"role": "FieldMate Field Rep", "read": 1}
+ ],
+ "search_fields": "template_name,applies_to", "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 1
+}

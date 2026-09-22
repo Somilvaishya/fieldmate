@@ -1,4 +1,4 @@
-import { db, deviceUuid, getMeta, setMeta, putRecord } from '../db'
+import { db, deviceUuid, getMeta, setMeta, putRecord, rememberName } from '../db'
 import { api, ApiError } from '../api/client'
 
 const BATCH_SIZE = 50
@@ -7,8 +7,10 @@ const MAX_ATTEMPTS = 6
 // The client assigns identity; the server honours it. Because every record carries a
 // clientUuid with a unique index server-side, a push can be retried freely - the server
 // upserts and returns whatever it already has. No duplicates, ever.
-export async function enqueue(doctype, data, { dependsOn = null } = {}) {
-  const clientUuid = crypto.randomUUID()
+// A caller may supply the id when something already references it - a photo queued against a
+// visit holds that visit's clientUuid, and generating a fresh one here would orphan it.
+export async function enqueue(doctype, data, { dependsOn = null, clientUuid = null } = {}) {
+  clientUuid = clientUuid || crypto.randomUUID()
   await db.outbox.add({
     clientUuid,
     doctype,
@@ -69,6 +71,12 @@ export async function drain({ appVersion = '0.0.1' } = {}) {
       const r = byUuid.get(item.clientUuid)
       if (!r) continue
       if (r.status === 'created' || r.status === 'duplicate') {
+        // The server name has to outlive the outbox row: a photo queued against this visit
+        // still needs somewhere to look up what the visit ended up being called.
+        await rememberName(item.clientUuid, item.doctype, r.name)
+        if (item.doctype === 'FieldMate Visit') {
+          await db.visits.update(item.clientUuid, { serverName: r.name })
+        }
         await db.outbox.delete(item.seq)
       } else if (r.status === 'held') {
         await db.outbox.update(item.seq, {

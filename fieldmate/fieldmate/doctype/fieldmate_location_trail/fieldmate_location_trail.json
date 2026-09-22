@@ -1,0 +1,40 @@
+{
+ "actions": [], "allow_rename": 0, "autoname": "hash",
+ "creation": "2026-09-22 09:00:00.000000", "doctype": "DocType", "engine": "InnoDB",
+ "field_order": ["field_user", "trail_date", "column_head", "day_start", "device_id",
+   "section_summary", "ping_count", "first_ping_on", "last_ping_on", "column_summary",
+   "total_distance_km", "max_speed_kmph", "implausible_jumps", "mock_ping_count",
+   "section_trail", "trail"],
+ "fields": [
+  {"fieldname": "field_user", "fieldtype": "Link", "label": "Field User", "options": "FieldMate Field User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "trail_date", "fieldtype": "Date", "label": "Date", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "day_start", "fieldtype": "Link", "label": "Day Start", "options": "FieldMate Day Start"},
+  {"fieldname": "device_id", "fieldtype": "Link", "label": "Device", "options": "FieldMate Device Registry"},
+  {"fieldname": "section_summary", "fieldtype": "Section Break", "label": "Summary"},
+  {"fieldname": "ping_count", "fieldtype": "Int", "label": "Pings", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "first_ping_on", "fieldtype": "Datetime", "label": "First Ping", "read_only": 1},
+  {"fieldname": "last_ping_on", "fieldtype": "Datetime", "label": "Last Ping", "read_only": 1},
+  {"fieldname": "column_summary", "fieldtype": "Column Break"},
+  {"fieldname": "total_distance_km", "fieldtype": "Float", "label": "Distance (km)", "read_only": 1, "precision": "2", "in_list_view": 1},
+  {"fieldname": "max_speed_kmph", "fieldtype": "Float", "label": "Max Speed (km/h)", "read_only": 1, "precision": "1"},
+  {"fieldname": "implausible_jumps", "fieldtype": "Int", "label": "Implausible Jumps", "read_only": 1,
+   "description": "Segments faster than a vehicle could travel. A count above zero is worth a look, not an accusation - GPS drifts indoors."},
+  {"fieldname": "mock_ping_count", "fieldtype": "Int", "label": "Mock Pings", "read_only": 1},
+  {"fieldname": "section_trail", "fieldtype": "Section Break", "label": "Trail"},
+  {"fieldname": "trail", "fieldtype": "Long Text", "label": "Trail (JSON)",
+   "description": "The whole day's path on one row. At 250 reps pinging every 90 seconds, a row per ping would add roughly 30 million rows a year; this adds 65 thousand."}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 09:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Location Trail",
+ "owner": "Administrator", "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "FieldMate Field Rep", "read": 1}
+ ],
+ "search_fields": "field_user,trail_date", "sort_field": "trail_date", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

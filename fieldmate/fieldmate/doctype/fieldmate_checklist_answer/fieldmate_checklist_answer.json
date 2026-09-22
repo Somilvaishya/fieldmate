@@ -1,0 +1,26 @@
+{
+ "actions": [], "creation": "2026-09-22 15:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["question_code", "question", "answer_type", "answer", "answer_number", "is_answered", "photo",
+                 "template", "template_version", "is_required", "sequence"],
+ "fields": [
+  {"fieldname": "question_code", "fieldtype": "Data", "label": "Code", "reqd": 1, "in_list_view": 1, "columns": 1},
+  {"fieldname": "question", "fieldtype": "Data", "label": "Question", "read_only": 1, "in_list_view": 1, "columns": 4,
+   "description": "Copied at the time of asking, so the record still reads correctly after the template is reworded."},
+  {"fieldname": "answer_type", "fieldtype": "Data", "label": "Type", "read_only": 1, "columns": 1},
+  {"fieldname": "answer", "fieldtype": "Small Text", "label": "Answer", "in_list_view": 1, "columns": 3},
+  {"fieldname": "answer_number", "fieldtype": "Float", "label": "Value", "in_list_view": 1, "columns": 1,
+   "description": "Numeric answers land here too, so reports never parse text."},
+  {"fieldname": "is_answered", "fieldtype": "Check", "label": "Answered", "read_only": 1,
+   "description": "Set when the rep actually gave an answer. A Float column stores an unset value as 0, and 0 is itself a valid answer - 'zero facings' and 'never asked' would otherwise be the same record."},
+  {"fieldname": "photo", "fieldtype": "Attach Image", "label": "Photo"},
+  {"fieldname": "template", "fieldtype": "Link", "label": "Template", "options": "FieldMate Checklist Template", "read_only": 1},
+  {"fieldname": "template_version", "fieldtype": "Int", "label": "Version", "read_only": 1},
+  {"fieldname": "is_required", "fieldtype": "Check", "label": "Required", "read_only": 1},
+  {"fieldname": "sequence", "fieldtype": "Int", "label": "Seq", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Checklist Answer",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

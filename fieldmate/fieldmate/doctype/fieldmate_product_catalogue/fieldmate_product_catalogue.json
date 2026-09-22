@@ -1,0 +1,34 @@
+{
+ "actions": [], "allow_rename": 0, "autoname": "field:catalogue_name",
+ "creation": "2026-09-21 20:00:00.000000", "doctype": "DocType", "engine": "InnoDB",
+ "field_order": ["catalogue_name", "is_active", "column_head", "territory", "channel", "outlet_class",
+   "section_validity", "valid_from", "column_validity", "valid_to",
+   "section_items", "items", "item_count"],
+ "fields": [
+  {"fieldname": "catalogue_name", "fieldtype": "Data", "label": "Catalogue Name", "reqd": 1, "unique": 1, "in_list_view": 1},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "territory", "fieldtype": "Link", "label": "Territory", "options": "Territory", "description": "Blank means everywhere."},
+  {"fieldname": "channel", "fieldtype": "Link", "label": "Channel", "options": "FieldMate Outlet Channel", "description": "Blank means every channel."},
+  {"fieldname": "outlet_class", "fieldtype": "Link", "label": "Outlet Class", "options": "FieldMate Outlet Class"},
+  {"fieldname": "section_validity", "fieldtype": "Section Break", "label": "Validity"},
+  {"fieldname": "valid_from", "fieldtype": "Date", "label": "Valid From", "in_list_view": 1},
+  {"fieldname": "column_validity", "fieldtype": "Column Break"},
+  {"fieldname": "valid_to", "fieldtype": "Date", "label": "Valid To"},
+  {"fieldname": "section_items", "fieldtype": "Section Break", "label": "Items"},
+  {"fieldname": "items", "fieldtype": "Table", "label": "Items", "options": "FieldMate Catalogue Item"},
+  {"fieldname": "item_count", "fieldtype": "Int", "label": "Items", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-21 20:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Product Catalogue",
+ "naming_rule": "By fieldname", "owner": "Administrator", "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "write": 1, "report": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1},
+  {"role": "FieldMate Field Rep", "read": 1}
+ ],
+ "search_fields": "territory,channel", "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 1
+}

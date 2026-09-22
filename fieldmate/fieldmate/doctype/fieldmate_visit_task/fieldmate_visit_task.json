@@ -1,0 +1,22 @@
+{
+ "actions": [], "creation": "2026-09-22 15:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["task", "task_type", "status", "is_mandatory", "completed_on", "reference_doctype", "reference_name", "note"],
+ "fields": [
+  {"fieldname": "task", "fieldtype": "Data", "label": "Task", "reqd": 1, "in_list_view": 1, "columns": 3},
+  {"fieldname": "task_type", "fieldtype": "Select", "label": "Type",
+   "options": "Checklist\nStock Audit\nMerchandising\nCompetitor\nOrder\nCollection\nOther",
+   "default": "Other", "in_list_view": 1, "columns": 2},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Pending\nDone\nSkipped",
+   "default": "Pending", "in_list_view": 1, "columns": 2},
+  {"fieldname": "is_mandatory", "fieldtype": "Check", "label": "Must Do", "in_list_view": 1, "columns": 1},
+  {"fieldname": "completed_on", "fieldtype": "Datetime", "label": "Done At", "read_only": 1},
+  {"fieldname": "reference_doctype", "fieldtype": "Link", "label": "Ref DocType", "options": "DocType", "read_only": 1},
+  {"fieldname": "reference_name", "fieldtype": "Dynamic Link", "label": "Reference", "options": "reference_doctype", "read_only": 1},
+  {"fieldname": "note", "fieldtype": "Data", "label": "Note"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Visit Task",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

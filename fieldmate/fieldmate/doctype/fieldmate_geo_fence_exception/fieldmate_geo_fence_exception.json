@@ -1,0 +1,43 @@
+{
+ "actions": [], "allow_rename": 0, "autoname": "naming_series:",
+ "creation": "2026-09-21 20:00:00.000000", "doctype": "DocType", "engine": "InnoDB",
+ "is_submittable": 1,
+ "field_order": ["naming_series", "outlet", "field_user", "column_head", "exception_date", "status", "distance_m",
+   "section_evidence", "reason", "latitude", "column_evidence", "longitude", "accuracy_m",
+   "section_decision", "approved_by", "column_decision", "decided_on", "decision_notes", "amended_from"],
+ "fields": [
+  {"fieldname": "naming_series", "fieldtype": "Select", "label": "Series", "options": "FM-GFE-.#####", "default": "FM-GFE-.#####", "reqd": 1},
+  {"fieldname": "outlet", "fieldtype": "Link", "label": "Outlet", "options": "FieldMate Outlet", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "field_user", "fieldtype": "Link", "label": "Field User", "options": "FieldMate Field User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "exception_date", "fieldtype": "Date", "label": "Date", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Pending\nApproved\nRejected", "default": "Pending", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "distance_m", "fieldtype": "Float", "label": "Distance From Outlet (m)", "reqd": 1, "in_list_view": 1,
+   "description": "How far outside the fence the check-in was. Recomputed server-side, never taken from the device."},
+  {"fieldname": "section_evidence", "fieldtype": "Section Break", "label": "Evidence"},
+  {"fieldname": "reason", "fieldtype": "Small Text", "label": "Reason", "reqd": 1,
+   "description": "Why the rep was not at the shop. Shop moved, GPS drift indoors, wrong pin on the master."},
+  {"fieldname": "latitude", "fieldtype": "Float", "label": "Latitude", "precision": "8"},
+  {"fieldname": "column_evidence", "fieldtype": "Column Break"},
+  {"fieldname": "longitude", "fieldtype": "Float", "label": "Longitude", "precision": "8"},
+  {"fieldname": "accuracy_m", "fieldtype": "Float", "label": "GPS Accuracy (m)"},
+  {"fieldname": "section_decision", "fieldtype": "Section Break", "label": "Decision"},
+  {"fieldname": "approved_by", "fieldtype": "Link", "label": "Decided By", "options": "User", "read_only": 1},
+  {"fieldname": "column_decision", "fieldtype": "Column Break"},
+  {"fieldname": "decided_on", "fieldtype": "Datetime", "label": "Decided On", "read_only": 1},
+  {"fieldname": "decision_notes", "fieldtype": "Small Text", "label": "Decision Notes"},
+  {"fieldname": "amended_from", "fieldtype": "Link", "label": "Amended From", "options": "FieldMate Geo Fence Exception", "read_only": 1, "no_copy": 1, "print_hide": 1}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-21 20:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Geo Fence Exception",
+ "naming_rule": "By \"Naming Series\" field", "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "submit": 1, "cancel": 1, "amend": 1, "report": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "submit": 1, "cancel": 1, "report": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "write": 1, "submit": 1, "report": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "write": 1, "submit": 1, "report": 1},
+  {"role": "FieldMate Field Rep", "read": 1, "create": 1, "if_owner": 1}
+ ],
+ "search_fields": "outlet,field_user,status", "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 1
+}
