@@ -41,6 +41,8 @@ writes into HRMS, so it exercises the compat layer for real.
   drafted. `scripts/ci-local.sh` covers gates meanwhile.
 - `developer_mode` is off on testerp2. Not needed while DocTypes are authored as JSON on disk,
   but required to edit them through the Desk UI.
+- **hrms 15.62.1 installed on testerp2** on 22 Sep 2026, so the attendance mirror is exercised
+  rather than skipped. A database backup was taken first.
 - v16/v17 compatibility is **unverified** (ADR-015). Do not claim it.
 - Test accounts on testerp2: `rep1@fieldmate.test` and `mgr1@fieldmate.test`, both
   `FieldMate@2026`. Test-site credentials, not for production.

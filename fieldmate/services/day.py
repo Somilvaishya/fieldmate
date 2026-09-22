@@ -139,7 +139,8 @@ def end(field_user: str, payload: dict) -> dict:
 	doc.submit()
 
 	start_doc.db_set("status", "Closed", update_modified=False)
-	mirror_to_hrms(start_doc, "OUT", timestamp=end_time, day_end=doc.name)
+	mirror_to_hrms(start_doc, "OUT", timestamp=end_time, day_end=doc.name,
+	               latitude=doc.latitude, longitude=doc.longitude)
 	write_attendance_summary(field_user, start_doc, doc)
 
 	return {"day_end": doc.name, "created": True, "duration_hours": doc.duration_hours,
@@ -188,8 +189,13 @@ def day_counts(field_user: str, date) -> dict:
 	return counts
 
 
-def mirror_to_hrms(day_start, log_type: str, timestamp=None, day_end: str | None = None) -> str | None:
+def mirror_to_hrms(day_start, log_type: str, timestamp=None, day_end: str | None = None,
+                   latitude=None, longitude=None) -> str | None:
 	"""Mirror the day into HRMS attendance when HRMS is installed.
+
+	Coordinates are passed in rather than read off the Day Start, because an OUT log happens
+	wherever the rep finished — often a different town. Recording the morning's position on the
+	evening's checkin would quietly tell HR that everyone ends where they began.
 
 	Absent HRMS this is a no-op by design — FieldMate must run on a bench that has no HR module,
 	and a missing mirror is not a reason to refuse a rep their day.
@@ -202,17 +208,15 @@ def mirror_to_hrms(day_start, log_type: str, timestamp=None, day_end: str | None
 		employee=employee,
 		log_type=log_type,
 		timestamp=timestamp or day_start.start_time,
-		latitude=day_start.latitude,
-		longitude=day_start.longitude,
+		latitude=day_start.latitude if latitude is None else latitude,
+		longitude=day_start.longitude if longitude is None else longitude,
 		device_id=day_start.device_id,
 	)
 	if not name:
 		return None
 
-	target, field = (day_start, "employee_checkin")
-	if day_end:
-		target = frappe.get_doc("FieldMate Day End", day_end)
-	target.db_set(field, name, update_modified=False)
+	target = frappe.get_doc("FieldMate Day End", day_end) if day_end else day_start
+	target.db_set("employee_checkin", name, update_modified=False)
 	return name
 
 
