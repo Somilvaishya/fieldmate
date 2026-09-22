@@ -7,12 +7,36 @@ from fieldmate.tests.test_field_user import FieldUserFixture
 
 
 class OutletFixture(FieldUserFixture):
+	def leaf_customer_group(self) -> str:
+		"""A non-group Customer Group, named rather than inherited.
+
+		Left unset, ERPNext fills it from Selling Settings, and on a site whose default is the
+		root node ("All Customer Groups") every Customer insert throws. That made the whole
+		suite depend on one piece of site configuration nobody here owns.
+		"""
+		existing = frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+		if existing:
+			return existing
+
+		doc = frappe.get_doc({
+			"doctype": "Customer Group",
+			"customer_group_name": self.uid("CG"),
+			"parent_customer_group": frappe.db.get_value(
+				"Customer Group", {"is_group": 1, "parent_customer_group": ("in", ("", None))},
+				"name",
+			),
+			"is_group": 0,
+		}).insert(ignore_permissions=True)
+		self.track("Customer Group", doc.name)
+		return doc.name
+
 	def make_distributor(self):
 		name = self.uid("DIST")
 		doc = frappe.get_doc({
 			"doctype": "Customer",
 			"customer_name": name,
 			"customer_type": "Company",
+			"customer_group": self.leaf_customer_group(),
 		}).insert(ignore_permissions=True)
 		self.track("Customer", doc.name)
 		return doc.name
