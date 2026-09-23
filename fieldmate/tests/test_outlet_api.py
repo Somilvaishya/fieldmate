@@ -111,6 +111,71 @@ class TestOutletService(OutletFixture):
 		self.assertFalse(second["created"])
 		self.assertEqual(first["name"], second["name"])
 
+	# ---------------------------------------------------------------- distributor
+	#
+	# The app never sends a distributor - a rep at a doorstep is not asked to pick one, and a
+	# dropdown of every customer in the company is the wrong thing to hand somebody on a phone.
+	# Every test above passes one explicitly, which is precisely why the real payload was never
+	# exercised and a raw `[FieldMate Outlet, FM-OUT-05153]: distributor` reached a phone screen.
+
+	def bare_payload(self, **kwargs):
+		data = {"outlet_name": self.uid("NEW"), "mobile_no": "9800000199"}
+		data.update(kwargs)
+		return data
+
+	def test_a_rep_with_no_distributor_is_told_what_to_do(self):
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.as_user(self.rep.user, outlet_service.create, self.bare_payload())
+		message = frappe.utils.strip_html(str(ctx.exception))
+		self.assertIn("not linked to a distributor", message)
+		# The thing that must never happen again: a framework error on a rep's screen.
+		self.assertNotIn("FieldMate Outlet,", message)
+
+	def test_the_reps_own_distributor_is_used_when_the_app_sends_none(self):
+		self.rep.distributor = self.mine.distributor
+		self.rep.save(ignore_permissions=True)
+		frappe.db.commit()
+
+		result = self.as_user(self.rep.user, outlet_service.create, self.bare_payload())
+		self.track("FieldMate Outlet", result["name"])
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Outlet", result["name"], "distributor"),
+			self.mine.distributor,
+		)
+
+	def test_a_single_distributor_serving_the_territory_is_inferred(self):
+		profile = frappe.get_doc({
+			"doctype": "FieldMate Distributor Profile",
+			"customer": self.mine.distributor,
+			"territory": self.delhi,
+			"status": "Active",
+		}).insert(ignore_permissions=True)
+		self.track("FieldMate Distributor Profile", profile.name)
+		frappe.db.commit()
+
+		result = self.as_user(self.rep.user, outlet_service.create, self.bare_payload())
+		self.track("FieldMate Outlet", result["name"])
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Outlet", result["name"], "distributor"),
+			self.mine.distributor,
+		)
+
+	def test_two_distributors_on_one_territory_is_not_guessed_at(self):
+		"""Picking one at random would put the shop's orders on the wrong ledger."""
+		for _ in range(2):
+			profile = frappe.get_doc({
+				"doctype": "FieldMate Distributor Profile",
+				"customer": self.make_distributor(),
+				"territory": self.delhi,
+				"status": "Active",
+			}).insert(ignore_permissions=True)
+			self.track("FieldMate Distributor Profile", profile.name)
+		frappe.db.commit()
+
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.as_user(self.rep.user, outlet_service.create, self.bare_payload())
+		self.assertIn("More than one distributor", str(ctx.exception))
+
 	def test_rep_without_permission_cannot_onboard(self):
 		self.rep.can_create_outlet = 0
 		self.rep.save(ignore_permissions=True)

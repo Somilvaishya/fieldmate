@@ -99,6 +99,47 @@ def detail(outlet: str, user: str | None = None) -> dict:
 	}
 
 
+def resolve_distributor(payload: dict, rep) -> str:
+	"""Which distributor this new shop belongs to.
+
+	A rep standing at a doorstep is not asked to pick one - they should not have to know, and a
+	dropdown of every customer in the company is the wrong thing to hand somebody on a phone.
+	So it is inferred, in order of how sure we can be:
+
+	  1. what the app sent, if it sent anything
+	  2. the distributor on the rep's own record
+	  3. the one distributor serving the rep's territory, but only if there is exactly one
+
+	If none of those settle it, we stop here with a sentence a rep can act on. Letting it fall
+	through produced `[FieldMate Outlet, FM-OUT-05153]: distributor` on a phone screen - a raw
+	framework error naming a document that was never saved.
+	"""
+	explicit = payload.get("distributor") or (rep.distributor if rep else None)
+	if explicit:
+		return explicit
+
+	territory = payload.get("territory") or (rep.territory if rep else None)
+	if territory:
+		serving = frappe.get_all(
+			"FieldMate Distributor Profile",
+			filters={"territory": territory, "status": "Active"},
+			pluck="customer",
+			limit_page_length=2,
+		)
+		if len(serving) == 1:
+			return serving[0]
+		if len(serving) > 1:
+			frappe.throw(frappe._(
+				"More than one distributor covers your area, so we cannot tell which one this "
+				"shop belongs to. Ask your manager to set yours."
+			))
+
+	frappe.throw(frappe._(
+		"Your account is not linked to a distributor yet, so a new shop has nowhere to belong. "
+		"Ask your manager to set it on your FieldMate user."
+	))
+
+
 def create(payload: dict, user: str | None = None) -> dict:
 	"""Field onboarding. Always lands unapproved, whatever the payload claims."""
 	user = user or frappe.session.user
@@ -116,7 +157,7 @@ def create(payload: dict, user: str | None = None) -> dict:
 	data = {k: v for k, v in payload.items() if k in REP_EDITABLE}
 	data.update({
 		"doctype": "FieldMate Outlet",
-		"distributor": payload.get("distributor") or (rep.distributor if rep else None),
+		"distributor": resolve_distributor(payload, rep),
 		"territory": payload.get("territory") or (rep.territory if rep else None),
 		"client_uuid": client_uuid,
 		"created_offline": cint(payload.get("created_offline")),

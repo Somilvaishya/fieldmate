@@ -46,6 +46,53 @@ class TestEnvelope(FieldMateTestCase):
 			_base.parse_json("{not json", "x")
 
 
+class TestReadableErrors(FieldMateTestCase):
+	"""Every message from the API is read on a phone, in a market, with no support line.
+
+	A raw MandatoryError reached a real screen during Phase 3 testing - the rep saw
+	`[FieldMate Outlet, FM-OUT-05153]: distributor` and could do nothing with it. This guards
+	every endpoint at once, because the translation lives in the decorator.
+	"""
+
+	def test_a_mandatory_error_becomes_a_sentence(self):
+		message = _base.readable(
+			frappe.MandatoryError("[FieldMate Outlet, FM-OUT-05153]: distributor")
+		)
+		self.assertNotIn("[", message)
+		self.assertNotIn("FM-OUT-05153", message)
+		self.assertTrue(message.endswith("is required."), message)
+
+	def test_the_field_label_is_used_not_the_column_name(self):
+		message = _base.readable(
+			frappe.MandatoryError("[FieldMate Outlet, FM-OUT-00001]: mobile_no")
+		)
+		self.assertIn("Mobile", message)
+		self.assertNotIn("mobile_no", message)
+
+	def test_several_missing_fields_are_listed(self):
+		message = _base.readable(
+			frappe.MandatoryError("[FieldMate Outlet, new]: outlet_name, mobile_no")
+		)
+		self.assertIn("These are required:", message)
+		self.assertIn("Mobile", message)
+
+	def test_an_unknown_doctype_still_degrades_to_words(self):
+		"""A message we cannot decode is still better than one we invent."""
+		message = _base.readable(frappe.MandatoryError("[No Such DocType, x]: some_field"))
+		self.assertIn("some field", message)
+
+	def test_our_own_messages_pass_through_untouched(self):
+		ours = "Start your day before visiting a shop."
+		self.assertEqual(_base.readable(frappe.ValidationError(ours)), ours)
+
+	def test_html_is_stripped(self):
+		message = _base.readable(frappe.ValidationError("Row <b>3</b>: fix this"))
+		self.assertEqual(message, "Row 3: fix this")
+
+	def test_an_empty_error_still_says_something(self):
+		self.assertTrue(_base.readable(frappe.ValidationError("")))
+
+
 class TestDeviceResolution(FieldMateTestCase):
 	def test_unknown_device_is_rejected(self):
 		with self.assertRaises(_base.FieldMateError) as ctx:
