@@ -116,6 +116,43 @@ register(Syncable(doctype="FieldMate Outlet Class", push=False, pull=True,
                   pull_fields=("name", "class_name", "is_active", "visits_per_month",
                                "min_visit_duration_minutes")))
 
+# ---------------------------------------------------------------------------- the day
+#
+# A day captured with no signal has to land like anything else. Without these two entries a
+# rep who started their day in a village kept nothing: the API call failed, nothing was
+# queued, and every visit afterwards was refused because the server had no open day. The
+# visit's `day_start` link resolves through `depends_on`, so a queued day and the visits
+# that hang off it can travel in the same batch.
+register(
+	Syncable(
+		doctype="FieldMate Day Start",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		server_owned=("employee_checkin", "synced_at", "journey_plan", "planned_beat"),
+	)
+)
+
+register(
+	Syncable(
+		doctype="FieldMate Day End",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		depends_on=("day_start",),
+		# Everything the day produced is counted from the records on the server. A phone
+		# that has been offline all day cannot know what finally synced.
+		server_owned=(
+			"employee_checkin", "synced_at", "duration_hours", "distance_km", "coverage_pct",
+			"planned_visits", "actual_visits", "productive_visits", "new_outlets",
+			"orders_count", "order_value", "collection_amount",
+		),
+	)
+)
+
+
 # ---------------------------------------------------------------------------- Phase 3
 # A visit is pushed, never pulled. The phone that recorded it already has it, and a rep has no
 # reason to download somebody else's visits - that is a manager's report, not a field master.

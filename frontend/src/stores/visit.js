@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client'
 import { db, deviceUuid, getMeta, setMeta, rememberName } from '../db'
 import { enqueue } from '../sync/outbox'
 import * as photoQueue from '../sync/photos'
+import * as dayStore from './day'
 
 // The visit the rep is standing in, if any.
 export const activeVisit = ref(null)
@@ -96,17 +97,35 @@ async function buildChecklist(outlet) {
 
 // --------------------------------------------------------------------------- check in
 
+/** The visit to come back to after an app restart.
+ *
+ * `.first()` on an index returns an arbitrary row, so a phone that somehow held two open
+ * visits could resume the shop the rep had already walked out of. The newest wins, and any
+ * older one is closed the way `check_in` closes a forgotten visit on the server.
+ */
 export async function resume() {
-  const open = await db.visits.where('state').equals('open').first()
-  activeVisit.value = open || null
+  const open = await db.visits.where('state').equals('open').toArray()
+  if (!open.length) {
+    activeVisit.value = null
+    return null
+  }
+  open.sort((a, b) => String(b.checkInTime).localeCompare(String(a.checkInTime)))
+  for (const stale of open.slice(1)) {
+    await db.visits.update(stale.clientUuid, { state: 'abandoned' })
+  }
+  activeVisit.value = open[0]
   return activeVisit.value
 }
 
 export async function checkIn(outlet, { fix = {}, deviationNote = null } = {}) {
   const clientUuid = crypto.randomUUID()
+  // Which day this visit belongs to. Offline that is the queued day's client id, which
+  // sync._apply resolves through depends_on once the day itself lands.
+  const dayRef = dayStore.openDay.value?.day_start || null
   const local = {
     clientUuid,
     serverName: null,
+    dayStart: dayRef,
     outlet: outlet.name,
     outletName: outlet.outlet_name || outlet.name,
     visitDate: todayStamp(),
@@ -264,6 +283,7 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
   if (visit.serverName) {
     try {
       const device = await deviceUuid()
+      // eslint-disable-next-line no-unused-vars
       const closed = await api.checkOut(device, visit.serverName, {
         visit_outcome: outcome,
         no_order_reason: noOrderReason,
@@ -279,7 +299,15 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
       await finish(visit)
       return closed
     } catch (e) {
-      if (!isOffline(e)) throw e
+      // A validation error is the rep's to fix now - a missing reason, an unanswered
+      // question - so it is raised and the visit stays open. Anything else (the network,
+      // the server, an expired session) falls through to the queue rather than stranding
+      // a rep with a finished visit and nowhere to put it.
+      if (e instanceof ApiError && e.code === 'VALIDATION_FAILED') {
+        visit.state = 'open'
+        visit.checkOutTime = null
+        throw e
+      }
     }
   }
 
@@ -288,6 +316,7 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
   // that lands as a pile of drafts is a day of work that no report will count.
   await enqueue('FieldMate Visit', {
     docstatus: 1,
+    day_start: visit.dayStart || undefined,
     outlet: visit.outlet,
     visit_date: visit.visitDate,
     check_in_time: visit.checkInTime,
@@ -312,7 +341,7 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
         answer_number: q.answer_number,
         is_answered: 1,
       })),
-  }, { clientUuid: visit.clientUuid })
+  }, { clientUuid: visit.clientUuid, dependsOn: visit.dayStart || null })
 
   await finish(visit)
   return { offline: true }
