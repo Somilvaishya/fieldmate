@@ -113,7 +113,7 @@ def mark_only(img, background, margin=45):
 
 def maskable(mark, size, background):
     """Full-bleed background with the mark centred inside the safe zone."""
-    canvas = Image.new("RGBA", (size, size), background + (255,))
+    canvas = Image.new("RGBA", (size, size), (*background, 255))
     budget = int(size * SAFE_ZONE)
     scale = budget / max(mark.size)
     inner = mark.resize(

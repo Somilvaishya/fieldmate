@@ -30,8 +30,12 @@ export default defineConfig({
         name: 'FieldMate',
         short_name: 'FieldMate',
         description: 'Field sales for distribution teams',
-        theme_color: '#004ac6',
-        background_color: '#faf8ff',
+        // Both taken from the brand mark, via frontend/scripts/make-palette.py.
+        // theme_color tints the Android toolbar in standalone mode; background_color is the
+        // splash the launcher paints before the app has drawn anything, so it must match
+        // --bg or the app appears to flash on every cold start.
+        theme_color: '#092850',
+        background_color: '#f4f5f7',
         display: 'standalone',
         orientation: 'portrait',
         // /assets/ has no directory index: /assets/fieldmate/pwa/ returns 404 and only
