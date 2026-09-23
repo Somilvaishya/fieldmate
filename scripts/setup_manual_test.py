@@ -276,7 +276,7 @@ def show_state():
               f"pin={'yes' if o['latitude'] else 'NO PIN'}")
 
     s = frappe.get_single("FieldMate Settings")
-    print(f"\n  Settings that shape the test:")
+    print("\n  Settings that shape the test:")
     print(f"      geo-fence enforced        {bool(s.enforce_geo_fence)}")
     print(f"      default fence radius      {s.default_geo_fence_radius_m} m")
     print(f"      exceptions allowed        {bool(s.allow_geo_fence_exception)}")
