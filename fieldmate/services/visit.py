@@ -551,6 +551,8 @@ def summarise(doc) -> dict:
 				"photo": a.photo,
 				"is_required": bool(a.is_required),
 				"sequence": cint(a.sequence),
+				"template": a.template,
+				"template_version": cint(a.template_version),
 				**question_spec(a.template, a.question_code),
 			}
 			for a in sorted(doc.checklist_answers or [], key=lambda r: cint(r.sequence))
