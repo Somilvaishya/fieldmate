@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { db } from '../db'
 import { enqueue } from '../sync/outbox'
 import * as visitStore from '../stores/visit'
+import Icon from '../components/Icon.vue'
 
 const router = useRouter()
 const visit = visitStore.activeVisit
@@ -11,19 +12,23 @@ const lines = ref([])
 const competitors = ref([])
 const shelfTotal = ref('')
 const busy = ref(false)
-const saved = ref(false)
 
 const ourFacings = computed(() =>
-  lines.value.reduce((sum, l) => sum + (Number(l.facings) || 0), 0))
+  lines.value.reduce((sum, l) => sum + (l.is_available ? Number(l.facings) || 0 : 0), 0))
 const theirFacings = computed(() =>
   competitors.value.reduce((sum, c) => sum + (Number(c.facings) || 0), 0))
 
-// Shown so the rep can sanity-check it on the spot; the server computes the figure that is
-// actually recorded, from the same rows.
-const share = computed(() => {
-  const total = Math.max(Number(shelfTotal.value) || 0, ourFacings.value + theirFacings.value)
-  return total ? Math.round((ourFacings.value / total) * 1000) / 10 : 0
-})
+// The rep may count the whole shelf directly - faster than listing every rival on a crowded
+// one. Their figure wins when it is at least as large as what we can see; anything smaller
+// is arithmetically impossible. The same rule the server applies, so the number shown here
+// is the number that gets recorded.
+const wholeShelf = computed(() =>
+  Math.max(Number(shelfTotal.value) || 0, ourFacings.value + theirFacings.value))
+
+const share = computed(() =>
+  wholeShelf.value ? Math.round((ourFacings.value / wholeShelf.value) * 1000) / 10 : 0)
+
+const present = computed(() => lines.value.filter((l) => l.is_available).length)
 
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
@@ -36,27 +41,43 @@ onMounted(async () => {
     shelfTotal.value = draft.value.shelfTotal || ''
     return
   }
-  // Seed with the catalogue this phone already holds, so the rep ticks rather than types.
+  // Seeded from the catalogue this phone already holds, so the rep ticks rather than types.
   const items = await db.records.where('doctype').equals('FieldMate Catalogue Item').toArray()
   lines.value = items.slice(0, 60).map((i) => ({
     item_code: i.item_code || i.name,
     item_name: i.item_name || i.item_code || i.name,
+    mrp: i.mrp || null,
     is_available: 0,
     facings: 0,
-    shelf_position: '',
   }))
 })
 
+function toggle(line) {
+  line.is_available = line.is_available ? 0 : 1
+  // Ticking a product means at least one facing; unticking means none, not "unknown".
+  line.facings = line.is_available ? Math.max(1, Number(line.facings) || 0) : 0
+  keep()
+}
+
+function step(row, delta) {
+  row.facings = Math.max(0, (Number(row.facings) || 0) + delta)
+  if (delta > 0 && row.is_available === 0) row.is_available = 1
+  keep()
+}
+
 function addCompetitor() {
-  competitors.value.push({ competitor: '', product: '', mrp: null, selling_price: null,
-                           facings: 0, has_scheme: 0, scheme_note: '' })
+  competitors.value.push({
+    competitor: '', product: '', selling_price: null, facings: 1, has_scheme: 0, scheme_note: '',
+  })
 }
 
 function removeCompetitor(index) {
   competitors.value.splice(index, 1)
+  keep()
 }
 
 async function keep() {
+  if (!visit.value) return
   await db.meta.put({
     key: 'merch:' + visit.value.clientUuid,
     value: JSON.parse(JSON.stringify({
@@ -73,7 +94,7 @@ async function save() {
       docstatus: 1,
       outlet: visit.value.outlet,
       audit_date: visit.value.visitDate,
-      total_facings: Number(shelfTotal.value) || 0,
+      total_facings: wholeShelf.value,
       created_offline: 1,
       lines: lines.value
         .filter((l) => l.is_available || Number(l.facings) > 0)
@@ -81,14 +102,13 @@ async function save() {
           item_code: l.item_code,
           is_available: l.is_available ? 1 : 0,
           facings: Number(l.facings) || 0,
-          shelf_position: l.shelf_position || null,
+          mrp: l.mrp || null,
         })),
       competitors: competitors.value
         .filter((c) => c.competitor && c.product)
         .map((c) => ({
           competitor: c.competitor,
           product: c.product,
-          mrp: c.mrp || null,
           selling_price: c.selling_price || null,
           facings: Number(c.facings) || 0,
           has_scheme: c.has_scheme ? 1 : 0,
@@ -99,7 +119,6 @@ async function save() {
     const row = visit.value.tasks.find((t) => t.task_type === 'Merchandising')
     if (row) row.status = 'Done'
     await visitStore.saveProgress()
-    saved.value = true
     router.back()
   } finally {
     busy.value = false
@@ -109,77 +128,210 @@ async function save() {
 
 <template>
   <div class="wrap screen" v-if="visit">
-    <h2>Shelf check</h2>
-    <p class="muted">{{ visit.outletName }}</p>
-
-    <p class="tally tnum">
-      Ours <b>{{ ourFacings }}</b> · Theirs <b>{{ theirFacings }}</b> · Share <b>{{ share }}%</b>
-    </p>
-
-    <label class="lbl" for="total">Facings on the whole shelf <span class="muted">(optional)</span></label>
-    <input id="total" v-model="shelfTotal" type="number" inputmode="numeric"
-           placeholder="Counting the shelf whole is often faster" @blur="keep" />
-
-    <h3>Our products</h3>
-    <p v-if="!lines.length" class="muted">No catalogue on this phone yet. Sync to load it.</p>
-    <ul class="lines">
-      <li v-for="(line, i) in lines" :key="line.item_code + i" class="line">
-        <label class="tick">
-          <input type="checkbox" v-model="line.is_available" :true-value="1" :false-value="0"
-                 @change="keep" />
-          <span>{{ line.item_name }}</span>
-        </label>
-        <input class="facings tnum" type="number" inputmode="numeric" min="0"
-               v-model="line.facings" :disabled="!line.is_available"
-               aria-label="Facings" @blur="keep" />
-      </li>
-    </ul>
-
-    <h3>Competition</h3>
-    <div v-for="(c, i) in competitors" :key="i" class="comp">
-      <input v-model="c.competitor" placeholder="Brand" @blur="keep" />
-      <input v-model="c.product" placeholder="Product" @blur="keep" />
-      <div class="row">
-        <input v-model="c.selling_price" type="number" inputmode="decimal"
-               placeholder="Selling price" @blur="keep" />
-        <input v-model="c.facings" type="number" inputmode="numeric"
-               placeholder="Facings" @blur="keep" />
+    <div class="top">
+      <div class="head">
+        <div>
+          <span class="eyebrow">Shelf check</span>
+          <h2>{{ visit.outletName }}</h2>
+        </div>
       </div>
-      <label class="tick">
-        <input type="checkbox" v-model="c.has_scheme" :true-value="1" :false-value="0" @change="keep" />
-        <span>Running a scheme</span>
-      </label>
-      <input v-if="c.has_scheme" v-model="c.scheme_note" placeholder="What is the offer?" @blur="keep" />
-      <button type="button" class="btn-plain" @click="removeCompetitor(i)">Remove</button>
+
+      <!-- Share of shelf, the number this screen exists to produce. -->
+      <div class="card kpi">
+        <div class="figures">
+          <div><span class="muted">Ours</span><b class="tnum">{{ ourFacings }}</b></div>
+          <div><span class="muted">Theirs</span><b class="tnum">{{ theirFacings }}</b></div>
+          <div><span class="muted">Share</span><b class="tnum big">{{ share }}%</b></div>
+        </div>
+        <div class="bar" v-if="wholeShelf">
+          <div class="ours" :style="{ width: share + '%' }"></div>
+          <div class="theirs" :style="{ width: (100 - share) + '%' }"></div>
+        </div>
+        <div class="legend" v-if="wholeShelf">
+          <span class="tnum"><i class="swatch ours"></i> Ours ({{ ourFacings }})</span>
+          <span class="tnum"><i class="swatch theirs"></i> Rest of shelf
+            ({{ wholeShelf - ourFacings }})</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="lbl" for="total">Facings on the whole shelf</label>
+        <div class="whole">
+          <input id="total" v-model="shelfTotal" type="number" inputmode="numeric" min="0"
+                 class="tnum" :placeholder="String(ourFacings + theirFacings)" @blur="keep" />
+          <span class="unit">facings</span>
+        </div>
+        <p class="muted hint">
+          Counting the whole shelf is often quicker than listing every rival. Leave it blank
+          and we add up what you entered.
+        </p>
+      </div>
+
+      <div class="section">
+        <h3>Our products</h3>
+        <span class="pill tnum" v-if="lines.length">{{ present }} of {{ lines.length }} on shelf</span>
+      </div>
+      <p v-if="!lines.length" class="muted pad">
+        No catalogue on this phone yet. Sync once to load it.
+      </p>
+
+      <div class="rows">
+        <div v-for="line in lines" :key="line.item_code" class="prow"
+             :class="{ off: !line.is_available }">
+          <button type="button" class="tick" role="checkbox"
+                  :aria-checked="!!line.is_available" @click="toggle(line)">
+            <span class="box" :class="{ on: line.is_available }">
+              <Icon v-if="line.is_available" name="check" size="18" />
+            </span>
+            <span class="pinfo">
+              <b>{{ line.item_name }}</b>
+              <span class="muted tnum" v-if="line.mrp">₹{{ line.mrp }} MRP</span>
+              <span class="muted oos" v-else-if="!line.is_available">Not on shelf</span>
+            </span>
+          </button>
+          <div class="stepper">
+            <button type="button" aria-label="One less facing" :disabled="!line.is_available"
+                    @click="step(line, -1)"><Icon name="minus" size="20" /></button>
+            <input class="tnum" type="number" inputmode="numeric" min="0"
+                   v-model="line.facings" :disabled="!line.is_available"
+                   aria-label="Facings" @blur="keep" />
+            <button type="button" aria-label="One more facing"
+                    @click="step(line, 1)"><Icon name="plus" size="20" /></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Competition</h3>
+        <span class="pill tnum" v-if="competitors.length">{{ competitors.length }} tracked</span>
+      </div>
+
+      <div v-for="(c, i) in competitors" :key="i" class="card comp">
+        <div class="crow">
+          <input v-model="c.competitor" placeholder="Brand" @blur="keep" />
+          <input v-model="c.product" placeholder="Product" @blur="keep" />
+        </div>
+        <div class="crow">
+          <div class="money">
+            <span class="rs">₹</span>
+            <input v-model="c.selling_price" type="number" inputmode="decimal" class="tnum"
+                   placeholder="Shelf price" @blur="keep" />
+          </div>
+          <div class="stepper">
+            <button type="button" aria-label="One less facing" @click="step(c, -1)">
+              <Icon name="minus" size="20" />
+            </button>
+            <input class="tnum" type="number" inputmode="numeric" min="0" v-model="c.facings"
+                   aria-label="Competitor facings" @blur="keep" />
+            <button type="button" aria-label="One more facing" @click="step(c, 1)">
+              <Icon name="plus" size="20" />
+            </button>
+          </div>
+        </div>
+        <label class="scheme">
+          <input type="checkbox" v-model="c.has_scheme" :true-value="1" :false-value="0"
+                 @change="keep" />
+          <span>Running a scheme</span>
+        </label>
+        <input v-if="c.has_scheme" v-model="c.scheme_note" placeholder="What is the offer?"
+               @blur="keep" />
+        <button type="button" class="ghost danger" @click="removeCompetitor(i)">Remove</button>
+      </div>
+
+      <button type="button" class="ghost" @click="addCompetitor">
+        <Icon name="plus" size="20" /> Add a competitor product
+      </button>
     </div>
-    <button type="button" class="btn-plain" @click="addCompetitor">Add a competitor</button>
 
     <div class="bottom">
       <button class="btn-primary" :disabled="busy" @click="save">
         {{ busy ? 'Saving…' : 'Save shelf check' }}
       </button>
+      <p class="muted foot">Saved on this phone, then sent when you have signal.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
 .screen { display: flex; flex-direction: column; min-height: 100%; }
-h2 { margin: 8px 0 4px; }
-h3 { margin: 24px 0 8px; font-size: 16px; }
-.muted { color: var(--muted); font-size: 14px; }
-.tally { margin-top: 12px; padding: 12px; background: var(--surface);
-         border: 1px solid var(--line); border-radius: 8px; }
-.lbl { display: block; margin: 20px 0 6px; font-weight: 600; }
-.lines { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.line { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-        background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-.tick { display: flex; align-items: center; gap: 10px; flex: 1; min-height: 44px;
-        cursor: pointer; }
-.tick input { width: 24px; height: 24px; min-height: 24px; flex: none; }
-.facings { width: 84px; flex: none; text-align: right; }
-.comp { display: grid; gap: 8px; padding: 12px; margin-bottom: 10px;
-        background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-.row { display: flex; gap: 8px; }
-.btn-plain { background: none; border: 1px solid var(--line); color: var(--ink); width: 100%; }
-.bottom { margin-top: auto; padding-top: 16px; }
+.top { flex: 1; display: grid; gap: 12px; align-content: start; }
+.head { margin: 8px 0 0; }
+.eyebrow { display: block; font-size: 14px; font-weight: 700; letter-spacing: 0.05em;
+           text-transform: uppercase; color: var(--muted); }
+h2 { margin: 2px 0 0; font-size: 20px; overflow-wrap: anywhere; }
+h3 { margin: 0; font-size: 16px; }
+.muted { color: var(--muted); font-size: 14px; font-weight: 400; }
+.pad { padding: 16px 0; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+        padding: 14px; }
+.kpi { display: grid; gap: 10px; }
+.figures { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; gap: 8px; }
+.figures div { display: grid; gap: 2px; }
+.figures b { font-size: 22px; }
+.figures .big { color: var(--primary); }
+.bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden;
+       background: var(--primary-soft); }
+.bar .ours { background: var(--primary); }
+.bar .theirs { background: var(--crit-soft); }
+.legend { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.swatch.ours { background: var(--primary); }
+.swatch.theirs { background: var(--crit-soft); border: 1px solid var(--line); }
+
+.lbl { display: block; font-weight: 600; font-size: 16px; margin-bottom: 6px; }
+.whole { position: relative; display: flex; align-items: center; }
+.whole input { padding-right: 78px; }
+.unit { position: absolute; right: 14px; font-weight: 600; color: var(--muted);
+        pointer-events: none; font-size: 14px; }
+.hint { margin: 6px 0 0; }
+
+.section { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+           margin-top: 8px; }
+.pill { flex: none; font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+        background: var(--primary-soft); color: var(--primary); }
+
+.rows { display: grid; gap: 6px; }
+.prow { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+        background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+        min-height: 64px; }
+.prow.off { background: var(--bg); }
+.tick { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 48px;
+        background: none; border: 0; text-align: left; padding: 0; }
+.box { width: 26px; height: 26px; flex: none; display: grid; place-items: center;
+       border-radius: 4px; border: 2px solid var(--muted); background: var(--surface); }
+.box.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.pinfo { display: grid; gap: 1px; min-width: 0; }
+.pinfo b { overflow-wrap: anywhere; font-size: 16px; }
+.oos { color: var(--muted); }
+
+.stepper { display: flex; align-items: center; gap: 4px; flex: none; }
+.stepper button { width: 48px; height: 48px; min-height: 48px; display: grid; place-items: center;
+                  border-radius: 6px; background: var(--primary-soft); color: var(--primary);
+                  border: 0; }
+.stepper button:disabled { background: var(--bg); color: var(--line); }
+.stepper input { width: 52px; min-height: 48px; text-align: center; padding: 0 4px;
+                 font-weight: 700; }
+.stepper input:disabled { color: var(--muted); background: var(--bg); }
+
+.comp { display: grid; gap: 8px; }
+.crow { display: flex; gap: 8px; }
+.crow > input { flex: 1; min-width: 0; }
+.money { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
+.money .rs { position: absolute; left: 12px; font-weight: 700; color: var(--muted); }
+.money input { padding-left: 28px; }
+.scheme { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+.scheme input { width: 24px; height: 24px; min-height: 0; flex: none; }
+
+.ghost { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+         min-height: 48px; background: var(--surface); color: var(--primary);
+         border: 1px solid var(--primary); border-radius: 6px; font-weight: 600; }
+.ghost.danger { color: var(--crit); border-color: var(--crit); }
+
+.bottom { position: sticky; bottom: 0; padding: 12px 0 4px; margin-top: 16px;
+          background: var(--bg); border-top: 1px solid var(--line); }
+.btn-primary { display: flex; align-items: center; justify-content: center; gap: 6px;
+               padding: 14px; min-height: 52px; border-radius: 6px; width: 100%; }
+.foot { text-align: center; margin: 8px 0 0; }
 </style>
