@@ -18,9 +18,32 @@ class FieldMateOutlet(Document):
 			self.approval_status = "Pending Approval"
 
 	def validate(self):
+		self.store_photos()
 		self.validate_geo()
 		self.validate_billing()
 		self.validate_contacts()
+
+	def store_photos(self):
+		"""Turn a camera capture into a File, and keep the path.
+
+		`shop_photo` is an Attach Image: varchar(140) holding a path, not bytes. A phone sends
+		a base64 data URL of ~120 KB, which fails with "Data too long for column" - the same
+		way the start-of-day selfie did in Phase 2. Handled in the controller rather than in
+		outlet.create because the offline queue pushes outlets straight through frappe.get_doc
+		and would otherwise hit exactly the same wall.
+		"""
+		from fieldmate.services import files as file_service
+		from fieldmate.services import settings as settings_service
+
+		for fieldname in ("shop_photo", "shop_board_photo"):
+			value = self.get(fieldname)
+			if not file_service.is_data_url(value):
+				continue
+			self.set(fieldname, file_service.attach_photo(
+				value, filename=f"{fieldname}-{self.name}",
+				doctype=self.doctype, name=self.name, fieldname=fieldname,
+				max_kb=settings_service.value("photo_max_kb"),
+			))
 
 	def validate_geo(self):
 		if self.latitude or self.longitude:

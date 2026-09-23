@@ -12,12 +12,20 @@ export class ApiError extends Error {
   }
 }
 
+// A stalled link is worse than a dead one: fetch never settles, so a button stays disabled
+// and the rep is stuck with no way forward. Long enough for a photo on a slow uplink,
+// short enough that nobody stares at a frozen screen.
+const TIMEOUT_MS = 45_000
+
 async function call(method, params = {}, { post = false } = {}) {
   const url = BASE + method
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   const opts = {
     method: post ? 'POST' : 'GET',
     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     credentials: 'same-origin',
+    signal: controller.signal,
   }
 
   let target = url
@@ -34,10 +42,20 @@ async function call(method, params = {}, { post = false } = {}) {
   let res
   try {
     res = await fetch(target, opts)
-  } catch {
+  } catch (e) {
     // fetch rejects with a bare TypeError("Failed to fetch") when there is no connection.
     // That string is a browser internal, not something to show a rep standing in a market.
-    throw new ApiError('OFFLINE', 'No connection. Your work is saved on this phone.', 0)
+    // A timeout is treated the same way: from the rep's side a link that never answers and
+    // a link that is not there are the same problem, and both keep the work on the phone.
+    throw new ApiError(
+      'OFFLINE',
+      e && e.name === 'AbortError'
+        ? 'The connection is too slow to finish that. Your work is saved on this phone.'
+        : 'No connection. Your work is saved on this phone.',
+      0,
+    )
+  } finally {
+    clearTimeout(timer)
   }
 
   let body
@@ -57,14 +75,18 @@ async function call(method, params = {}, { post = false } = {}) {
       res.status
     )
   }
-  if (res.status === 401 || res.status === 403) {
-    throw new ApiError('AUTH_REQUIRED', 'Please sign in again.', res.status)
-  }
-
   // Frappe wraps whitelisted return values in { message: ... }
   const payload = body.message ?? body
+
+  // Our own envelope is read BEFORE the status code. A 403 from FieldMate carries a
+  // sentence a rep can act on - "That shop is not in your territory" - and rewriting every
+  // 403 into "Please sign in again" both hid that and bounced the rep out to the login
+  // screen over a permission problem that signing in again cannot fix.
   if (payload && payload.ok === false) {
     throw new ApiError(payload.code, payload.message, res.status)
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new ApiError('AUTH_REQUIRED', 'Please sign in again.', res.status)
   }
   return payload?.data ?? payload
 }
@@ -96,6 +118,8 @@ export const api = {
     call('day.trail_upload', { device_uuid: deviceUuid, pings }, { post: true }),
   todayBeat: () => call('day.today'),
   beatOutlets: (beat) => call('day.outlets', { beat }),
+  daySummary: (date) => call('day.summary', { date }),
+  myBeats: () => call('day.my_beats'),
 
   checkIn: (deviceUuid, payload) =>
     call('visit.check_in', { device_uuid: deviceUuid, payload }, { post: true }),

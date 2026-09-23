@@ -37,6 +37,20 @@ LIST_FIELDS = [
 	"latitude", "longitude", "geo_fence_radius_m", "monthly_potential", "modified",
 ]
 
+# What one shop's own screen shows, on top of the list row. Kept separate because
+# LIST_FIELDS is sent for every shop a rep holds - widening it put 5,000 outlets at
+# 6.6 MB against a 2.5 MB budget, which is what Gate 1 caught. This list is fetched
+# one shop at a time, so it can afford to be generous.
+DETAIL_FIELDS = [
+	*LIST_FIELDS,
+	"outlet_type", "owner_name", "alternate_mobile", "email_id",
+	"address_line1", "address_line2", "district", "state", "pincode",
+	"gstin", "fssai_no", "pan", "kyc_verified",
+	"credit_limit", "credit_days", "outstanding_amount",
+	"opening_time", "closing_time", "weekly_off",
+	"shop_photo", "shop_board_photo", "onboarding_date", "enable_geo_fence",
+]
+
 
 def search(query: str | None = None, beat: str | None = None, limit: int = 50,
            user: str | None = None) -> list[dict]:
@@ -85,7 +99,7 @@ def detail(outlet: str, user: str | None = None) -> dict:
 		credit = compat.get_credit_status(party, company)
 
 	return {
-		"outlet": {f: doc.get(f) for f in LIST_FIELDS if f != "name"} | {"name": doc.name},
+		"outlet": {f: doc.get(f) for f in DETAIL_FIELDS if f != "name"} | {"name": doc.name},
 		"contacts": [
 			{"person_name": c.person_name, "role_at_outlet": c.role_at_outlet,
 			 "mobile_no": c.mobile_no, "is_primary": bool(c.is_primary)}
