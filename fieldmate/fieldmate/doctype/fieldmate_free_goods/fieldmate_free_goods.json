@@ -1,0 +1,27 @@
+{
+ "actions": [], "creation": "2026-09-24 10:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["item_code", "item_name", "qty", "uom", "scheme",
+                 "valuation_rate", "valuation_amount", "is_posm", "notes"],
+ "fields": [
+  {"fieldname": "item_code", "fieldtype": "Link", "label": "Item", "options": "Item", "reqd": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "item_name", "fieldtype": "Data", "label": "Name", "fetch_from": "item_code.item_name", "read_only": 1, "in_list_view": 1, "columns": 3},
+  {"fieldname": "qty", "fieldtype": "Float", "label": "Qty", "reqd": 1, "read_only": 1, "in_list_view": 1, "columns": 1,
+   "description": "Base units, granted by the engine rather than typed. Free goods bill at zero and never re-enter any scheme basis, so this quantity cannot help the cart cross the next slab."},
+  {"fieldname": "uom", "fieldtype": "Link", "label": "Unit", "options": "UOM", "read_only": 1, "in_list_view": 1, "columns": 1,
+   "description": "The unit the quantity is expressed in for the dispatch note, so the warehouse picks pieces when the scheme meant pieces."},
+  {"fieldname": "scheme", "fieldtype": "Link", "label": "Scheme", "options": "FieldMate Scheme", "read_only": 1, "in_list_view": 1, "columns": 2,
+   "description": "Which scheme is paying for this. Nothing leaves a warehouse free without a scheme behind it to charge."},
+  {"fieldname": "valuation_rate", "fieldtype": "Currency", "label": "Valuation Rate", "read_only": 1,
+   "description": "What one unit costs us, snapshotted at capture. The shop pays nothing; the cost is still real and lands somewhere."},
+  {"fieldname": "valuation_amount", "fieldtype": "Currency", "label": "Valuation", "read_only": 1,
+   "description": "Quantity times valuation rate. This is what the scheme ledger accrues and what a distributor claim is eventually settled against."},
+  {"fieldname": "is_posm", "fieldtype": "Check", "label": "POSM", "read_only": 1, "in_list_view": 1, "columns": 1,
+   "description": "Point-of-sale material - a branded shelf strip, a danglers pack, a sticker. It is dispatched and it costs money, but it is not a saleable SKU, so it must never be counted into sales volume or offtake."},
+  {"fieldname": "notes", "fieldtype": "Data", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-24 10:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Free Goods",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

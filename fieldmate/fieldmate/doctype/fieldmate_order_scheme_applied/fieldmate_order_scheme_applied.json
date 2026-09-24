@@ -1,0 +1,31 @@
+{
+ "actions": [], "creation": "2026-09-24 10:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["scheme", "scheme_name", "slab_idx", "benefit_kind", "benefit_description",
+                 "qualifying_amount", "benefit_amount", "free_qty", "budget_warning", "scheme_ledger_entry"],
+ "fields": [
+  {"fieldname": "scheme", "fieldtype": "Link", "label": "Scheme", "options": "FieldMate Scheme", "reqd": 1, "read_only": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "scheme_name", "fieldtype": "Data", "label": "Scheme", "fetch_from": "scheme.scheme_name", "read_only": 1, "in_list_view": 1, "columns": 3},
+  {"fieldname": "slab_idx", "fieldtype": "Int", "label": "Slab", "read_only": 1,
+   "description": "Which slab of the scheme the cart landed in. Recorded because when a rep and a manager disagree about an offer, the disagreement is nearly always about which slab was reached, not about the arithmetic inside it."},
+  {"fieldname": "benefit_kind", "fieldtype": "Select", "label": "Benefit",
+   "options": "Free Goods\nPercent Discount\nValue Discount\nRate Off\nIncentive",
+   "read_only": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "benefit_description", "fieldtype": "Small Text", "label": "Reads As", "read_only": 1,
+   "description": "The offer in one plain sentence, written by the server for the rep to say out loud. A rep standing at a counter cannot read a slab table to a shopkeeper who is already reaching for the next customer."},
+  {"fieldname": "qualifying_amount", "fieldtype": "Currency", "label": "Qualifying Value", "read_only": 1,
+   "description": "The gross value of the lines this scheme actually qualified on, which is the base a percentage was taken off. Stored because a 5% soap scheme must never be seen to have discounted the tea."},
+  {"fieldname": "benefit_amount", "fieldtype": "Currency", "label": "Benefit", "read_only": 1, "in_list_view": 1, "columns": 1,
+   "description": "What this benefit is worth in rupees. On an Incentive row this is money for the rep and is reported separately - it never comes off the shop's bill, and adding it in would overstate the discount the shopkeeper was given."},
+  {"fieldname": "free_qty", "fieldtype": "Float", "label": "Free Qty", "read_only": 1,
+   "description": "Base units granted free by this benefit. The goods themselves are listed in the free-goods table; this is the tally the ledger settles against."},
+  {"fieldname": "budget_warning", "fieldtype": "Check", "label": "Budget Warning", "read_only": 1,
+   "description": "The scheme applied but its budget is spent. Set only where the scheme is configured to warn rather than block, since a half-funded scheme is a number nobody can reconcile."},
+  {"fieldname": "scheme_ledger_entry", "fieldtype": "Link", "label": "Ledger Entry", "options": "FieldMate Scheme Ledger", "read_only": 1,
+   "description": "The accrual this benefit produced. Without it, a claim at month end has no line-level evidence to stand on."}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-24 10:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Order Scheme Applied",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

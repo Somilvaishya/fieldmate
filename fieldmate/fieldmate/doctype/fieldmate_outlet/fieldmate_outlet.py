@@ -2,6 +2,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import flt, now_datetime, today
 
+from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import settings as settings_service
 
@@ -93,7 +94,9 @@ class FieldMateOutlet(Document):
 		return True, ""
 
 	def billing_party(self) -> str | None:
-		"""Who the money is owed by. The whole order and collection path hangs off this."""
-		if settings_service.is_van_sales(field_user_service.for_user()):
-			return self.customer or None
-		return self.distributor
+		"""Who the money is owed by. The whole order and collection path hangs off this.
+
+		Delegated to the credit service so the two sales models branch in exactly one place
+		(ADR-016). A second copy of that branch, here, is how the split starts.
+		"""
+		return credit_service.billing_party(self, field_user_service.for_user())["party"]
