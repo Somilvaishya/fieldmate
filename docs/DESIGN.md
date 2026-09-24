@@ -97,8 +97,15 @@ These are requirements, not preferences. A screen that fails any of them is not 
 9. **Credit headroom shown before the cart is built**, never as a rejection afterwards.
 10. **Scheme results explained in words** — "Qty slab 4+ case → 3% off, free 2 pc soap". "Why did I
     get this discount" is the single most common field support call.
-11. **Renders at 360 px.** That is the device that matters.
-12. **All strings translatable.** No hard-coded user-facing text, from day one.
+11. **Free goods are listed, never folded into a discount.** A scheme that gives 2 free packs and
+    ₹19.68 off reads as *"₹19.68 off, and 2 free packs"* — never as one combined "₹263.68 saved".
+    Free stock ships at ₹0.00 in addition to the order; its value is not a deduction. Showing a
+    single savings figure that includes it pays the shop twice on paper, and the distributor
+    settles a claim for the half nobody authorised. `SCHEME_SPEC.md` S9 has the two figures:
+    `discount_paise` is what comes off the bill and is the only thing a total may subtract;
+    `benefit_paise` is what the shop received and belongs on the scheme card, labelled as such.
+12. **Renders at 360 px.** That is the device that matters.
+13. **All strings translatable.** No hard-coded user-facing text, from day one.
 
 ## Breakpoints
 

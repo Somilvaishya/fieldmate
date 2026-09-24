@@ -133,4 +133,56 @@ export const api = {
   visitHistory: (date) => call('visit.history', { date }),
   checklistForms: () => call('visit.forms'),
   noOrderReasons: () => call('visit.no_order_reasons'),
+
+  // ------------------------------------------------------------------- Phase 4: the order
+  //
+  // Note what is NOT here: nothing takes a price list, a field user or a rate. Every one of those
+  // is resolved on the server from the session, because a device that could name its own price
+  // list could quote the whole cart off whichever one is cheapest, and a device that could name a
+  // rep could read another rep's shops and another rep's order book. A stolen phone is the
+  // ordinary way that happens rather than the exotic one.
+
+  // Everything this shop may be sold, priced, plus the last order's quantities. One call, because
+  // the cart screen needs both before it can draw anything and a second round trip on a market
+  // uplink is a second chance for the rep to give up on it.
+  catalogue: (outlet) => call('catalogue.items', { outlet }),
+
+  // The repeat-order prefill. There is no endpoint of its own for it - `catalogue.items` carries
+  // `last_order` deliberately, for the reason above - so this is the same call reading one key out
+  // of the payload. Callers that already hold a cached catalogue should read `last_order` off that
+  // instead of pulling four hundred priced SKUs down to fill in eight quantities.
+  catalogueLastOrder: (outlet) =>
+    call('catalogue.items', { outlet }).then((data) => data.last_order),
+
+  // Fresh rates for a cart that already exists. POSTed rather than sent as a query string: a
+  // forty-line cart of long SKU codes runs past what some proxies will carry in a URL, and a
+  // truncated cart re-prices as a different cart. `items` is [{item_code, qty}] in BASE units,
+  // because that is what a quantity break on Item Price is measured in.
+  cataloguePrices: (outlet, items) => call('catalogue.prices', { outlet, items }, { post: true }),
+
+  // The compiled specs for this shop, for the phone to cache and evaluate against with no signal.
+  // `skipped` comes back beside them: a scheme a manager has to fix must not look live in Desk and
+  // absent in the field for as long as nobody happens to notice.
+  schemesFor: (outlet) => call('scheme.applicable', { outlet }),
+
+  // The same specs run on the server against server prices - the figure of record. The phone's own
+  // answer is what the rep said out loud; docs/SCHEME_SPEC.md allows the two no divergence, so
+  // where they differ one of the two engines is wrong and we would like to know which.
+  // `lines` is [{item_code, qty, uom}].
+  schemeEvaluate: (outlet, lines) => call('scheme.evaluate', { outlet, lines }, { post: true }),
+
+  // fieldmate.api.order.* — written by another workstream and not on disk at the time these were
+  // added, so the parameter names below are this client's half of the contract rather than
+  // something read off the server. `payload` is the FieldMate Order as the store builds it (doc
+  // field names, money in rupees); `order` is the document name. If the server lands on different
+  // names, this is the one file that changes.
+  //
+  // estimate books nothing at all: it is submit's arithmetic without the document, for a review
+  // screen that wants the server's total before the rep commits to it.
+  orderEstimate: (payload) => call('order.estimate', { payload }, { post: true }),
+  orderSubmit: (deviceUuid, payload) =>
+    call('order.submit', { device_uuid: deviceUuid, payload }, { post: true }),
+  orderList: (filters = {}) => call('order.list', { limit: 50, ...filters }),
+  orderDetail: (name) => call('order.detail', { order: name }),
+  orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
 }

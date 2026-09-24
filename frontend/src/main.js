@@ -39,6 +39,20 @@ const router = createRouter({
     { path: '/visit/:uuid/checklist', component: VisitChecklist, name: 'visit-checklist' },
     { path: '/visit/:uuid/shelf', component: VisitMerchandising, name: 'visit-merchandising' },
     { path: '/visit/:uuid/finish', component: VisitCheckOut, name: 'visit-checkout' },
+
+    // The order, which is four views of one cart rather than four screens. The outlet is in the
+    // path because a rep walking a beat can have a part-built order at more than one shop, and the
+    // cart is keyed by outlet in IndexedDB for exactly that reason - a deep link back into
+    // /order/FM-OUT-00042/cart after the app was killed finds the same basket.
+    //
+    // Loaded on demand, unlike every route above. These four pull in the scheme engine and a
+    // catalogue of several hundred SKUs, and a rep opening Today on a four-year-old Android should
+    // not be paying for the order screens to get there - the cold-open budget is 2 seconds. It also
+    // means a missing screen is a broken route rather than a broken app while these are being built.
+    { path: '/order/:outlet', component: () => import('./screens/OrderCatalogue.vue'), name: 'order-catalogue' },
+    { path: '/order/:outlet/cart', component: () => import('./screens/OrderCart.vue'), name: 'order-cart' },
+    { path: '/order/:outlet/schemes', component: () => import('./screens/OrderSchemes.vue'), name: 'order-schemes' },
+    { path: '/order/:outlet/review', component: () => import('./screens/OrderReview.vue'), name: 'order-review' },
   ],
 })
 

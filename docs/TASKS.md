@@ -91,19 +91,27 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 ## Phase 4 — Orders and scheme engine · 3 weeks
 
-- [ ] 4.1 Scheme rule specification format (the single source both engines compile from)
-- [ ] 4.2 `FieldMate Scheme` + `Slab` + `Item` + `Scope`
-- [ ] 4.3 Python scheme engine in `fieldmate/services/scheme.py`
-- [ ] 4.4 JS scheme engine compiled from the same spec
-- [ ] 4.5 60-case parity suite — **zero tolerance for divergence**
-- [ ] 4.6 `FieldMate Scheme Ledger` + budget accrual
-- [ ] 4.7 `FieldMate Order` + `Order Item` + `Scheme Applied` + `Free Goods`
-- [ ] 4.8 `FieldMate Order Approval Rule` + credit check via compat + override workflow
-- [ ] 4.9 Sales Order creation in `on_submit` (idempotent) + cancel cascade
-- [ ] 4.10 APIs: `catalogue.items`, `catalogue.prices`, `scheme.applicable`, `scheme.evaluate`
-- [ ] 4.11 APIs: `order.estimate`, `order.submit`, `order.list`, `order.cancel`, `order.approve`
-- [ ] 4.12 PWA: catalogue, cart with repeat-order prefill, scheme preview, review and submit
-- [ ] **Gate 4** — verify all 6 criteria on testerp2
+> **A retailer order is a secondary sale and never becomes a Sales Order — ADR-023.**
+> It routes to the distributor's queue and posts nothing. Task 4.9 and Gate 4 criterion 2 below
+> are rewritten from the build plan, which had them the other way round.
+
+- [x] 4.1 Scheme rule specification format → `docs/SCHEME_SPEC.md`, the normative contract
+- [x] 4.2 `FieldMate Scheme` + `Slab` + `Item` + `Scope`
+- [x] 4.3 Python scheme engine in `fieldmate/services/scheme_engine.py`
+- [x] 4.4 JS scheme engine in `frontend/src/scheme/engine.js`, mirrored step for step
+- [x] 4.5 Parity suite — **100 cases, zero divergence across python↔corpus, node↔corpus, python↔node**
+- [x] 4.6 `FieldMate Scheme Ledger` + budget accrual and reversal
+- [x] 4.7 `FieldMate Order` + `Order Item` + `Scheme Applied` + `Free Goods`
+- [x] 4.8 `FieldMate Order Approval Rule` + credit check + override workflow
+- [x] 4.9 **Route to the distributor queue on submit** + cancel withdraws it. No Sales Order, no
+      GL Entry. ERPNext documents are created only where we are genuinely the seller — van sales
+      or a directly-billed outlet — and that test lives only in `services/credit.py`
+- [x] 4.10 APIs: `catalogue.items`, `catalogue.prices`, `scheme.applicable`, `scheme.evaluate`
+- [x] 4.11 APIs: `order.estimate`, `order.submit`, `order.list`, `order.cancel`, `order.approve`
+- [x] 4.12 PWA: catalogue, cart with repeat-order prefill, scheme preview, review and submit
+- [ ] **Gate 4** — verify all 6 criteria on testerp2, with criterion 2 read as: an offline order
+      creates exactly one `FieldMate Order`, routed to exactly one distributor queue, and **no**
+      accounting document
 
 ## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016)*
 

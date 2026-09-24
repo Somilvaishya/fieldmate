@@ -365,3 +365,110 @@ presented as "checklists never appear", with no error anywhere.
 - The same session-default injection breaks `Customer` inserts when Selling Settings names a
   group node, which is why test fixtures now name a non-group Customer Group explicitly rather
   than inheriting one.
+
+## ADR-021 — The scheme engine is a pure function over a pre-compiled spec
+
+**Decision.** Scheme evaluation is split in two. A **compiler** on the server resolves scope,
+expands item groups, converts cases to base units and rupees to paise, and emits a flat JSON
+**compiled spec** with no lookups left in it. An **evaluator** — `services/scheme_engine.py` and
+`frontend/src/scheme/engine.js` — is a pure function of `(cart, specs)`. It never reads the
+database, resolves a price, converts a UOM or reads a clock. `docs/SCHEME_SPEC.md` is normative:
+where the two engines disagree, the one that disagrees with the document is the one that is wrong.
+
+**Reason.** The plan asks for the engine "written once, compiled to both Python and JS, never two
+implementations". Two runtimes mean two bodies of code however it is arranged; what can genuinely
+be made singular is *everything that decides an outcome*. Pushing every ambiguous decision into
+the compiler leaves an evaluator small and dumb enough that its duplication is auditable — the
+two files are step-for-step mirrors with the same function names and the same `S4 —` comments, so
+a reviewer diffs them side by side.
+
+The alternative, transpiling Python to JS at build time, buys a weaker guarantee at a much higher
+cost: the generated file still has to be reviewed, and a transpiler bug is harder to see than a
+divergent line.
+
+**Consequences.**
+- Parity is provable rather than hoped for: both sides are handed byte-identical input, so any
+  difference is in the ~200 lines of evaluator and nowhere else.
+- A pricing or scope bug can never present as a parity failure, because neither is in the engine.
+- The phone must cache compiled specs from `sync.pull`, not scheme masters. A scheme edited in
+  Desk does not reach a rep until the next pull — which is correct, and must be visible in the UI
+  rather than silent.
+- The case corpus is authored from the specification by someone who has not read the engines.
+  Deriving expectations from the implementation would make Gate 4 a tautology.
+
+## ADR-022 — Money in the scheme path is integer paise, and never a float
+
+**Decision.** Inside the engine every amount is an integer count of paise and every percentage an
+integer count of basis points. One rounding primitive exists,
+`round_half_up_div(n, d) = floor((2n + d) / (2d))`, implemented with integer arithmetic in both
+languages. `round()`, `Math.round()`, `flt()` and `toFixed()` are banned from the money path.
+
+**Reason.** The two runtimes agree on IEEE-754 arithmetic but not on rounding: Python's `round()`
+is banker's rounding, `Math.round(-0.5)` is `-0` in JS and `0` in Python, and Frappe's `flt()` is a
+third behaviour again. A scheme is exactly the code where a half-paise lands on a boundary often
+enough to matter, and Gate 4 allows zero divergence. Integer arithmetic removes the question
+instead of testing it.
+
+**Consequences.**
+- Floats survive at exactly one boundary, `to_paise(rupees) = floor(rupees * 100 + 0.5)`, and that
+  runs in the compiler on the server — the evaluator is handed paise and never calls it.
+- Every product stays under 2^53, so `Math.floor` and `//` are exactly equal. The largest realistic
+  term is `base_paise * pct_bp` at roughly 10^15.
+- DocType fields stay `Currency` in rupees, because Desk and the people reading it work in rupees.
+  Conversion happens at the service boundary, in one place, in both directions.
+
+## ADR-023 — A retailer order is a secondary sale and never becomes a Sales Order
+
+**Decision.** A `FieldMate Order` booked by a rep at a retail outlet is a **secondary sales order**.
+It is terminal in our books: no Sales Order, no Sales Invoice, no GL Entry, no stock movement. It
+routes to the distributor's order queue, and the distributor bills the shop from their own stock.
+
+The company's revenue event happens one step later and is a different document: the **distributor's
+primary order on us**. That is where an ERPNext Sales Order belongs.
+
+```
+Rep → FieldMate Order (secondary) → distributor's queue
+                                     ↓
+                        distributor bills the shop
+                                     ↓
+                    distributor raises a PRIMARY order on the company
+                                     ↓
+                            ERPNext Sales Order
+```
+
+**Reason.** Primary and secondary are different sales in different books. We never invoice a kirana
+shop, so booking a Sales Order when a rep punches one would:
+
+- book revenue on a sale the company did not make;
+- consume the distributor's credit limit for stock they have not asked us for;
+- double-count against stock the distributor may already be holding.
+
+This is not a new principle, it is the one the app already states and was about to contradict.
+ADR-001 says a retail outlet is not a Customer because "we never invoice them". Gate 5 criterion 4
+says in as many words: **no secondary sales document produces a GL Entry.** Build-plan task 4.9
+("Sales Order creation in `on_submit`") and Gate 4 criterion 2 ("one FieldMate Order and one Sales
+Order") were written against the wrong half of that model. **This ADR supersedes both.**
+
+**The two exceptions, and they are the same exception.** An ERPNext document is created only where
+*we* are genuinely the seller:
+
+- **Van sales** (ADR-016) — we bill the shop at the counter, so a Sales Invoice plus a stock issue
+  out of the vehicle warehouse is correct.
+- **A directly-billed outlet** — ADR-001's escape hatch, `FieldMate Outlet.customer` populated.
+
+Both are the same test — "is the billing party us?" — and both are answered in one place,
+`services/credit.py`, never with an `if van_sales:` scattered through the order code.
+
+**Consequences.**
+- `FieldMate Order.order_status` carries the secondary lifecycle: Draft → Sent To Distributor →
+  Accepted → Invoiced → Delivered, plus Cancelled and Rejected. `sales_order` stays empty in the
+  default mode and is populated only under the exceptions above.
+- **Credit changes meaning.** In order booking the limit that matters is the *shop's* limit with
+  *its distributor*, which is what a rep is shown at the counter. We do not do that accounting, so
+  we hold it as a **soft ledger** — it warns and can block per settings, but posts nothing. The
+  distributor's own hard credit limit is only consulted where a real ERPNext document is created.
+- Gate 4 criterion 2 is rewritten: *an offline order creates exactly one `FieldMate Order`, routed
+  to exactly one distributor queue, and **no** accounting document.* Cancelling it withdraws it from
+  the queue; the cancel cascade only reaches ERPNext under the exceptions.
+- Phase 9's distributor portal is no longer optional polish — it is the other end of this pipe. Until
+  it ships, the queue is a Desk list view filtered by distributor, which is enough to pilot.

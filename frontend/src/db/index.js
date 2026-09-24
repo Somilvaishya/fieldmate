@@ -45,6 +45,34 @@ db.version(3).stores({
   names: 'clientUuid, name',
 })
 
+// The order screens.
+//
+// `carts` is one open cart per outlet, and the reason it is a table rather than a ref in memory is
+// the ordinary shape of the job: a rep builds an order while the shopkeeper serves three customers,
+// takes a call, lets the screen lock, and comes back. Android kills a backgrounded WebView without
+// warning and without an event we can listen for, so the only cart that survives is one that was
+// already written down. Keyed by outlet because a rep walking a beat can legitimately have a part-
+// built order at more than one shop.
+//
+// `catalogues` and `schemeSpecs` are the two reads the order screen cannot open without, cached per
+// outlet with the time they were fetched. Held separately from `records` because neither is a
+// mirrored document with a name - each is one payload per shop, replaced whole - and because the
+// age of them is something the rep has to be shown rather than something we quietly hope is fresh.
+// Re-pricing runs off `schemeSpecs` with no network call at all, which is the whole point of the
+// phase: a quantity tap must re-price at a counter with no signal.
+db.version(4).stores({
+  outbox: '++seq, clientUuid, doctype, state, dependsOn',
+  records: '[doctype+name], doctype, modified',
+  meta: 'key',
+  pings: '++id, t, sent',
+  visits: 'clientUuid, serverName, outlet, visitDate, state',
+  photos: '++id, visitClientUuid, state',
+  names: 'clientUuid, name',
+  carts: 'outlet, updatedAt',
+  catalogues: 'outlet, fetchedAt',
+  schemeSpecs: 'outlet, fetchedAt',
+})
+
 export async function rememberName(clientUuid, doctype, name) {
   if (!clientUuid || !name) return
   await db.names.put({ clientUuid, doctype, name })
