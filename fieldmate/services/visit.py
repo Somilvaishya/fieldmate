@@ -426,6 +426,9 @@ def check_out(visit: str, payload: dict) -> dict:
 	doc.next_visit_date = payload.get("next_visit_date")
 
 	doc.save(ignore_permissions=True)
+	# A rep holds create and read on their own visits, never submit (ADR-004). Ownership is
+	# checked by assert_owner above; the server closes the visit on their behalf.
+	doc.flags.ignore_permissions = True
 	doc.submit()
 	field_user_service.touch(frappe.session.user)
 	return {**summarise(doc), "created": True}
@@ -477,6 +480,7 @@ def auto_close(visit: str) -> None:
 		doc.no_order_reason = default_no_order_reason()
 	doc.save(ignore_permissions=True)
 	if doc.docstatus == 0:
+		doc.flags.ignore_permissions = True
 		doc.submit()
 
 

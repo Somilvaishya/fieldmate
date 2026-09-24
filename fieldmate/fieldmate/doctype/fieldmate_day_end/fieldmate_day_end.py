@@ -34,6 +34,20 @@ class FieldMateDayEnd(Document):
 			flt(time_diff_in_hours(get_datetime(self.end_time), get_datetime(start.start_time))), 2
 		)
 
+	def on_submit(self):
+		"""Close the day this ends.
+
+		`day_service.end()` does this on the online path. A day closed offline arrives through
+		the sync queue, which never calls that service - so without this the Day Start stayed
+		Open, the rep could not start the next day, and `auto_close_stale_days` eventually
+		marked it "Auto Closed", which reports as a day the rep forgot to finish.
+		"""
+		if not self.day_start:
+			return
+		if frappe.db.get_value("FieldMate Day Start", self.day_start, "status") == "Open":
+			frappe.db.set_value("FieldMate Day Start", self.day_start, "status", "Closed",
+			                    update_modified=False)
+
 	def count_what_happened(self):
 		if not (self.field_user and self.day_date):
 			return

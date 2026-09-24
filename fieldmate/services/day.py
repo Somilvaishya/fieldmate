@@ -102,6 +102,12 @@ def start(field_user: str, payload: dict) -> dict:
 		"created_offline": cint(payload.get("created_offline")),
 	})
 	doc.insert(ignore_permissions=True)
+	# A Field Rep holds create and read on their own records, never write or submit - that is
+	# deliberate (ADR-004), and it is what keeps generic endpoints like frappe.client.save
+	# closed to them. The server submits on their behalf once it has checked who is asking,
+	# exactly as it does when posting a Sales Order. Without this a rep could not start a day
+	# at all; every gate passed only because it ran as Administrator.
+	doc.flags.ignore_permissions = True
 
 	# The photo arrives as a base64 data URL and has to become a real private file: the field
 	# holds a path, not an image. Saved after the insert so it attaches to a document that
@@ -166,6 +172,8 @@ def end(field_user: str, payload: dict) -> dict:
 		**counts,
 	})
 	doc.insert(ignore_permissions=True)
+	# See the note in start(): a rep holds no submit right of their own (ADR-004).
+	doc.flags.ignore_permissions = True
 	doc.submit()
 
 	start_doc.db_set("status", "Closed", update_modified=False)
