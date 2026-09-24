@@ -17,7 +17,7 @@ importing an ERPNext helper — fewer imports is fewer things that can move in v
 from __future__ import annotations
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import cint, flt, getdate, nowdate
 from frappe.utils.caching import request_cache
 
 # Minimum host versions, enforced at install time by fieldmate.setup.install.
@@ -142,8 +142,14 @@ def get_credit_limit(customer: str, company: str) -> float:
 # --------------------------------------------------------------------------------------
 
 
-def get_outstanding(customer: str, company: str) -> float:
-	"""Total unpaid amount across submitted Sales Invoices for a party."""
+def get_outstanding(customer: str, company: str, include_open_orders: bool = False) -> float:
+	"""What a party owes. Submitted Sales Invoices by default, plus live orders on request.
+
+	A credit check has to ask for the orders. A rep can book a month of business in a morning
+	and none of it is an invoice yet, so a limit measured on invoices alone does not bite until
+	the goods have already left the warehouse. The collection screen deliberately does not ask
+	for them: a shopkeeper cannot pay against an order nobody has billed.
+	"""
 	rows = frappe.get_all(
 		"Sales Invoice",
 		filters={
@@ -154,12 +160,37 @@ def get_outstanding(customer: str, company: str) -> float:
 		},
 		pluck="outstanding_amount",
 	)
-	return flt(sum(flt(r) for r in rows))
+	outstanding = flt(sum(flt(r) for r in rows))
+
+	if include_open_orders:
+		outstanding += _unbilled_order_value(customer, company)
+	return outstanding
+
+
+def _unbilled_order_value(customer: str, company: str) -> float:
+	"""The part of every live Sales Order that has not been billed yet.
+
+	ERPNext's own credit check counts this, so ours has to as well or the two disagree about
+	the same customer on the same afternoon. Taken from `per_billed`, which the Sales Order
+	maintains itself, rather than by re-adding the invoices behind it.
+	"""
+	orders = frappe.get_all(
+		"Sales Order",
+		filters={
+			"customer": customer,
+			"company": company,
+			"docstatus": 1,
+			"status": ["!=", "Closed"],
+			"per_billed": ["<", 100],
+		},
+		fields=["base_grand_total", "per_billed"],
+	)
+	return flt(sum(flt(o.base_grand_total) * (100 - flt(o.per_billed)) / 100 for o in orders))
 
 
 def get_outstanding_invoices(customer: str, company: str, limit: int = 100) -> list[dict]:
 	"""Open invoices with ageing, oldest first. Feeds the collection screen."""
-	from frappe.utils import date_diff, nowdate
+	from frappe.utils import date_diff
 
 	invoices = frappe.get_all(
 		"Sales Invoice",
@@ -205,21 +236,434 @@ def get_credit_status(customer: str, company: str) -> dict:
 # --------------------------------------------------------------------------------------
 
 
-def get_item_price(item_code: str, price_list: str, uom: str | None = None) -> float:
-	"""Effective Item Price for an item on a price list.
+def _pricing_helper():
+	"""ERPNext's own rate resolver, if this host carries the shape we know how to call.
 
-	Deliberately a plain query: `erpnext.stock.get_item_details.get_price_list_rate` needs a full
-	transaction context we do not have when pricing an offline cart line.
+	Nothing we depend on has moved as often as this one. The rate has been reachable through
+	`get_price_list_rate`, then `get_price_list_rate_for` taking a single args dict, then the
+	same name taking `(args, item_code)`; the row-level `get_item_price` under it returns bare
+	tuples on some builds and dicts on others. So we probe for the name, call it inside a
+	guard, and read Item Price ourselves when either the name or the call shape is not what we
+	expect. A wrong answer here does not fail loudly - it prices a cart at a number nobody
+	agreed to, and the rep has already read that number out.
 	"""
-	filters = {"item_code": item_code, "price_list": price_list, "selling": 1}
-	if uom:
-		filters["uom"] = uom
-	rate = frappe.db.get_value("Item Price", filters, "price_list_rate")
-	if rate is None and uom:
-		rate = frappe.db.get_value(
-			"Item Price", {"item_code": item_code, "price_list": price_list, "selling": 1}, "price_list_rate"
+	try:
+		from erpnext.stock import get_item_details as pricing
+	except Exception:
+		return None
+
+	helper = getattr(pricing, "get_price_list_rate_for", None)
+	return helper if callable(helper) else None
+
+
+def _qty_break_field() -> str | None:
+	"""Which column carries the quantity break on this host's Item Price.
+
+	`min_qty` was how a quantity price was expressed until ERPNext replaced it with
+	`packing_unit`, and the two mean opposite things: a floor to reach against a multiple to
+	respect. Reading one as the other prices half a case at the full-case rate, so the probe
+	says which is here and the caller applies the matching rule.
+	"""
+	for column in ("min_qty", "packing_unit"):
+		if _has_column("Item Price", column):
+			return column
+	return None
+
+
+# Where a site keeps the printed price. ERPNext has no MRP of its own - it is a legal marking on
+# the pack rather than an accounting figure - so every company that tracks one has added a field
+# for it, and the two names in the wild are our own `fm_` fixture convention and the bare `mrp`
+# that Indian installs have used for years. Probed, never assumed: a catalogue that invented an
+# MRP would print a number on a phone that nobody in the company ever agreed to, and the rep
+# would read it out to a shopkeeper who can check the pack in his own hand.
+MRP_FIELDS = ("fm_mrp", "mrp")
+
+
+@request_cache
+def _item_mrp_field() -> str | None:
+	for column in MRP_FIELDS:
+		if _has_column("Item", column):
+			return column
+	return None
+
+
+def _item_price_rows(item_codes: list[str], price_list: str) -> dict[str, list]:
+	"""Every selling price row for these items, in one query however long the list is.
+
+	Validity and quantity breaks are applied afterwards in Python rather than in SQL, because
+	both date columns are nullable: `valid_from <= today` is NULL wherever nobody filled the
+	date in, which is most rows, and NULL is not true. The SQL version therefore returns no
+	price at all for the ordinary case, which reads on the phone as an unsellable item.
+	"""
+	fields = ["item_code", "price_list_rate", "uom", "customer", "valid_from", "valid_upto"]
+	qty_break = _qty_break_field()
+	if qty_break:
+		fields.append(qty_break)
+
+	rows = frappe.get_all(
+		"Item Price",
+		filters={"item_code": ["in", item_codes], "price_list": price_list, "selling": 1},
+		fields=fields,
+	)
+
+	grouped: dict[str, list] = {}
+	for row in rows:
+		grouped.setdefault(row.item_code, []).append(row)
+	return grouped
+
+
+def _pick_price_row(rows: list, qty=None, customer: str | None = None, stock_uom: str | None = None):
+	"""The one row that applies today, out of everything sitting on that price list."""
+	on = getdate(nowdate())
+	qty = flt(qty)
+	qty_break = _qty_break_field()
+
+	applicable = []
+	for row in rows:
+		if row.valid_from and getdate(row.valid_from) > on:
+			continue
+		if row.valid_upto and getdate(row.valid_upto) < on:
+			continue
+		# A row pinned to another customer is not ours to use. An unpinned one serves everyone.
+		if row.customer and row.customer != customer:
+			continue
+		# A rate quoted per case cannot be multiplied by a count of pieces.
+		if row.uom and stock_uom and row.uom != stock_uom:
+			continue
+
+		step = flt(row.get(qty_break)) if qty_break else 0
+		if qty and step:
+			if qty_break == "min_qty" and qty < step:
+				continue
+			if qty_break == "packing_unit" and qty % step:
+				continue
+
+		applicable.append(row)
+
+	if not applicable:
+		return None
+
+	# Most specific wins: a customer's own rate over the shelf rate, a bigger qualifying break
+	# over a smaller one, and the most recently started row over an older one.
+	applicable.sort(
+		key=lambda row: (
+			1 if row.customer else 0,
+			flt(row.get(qty_break)) if qty_break else 0,
+			str(row.valid_from or ""),
+		),
+		reverse=True,
+	)
+	return applicable[0]
+
+
+def get_item_price(
+	item_code: str,
+	price_list: str,
+	qty=None,
+	customer: str | None = None,
+	company: str | None = None,
+) -> float | None:
+	"""The selling rate for one item, or None when nobody has priced it.
+
+	None and 0.0 are different answers and the caller has to be able to tell them apart. An
+	item nobody has priced must stop the line and be asked about; an item deliberately priced
+	at zero - a sample, a trial pack - is a real rate. Collapse the two and an order goes out
+	free, which nobody finds until somebody reconciles the invoice weeks later.
+	"""
+	if not (item_code and price_list):
+		return None
+
+	stock_uom = frappe.db.get_value("Item", item_code, "stock_uom")
+
+	helper = _pricing_helper()
+	if helper:
+		args = frappe._dict({
+			"price_list": price_list,
+			"customer": customer,
+			"company": company,
+			"qty": flt(qty) or 1,
+			"uom": stock_uom,
+			"stock_uom": stock_uom,
+			# Never None. ERPNext multiplies the rate by whatever this holds and flt(None) is
+			# 0.0, so an unset conversion factor hands the shop the whole line for nothing.
+			"conversion_factor": 1,
+			# Without a date the validity window is not applied at all, and a price that
+			# expired last quarter comes back looking current.
+			"transaction_date": nowdate(),
+		})
+		try:
+			rate = helper(args, item_code)
+		except Exception:
+			# A call shape we do not recognise. Read Item Price ourselves rather than guess.
+			frappe.logger("fieldmate").warning(
+				"erpnext price helper refused the call; reading Item Price directly", exc_info=True
+			)
+		else:
+			# The helper is the books' own answer, including when that answer is "no price".
+			return flt(rate) if rate is not None else None
+
+	row = _pick_price_row(
+		_item_price_rows([item_code], price_list).get(item_code, []),
+		qty=qty,
+		customer=customer,
+		stock_uom=stock_uom,
+	)
+	return flt(row.price_list_rate) if row else None
+
+
+def _price_currency(price_list: str | None, company: str | None) -> str | None:
+	"""What the catalogue's numbers are denominated in. The price list owns this."""
+	currency = frappe.db.get_value("Price List", price_list, "currency") if price_list else None
+	if not currency and company:
+		currency = frappe.get_cached_value("Company", company, "default_currency")
+	return currency
+
+
+def get_item_details(
+	item_codes: list[str],
+	price_list: str | None = None,
+	company: str | None = None,
+	customer: str | None = None,
+	quantities: dict | None = None,
+) -> list[dict]:
+	"""Everything the catalogue screen shows about a list of items.
+
+	Four queries whatever the length of the list. The catalogue asks for hundreds of items at
+	once, over a market-street connection, and a per-item round trip is the difference between
+	a screen that opens and one a rep stops waiting for. That is why the party and the
+	quantities are arguments here rather than a reason to fall back to `get_item_price`: a cart
+	of forty lines re-priced one call at a time is forty round trips through the same tables.
+
+	`customer` is the billing party, which decides whether a rate somebody pinned to one
+	distributor applies. `quantities` maps an item code to a quantity in **base units**, which
+	decides which quantity break applies. Leave both out and the answer is the shelf price:
+	one unit, no party, no break.
+
+	`price_list_rate` is per **stock UOM**, because that is the only unit every other number
+	here agrees with. A caller quoting in cases multiplies by `conversion_factor` itself.
+	"""
+	codes = [code for code in (item_codes or []) if code]
+	if not codes:
+		return []
+
+	mrp_field = _item_mrp_field()
+	fields = ["name as item_code", "item_name", "stock_uom", "sales_uom", "item_group",
+	          "brand", "is_stock_item", "disabled"]
+	if mrp_field:
+		fields.append(f"{mrp_field} as mrp")
+
+	items = frappe.get_all("Item", filters={"name": ["in", codes]}, fields=fields)
+
+	# The conversion factors live on a child table, so they need a read of their own - still one
+	# query for the whole list rather than one per item. Every UOM the item carries is kept,
+	# not only the sales one: a catalogue may ask a rep to order in cases while the price list
+	# quotes pieces, and looking that factor up later would be the per-item read this whole
+	# function exists to avoid.
+	conversions: dict[str, dict] = {}
+	for row in frappe.get_all(
+		"UOM Conversion Detail",
+		filters={"parenttype": "Item", "parent": ["in", codes]},
+		fields=["parent", "uom", "conversion_factor"],
+	):
+		conversions.setdefault(row.parent, {})[row.uom] = flt(row.conversion_factor)
+
+	prices = _item_price_rows(codes, price_list) if price_list else {}
+	currency = _price_currency(price_list, company)
+	quantities = quantities or {}
+
+	details = []
+	for item in items:
+		sales_uom = item.sales_uom or item.stock_uom
+		factors = conversions.get(item.item_code, {})
+		row = _pick_price_row(
+			prices.get(item.item_code, []),
+			qty=quantities.get(item.item_code),
+			customer=customer,
+			stock_uom=item.stock_uom,
 		)
-	return flt(rate)
+		details.append({
+			"item_code": item.item_code,
+			"item_name": item.item_name,
+			"stock_uom": item.stock_uom,
+			"sales_uom": sales_uom,
+			# A sales UOM that is the stock UOM carries no conversion row and needs none.
+			"conversion_factor": factors.get(sales_uom) or 1.0,
+			"uom_conversions": factors,
+			# A Currency column is NOT NULL DEFAULT 0, so a zero here is a field nobody filled
+			# in rather than a pack that costs nothing. None says "we do not hold one", which
+			# is the only honest thing to print next to a price.
+			"mrp": (flt(item.get("mrp")) or None) if mrp_field else None,
+			"item_group": item.item_group,
+			"brand": item.brand,
+			"is_stock_item": bool(item.is_stock_item),
+			"disabled": bool(item.disabled),
+			"price_list_rate": flt(row.price_list_rate) if row else None,
+			"currency": currency,
+		})
+	return details
+
+
+def get_conversion_factor(item_code: str, uom: str | None) -> float | None:
+	"""How many stock units make up one `uom` of this item, or None when nobody has said.
+
+	None and 1.0 are different answers and the caller has to be able to tell them apart. An item
+	whose case size was never entered must not be measured as though a case were a single piece:
+	a scheme written for two cases would then fire on two bars of soap, and the shopkeeper is
+	owed a discount nobody budgeted for. The gap is reported rather than papered over.
+	"""
+	if not (item_code and uom):
+		return None
+
+	if uom == frappe.db.get_value("Item", item_code, "stock_uom"):
+		return 1.0
+
+	factor = frappe.db.get_value(
+		"UOM Conversion Detail",
+		{"parenttype": "Item", "parent": item_code, "uom": uom},
+		"conversion_factor",
+	)
+	return flt(factor) or None
+
+
+def find_item_codes(item_group: str | None = None, brand: str | None = None) -> list[str]:
+	"""Every sellable item filed under an item group or a brand, descendant groups included.
+
+	Item Group is a tree for the same reason Territory is. A scheme written for *Detergents* is
+	meant for the powders and the bars filed underneath it, not for the handful of items somebody
+	happened to file on the group node itself - and matching the name alone would quietly exclude
+	almost the whole catalogue, which is the failure ADR-020 describes for territories.
+
+	Disabled items and anything not sold are left out. A slab that can only be reached by ordering
+	a raw material is a tier no rep can ever reach.
+	"""
+	if not (item_group or brand):
+		return []
+
+	filters = {"disabled": 0, "is_sales_item": 1}
+	if item_group:
+		filters["item_group"] = ["in", _item_group_tree(item_group)]
+	if brand:
+		filters["brand"] = brand
+
+	# Sorted so that two compiles of the same scheme produce the same list in the same order -
+	# the phone and the server have to be handed the identical artifact, not an equivalent one.
+	return sorted(frappe.get_all("Item", filters=filters, pluck="name"))
+
+
+def _item_group_tree(item_group: str) -> list[str]:
+	"""An item group and every group beneath it, by nested set bounds."""
+	bounds = frappe.db.get_value("Item Group", item_group, ["lft", "rgt"], as_dict=True)
+	if not bounds:
+		return [item_group]
+	return frappe.get_all(
+		"Item Group",
+		filters={"lft": [">=", bounds.lft], "rgt": ["<=", bounds.rgt]},
+		pluck="name",
+	)
+
+
+# --------------------------------------------------------------------------------------
+# sales orders — posted by the server on a rep's behalf, never by the rep
+# --------------------------------------------------------------------------------------
+
+# Where a caller's idempotency key is kept. A field order pushed twice, or retried after a
+# dropped connection, must not become two company commitments - and the only place that
+# survives a restart, a redeploy and a second web worker is the Sales Order itself.
+SALES_ORDER_KEY_FIELD = "fm_source_key"
+
+
+def _sales_order_key_column() -> str | None:
+	return SALES_ORDER_KEY_FIELD if _has_column("Sales Order", SALES_ORDER_KEY_FIELD) else None
+
+
+def sales_order_for_key(key: str) -> str | None:
+	"""The Sales Order already posted for this key, if there is one."""
+	column = _sales_order_key_column()
+	if not (key and column):
+		return None
+	return frappe.db.get_value("Sales Order", {column: key, "docstatus": ["<", 2]}, "name")
+
+
+def make_sales_order(payload: dict) -> str:
+	"""Turn a field order into a real company commitment. Safe to call twice with one key.
+
+	Never reached from a rep's own session. A Field Rep holds no write permission on any
+	accounting document and must not be given one (ADR-004); the server decides whether the
+	order is allowed and then posts it on their behalf.
+	"""
+	payload = dict(payload or {})
+	key = payload.get("key")
+	if not key:
+		frappe.throw(frappe._("A Sales Order cannot be posted without an idempotency key."))
+
+	column = _sales_order_key_column()
+	if not column:
+		# Refusing is the smaller failure. With nowhere to record the key, a retried sync posts
+		# a second Sales Order against the same field order, and duplicate commitments are not
+		# found by us - they are found at month end by somebody reconciling a ledger.
+		frappe.throw(
+			frappe._("Sales Order has no {0} field on this site, so an order cannot be posted "
+			         "without risking a duplicate. Install the FieldMate fixtures and run "
+			         "bench migrate.").format(SALES_ORDER_KEY_FIELD)
+		)
+
+	existing = sales_order_for_key(key)
+	if existing:
+		return existing
+
+	doc = frappe.new_doc("Sales Order")
+	doc.set(column, key)
+	doc.customer = payload.get("customer")
+	doc.company = payload.get("company")
+	doc.transaction_date = payload.get("transaction_date") or nowdate()
+	doc.delivery_date = payload.get("delivery_date") or doc.transaction_date
+	doc.order_type = payload.get("order_type") or "Sales"
+	for field in ("currency", "selling_price_list", "po_no", "set_warehouse", "taxes_and_charges"):
+		if payload.get(field):
+			doc.set(field, payload[field])
+
+	# Every rupee in this cart was already settled by the scheme engine, from a spec the rep
+	# saw on the phone (SCHEME_SPEC). Letting ERPNext's Pricing Rules run again would discount
+	# the same cart a second time, and the invoice would not be the number that was promised.
+	doc.ignore_pricing_rule = 1
+
+	for line in payload.get("items") or []:
+		rate = flt(line.get("rate"))
+		doc.append("items", {
+			"item_code": line.get("item_code"),
+			"qty": flt(line.get("qty")),
+			"uom": line.get("uom"),
+			"conversion_factor": flt(line.get("conversion_factor")) or 1,
+			"rate": rate,
+			"price_list_rate": flt(line.get("price_list_rate")) or rate,
+			"warehouse": line.get("warehouse"),
+			"delivery_date": line.get("delivery_date") or doc.delivery_date,
+			# Free goods bill at zero and stay visible as free goods, rather than arriving as a
+			# hundred-percent discount that nobody downstream can explain.
+			"is_free_item": cint(line.get("is_free_item")),
+		})
+
+	doc.flags.ignore_permissions = True
+	doc.insert()
+	doc.submit()
+	return doc.name
+
+
+def cancel_sales_order(name: str) -> None:
+	"""Cancel the commitment behind a cancelled field order. Safe to call twice.
+
+	Gate 4 asks that cancelling a FieldMate Order leaves no orphan Sales Order behind, and a
+	cancel that has already happened is the ordinary state after a retried sync rather than an
+	error worth raising at anybody.
+	"""
+	if not name or not frappe.db.exists("Sales Order", name):
+		return
+	if frappe.db.get_value("Sales Order", name, "docstatus") != 1:
+		return
+
+	doc = frappe.get_doc("Sales Order", name)
+	doc.flags.ignore_permissions = True
+	doc.cancel()
 
 
 # --------------------------------------------------------------------------------------
@@ -268,7 +712,6 @@ def create_employee_checkin(
 # --------------------------------------------------------------------------------------
 # Deliberately not yet implemented
 # --------------------------------------------------------------------------------------
-# make_sales_order()   -> Phase 4, added with FieldMate Order
 # make_payment_entry() -> Phase 6, added with FieldMate Collection
 # make_credit_note()   -> Phase 9, added with FieldMate Claim
 #
