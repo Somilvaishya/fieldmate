@@ -8,6 +8,7 @@ import { pendingPings, configure as configurePinger, resumeIfDayOpen } from '../
 import * as dayStore from '../stores/day'
 import * as visitStore from '../stores/visit'
 import * as photoQueue from '../sync/photos'
+import { localOutlets } from '../stores/outlets'
 import Icon from '../components/Icon.vue'
 
 const router = useRouter()
@@ -45,6 +46,42 @@ const nextShop = computed(
 
 /** Everything waiting to leave this phone - records and photos both. */
 const waiting = computed(() => queued.value + photosWaiting.value)
+
+const planned = computed(() => dayStore.plannedToday.value)
+
+const firstName = computed(() => (boot.value?.full_name || '').split(' ')[0] || '')
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+})
+
+const dateLabel = computed(() =>
+  new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  })
+)
+
+const plannedHours = computed(() => {
+  const mins = planned.value?.estimated_duration_min
+  if (!mins) return null
+  const h = Math.floor(mins / 60)
+  return h ? `${h}h ${mins % 60}m` : `${mins}m`
+})
+
+// Shops to show before the day starts: the route when there is one, otherwise whatever is
+// in this rep's territory. Capped, with a link to the full list - a rep holding 400 shops
+// does not want all of them on the home screen.
+const BROWSE_LIMIT = 8
+const localShops = ref([])
+const totalShops = computed(() => (planned.value?.beat ? shops.value : localShops.value).length)
+const browseShops = computed(() =>
+  (planned.value?.beat && shops.value.length ? shops.value : localShops.value)
+    .slice(0, BROWSE_LIMIT)
+)
+const moreShops = computed(() => totalShops.value > BROWSE_LIMIT)
 
 const onOnline = () => (online.value = true)
 const onOffline = () => (online.value = false)
@@ -107,6 +144,12 @@ async function load() {
     if (!beat.value) beat.value = await getMeta('todayBeat')
   }
   await visitStore.resume()
+  // Read from the mirror, so the list is there with or without a signal.
+  localShops.value = await localOutlets()
+  // A planned route the day has not started yet still has shops worth showing.
+  if (!openDay.value && planned.value?.beat && !beat.value) {
+    beat.value = (await getMeta('todayBeat')) || null
+  }
   doneToday.value = await visitStore.todaysVisits()
   queued.value = await pendingCount()
   pings.value = await pendingPings()
@@ -143,15 +186,17 @@ onUnmounted(() => {
 <template>
   <div class="wrap screen">
     <div class="top">
-      <h2>Today</h2>
-      <p v-if="error" class="err">{{ error }}</p>
-
-      <!-- Who you are, and whether this is live or remembered -->
-      <div v-if="boot" class="who">
-        <b>{{ boot.full_name }}</b>
-        <span class="muted">{{ (boot.roles || []).join(', ') || 'No FieldMate role' }}</span>
-        <span v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</span>
+      <!-- The date, not the word "Today". A rep glancing at this wants to know which day
+           they are looking at, and their own name and role told them nothing they did not
+           already know. -->
+      <div class="head">
+        <div>
+          <h2>{{ greeting }}<span v-if="firstName">, {{ firstName }}</span></h2>
+          <p class="muted tnum">{{ dateLabel }}</p>
+        </div>
       </div>
+      <p v-if="error" class="err">{{ error }}</p>
+      <p v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</p>
 
       <!-- A visit left open. Top of the screen, because it is the only thing that matters
            until it is closed: an open visit blocks the next check-in. -->
@@ -200,16 +245,76 @@ onUnmounted(() => {
         <p class="muted tnum" v-if="pings">{{ pings }} location points waiting to upload</p>
       </div>
 
-      <div v-else class="card">
-        <b>Day not started</b>
-        <p class="muted" v-if="dayStore.plannedToday.value?.beat">
-          Planned: {{ dayStore.plannedToday.value.beat }}
-          ({{ dayStore.plannedToday.value.outlet_count }} shops)
-        </p>
-        <p class="muted" v-else-if="dayStore.plannedToday.value?.status === 'Holiday'">
-          Today is a holiday.
-        </p>
-        <p class="muted" v-else>Start your day to load your route.</p>
+      <!-- Before the day starts, this card answers the only question a rep has: what does
+           today hold. It used to say "Day not started" and nothing else, over an empty
+           screen. -->
+      <div v-else class="card plan">
+        <template v-if="planned?.beat">
+          <span class="eyebrow">Today's route</span>
+          <b class="route">{{ planned.beat_name || planned.beat }}</b>
+          <div class="facts">
+            <span class="tnum" v-if="planned.outlet_count">
+              <Icon name="store" size="18" /> {{ planned.outlet_count }} shops
+            </span>
+            <span class="tnum" v-if="planned.estimated_travel_km">
+              <Icon name="directions" size="18" /> about {{ planned.estimated_travel_km }} km
+            </span>
+            <span class="tnum" v-if="planned.estimated_duration_min">
+              <Icon name="timer" size="18" /> about {{ plannedHours }}
+            </span>
+          </div>
+        </template>
+
+        <template v-else-if="planned?.status === 'Holiday'">
+          <span class="eyebrow">Today</span>
+          <b class="route">Holiday</b>
+          <p class="muted">No route today. You can still visit a shop if you need to.</p>
+        </template>
+
+        <template v-else-if="planned?.status === 'Leave'">
+          <span class="eyebrow">Today</span>
+          <b class="route">You are on leave</b>
+          <p class="muted">No route today.</p>
+        </template>
+
+        <template v-else>
+          <span class="eyebrow">Today</span>
+          <b class="route">No route planned</b>
+          <p class="muted">
+            Nobody has set a route for you today. You can still start your day and visit any
+            shop in your area.
+          </p>
+        </template>
+      </div>
+
+      <!-- The shops a rep can work, whether or not a route was planned. This screen used to
+           be three lines and a wall of empty space; a rep with no beat had nothing to act
+           on and no way to see what was near them. -->
+      <template v-if="!loading && !openDay && browseShops.length">
+        <div class="section">
+          <h3>{{ planned?.beat ? 'On this route' : 'Shops in your area' }}</h3>
+          <span class="muted tnum">{{ browseShops.length }}</span>
+        </div>
+        <RouterLink v-for="o in browseShops" :key="o.name" :to="`/outlet/${o.name}`"
+                    class="shop">
+          <span class="info">
+            <b>{{ o.outlet_name }}</b>
+            <span class="muted">{{ o.city || 'No area recorded' }}</span>
+          </span>
+          <span v-if="o.approval_status !== 'Approved'" class="pill">
+            <Icon name="alert" size="18" /> Pending
+          </span>
+          <Icon v-else class="go" name="chevron" size="22" />
+        </RouterLink>
+        <RouterLink to="/outlets" class="more" v-if="moreShops">
+          See all {{ totalShops }} shops
+        </RouterLink>
+      </template>
+
+      <div v-else-if="!loading && !openDay" class="empty">
+        <Icon name="store" size="36" />
+        <b>No shops on this phone yet</b>
+        <p class="muted">Tap Sync now to bring your shops down.</p>
       </div>
 
       <!-- Today's shops -->
@@ -309,6 +414,30 @@ h3 { margin: 20px 0 8px; font-size: 1rem; }
          overflow: hidden; }
 .fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 150ms; }
 @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+        margin: 8px 0 12px; }
+.head h2 { margin: 0; font-size: 22px; }
+.head p { margin: 2px 0 0; }
+
+.plan { display: grid; gap: 4px; }
+.eyebrow { font-size: 14px; font-weight: 700; letter-spacing: 0.05em;
+           text-transform: uppercase; color: var(--muted); }
+.route { font-size: 18px; overflow-wrap: anywhere; }
+.plan p { margin: 4px 0 0; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.facts span { display: inline-flex; align-items: center; gap: 6px; font-size: 14px;
+              font-weight: 600; padding: 5px 10px; border-radius: 4px;
+              background: var(--primary-soft); color: var(--primary); }
+
+.more { display: flex; align-items: center; justify-content: center; min-height: 48px;
+        margin-top: 4px; border-radius: 6px; border: 1px solid var(--primary);
+        color: var(--primary); font-weight: 600; text-decoration: none; }
+
+.empty { display: grid; justify-items: center; gap: 6px; text-align: center;
+         padding: 32px 16px; color: var(--muted); }
+.empty b { color: var(--ink); font-size: 16px; }
+.empty p { margin: 0; }
 
 .section { display: flex; justify-content: space-between; align-items: baseline;
            margin: 20px 0 8px; gap: 8px; }

@@ -53,12 +53,19 @@ async function submit() {
       <form id="signin" class="card" @submit.prevent="submit">
         <div class="field">
           <label for="usr"><Icon name="person" /> Mobile number or email</label>
+          <!-- Focused on arrival so the keyboard is already up, and enterkeyhint puts
+               "Next" then "Go" on it - so a rep can type both fields and sign in without
+               reaching for the button. Signing in stays a deliberate action either way;
+               nothing submits just because the fields are full, which would fire on every
+               password-manager autofill and leave no chance to fix a typo. -->
           <input
             id="usr"
             v-model="usr"
             autocomplete="username"
             autocapitalize="none"
             spellcheck="false"
+            enterkeyhint="next"
+            autofocus
             placeholder="9876543210"
           />
         </div>
@@ -71,6 +78,7 @@ async function submit() {
               v-model="pwd"
               :type="reveal ? 'text' : 'password'"
               autocomplete="current-password"
+              enterkeyhint="go"
             />
             <!-- Typing a password blind, one-handed, in sunlight is how reps get locked out.
                  The toggle is a 48px target like everything else. -->
