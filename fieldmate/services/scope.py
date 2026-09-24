@@ -38,6 +38,21 @@ def territory_covers(scope: str | None, territory: str | None) -> bool:
 	return bounds.lft <= mine <= bounds.rgt
 
 
+def narrows_territory(territory: str | None) -> bool:
+	"""Whether naming this territory actually restricts a master to anything less than everywhere.
+
+	The root does not. It is the ancestor of every node, so a master "scoped" to it reaches the
+	same shops as one scoped to nothing at all - and the root is precisely what Frappe writes
+	when nobody picked a territory, because an empty Link is filled from the session defaults of
+	whoever happened to save the form. Anything weighing one master against another by how
+	narrowly it was scoped has to discount that row rather than believe it, or a national
+	catalogue somebody saved from a Delhi login outranks the regional one written on purpose.
+	"""
+	if not territory:
+		return False
+	return bool(frappe.db.get_value("Territory", territory, "parent_territory"))
+
+
 def applies_to_outlet(scoped, outlet) -> bool:
 	"""Whether a scoped master covers this shop on territory, channel and class."""
 	if not territory_covers(scoped.get("territory"), outlet.territory):

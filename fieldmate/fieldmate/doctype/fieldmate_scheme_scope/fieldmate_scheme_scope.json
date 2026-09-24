@@ -1,0 +1,23 @@
+{
+ "actions": [], "creation": "2026-09-24 10:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["territory", "channel", "outlet_class", "beat", "outlet", "distributor", "is_excluded"],
+ "fields": [
+  {"fieldname": "territory", "fieldtype": "Link", "label": "Territory", "options": "Territory", "in_list_view": 1, "columns": 2,
+   "description": "Covers this node and everything under it, matched against the territory tree and never by name equality - a scheme for North has to reach a shop in North / Delhi / South Delhi. The root covers everything, which is what makes a blank row safe: Frappe fills an empty Territory link from the session defaults of whoever opened the form, so the node a manager never picked is very often the root they never chose."},
+  {"fieldname": "channel", "fieldtype": "Link", "label": "Channel", "options": "FieldMate Outlet Channel", "in_list_view": 1, "columns": 2},
+  {"fieldname": "outlet_class", "fieldtype": "Link", "label": "Outlet Class", "options": "FieldMate Outlet Class", "in_list_view": 1, "columns": 1,
+   "description": "An offer written for A-class shops rarely makes sense at a D-class counter, and running it everywhere is how a budget disappears in a week."},
+  {"fieldname": "beat", "fieldtype": "Link", "label": "Beat", "options": "FieldMate Beat", "in_list_view": 1, "columns": 2},
+  {"fieldname": "outlet", "fieldtype": "Link", "label": "Outlet", "options": "FieldMate Outlet", "in_list_view": 1, "columns": 2,
+   "description": "One named shop. Used for a pilot before a scheme goes wide, and for the single large counter that negotiates its own terms."},
+  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile",
+   "description": "The billing party the order routes through. A scheme a distributor funds cannot run through a distributor who never agreed to it."},
+  {"fieldname": "is_excluded", "fieldtype": "Check", "label": "Exclude", "in_list_view": 1, "columns": 1,
+   "description": "Carves this row out instead of including it, which is how a manager writes all of North except modern trade without listing every beat. An exclusion row that names nothing would exclude everywhere and silently switch the scheme off, so it is refused at save."}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-24 10:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Scheme Scope",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}
