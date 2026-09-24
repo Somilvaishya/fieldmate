@@ -1,0 +1,4201 @@
+[
+  {
+    "id": "slab-exact-lower-bound",
+    "why": "A slab that opens at 120 must open at 120 and not at 121; an off-by-one here means the rep promised the 500 rupees the app showed on the counter and the invoice quietly withheld it. 120 x 12200 = 1464000 gross, and benefit_paise is 50000 because a Value Discount is all bill reduction with no free stock to value alongside it.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 120, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": 479, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]},
+          {"idx": 3, "from": 480, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 300000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1464000,
+      "discount_paise": 50000,
+      "net_paise": 1414000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 1, "measure": 120,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 2,
+                       "basis": "Qty", "measure": 120, "gap": 120}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slab-one-below-lower-bound",
+    "why": "One case short of the slab must earn nothing at all; a comparison that slipped from >= to > would hand out a discount the distributor never funded, and nobody would notice until the claim came back rejected. 119 x 12200 = 1451800, and the near miss points at slab 1 with gap 120 - 119 = 1.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 119, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": 479, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]},
+          {"idx": 3, "from": 480, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 300000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1451800,
+      "discount_paise": 0,
+      "net_paise": 1451800,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 1,
+                       "basis": "Qty", "measure": 119, "gap": 1}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slab-one-above-lower-bound",
+    "why": "The first unit past the threshold changes nothing about which slab applies, so a rep who adds one more case must not watch the offer flicker to a different tier while the shopkeeper is reading the screen. 121 x 12200 = 1476200, still slab 1, and the next rung is 240 - 121 = 119 away.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 121, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": 479, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]},
+          {"idx": 3, "from": 480, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 300000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1476200,
+      "discount_paise": 50000,
+      "net_paise": 1426200,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 1, "measure": 121,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 2,
+                       "basis": "Qty", "measure": 121, "gap": 119}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slab-exact-upper-bound",
+    "why": "`to` is inclusive, so 239 is still tier one; an exclusive upper bound would silently promote the biggest order of the day into a tier the distributor did not budget for. 239 x 12200 = 2915800, and the near miss reads 240 - 239 = 1.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 239, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": 479, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]},
+          {"idx": 3, "from": 480, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 300000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2915800,
+      "discount_paise": 50000,
+      "net_paise": 2865800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 1, "measure": 239,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 2,
+                       "basis": "Qty", "measure": 239, "gap": 1}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slab-one-above-upper-bound",
+    "why": "Crossing `to` must land in the next slab and nowhere else, because the whole near-miss nudge rests on one more case being worth another 700 rupees. 240 x 12200 = 2928000, slab 2 pays 120000, and slab 3 is 480 - 240 = 240 away.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 240, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": 479, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]},
+          {"idx": 3, "from": 480, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 300000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2928000,
+      "discount_paise": 120000,
+      "net_paise": 2808000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 2, "measure": 240,
+         "benefit_paise": 120000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 120000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 3,
+                       "basis": "Qty", "measure": 240, "gap": 240}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slab-open-top-null-to",
+    "why": "A null `to` means no ceiling, and the top slab reports no near miss at all because no slab `from` sits strictly above 900 - a rep already on the best tier must not be nagged to buy more for nothing.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 900, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": 479, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]},
+          {"idx": 3, "from": 480, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 300000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 10980000,
+      "discount_paise": 300000,
+      "net_paise": 10680000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00010", "scheme_name": "Surf Excel Volume Slab", "slab_idx": 3, "measure": 900,
+         "benefit_paise": 300000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 300000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slab-above-closed-top-no-match",
+    "why": "When a manager forgets to leave the top slab open, the biggest order of the month falls out of every slab and earns nothing. No slab `from` is strictly greater than 500, so S10 emits no near miss at all - revision 1 read literally produced a gap of 120 - 500 = -380, and telling a rep to order 380 fewer units is worse than silence.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 500, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00011", "scheme_name": "Surf Excel Capped Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": 479, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 6100000,
+      "discount_paise": 0,
+      "net_paise": 6100000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slab-hole-between-slabs-no-match",
+    "why": "A hole between slabs is a real typing mistake and 25 units falls straight through it. The lowest `from` strictly above 25 is slab 2 at 30, so the nudge reads 30 - 25 = 5 and points the rep forward; revision 1 sent it back to slab 1 with a gap of 10 - 25 = -15, which no rep could act on.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 25, "rate_paise": 3400}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00012", "scheme_name": "Soap Ladder With A Hole", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SOAP-100"],
+        "slabs": [
+          {"idx": 1, "from": 10, "to": 19, "benefits": [{"kind": "Value Discount", "amount_paise": 2000, "per": "Slab"}]},
+          {"idx": 2, "from": 30, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 8000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 85000,
+      "discount_paise": 0,
+      "net_paise": 85000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00012", "scheme_name": "Soap Ladder With A Hole", "slab_idx": 2,
+                       "basis": "Qty", "measure": 25, "gap": 5}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "value-slab-exact-lower-bound",
+    "why": "On a Value basis the slab bounds are paise, not rupees, and a cart worth exactly 5000 rupees must qualify: 500000 x 500 / 10000 = 25000 exactly. A compiler-to-engine unit slip would show up here as an order that is rich enough on paper and still earns nothing.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 500000}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": 999999, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]},
+          {"idx": 2, "from": 1000000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 750, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 500000,
+      "discount_paise": 25000,
+      "net_paise": 475000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 1, "measure": 500000,
+         "benefit_paise": 25000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 2,
+                       "basis": "Value", "measure": 500000, "gap": 500000}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "value-slab-one-paise-below-lower-bound",
+    "why": "A single paise short of a value slab earns nothing, and the near miss must read 500000 - 499999 = 1 - this is the case that proves the engine is comparing integers and not a float that drifted the last paise away.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 499999}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": 999999, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]},
+          {"idx": 2, "from": 1000000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 750, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 499999,
+      "discount_paise": 0,
+      "net_paise": 499999,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 1,
+                       "basis": "Value", "measure": 499999, "gap": 1}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "value-slab-one-paise-above-lower-bound",
+    "why": "One paise over the bound qualifies and the percent is taken on the real gross, not on the slab floor: 500001 x 500 = 250000500, and floor((2 x 250000500 + 10000) / 20000) = 25000. An engine that discounted the threshold instead of the cart would be off by a paise nobody could reconcile.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 500001}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": 999999, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]},
+          {"idx": 2, "from": 1000000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 750, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 500001,
+      "discount_paise": 25000,
+      "net_paise": 475001,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 1, "measure": 500001,
+         "benefit_paise": 25000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 2,
+                       "basis": "Value", "measure": 500001, "gap": 499999}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "value-slab-exact-upper-bound",
+    "why": "Sitting exactly on the inclusive ceiling keeps the lower rate, and 999999 x 500 / 10000 is 49999.95 which must round up to 50000 - two boundaries tested at once, which is where divergence actually hides.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 999999}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": 999999, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]},
+          {"idx": 2, "from": 1000000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 750, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 999999,
+      "discount_paise": 50000,
+      "net_paise": 949999,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 1, "measure": 999999,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 2,
+                       "basis": "Value", "measure": 999999, "gap": 1}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "value-slab-one-paise-above-upper-bound",
+    "why": "One paise more moves the whole cart to the 7.5 percent tier: 1000000 x 750 / 10000 = 75000, which is 25000 paise more off than the tier below. If the boundary drifts, that is the promise that breaks. Nothing sits above slab 2, so there is no near miss.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 1000000}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": 999999, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]},
+          {"idx": 2, "from": 1000000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 750, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1000000,
+      "discount_paise": 75000,
+      "net_paise": 925000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00020", "scheme_name": "Detergent Value Slab", "slab_idx": 2, "measure": 1000000,
+         "benefit_paise": 75000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-slab-multiplier-is-one",
+    "why": "A `per: Slab` benefit is paid once however large the order, so 300 cases must earn the same single 5 percent as 100 cases: 3660000 x 500 / 10000 = 183000 with multiplier 1. An engine that quietly multiplied by the measure here would triple the discount on the largest orders only.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 300, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00030", "scheme_name": "Surf Excel Flat Five", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 3660000,
+      "discount_paise": 183000,
+      "net_paise": 3477000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00030", "scheme_name": "Surf Excel Flat Five", "slab_idx": 1, "measure": 300,
+         "benefit_paise": 183000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 183000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-unit-rate-off",
+    "why": "Two rupees off every unit across 75 units is 200 x 75 = 15000 paise, and the multiplier is the measure rather than the line count - the classic per-case scheme every distributor runs, and the one a rep will notice first if it is wrong.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 75, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00031", "scheme_name": "Surf Excel Two Rupees Off", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 50, "to": null, "benefits": [{"kind": "Rate Off", "amount_paise": 200, "per": "Unit"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 915000,
+      "discount_paise": 15000,
+      "net_paise": 900000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00031", "scheme_name": "Surf Excel Two Rupees Off", "slab_idx": 1, "measure": 75,
+         "benefit_paise": 15000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Rate Off", "per": "Unit", "multiplier": 75, "amount_paise": 15000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-unit-percent-rounds-then-multiplies",
+    "why": "S6 rounds the percent once and then multiplies: 123420 x 250 / 10000 is 3085.5 which rounds to 3086, times 3 units is 9258, whereas multiplying first gives 9256.5 which rounds to 9257 - one paise of order, and the single sharpest test in the corpus.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 3, "rate_paise": 41140}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00032", "scheme_name": "Detergent Per Unit Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 1, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 250, "per": "Unit"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 123420,
+      "discount_paise": 9258,
+      "net_paise": 114162,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00032", "scheme_name": "Detergent Per Unit Percent", "slab_idx": 1, "measure": 3,
+         "benefit_paise": 9258, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Unit", "multiplier": 3, "amount_paise": 9258, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-multiple-buy-ten-get-one-at-25",
+    "why": "Buy ten get one, at 25 units, pays floor(25/10) = 2 and not two-and-a-half times; a multiplier that rounded instead of floored would give away a third free case that no claim will ever reimburse. Two free cases at a valuation of 1900 each make the benefit worth 3800 to the shop even though the bill does not move.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 25, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00033", "scheme_name": "Biscuit Buy Ten Get One", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 10, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 62500,
+      "discount_paise": 0,
+      "net_paise": 62500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00033", "scheme_name": "Biscuit Buy Ten Get One", "slab_idx": 1, "measure": 25,
+         "benefit_paise": 3800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 2, "amount_paise": 3800, "item": "BIS-200", "qty": 2}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 2, "scheme": "FM-SCH-00033", "value_paise": 3800}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-multiple-exact-multiple",
+    "why": "At exactly 30 on a buy-ten the multiplier is floor(30/10) = 3, not 2 - a floor implemented over a float 2.9999999 would short the shopkeeper a whole free case at precisely the round numbers people actually order. Three cases at 1900 each is 5700 of benefit.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 30, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00033", "scheme_name": "Biscuit Buy Ten Get One", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 10, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 75000,
+      "discount_paise": 0,
+      "net_paise": 75000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00033", "scheme_name": "Biscuit Buy Ten Get One", "slab_idx": 1, "measure": 30,
+         "benefit_paise": 5700, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 3, "amount_paise": 5700, "item": "BIS-200", "qty": 3}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 3, "scheme": "FM-SCH-00033", "value_paise": 5700}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-multiple-below-first-double",
+    "why": "Nineteen units on a buy-ten is floor(19/10) = 1 free, not two - the far side of the same floor, and the case that catches a ceiling written by mistake. One case at 1900 is the whole benefit.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 19, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00033", "scheme_name": "Biscuit Buy Ten Get One", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 10, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 47500,
+      "discount_paise": 0,
+      "net_paise": 47500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00033", "scheme_name": "Biscuit Buy Ten Get One", "slab_idx": 1, "measure": 19,
+         "benefit_paise": 1900, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 1, "amount_paise": 1900, "item": "BIS-200", "qty": 1}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 1, "scheme": "FM-SCH-00033", "value_paise": 1900}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-multiple-divides-by-matched-slab-from",
+    "why": "The multiplier divides by the matched slab's `from`, not by the first slab's, so on a tiered ladder floor(25/20) = 1 free case - fewer than the two a flat buy-ten would give. The specification documents this as a trap rather than fixing it, and the corpus has to pin the surprising number so a manager building a tiered free-goods ladder meets it here and not in a shop.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 25, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00034", "scheme_name": "Biscuit Tiered Free Goods", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 10, "to": 19, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]},
+          {"idx": 2, "from": 20, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 62500,
+      "discount_paise": 0,
+      "net_paise": 62500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00034", "scheme_name": "Biscuit Tiered Free Goods", "slab_idx": 2, "measure": 25,
+         "benefit_paise": 1900, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 1, "amount_paise": 1900, "item": "BIS-200", "qty": 1}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 1, "scheme": "FM-SCH-00034", "value_paise": 1900}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-multiple-on-a-zero-floor-pays-once",
+    "why": "A manager who wants an offer with no minimum types a floor of 0, and floor(25/0) has no answer. S6 pins the multiplier to 1 when `slab.from` is at or below zero, so the shop gets one free case and neither engine divides by zero in front of a shopkeeper. One case at 1900 is the benefit.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 25, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00361", "scheme_name": "Biscuit No Minimum Free Goods", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 0, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 62500,
+      "discount_paise": 0,
+      "net_paise": 62500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00361", "scheme_name": "Biscuit No Minimum Free Goods", "slab_idx": 1, "measure": 25,
+         "benefit_paise": 1900, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 1, "amount_paise": 1900, "item": "BIS-200", "qty": 1}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 1, "scheme": "FM-SCH-00361", "value_paise": 1900}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-multiple-on-value-basis",
+    "why": "On a Value basis the multiple divides paise by paise: floor(250000 / 100000) = 2, so 50 rupees off per full 1000 rupees pays 5000 x 2 = 10000 - the same rule as free goods, but where a units-versus-paise mix-up would go unnoticed because both are just integers.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 100, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00035", "scheme_name": "Biscuit Value Multiple", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100000, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 5000, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 250000,
+      "discount_paise": 10000,
+      "net_paise": 240000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00035", "scheme_name": "Biscuit Value Multiple", "slab_idx": 1, "measure": 250000,
+         "benefit_paise": 10000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Multiple", "multiplier": 2, "amount_paise": 10000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-unit-free-goods-doubles-the-order",
+    "why": "Free goods `per: Unit` multiplies by the whole measure, so one free per unit on six units is six free, worth 6 x 2600 = 15600 - the spec says so plainly, and a manager who reads `per unit` as `once per slab` will give away the shop. The bill still does not move, which is what separates benefit_paise from discount_paise.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 6, "rate_paise": 3400}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00036", "scheme_name": "Soap One Free Per Unit", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SOAP-100"],
+        "slabs": [
+          {"idx": 1, "from": 5, "to": null, "benefits": [{"kind": "Free Goods", "item": "SOAP-100", "qty": 1, "value_paise": 2600, "per": "Unit"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 20400,
+      "discount_paise": 0,
+      "net_paise": 20400,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00036", "scheme_name": "Soap One Free Per Unit", "slab_idx": 1, "measure": 6,
+         "benefit_paise": 15600, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Unit", "multiplier": 6, "amount_paise": 15600, "item": "SOAP-100", "qty": 6}
+         ]}
+      ],
+      "free_goods": [{"item": "SOAP-100", "qty": 6, "scheme": "FM-SCH-00036", "value_paise": 15600}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "per-slab-free-goods-fixed-count",
+    "why": "Two free soaps once the shop crosses 50, however far past 50 it goes: multiplier 1, granted qty 2, worth 2 x 2600 = 5200 - the flattest free-goods shape there is, and the control against which the Unit and Multiple variants are read.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 60, "rate_paise": 3400}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00037", "scheme_name": "Soap Two Free Per Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SOAP-100"],
+        "slabs": [
+          {"idx": 1, "from": 50, "to": null, "benefits": [{"kind": "Free Goods", "item": "SOAP-100", "qty": 2, "value_paise": 2600, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 204000,
+      "discount_paise": 0,
+      "net_paise": 204000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00037", "scheme_name": "Soap Two Free Per Slab", "slab_idx": 1, "measure": 60,
+         "benefit_paise": 5200, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 5200, "item": "SOAP-100", "qty": 2}
+         ]}
+      ],
+      "free_goods": [{"item": "SOAP-100", "qty": 2, "scheme": "FM-SCH-00037", "value_paise": 5200}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-half-paise-exact-rounds-up",
+    "why": "123420 x 250 = 30855000, and over 10000 that is exactly 3085.5 paise; round_half_up_div gives floor((61710000 + 10000) / 20000) = 3086, so the half paise goes up. This case exists so Python and JavaScript are never allowed to part company on the tie by accident.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 123420}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00040", "scheme_name": "Detergent Two And A Half Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 250, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 123420,
+      "discount_paise": 3086,
+      "net_paise": 120334,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00040", "scheme_name": "Detergent Two And A Half Percent", "slab_idx": 1, "measure": 123420,
+         "benefit_paise": 3086, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 3086, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-half-paise-one-paise-below",
+    "why": "123419 x 250 = 30854750, or 3085.475 paise, which floors to 3085 - one paise under the tie, and the proof that the engine is not simply rounding everything up.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 123419}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00040", "scheme_name": "Detergent Two And A Half Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 250, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 123419,
+      "discount_paise": 3085,
+      "net_paise": 120334,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00040", "scheme_name": "Detergent Two And A Half Percent", "slab_idx": 1, "measure": 123419,
+         "benefit_paise": 3085, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 3085, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-half-paise-one-paise-above",
+    "why": "123421 x 250 = 30855250, or 3085.525 paise, which rounds to 3086 - the same answer as the exact half from the other side, so the pair brackets the tie and pins which way it falls.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 123421}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00040", "scheme_name": "Detergent Two And A Half Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 250, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 123421,
+      "discount_paise": 3086,
+      "net_paise": 120335,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00040", "scheme_name": "Detergent Two And A Half Percent", "slab_idx": 1, "measure": 123421,
+         "benefit_paise": 3086, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 3086, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-half-paise-twelve-point-five-exact",
+    "why": "84364 x 1250 = 105455000, exactly 10545.5 paise, rounding to 10546. This is the tie that catches banker rounding, which would take 10545.5 to the even 10546 here but send the next tie the other way - which is why the primitive is arithmetic and not a library call.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 84364}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00041", "scheme_name": "Detergent Twelve And A Half Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 1250, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 84364,
+      "discount_paise": 10546,
+      "net_paise": 73818,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00041", "scheme_name": "Detergent Twelve And A Half Percent", "slab_idx": 1, "measure": 84364,
+         "benefit_paise": 10546, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 10546, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-half-paise-twelve-point-five-below",
+    "why": "84363 x 1250 = 105453750, or 10545.375 paise, floor 10545 - the lower bracket of the 12.5 percent tie.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 84363}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00041", "scheme_name": "Detergent Twelve And A Half Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 1250, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 84363,
+      "discount_paise": 10545,
+      "net_paise": 73818,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00041", "scheme_name": "Detergent Twelve And A Half Percent", "slab_idx": 1, "measure": 84363,
+         "benefit_paise": 10545, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 10545, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-half-paise-twelve-point-five-above",
+    "why": "84365 x 1250 = 105456250, or 10545.625 paise, rounding to 10546 - the upper bracket, and together with the pair above it fixes the tie direction at a second basis-point value so no single lucky constant can explain a pass.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 84365}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00041", "scheme_name": "Detergent Twelve And A Half Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 1250, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 84365,
+      "discount_paise": 10546,
+      "net_paise": 73819,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00041", "scheme_name": "Detergent Twelve And A Half Percent", "slab_idx": 1, "measure": 84365,
+         "benefit_paise": 10546, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 10546, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-odd-basis-points-half-paise-exact",
+    "why": "3.33 percent on 245000 paise is 245000 x 333 = 81585000 over 10000, exactly 8158.5, rounding to 8159. An odd pct_bp with no factor in common with 10000 is where a float path drifts, and 3.33 percent is a real number because it is what one-third of ten percent looks like in a scheme circular.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 245000}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00042", "scheme_name": "Detergent Three Point Three Three", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 333, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 245000,
+      "discount_paise": 8159,
+      "net_paise": 236841,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00042", "scheme_name": "Detergent Three Point Three Three", "slab_idx": 1, "measure": 245000,
+         "benefit_paise": 8159, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 8159, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-odd-basis-points-half-paise-below",
+    "why": "244999 x 333 = 81584667, or 8158.4667 paise, floor 8158 - one paise of cart under the tie moves the discount down by one paise, which is the resolution the whole money contract is claiming to have.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 244999}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00042", "scheme_name": "Detergent Three Point Three Three", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 333, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 244999,
+      "discount_paise": 8158,
+      "net_paise": 236841,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00042", "scheme_name": "Detergent Three Point Three Three", "slab_idx": 1, "measure": 244999,
+         "benefit_paise": 8158, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 8158, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-odd-basis-points-half-paise-above",
+    "why": "245001 x 333 = 81585333, or 8158.5333 paise, rounding to 8159 - the upper bracket of the odd-basis-point tie.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 245001}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00042", "scheme_name": "Detergent Three Point Three Three", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 333, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 245001,
+      "discount_paise": 8159,
+      "net_paise": 236842,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00042", "scheme_name": "Detergent Three Point Three Three", "slab_idx": 1, "measure": 245001,
+         "benefit_paise": 8159, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 8159, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-quarter-paise-rounds-down",
+    "why": "100005 x 500 = 50002500, or 5000.25 paise, which must floor to 5000 - a quarter paise is below the tie and a half-up rule that was really a ceiling would show up here and nowhere in the tie cases.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 100005}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00043", "scheme_name": "Detergent Five Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 100005,
+      "discount_paise": 5000,
+      "net_paise": 95005,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00043", "scheme_name": "Detergent Five Percent", "slab_idx": 1, "measure": 100005,
+         "benefit_paise": 5000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 5000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-three-quarter-paise-rounds-up",
+    "why": "100015 x 500 = 50007500, or 5000.75 paise, rounding to 5001 - the matching case above the tie, so down at a quarter and up at three quarters brackets the rule from both sides without ever touching the tie itself.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 100015}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00043", "scheme_name": "Detergent Five Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 100015,
+      "discount_paise": 5001,
+      "net_paise": 95014,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00043", "scheme_name": "Detergent Five Percent", "slab_idx": 1, "measure": 100015,
+         "benefit_paise": 5001, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 5001, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-zero-basis-points-still-applies",
+    "why": "A scheme typed with a zero percent is still a scheme that matched, so it appears in `applied` with a zero benefit rather than vanishing - the rep needs to see that the offer was recognised and is worth nothing, not be left wondering whether the app missed it.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 100000}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00044", "scheme_name": "Detergent Zero Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 0, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 100000,
+      "discount_paise": 0,
+      "net_paise": 100000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00044", "scheme_name": "Detergent Zero Percent", "slab_idx": 1, "measure": 100000,
+         "benefit_paise": 0, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 0, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-hundred-percent-nets-exactly-zero",
+    "why": "A hundred percent off takes the net to exactly zero, which is not negative and carries no error - the boundary between a legitimate giveaway and the misconfiguration that NEGATIVE_NET is for.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "PWD-CASE", "qty": 1, "rate_paise": 100000}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00045", "scheme_name": "Detergent Hundred Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["PWD-CASE"],
+        "slabs": [
+          {"idx": 1, "from": 50000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 10000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 100000,
+      "discount_paise": 100000,
+      "net_paise": 0,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00045", "scheme_name": "Detergent Hundred Percent", "slab_idx": 1, "measure": 100000,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "percent-base-is-qualifying-gross-not-cart-gross",
+    "why": "The cart holds 3400 rupees of soap and 4250 rupees of tea; a 10 percent soap scheme must take 340000 x 1000 / 10000 = 34000 paise off the soap, not 76500 off everything. If this regresses the soap brand pays for the tea brand discount and the claim is rejected at settlement.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 100, "rate_paise": 3400},
+        {"idx": 2, "item": "TEA-250", "qty": 50, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00050", "scheme_name": "Soap Ten Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SOAP-100"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 1000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 765000,
+      "discount_paise": 34000,
+      "net_paise": 731000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00050", "scheme_name": "Soap Ten Percent", "slab_idx": 1, "measure": 100,
+         "benefit_paise": 34000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 34000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "measured-over-order-empty-items-takes-whole-cart",
+    "why": "An order-value scheme measures the entire cart, so the base is 765000 and 765000 x 500 / 10000 = 38250 - the mirror image of the qualifying-gross case, and the only configuration in which the two bases legitimately coincide.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 100, "rate_paise": 3400},
+        {"idx": 2, "item": "TEA-250", "qty": 50, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00051", "scheme_name": "Order Value Five Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Order",
+        "qualifying_items": [],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 765000,
+      "discount_paise": 38250,
+      "net_paise": 726750,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00051", "scheme_name": "Order Value Five Percent", "slab_idx": 1, "measure": 765000,
+         "benefit_paise": 38250, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 38250, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "measured-over-item-set-empty-items-never-applies",
+    "why": "An empty item list only widens to the whole cart when measured_over is Order, so Item Set with an empty list can never qualify on anything - a compiler that expanded an item group to nothing produces a scheme that is silently dead every single time. It is not applicable rather than dropped, so it reports a near miss at measure 0 with gap 500000.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 100, "rate_paise": 3400},
+        {"idx": 2, "item": "TEA-250", "qty": 50, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00052", "scheme_name": "Empty Item Set Five Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": [],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 765000,
+      "discount_paise": 0,
+      "net_paise": 765000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00052", "scheme_name": "Empty Item Set Five Percent", "slab_idx": 1,
+                       "basis": "Value", "measure": 0, "gap": 500000}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "measured-over-order-ignores-a-non-empty-item-list",
+    "why": "S4 reads measured_over first and unconditionally: Order means every line qualifies, so the tea-only item list is ignored and the base is the whole 765000, giving 38250. Revision 1 left this silent and the corpus read it as a filter, which made the same spec worth 21250 - a 170 rupee divergence on one cart. The compiler is now required to emit an empty list for Order, so a spec shaped like this one is malformed and the engine must still answer the same way on both runtimes.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 100, "rate_paise": 3400},
+        {"idx": 2, "item": "TEA-250", "qty": 50, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00053", "scheme_name": "Tea Order Five Percent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Order",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 400000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 765000,
+      "discount_paise": 38250,
+      "net_paise": 726750,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00053", "scheme_name": "Tea Order Five Percent", "slab_idx": 1, "measure": 765000,
+         "benefit_paise": 38250, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 38250, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "combo-five-benefits-on-one-slab",
+    "why": "One slab carrying every kind at once on 150 cases: percent 1830000 x 500 / 10000 = 91500, flat 25000, rate off 100 x 150 = 15000, free goods floor(150/120) = 1 case worth 9800, and incentive 500 x 150 = 75000. discount_paise is 91500 + 25000 + 15000 = 131500, benefit_paise adds the free case for 141300, and the budget cost that S7 would check is 216300 because it also counts the incentive. Three different totals from one slab is exactly where an engine accumulates into the wrong bucket.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00060", "scheme_name": "Surf Excel Everything Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [
+            {"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"},
+            {"kind": "Value Discount", "amount_paise": 25000, "per": "Slab"},
+            {"kind": "Rate Off", "amount_paise": 100, "per": "Unit"},
+            {"kind": "Free Goods", "item": "SE-1000", "qty": 1, "value_paise": 9800, "per": "Multiple"},
+            {"kind": "Incentive", "amount_paise": 500, "per": "Unit"}
+          ]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 131500,
+      "net_paise": 1698500,
+      "incentive_paise": 75000,
+      "applied": [
+        {"scheme": "FM-SCH-00060", "scheme_name": "Surf Excel Everything Slab", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 141300, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 91500, "item": null, "qty": 0},
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25000, "item": null, "qty": 0},
+           {"kind": "Rate Off", "per": "Unit", "multiplier": 150, "amount_paise": 15000, "item": null, "qty": 0},
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 1, "amount_paise": 9800, "item": "SE-1000", "qty": 1},
+           {"kind": "Incentive", "per": "Unit", "multiplier": 150, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [{"item": "SE-1000", "qty": 1, "scheme": "FM-SCH-00060", "value_paise": 9800}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "benefit-shape-pads-item-and-qty-on-money-kinds",
+    "why": "Four money benefits and no free goods, so every entry must still carry all six keys with `item` null and `qty` 0. JSON.stringify drops an undefined key while Python writes null, so a missing pad is a parity failure on a value that is arithmetically identical. Percent 91500, flat 25000, rate off 15000, incentive 75000: benefit_paise is 131500 because incentive is excluded, and free_goods is empty.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00061", "scheme_name": "Surf Excel Four Money Kinds", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [
+            {"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"},
+            {"kind": "Value Discount", "amount_paise": 25000, "per": "Slab"},
+            {"kind": "Rate Off", "amount_paise": 100, "per": "Unit"},
+            {"kind": "Incentive", "amount_paise": 500, "per": "Unit"}
+          ]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 131500,
+      "net_paise": 1698500,
+      "incentive_paise": 75000,
+      "applied": [
+        {"scheme": "FM-SCH-00061", "scheme_name": "Surf Excel Four Money Kinds", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 131500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 91500, "item": null, "qty": 0},
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25000, "item": null, "qty": 0},
+           {"kind": "Rate Off", "per": "Unit", "multiplier": 150, "amount_paise": 15000, "item": null, "qty": 0},
+           {"kind": "Incentive", "per": "Unit", "multiplier": 150, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "benefit-paise-includes-the-value-of-free-goods",
+    "why": "The shop gets 120 rupees off the bill and two free cases worth 1900 each, so discount_paise is 12000 and benefit_paise is 12000 + 3800 = 15800. The two figures must differ here or the Benefit Value on the rep's card understates what the shopkeeper actually received, and Best Of Group would rank on the wrong number.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 200, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00062", "scheme_name": "Biscuit Flat And Free", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 12000, "per": "Slab"},
+            {"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}
+          ]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 500000,
+      "discount_paise": 12000,
+      "net_paise": 488000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00062", "scheme_name": "Biscuit Flat And Free", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 15800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 12000, "item": null, "qty": 0},
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 2, "amount_paise": 3800, "item": "BIS-200", "qty": 2}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 2, "scheme": "FM-SCH-00062", "value_paise": 3800}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "combo-three-schemes-on-one-cart",
+    "why": "A real van load: detergent on a qty slab worth 50000, tea on a value slab at 510000 x 500 / 10000 = 25500, biscuits on a free-goods multiple of floor(200/100) = 2 cases worth 3800. Each base must stay inside its own brand, the two discounts add to 75500 off the bill, and the biscuit benefit shows up in benefit_paise without touching the net.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 130, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 60, "rate_paise": 8500},
+        {"idx": 3, "item": "BIS-200", "qty": 200, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00101", "scheme_name": "Surf Excel Volume", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00102", "scheme_name": "Tea Value Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00103", "scheme_name": "Biscuit Hundred Get One", "priority": 30,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2596000,
+      "discount_paise": 75500,
+      "net_paise": 2520500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00101", "scheme_name": "Surf Excel Volume", "slab_idx": 1, "measure": 130,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00102", "scheme_name": "Tea Value Five Percent", "slab_idx": 1, "measure": 510000,
+         "benefit_paise": 25500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25500, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00103", "scheme_name": "Biscuit Hundred Get One", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 3800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 2, "amount_paise": 3800, "item": "BIS-200", "qty": 2}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 2, "scheme": "FM-SCH-00103", "value_paise": 3800}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "combo-two-stackable-on-the-same-item",
+    "why": "Two Stackable schemes on the same SKU both pay, and both take their base from the same 2440000 qualifying gross: 100000 flat plus 2440000 x 500 / 10000 = 122000. A brand promotion sitting on top of a distributor promotion is ordinary, and a Stackable scheme claims nothing so nothing stops it.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00110", "scheme_name": "Surf Excel Distributor Flat", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00111", "scheme_name": "Surf Excel Brand Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 222000,
+      "net_paise": 2218000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00110", "scheme_name": "Surf Excel Distributor Flat", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00111", "scheme_name": "Surf Excel Brand Five Percent", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 122000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 122000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-exclusive-drops-later-overlapping",
+    "why": "The Exclusive at priority 10 claims the detergent and the richer 5 percent scheme behind it is dropped entirely, even though 122000 was 22000 more than the 100000 that was paid. A rep who can see both offers on the shelf card needs the app to be the one that decides, and the dropped scheme reports no near miss because nudging toward an offer it cannot collect would be a lie.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00201", "scheme_name": "Surf Excel Exclusive Flat", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00202", "scheme_name": "Surf Excel Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 100000,
+      "net_paise": 2340000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00201", "scheme_name": "Surf Excel Exclusive Flat", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00202", "scheme_name": "Surf Excel Five Percent", "reason": "EXCLUSIVE_OVERLAP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-exclusive-leaves-disjoint-items-alone",
+    "why": "An Exclusive claims only the items it actually qualified on, so a tea scheme worth 510000 x 500 / 10000 = 25500 survives beside a detergent Exclusive worth 100000. If the claim set widened to the whole cart, every Exclusive in the catalogue would silently switch off every other offer in the van.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 60, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00211", "scheme_name": "Surf Excel Exclusive Flat", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00212", "scheme_name": "Tea Value Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2950000,
+      "discount_paise": 125500,
+      "net_paise": 2824500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00211", "scheme_name": "Surf Excel Exclusive Flat", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00212", "scheme_name": "Tea Value Five Percent", "slab_idx": 1, "measure": 510000,
+         "benefit_paise": 25500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25500, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-two-exclusives-earlier-priority-wins",
+    "why": "Priority 5 takes the item and priority 10 is dropped even though 2440000 x 1000 / 10000 = 244000 was worth three times the 80000 that was paid. The spec is explicit that priority is how a manager expresses intent, so the cheaper scheme winning is correct rather than a bug - and the shopkeeper being 1640 rupees worse off than the catalogue suggests is something the manager must be able to see.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00221", "scheme_name": "Surf Excel Exclusive Early", "priority": 5,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 80000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00222", "scheme_name": "Surf Excel Exclusive Late", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 1000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 80000,
+      "net_paise": 2360000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00221", "scheme_name": "Surf Excel Exclusive Early", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 80000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 80000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00222", "scheme_name": "Surf Excel Exclusive Late", "reason": "EXCLUSIVE_OVERLAP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-two-exclusives-tie-breaks-on-scheme-id",
+    "why": "Same priority, so S3 falls back to the naming-series id and 00231 runs first, paying 80000 instead of the 244000 that 00232 would have. Without that tiebreak the winner would depend on dictionary or array order, which differs between a Python query result and a JSON array cached on a phone - the exact shape of bug Gate 4 exists to catch.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00232", "scheme_name": "Surf Excel Exclusive B", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 1000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00231", "scheme_name": "Surf Excel Exclusive A", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 80000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 80000,
+      "net_paise": 2360000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00231", "scheme_name": "Surf Excel Exclusive A", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 80000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 80000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00232", "scheme_name": "Surf Excel Exclusive B", "reason": "EXCLUSIVE_OVERLAP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-best-of-group-picks-higher-benefit",
+    "why": "Two offers in one group, 150000 flat against 3660000 x 500 / 10000 = 183000, and only the richer one survives. Best Of Group is how a manager says pick whichever suits this order, so picking the cheaper one would quietly cost the shopkeeper 330 rupees on every large detergent order.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 300, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00241", "scheme_name": "Surf Excel Flat Fifteen Hundred", "priority": 10,
+        "stacking": "Best Of Group", "stack_group": "SE-VOL", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 150000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00242", "scheme_name": "Surf Excel Five Percent", "priority": 20,
+        "stacking": "Best Of Group", "stack_group": "SE-VOL", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 3660000,
+      "discount_paise": 183000,
+      "net_paise": 3477000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00242", "scheme_name": "Surf Excel Five Percent", "slab_idx": 1, "measure": 300,
+         "benefit_paise": 183000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 183000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00241", "scheme_name": "Surf Excel Flat Fifteen Hundred", "reason": "BEST_OF_GROUP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-best-of-group-tie-breaks-on-s3-order",
+    "why": "Both group members are worth exactly 150000, and the tie breaks on S3 order, so 00252 at priority 10 wins over 00251 at priority 20. Revision 1 broke the tie on scheme id alone, which let the lower-priority scheme win and contradicted the rule that priority is how a manager expresses intent; this is the case that flipped.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 300, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00251", "scheme_name": "Surf Excel Tie A", "priority": 20,
+        "stacking": "Best Of Group", "stack_group": "SE-TIE", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 150000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00252", "scheme_name": "Surf Excel Tie B", "priority": 10,
+        "stacking": "Best Of Group", "stack_group": "SE-TIE", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 150000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 3660000,
+      "discount_paise": 150000,
+      "net_paise": 3510000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00252", "scheme_name": "Surf Excel Tie B", "slab_idx": 1, "measure": 300,
+         "benefit_paise": 150000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 150000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00251", "scheme_name": "Surf Excel Tie A", "reason": "BEST_OF_GROUP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-best-of-group-ranks-free-goods-by-value",
+    "why": "The flat member is worth 5000 off the bill; the free-goods member grants floor(200/100) x 2 = 4 cases at 1900 each, so its benefit_paise is 7600 and it wins. Before free goods carried a valuation this comparison was 5000 against 0 and the flat scheme won, so this case is the clearest proof that value_paise is being read and ranked on.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 200, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00343", "scheme_name": "Biscuit Group Flat", "priority": 10,
+        "stacking": "Best Of Group", "stack_group": "BIS-RANK", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 5000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00344", "scheme_name": "Biscuit Group Free Goods", "priority": 20,
+        "stacking": "Best Of Group", "stack_group": "BIS-RANK", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 2, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 500000,
+      "discount_paise": 0,
+      "net_paise": 500000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00344", "scheme_name": "Biscuit Group Free Goods", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 7600, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 2, "amount_paise": 7600, "item": "BIS-200", "qty": 4}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 4, "scheme": "FM-SCH-00344", "value_paise": 7600}],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00343", "scheme_name": "Biscuit Group Flat", "reason": "BEST_OF_GROUP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-best-of-group-ranks-on-shop-benefit-not-payout",
+    "why": "00341 pays out 100000 off the bill plus 500 x 300 = 150000 of rep incentive, which is 250000 of the distributor's money; 00342 pays 120000 and nothing else. Best Of Group ranks on benefit_paise, what the shop receives, so the 120000 scheme wins and the incentive never enters the comparison. Ranking on total payout instead would pick the scheme that is worse for the shopkeeper.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 300, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00341", "scheme_name": "Surf Excel Group Incentive Heavy", "priority": 10,
+        "stacking": "Best Of Group", "stack_group": "SE-RANK", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"},
+            {"kind": "Incentive", "amount_paise": 500, "per": "Unit"}
+          ]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00342", "scheme_name": "Surf Excel Group Bill Heavy", "priority": 20,
+        "stacking": "Best Of Group", "stack_group": "SE-RANK", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 3660000,
+      "discount_paise": 120000,
+      "net_paise": 3540000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00342", "scheme_name": "Surf Excel Group Bill Heavy", "slab_idx": 1, "measure": 300,
+         "benefit_paise": 120000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 120000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00341", "scheme_name": "Surf Excel Group Incentive Heavy", "reason": "BEST_OF_GROUP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-best-of-group-two-groups-are-independent",
+    "why": "A detergent group and a tea group each keep their own winner, 183000 and 25500, so two of four schemes apply and two are dropped. Collapsing to a single best across all groups would be the natural mistake, and it would silently cancel a live tea promotion every time a detergent promotion was richer. Both lists come out in S3 order: applied 00262 then 00263, dropped 00261 then 00264.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 300, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 60, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00261", "scheme_name": "Surf Excel Flat", "priority": 10,
+        "stacking": "Best Of Group", "stack_group": "SE-VOL", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 150000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00262", "scheme_name": "Surf Excel Percent", "priority": 20,
+        "stacking": "Best Of Group", "stack_group": "SE-VOL", "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00263", "scheme_name": "Tea Percent", "priority": 30,
+        "stacking": "Best Of Group", "stack_group": "TEA-VOL", "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00264", "scheme_name": "Tea Flat", "priority": 40,
+        "stacking": "Best Of Group", "stack_group": "TEA-VOL", "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 10000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 4170000,
+      "discount_paise": 208500,
+      "net_paise": 3961500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00262", "scheme_name": "Surf Excel Percent", "slab_idx": 1, "measure": 300,
+         "benefit_paise": 183000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 183000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00263", "scheme_name": "Tea Percent", "slab_idx": 1, "measure": 510000,
+         "benefit_paise": 25500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25500, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [
+        {"scheme": "FM-SCH-00261", "scheme_name": "Surf Excel Flat", "reason": "BEST_OF_GROUP"},
+        {"scheme": "FM-SCH-00264", "scheme_name": "Tea Flat", "reason": "BEST_OF_GROUP"}
+      ],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-stackable-alongside-exclusive-and-best-of-group",
+    "why": "All three stacking modes in one cart on four different SKUs: the Exclusive takes the detergent for 100000, the tea group keeps its richer member at 25500, the Stackable biscuit scheme runs regardless and grants floor(200/100) = 2 free cases worth 3800, and the soap line is touched by nothing and stays whole in the 3586000 gross. This is the shape of a real morning route.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 60, "rate_paise": 8500},
+        {"idx": 3, "item": "BIS-200", "qty": 200, "rate_paise": 2500},
+        {"idx": 4, "item": "SOAP-100", "qty": 40, "rate_paise": 3400}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00271", "scheme_name": "Surf Excel Exclusive", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00272", "scheme_name": "Tea Percent", "priority": 20,
+        "stacking": "Best Of Group", "stack_group": "TEA", "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00273", "scheme_name": "Tea Flat", "priority": 30,
+        "stacking": "Best Of Group", "stack_group": "TEA", "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 10000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00274", "scheme_name": "Biscuit Free Goods", "priority": 40,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 3586000,
+      "discount_paise": 125500,
+      "net_paise": 3460500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00271", "scheme_name": "Surf Excel Exclusive", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00272", "scheme_name": "Tea Percent", "slab_idx": 1, "measure": 510000,
+         "benefit_paise": 25500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25500, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00274", "scheme_name": "Biscuit Free Goods", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 3800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 2, "amount_paise": 3800, "item": "BIS-200", "qty": 2}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 2, "scheme": "FM-SCH-00274", "value_paise": 3800}],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00273", "scheme_name": "Tea Flat", "reason": "BEST_OF_GROUP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-budget-drop-frees-the-later-scheme",
+    "why": "S7 runs before S8, so an Exclusive whose 100000 cost exceeds its 100000 - 50000 = 50000 of remaining budget never claims its items, and the Stackable behind it applies in full at 122000. Running the two steps the other way round would leave the cart with no discount at all - a scheme that is dead for want of budget must not also block the one that could have paid.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00281", "scheme_name": "Surf Excel Exclusive Funded", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": 100000, "consumed_paise": 50000, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00282", "scheme_name": "Surf Excel Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 122000,
+      "net_paise": 2318000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00282", "scheme_name": "Surf Excel Five Percent", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 122000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 122000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00281", "scheme_name": "Surf Excel Exclusive Funded", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "stacking-exclusive-kept-on-warn-still-claims-items",
+    "why": "The same cart with the same 50000 shortfall, but on_exhaust is Warn, so the Exclusive survives carrying budget_warning and still claims the detergent - which drops the Stackable that would have applied had the budget simply blocked it. Warn and Block do not differ by one flag; they change who gets the discount, 100000 here against 122000 in the Block twin.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00291", "scheme_name": "Surf Excel Exclusive Warn", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": 100000, "consumed_paise": 50000, "on_exhaust": "Warn"
+      },
+      {
+        "scheme": "FM-SCH-00292", "scheme_name": "Surf Excel Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 100000,
+      "net_paise": 2340000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00291", "scheme_name": "Surf Excel Exclusive Warn", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 100000, "budget_warning": true,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00292", "scheme_name": "Surf Excel Five Percent", "reason": "EXCLUSIVE_OVERLAP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-uncapped-null-always-funds",
+    "why": "A null budget means no pot to check at all, so the scheme pays its 75000 whatever the consumed figure says - treating null as zero would switch off every scheme a manager did not bother to cap, which is most of them.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00301", "scheme_name": "Surf Excel Uncapped", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 900000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 75000,
+      "net_paise": 1755000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00301", "scheme_name": "Surf Excel Uncapped", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 75000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-exactly-enough-remaining",
+    "why": "Cost 75000 against remaining 200000 - 125000 = 75000 is not greater than, so the last order the pot can fund goes through clean and without a warning. An engine that used >= would deny the very order the budget was sized for.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00302", "scheme_name": "Surf Excel Capped", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 125000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 75000,
+      "net_paise": 1755000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00302", "scheme_name": "Surf Excel Capped", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 75000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-one-paise-short-blocks-whole-scheme",
+    "why": "Remaining 200000 - 125001 = 74999 against a cost of 75000 drops the scheme entirely, not partially - a half-funded discount is a number nobody can reconcile at settlement, so the spec would rather the rep see no offer than a wrong one.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00303", "scheme_name": "Surf Excel One Paise Short", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 125001, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00303", "scheme_name": "Surf Excel One Paise Short", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-one-paise-short-warn-still-applies",
+    "why": "The identical one-paise shortfall with on_exhaust Warn pays the full 75000 and raises the flag instead, so the rep keeps the promise and the manager sees the pot has gone over. The pair with the Block case is what proves on_exhaust is actually being read and not defaulted.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00304", "scheme_name": "Surf Excel One Paise Short Warn", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 125001, "on_exhaust": "Warn"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 75000,
+      "net_paise": 1755000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00304", "scheme_name": "Surf Excel One Paise Short Warn", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 75000, "budget_warning": true,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-already-fully-consumed-blocks",
+    "why": "A pot consumed down to exactly zero funds nothing further, so a cost of 75000 against a remaining of 0 blocks, and the rep is told the scheme is gone rather than being shown an offer the distributor will refuse to honour.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00305", "scheme_name": "Surf Excel Spent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 200000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00305", "scheme_name": "Surf Excel Spent", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-already-fully-consumed-warn",
+    "why": "A spent pot on Warn keeps paying its 75000 and keeps flagging, which is how a distributor deliberately overshoots a month-end push - the flag is the whole audit trail for that overspend, so it must be set on every such line.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00306", "scheme_name": "Surf Excel Spent Warn", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 200000, "on_exhaust": "Warn"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 75000,
+      "net_paise": 1755000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00306", "scheme_name": "Surf Excel Spent Warn", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 75000, "budget_warning": true,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-overconsumed-remaining-goes-negative",
+    "why": "Consumed past the cap leaves remaining at 200000 - 250000 = -50000, and a cost of 75000 is still greater than minus 50000, so Block drops it. An engine that clamped remaining at zero would get the same answer here by accident, but an engine that compared absolute values would not.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00307", "scheme_name": "Surf Excel Overspent", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 250000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00307", "scheme_name": "Surf Excel Overspent", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-incentive-counts-against-the-cap-and-blocks",
+    "why": "A scheme that only pays the rep 500 x 150 = 75000 still costs the pot 75000, and against a remaining of 0 that blocks. Revision 1 left incentive out of the S7 cost, which let a rep be paid out of an exhausted budget - real money leaving the same decision with nothing to stop it. Because the scheme is dropped, incentive_paise stays at 0.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00308", "scheme_name": "Surf Excel Rep Incentive", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Incentive", "amount_paise": 500, "per": "Unit"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 200000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00308", "scheme_name": "Surf Excel Rep Incentive", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-free-goods-valuation-blocks-the-scheme",
+    "why": "The bill reduction is only 10000 and the remaining pot is 200000 - 185000 = 15000, so on the discount alone this scheme would have been funded. Five free cases at 1900 each add 9500 of stock leaving the warehouse, taking the cost to 19500 and blocking it. Free stock is inventory the distributor pays for, and a cap that ignored it would be no cap at all.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 100, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00331", "scheme_name": "Biscuit Flat And Five Free", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 10000, "per": "Slab"},
+            {"kind": "Free Goods", "item": "BIS-200", "qty": 5, "value_paise": 1900, "per": "Slab"}
+          ]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 185000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 250000,
+      "discount_paise": 0,
+      "net_paise": 250000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00331", "scheme_name": "Biscuit Flat And Five Free", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-free-goods-valuation-exactly-fits",
+    "why": "The same 10000 discount and 5 x 1900 = 9500 of free stock, cost 19500, against a remaining of 200000 - 180500 = 19500. Not greater than, so it funds cleanly with no warning - the boundary twin of the blocking case, and the one that proves the free-goods valuation is added exactly once and not twice.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 100, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00332", "scheme_name": "Biscuit Flat And Five Free Funded", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 10000, "per": "Slab"},
+            {"kind": "Free Goods", "item": "BIS-200", "qty": 5, "value_paise": 1900, "per": "Slab"}
+          ]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 180500, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 250000,
+      "discount_paise": 10000,
+      "net_paise": 240000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00332", "scheme_name": "Biscuit Flat And Five Free Funded", "slab_idx": 1, "measure": 100,
+         "benefit_paise": 19500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 10000, "item": null, "qty": 0},
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 9500, "item": "BIS-200", "qty": 5}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 5, "scheme": "FM-SCH-00332", "value_paise": 9500}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-incentive-tips-a-funded-scheme-over",
+    "why": "The 60000 discount sits comfortably inside a remaining of 200000 - 100000 = 100000, and the rep incentive of 500 x 150 = 75000 takes the cost to 135000 and blocks the whole scheme. The shopkeeper loses a 600 rupee discount because of money that was never going to the shop, which is harsh but correct: the cap is on what the scheme pays out, and the rep is paid from the same decision.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00333", "scheme_name": "Surf Excel Discount Plus Incentive Capped", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 60000, "per": "Slab"},
+            {"kind": "Incentive", "amount_paise": 500, "per": "Unit"}
+          ]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 100000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00333", "scheme_name": "Surf Excel Discount Plus Incentive Capped", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "budget-warn-pays-discount-free-goods-and-incentive-past-the-cap",
+    "why": "Every contributor at once against a remaining of 100000: discount 60000, two free cases at 9800 each for 19600, and incentive 500 x 150 = 75000, so cost is 154600 and the pot is 54600 short. On Warn all three are paid and the flag is raised. benefit_paise is 60000 + 19600 = 79600 because incentive is not the shop's, discount_paise is 60000 because free goods never touch the bill, and the budget cost that triggered the warning is larger than both.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00334", "scheme_name": "Surf Excel Everything Warn", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 60000, "per": "Slab"},
+            {"kind": "Free Goods", "item": "SE-1000", "qty": 2, "value_paise": 9800, "per": "Slab"},
+            {"kind": "Incentive", "amount_paise": 500, "per": "Unit"}
+          ]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 100000, "on_exhaust": "Warn"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 60000,
+      "net_paise": 1770000,
+      "incentive_paise": 75000,
+      "applied": [
+        {"scheme": "FM-SCH-00334", "scheme_name": "Surf Excel Everything Warn", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 79600, "budget_warning": true,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 60000, "item": null, "qty": 0},
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 19600, "item": "SE-1000", "qty": 2},
+           {"kind": "Incentive", "per": "Unit", "multiplier": 150, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [{"item": "SE-1000", "qty": 2, "scheme": "FM-SCH-00334", "value_paise": 19600}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "free-goods-do-not-feed-another-scheme-slab",
+    "why": "119 cases earn one free case from the first scheme, which would make 120 on the shelf - and the second scheme, whose slab opens at 120, must still measure 119 and find nothing, reporting a gap of 1. If free units re-entered the basis a scheme would fund its own escalation and the near miss would read zero.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 119, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00311", "scheme_name": "Surf Excel One Free", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "SE-1000", "qty": 1, "value_paise": 9800, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00312", "scheme_name": "Surf Excel Hundred And Twenty", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1451800,
+      "discount_paise": 0,
+      "net_paise": 1451800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00311", "scheme_name": "Surf Excel One Free", "slab_idx": 1, "measure": 119,
+         "benefit_paise": 9800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 9800, "item": "SE-1000", "qty": 1}
+         ]}
+      ],
+      "free_goods": [{"item": "SE-1000", "qty": 1, "scheme": "FM-SCH-00311", "value_paise": 9800}],
+      "near_misses": [{"scheme": "FM-SCH-00312", "scheme_name": "Surf Excel Hundred And Twenty", "slab_idx": 1,
+                       "basis": "Qty", "measure": 119, "gap": 1}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "free-goods-do-not-feed-their-own-next-slab",
+    "why": "The same trap inside a single scheme: slab 1 at 119 hands over a free case worth 9800, and the scheme must not then re-read itself at 120 and jump to slab 2 with its five free cases. One evaluation per scheme, against the cart as the rep entered it, and the near miss still reads 120 - 119 = 1.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 119, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00313", "scheme_name": "Surf Excel Free Goods Ladder", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": 119, "benefits": [{"kind": "Free Goods", "item": "SE-1000", "qty": 1, "value_paise": 9800, "per": "Slab"}]},
+          {"idx": 2, "from": 120, "to": null, "benefits": [{"kind": "Free Goods", "item": "SE-1000", "qty": 5, "value_paise": 9800, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1451800,
+      "discount_paise": 0,
+      "net_paise": 1451800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00313", "scheme_name": "Surf Excel Free Goods Ladder", "slab_idx": 1, "measure": 119,
+         "benefit_paise": 9800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 9800, "item": "SE-1000", "qty": 1}
+         ]}
+      ],
+      "free_goods": [{"item": "SE-1000", "qty": 1, "scheme": "FM-SCH-00313", "value_paise": 9800}],
+      "near_misses": [{"scheme": "FM-SCH-00313", "scheme_name": "Surf Excel Free Goods Ladder", "slab_idx": 2,
+                       "basis": "Qty", "measure": 119, "gap": 1}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "free-goods-bill-at-zero-and-leave-the-net-alone",
+    "why": "Three free cases change the delivery note and not one paise of the bill: gross, discount and net are all 250000 and 0 and 250000. benefit_paise is 3 x 1900 = 5700 because the shop really did receive 5700 of stock, which is the distinction revision 2 draws - the value shows up in what the shop received and never in what it was billed.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 100, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00314", "scheme_name": "Biscuit Three Free", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 3, "value_paise": 1900, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 250000,
+      "discount_paise": 0,
+      "net_paise": 250000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00314", "scheme_name": "Biscuit Three Free", "slab_idx": 1, "measure": 100,
+         "benefit_paise": 5700, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 5700, "item": "BIS-200", "qty": 3}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 3, "scheme": "FM-SCH-00314", "value_paise": 5700}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "free-goods-of-an-item-the-cart-does-not-hold",
+    "why": "Buy detergent, get soap: the granted item has no line in the cart, so there is no rate to fall back on and the 4 x 2600 = 10400 can only come from value_paise on the benefit. An engine that reached for a cart rate would produce zero here and silently understate every cross-brand giveaway a brand team runs.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00371", "scheme_name": "Surf Excel Free Soap", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Free Goods", "item": "SOAP-100", "qty": 4, "value_paise": 2600, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00371", "scheme_name": "Surf Excel Free Soap", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 10400, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 10400, "item": "SOAP-100", "qty": 4}
+         ]}
+      ],
+      "free_goods": [{"item": "SOAP-100", "qty": 4, "scheme": "FM-SCH-00371", "value_paise": 10400}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "free-goods-without-a-valuation-are-worth-zero",
+    "why": "An older compiled spec that predates value_paise still has to ship the stock, so three free cases go out, valued at 0. The pot here is spent to the paise - remaining is 10000 - 10000 = 0 - and a cost of 0 is not greater than 0, so the scheme survives an exhausted budget. That is the deliberate consequence: an unvalued giveaway does not consume budget, which is why the compiler must stamp the valuation.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 100, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00372", "scheme_name": "Biscuit Unvalued Free Goods", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 3, "per": "Slab"}]}
+        ],
+        "budget_paise": 10000, "consumed_paise": 10000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 250000,
+      "discount_paise": 0,
+      "net_paise": 250000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00372", "scheme_name": "Biscuit Unvalued Free Goods", "slab_idx": 1, "measure": 100,
+         "benefit_paise": 0, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Slab", "multiplier": 1, "amount_paise": 0, "item": "BIS-200", "qty": 3}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 3, "scheme": "FM-SCH-00372", "value_paise": 0}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "incentive-accrues-and-never-reduces-net",
+    "why": "500 rupees of rep incentive leaves the net exactly equal to the 1830000 gross, and benefit_paise is 0 because the shop received nothing. Netting incentive against the bill would tell the shopkeeper they got a discount that was never theirs, and would double-count the same money when the rep claims it.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00321", "scheme_name": "Surf Excel Flat Incentive", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Incentive", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 50000,
+      "applied": [
+        {"scheme": "FM-SCH-00321", "scheme_name": "Surf Excel Flat Incentive", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 0, "budget_warning": false,
+         "benefits": [
+           {"kind": "Incentive", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "incentive-beside-a-discount-on-the-same-slab",
+    "why": "600 rupees off the bill and 500 x 150 = 75000 paise to the rep, from one slab, landing in two different totals: discount_paise 60000, incentive_paise 75000, and benefit_paise 60000 because the shopkeeper never sees the incentive. An engine that summed both into discount_paise would understate the net by 750 rupees on every such order and nobody would spot it until reconciliation.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00322", "scheme_name": "Surf Excel Discount And Incentive", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 60000, "per": "Slab"},
+            {"kind": "Incentive", "amount_paise": 500, "per": "Unit"}
+          ]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 60000,
+      "net_paise": 1770000,
+      "incentive_paise": 75000,
+      "applied": [
+        {"scheme": "FM-SCH-00322", "scheme_name": "Surf Excel Discount And Incentive", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 60000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 60000, "item": null, "qty": 0},
+           {"kind": "Incentive", "per": "Unit", "multiplier": 150, "amount_paise": 75000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "incentive-from-two-schemes-sums-into-one-total",
+    "why": "200 x 150 = 30000 on detergent and 100 x 200 = 20000 on biscuits accrue to one incentive_paise of 50000 while the bill stays whole at 2330000 - the rep ledger is a single figure per order, and two schemes each writing their own would either overwrite or double it.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200},
+        {"idx": 2, "item": "BIS-200", "qty": 200, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00323", "scheme_name": "Surf Excel Rep Incentive", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Incentive", "amount_paise": 200, "per": "Unit"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00324", "scheme_name": "Biscuit Rep Incentive", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Incentive", "amount_paise": 100, "per": "Unit"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2330000,
+      "discount_paise": 0,
+      "net_paise": 2330000,
+      "incentive_paise": 50000,
+      "applied": [
+        {"scheme": "FM-SCH-00323", "scheme_name": "Surf Excel Rep Incentive", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 0, "budget_warning": false,
+         "benefits": [
+           {"kind": "Incentive", "per": "Unit", "multiplier": 150, "amount_paise": 30000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00324", "scheme_name": "Biscuit Rep Incentive", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 0, "budget_warning": false,
+         "benefits": [
+           {"kind": "Incentive", "per": "Unit", "multiplier": 200, "amount_paise": 20000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-empty-cart",
+    "why": "A rep opens the order screen before adding anything and every total must be zero while the near miss still names what the first slab needs, 120 - 0 = 120 - an engine that divided by a line count or indexed line zero crashes here, in front of the shopkeeper.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": []
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 0,
+      "discount_paise": 0,
+      "net_paise": 0,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "slab_idx": 1,
+                       "basis": "Qty", "measure": 0, "gap": 120}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-all-lines-qty-zero",
+    "why": "A rep who typed quantities and cleared them again leaves zero-qty rows behind; S1 drops them, so this must come out identical to the empty cart rather than producing a zero-value order the server then accepts.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 0, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 0, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 0,
+      "discount_paise": 0,
+      "net_paise": 0,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "slab_idx": 1,
+                       "basis": "Qty", "measure": 0, "gap": 120}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-negative-qty-line-is-dropped",
+    "why": "S1 drops qty <= 0, so a negative row left by a fumbled stepper contributes nothing to the 85000 gross and nothing to any measure - it must not subtract 610 rupees from the bill, and it must not make the detergent scheme look partly qualified.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": -5, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 10, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 85000,
+      "discount_paise": 0,
+      "net_paise": 85000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "slab_idx": 1,
+                       "basis": "Qty", "measure": 0, "gap": 120}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-duplicate-lines-merge-and-cross-the-slab",
+    "why": "Sixty cases added twice is 120, which crosses the slab and earns 50000 - a rep who scrolls back and adds the same SKU again instead of editing the first row must not be denied the offer they can see they have earned. The near miss then reads 240 - 120 = 120.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 60, "rate_paise": 12200},
+        {"idx": 2, "item": "SE-1000", "qty": 60, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00402", "scheme_name": "Surf Excel Two Slabs", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 239, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 240, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 120000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1464000,
+      "discount_paise": 50000,
+      "net_paise": 1414000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00402", "scheme_name": "Surf Excel Two Slabs", "slab_idx": 1, "measure": 120,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00402", "scheme_name": "Surf Excel Two Slabs", "slab_idx": 2,
+                       "basis": "Qty", "measure": 120, "gap": 120}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-duplicate-lines-with-different-rates",
+    "why": "S1 merges duplicates by summing qty and S2 then multiplies by a single rate, and revision 2 fixes that rate as the one on the lowest original idx. So 20 units bill at 12200 for a gross of 244000, not the 242000 the two rows actually added up to, and the 5 percent is 244000 x 500 / 10000 = 12200. A rep who re-added a SKU did not intend to renegotiate it, and picking by array position would make the answer depend on transport order.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 10, "rate_paise": 12200},
+        {"idx": 2, "item": "SE-1000", "qty": 10, "rate_paise": 12000}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 20, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 244000,
+      "discount_paise": 12200,
+      "net_paise": 231800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "slab_idx": 1, "measure": 20,
+         "benefit_paise": 12200, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 12200, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-scheme-with-no-qualifying-line",
+    "why": "A detergent scheme against a tea-only cart measures 0 and is not applicable, but it still reports a near miss with the full slab as the gap - that is the nudge that tells the rep what the shop is not buying, and dropping it silently would make the scheme invisible instead of unreached.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "TEA-250", "qty": 60, "rate_paise": 8500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 510000,
+      "discount_paise": 0,
+      "net_paise": 510000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00401", "scheme_name": "Surf Excel Volume", "slab_idx": 1,
+                       "basis": "Qty", "measure": 0, "gap": 120}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-negative-net-value-discount",
+    "why": "A 1000 rupee flat discount typed against a 250 rupee cart floors the net at zero and raises NEGATIVE_NET; discount_paise still reports the full 100000 the scheme asked for, because revision 2 is explicit that it is not clamped - hiding the overshoot would hide the misconfiguration the error exists to surface.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 10, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00411", "scheme_name": "Biscuit Mistyped Flat", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 10, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 25000,
+      "discount_paise": 100000,
+      "net_paise": 0,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00411", "scheme_name": "Biscuit Mistyped Flat", "slab_idx": 1, "measure": 10,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": ["NEGATIVE_NET"]
+    }
+  },
+  {
+    "id": "degenerate-value-basis-per-unit-is-skipped",
+    "why": "On a Value basis the measure is paise, so `per: Unit` would have multiplied 50 paise by a measure of 25000 and taken 12500 rupees off a 250 rupee cart. Revision 2 forbids the combination outright, so the benefit is skipped and the scheme applies with an empty benefits list, a zero benefit_paise and no error - an under-promise the rep can live with, where the revision 1 reading blew the net to zero and raised NEGATIVE_NET.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 10, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00412", "scheme_name": "Biscuit Value Basis Rate Off", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 10000, "to": null, "benefits": [{"kind": "Rate Off", "amount_paise": 50, "per": "Unit"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 25000,
+      "discount_paise": 0,
+      "net_paise": 25000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00412", "scheme_name": "Biscuit Value Basis Rate Off", "slab_idx": 1, "measure": 25000,
+         "benefit_paise": 0, "budget_warning": false,
+         "benefits": []}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-discount-equals-gross-is-not-an-error",
+    "why": "A discount that lands exactly on the 25000 gross leaves a zero net and an empty errors list - the free sample order a rep occasionally raises is legitimate, and flagging it as a misconfiguration would teach everyone to ignore NEGATIVE_NET.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 10, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00413", "scheme_name": "Biscuit Full Value Off", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 10, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 25000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 25000,
+      "discount_paise": 25000,
+      "net_paise": 0,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00413", "scheme_name": "Biscuit Full Value Off", "slab_idx": 1, "measure": 10,
+         "benefit_paise": 25000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-no-specs-at-all",
+    "why": "A phone whose scheme cache has not synced yet passes an empty spec list, and the order must still price at the 1830000 gross with no offers rather than failing - the rep in a market with no signal still has to take the order.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "forward-compat-unknown-kind-is-skipped",
+    "why": "A phone running last month's build meets a Cashback benefit it has never heard of. It is skipped and contributes nothing, so the rep quotes 60000 and the server may grant more - a pleasant surprise rather than a promise taken back across a counter. The skip also costs nothing against the pot: the remaining is 100000 - 40000 = 60000 and the surviving cost is exactly 60000, where charging the unknown 50000 too would have taken the cost to 110000 and blocked a scheme the server intends to pay.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00351", "scheme_name": "Surf Excel Cashback And Flat", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [
+            {"kind": "Cashback", "amount_paise": 50000, "per": "Slab"},
+            {"kind": "Value Discount", "amount_paise": 60000, "per": "Slab"}
+          ]}
+        ],
+        "budget_paise": 100000, "consumed_paise": 40000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 60000,
+      "net_paise": 1770000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00351", "scheme_name": "Surf Excel Cashback And Flat", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 60000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 60000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "forward-compat-unknown-per-is-skipped",
+    "why": "A future `per: Per Case` multiplier has no meaning on this build, so the 60000 benefit carrying it is skipped entirely rather than guessed at a multiplier of 1. Only the Rate Off survives, 100 x 150 = 15000. Guessing would over-promise, and the rule the whole clause exists for is that the phone quotes less than the server grants, never more.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00352", "scheme_name": "Surf Excel Future Per", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [
+            {"kind": "Value Discount", "amount_paise": 60000, "per": "Per Case"},
+            {"kind": "Rate Off", "amount_paise": 100, "per": "Unit"}
+          ]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 15000,
+      "net_paise": 1815000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00352", "scheme_name": "Surf Excel Future Per", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 15000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Rate Off", "per": "Unit", "multiplier": 150, "amount_paise": 15000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "forward-compat-unknown-stacking-skips-the-scheme",
+    "why": "A stacking mode this build has never seen decides whether the scheme excludes others, so there is no safe way to apply it: treating it as Stackable would pay a 100000 discount the server might refuse, and treating it as Exclusive would cancel the 122000 scheme behind it. The whole scheme is skipped - it contributes nothing, claims nothing and appears nowhere, since none of the three drop reasons fits - and the Stackable scheme behind it applies untouched at 2440000 x 500 / 10000 = 122000.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00353", "scheme_name": "Surf Excel Future Stacking", "priority": 10,
+        "stacking": "Bundle Of Three", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00354", "scheme_name": "Surf Excel Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 122000,
+      "net_paise": 2318000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00354", "scheme_name": "Surf Excel Five Percent", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 122000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 122000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "determinism-line-order-canonical",
+    "why": "The reference half of the determinism pair: four SKUs in tidy order for a 2732000 gross, three schemes paying 50000, 25500 and two free biscuit cases worth 3800. Its twin builds the same cart by a different route and must produce these exact numbers.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 130, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 60, "rate_paise": 8500},
+        {"idx": 3, "item": "BIS-200", "qty": 200, "rate_paise": 2500},
+        {"idx": 4, "item": "SOAP-100", "qty": 40, "rate_paise": 3400}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00101", "scheme_name": "Surf Excel Volume", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00102", "scheme_name": "Tea Value Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00103", "scheme_name": "Biscuit Hundred Get One", "priority": 30,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2732000,
+      "discount_paise": 75500,
+      "net_paise": 2656500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00101", "scheme_name": "Surf Excel Volume", "slab_idx": 1, "measure": 130,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00102", "scheme_name": "Tea Value Five Percent", "slab_idx": 1, "measure": 510000,
+         "benefit_paise": 25500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25500, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00103", "scheme_name": "Biscuit Hundred Get One", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 3800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 2, "amount_paise": 3800, "item": "BIS-200", "qty": 2}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 2, "scheme": "FM-SCH-00103", "value_paise": 3800}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "determinism-line-order-shuffled-and-split",
+    "why": "The same order as the case above, entered the way it happens in a shop: soap first, biscuits in two goes of 120 and 80, detergent last. After S1 merges and sorts, every number must match the canonical twin - two phones that reached the same cart by different routes cannot quote different prices.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SOAP-100", "qty": 40, "rate_paise": 3400},
+        {"idx": 2, "item": "BIS-200", "qty": 120, "rate_paise": 2500},
+        {"idx": 3, "item": "TEA-250", "qty": 60, "rate_paise": 8500},
+        {"idx": 4, "item": "BIS-200", "qty": 80, "rate_paise": 2500},
+        {"idx": 5, "item": "SE-1000", "qty": 130, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00101", "scheme_name": "Surf Excel Volume", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00102", "scheme_name": "Tea Value Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00103", "scheme_name": "Biscuit Hundred Get One", "priority": 30,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Free Goods", "item": "BIS-200", "qty": 1, "value_paise": 1900, "per": "Multiple"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2732000,
+      "discount_paise": 75500,
+      "net_paise": 2656500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00101", "scheme_name": "Surf Excel Volume", "slab_idx": 1, "measure": 130,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00102", "scheme_name": "Tea Value Five Percent", "slab_idx": 1, "measure": 510000,
+         "benefit_paise": 25500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25500, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00103", "scheme_name": "Biscuit Hundred Get One", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 3800, "budget_warning": false,
+         "benefits": [
+           {"kind": "Free Goods", "per": "Multiple", "multiplier": 2, "amount_paise": 3800, "item": "BIS-200", "qty": 2}
+         ]}
+      ],
+      "free_goods": [{"item": "BIS-200", "qty": 2, "scheme": "FM-SCH-00103", "value_paise": 3800}],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "determinism-spec-order-canonical",
+    "why": "The reference half of the spec-order pair: an Exclusive at priority 10 listed second, behind a richer Stackable at priority 30. S3 sorts before anything else runs, so the Exclusive claims the item and pays 90000 while the 122000 Stackable is dropped.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00521", "scheme_name": "Surf Excel Late Percent", "priority": 30,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00522", "scheme_name": "Surf Excel Early Exclusive", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 90000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 90000,
+      "net_paise": 2350000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00522", "scheme_name": "Surf Excel Early Exclusive", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 90000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 90000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00521", "scheme_name": "Surf Excel Late Percent", "reason": "EXCLUSIVE_OVERLAP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "determinism-spec-order-reversed",
+    "why": "The same two schemes handed over in the opposite order. A server reading specs from a query and a phone reading them from a cached array will not agree on arrival order, so if S3 is not applied before S7 and S8 this pair diverges by 320 rupees on one cart.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 200, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00522", "scheme_name": "Surf Excel Early Exclusive", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 90000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00521", "scheme_name": "Surf Excel Late Percent", "priority": 30,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2440000,
+      "discount_paise": 90000,
+      "net_paise": 2350000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00522", "scheme_name": "Surf Excel Early Exclusive", "slab_idx": 1, "measure": 200,
+         "benefit_paise": 90000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 90000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00521", "scheme_name": "Surf Excel Late Percent", "reason": "EXCLUSIVE_OVERLAP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "near-miss-reports-only-the-very-next-slab",
+    "why": "On a four-rung ladder, matching rung two at 120 must report rung three at 150 and nothing else, gap 30. A list of every remaining rung would bury the one nudge the rep can act on in the thirty seconds they have at the counter.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 120, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00501", "scheme_name": "Surf Excel Four Rungs", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 50, "to": 99, "benefits": [{"kind": "Value Discount", "amount_paise": 10000, "per": "Slab"}]},
+          {"idx": 2, "from": 100, "to": 149, "benefits": [{"kind": "Value Discount", "amount_paise": 25000, "per": "Slab"}]},
+          {"idx": 3, "from": 150, "to": 199, "benefits": [{"kind": "Value Discount", "amount_paise": 40000, "per": "Slab"}]},
+          {"idx": 4, "from": 200, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 60000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1464000,
+      "discount_paise": 25000,
+      "net_paise": 1439000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00501", "scheme_name": "Surf Excel Four Rungs", "slab_idx": 2, "measure": 120,
+         "benefit_paise": 25000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [{"scheme": "FM-SCH-00501", "scheme_name": "Surf Excel Four Rungs", "slab_idx": 3,
+                       "basis": "Qty", "measure": 120, "gap": 30}],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "near-miss-not-reported-for-a-budget-dropped-scheme",
+    "why": "The measure of 150 sits in slab 1 and slab 2 opens at 200, so there is a real gap of 50 to report - but the pot is spent, the 75000 cost exceeds a remaining of 0, and the scheme is dropped. Revision 2 emits no near miss for a dropped scheme: pushing the rep to order 50 more cases for a benefit the distributor will not fund is a lie the app would be telling on our behalf. Revision 1 showed the nudge, which is the case that inverted.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00502", "scheme_name": "Surf Excel Spent Ladder", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 199, "benefits": [{"kind": "Value Discount", "amount_paise": 75000, "per": "Slab"}]},
+          {"idx": 2, "from": 200, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 150000, "per": "Slab"}]}
+        ],
+        "budget_paise": 200000, "consumed_paise": 200000, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 0,
+      "net_paise": 1830000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00502", "scheme_name": "Surf Excel Spent Ladder", "reason": "BUDGET_EXHAUSTED"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "near-miss-not-reported-for-a-stacking-dropped-scheme",
+    "why": "The twin of the budget case on the other drop reason. 00382 matched slab 1 at a measure of 150 and its slab 2 opens at 200, so a gap of 50 exists - but the Exclusive ahead of it claimed the detergent and it was dropped, so no nudge is emitted. A scheme the rep can never collect on must not be advertised, whichever of the three reasons took it away.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00381", "scheme_name": "Surf Excel Exclusive Flat", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00382", "scheme_name": "Surf Excel Stackable Ladder", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": 199, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]},
+          {"idx": 2, "from": 200, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 150000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 1830000,
+      "discount_paise": 100000,
+      "net_paise": 1730000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00381", "scheme_name": "Surf Excel Exclusive Flat", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [{"scheme": "FM-SCH-00382", "scheme_name": "Surf Excel Stackable Ladder", "reason": "EXCLUSIVE_OVERLAP"}],
+      "errors": []
+    }
+  },
+  {
+    "id": "near-miss-order-follows-scheme-order",
+    "why": "Three unreached schemes report in S3 order - priority first, then scheme id - so the two at priority 10 come out 00512 then 00513 and the priority 30 one last. Gaps are 100 - 10 = 90, 500000 - 25000 = 475000 and 120 - 0 = 120, on two different bases. The rep reads the first nudge on the card, so the order is the message.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "BIS-200", "qty": 10, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00511", "scheme_name": "Surf Excel Volume", "priority": 30,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00512", "scheme_name": "Biscuit Hundred Qty", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 20000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00513", "scheme_name": "Biscuit Five Thousand Value", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 25000,
+      "discount_paise": 0,
+      "net_paise": 25000,
+      "incentive_paise": 0,
+      "applied": [],
+      "free_goods": [],
+      "near_misses": [
+        {"scheme": "FM-SCH-00512", "scheme_name": "Biscuit Hundred Qty", "slab_idx": 1,
+         "basis": "Qty", "measure": 10, "gap": 90},
+        {"scheme": "FM-SCH-00513", "scheme_name": "Biscuit Five Thousand Value", "slab_idx": 1,
+         "basis": "Value", "measure": 25000, "gap": 475000},
+        {"scheme": "FM-SCH-00511", "scheme_name": "Surf Excel Volume", "slab_idx": 1,
+         "basis": "Qty", "measure": 0, "gap": 120}
+      ],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "ordering-applied-dropped-and-near-misses-all-follow-s3",
+    "why": "Five schemes handed over in the order 00604, 00601, 00603, 00602, 00605 and all three result lists must come back sorted by S3 regardless. applied is 00601 then 00603, dropped is 00602 then 00605, near_misses is 00603 then 00604. The Exclusive at priority 10 takes the detergent for 100000 and drops both later detergent schemes; the tea scheme pays 510000 x 500 / 10000 = 25500 and still has a rung at 600000, a gap of 90000; the biscuit scheme measures 10 against a floor of 100, a gap of 90. Three lists that each sort independently is exactly where an engine emits in the order work happened rather than in S3 order.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 150, "rate_paise": 12200},
+        {"idx": 2, "item": "TEA-250", "qty": 60, "rate_paise": 8500},
+        {"idx": 3, "item": "BIS-200", "qty": 10, "rate_paise": 2500}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00604", "scheme_name": "Biscuit Hundred Qty", "priority": 40,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["BIS-200"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 20000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00601", "scheme_name": "Surf Excel Exclusive Flat", "priority": 10,
+        "stacking": "Exclusive", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 100000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00603", "scheme_name": "Tea Two Rung Ladder", "priority": 30,
+        "stacking": "Stackable", "stack_group": null, "basis": "Value", "measured_over": "Item Set",
+        "qualifying_items": ["TEA-250"],
+        "slabs": [
+          {"idx": 1, "from": 500000, "to": 599999, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]},
+          {"idx": 2, "from": 600000, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 750, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00602", "scheme_name": "Surf Excel Five Percent", "priority": 20,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 120, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      },
+      {
+        "scheme": "FM-SCH-00605", "scheme_name": "Surf Excel Late Flat", "priority": 50,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 100, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 30000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 2365000,
+      "discount_paise": 125500,
+      "net_paise": 2239500,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00601", "scheme_name": "Surf Excel Exclusive Flat", "slab_idx": 1, "measure": 150,
+         "benefit_paise": 100000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 100000, "item": null, "qty": 0}
+         ]},
+        {"scheme": "FM-SCH-00603", "scheme_name": "Tea Two Rung Ladder", "slab_idx": 1, "measure": 510000,
+         "benefit_paise": 25500, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 25500, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [
+        {"scheme": "FM-SCH-00603", "scheme_name": "Tea Two Rung Ladder", "slab_idx": 2,
+         "basis": "Value", "measure": 510000, "gap": 90000},
+        {"scheme": "FM-SCH-00604", "scheme_name": "Biscuit Hundred Qty", "slab_idx": 1,
+         "basis": "Qty", "measure": 10, "gap": 90}
+      ],
+      "dropped": [
+        {"scheme": "FM-SCH-00602", "scheme_name": "Surf Excel Five Percent", "reason": "EXCLUSIVE_OVERLAP"},
+        {"scheme": "FM-SCH-00605", "scheme_name": "Surf Excel Late Flat", "reason": "EXCLUSIVE_OVERLAP"}
+      ],
+      "errors": []
+    }
+  }
+]
