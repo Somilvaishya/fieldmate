@@ -78,3 +78,69 @@ class TestSyncDocTypes(FieldMateTestCase):
 		self.track("FieldMate Sync Batch", batch.name)
 		# One bad record must never block the rest of a rep's day from syncing.
 		self.assertEqual(batch.derive_status(), "Partial")
+
+
+class TestEveryControllerImports(FieldMateTestCase):
+	"""`bench migrate` DELETES a DocType whose controller will not import.
+
+	`frappe/model/sync.py::remove_orphan_doctypes` calls `get_controller()` on every non-custom
+	DocType and deletes the ones that raise ImportError. Despite the name it checks nothing about
+	whether a child table is referenced anywhere - the only thing it tests is the import.
+
+	So a controller class named `FieldmateVanLoadItem` instead of `FieldMateVanLoadItem` is enough
+	to have the DocType removed. That happened here: five Phase 5 child tables were deleted on
+	their first migrate, the log said "Orphaned DocType(s) found" and named no cause, and the
+	migration otherwise succeeded. Data is left behind but the DocType is gone.
+
+	This test is the guard. It is cheap, it needs no database, and it fails on the bench rather
+	than on somebody's site.
+	"""
+
+	def doctype_files(self):
+		import glob
+		import os
+
+		import fieldmate
+
+		root = os.path.join(os.path.dirname(fieldmate.__file__), "fieldmate", "doctype")
+		for folder in sorted(glob.glob(os.path.join(root, "*"))):
+			slug = os.path.basename(folder)
+			schema = os.path.join(folder, slug + ".json")
+			if os.path.exists(schema):
+				yield slug, schema, os.path.join(folder, slug + ".py")
+
+	def test_every_controller_class_matches_its_doctype_name(self):
+		import json
+		import os
+		import re
+
+		wrong = []
+		for slug, schema, controller in self.doctype_files():
+			name = json.load(open(schema, encoding="utf-8"))["name"]
+			expected = name.replace(" ", "")
+			if not os.path.exists(controller):
+				wrong.append(f"{name}: no {slug}.py at all")
+				continue
+			source = open(controller, encoding="utf-8").read()
+			found = re.search(r"^class (\w+)\(", source, re.M)
+			if not found:
+				wrong.append(f"{name}: {slug}.py declares no class")
+			elif found.group(1) != expected:
+				wrong.append(f"{name}: class is {found.group(1)}, must be {expected}")
+
+		self.assertEqual(wrong, [], "migrate will delete these:\n  " + "\n  ".join(wrong))
+
+	def test_frappe_can_actually_load_every_one_of_them(self):
+		"""The same question asked the way migrate asks it, rather than by reading the file."""
+		from frappe.model.base_document import get_controller
+
+		broken = []
+		for _slug, schema, _ in self.doctype_files():
+			import json
+			name = json.load(open(schema, encoding="utf-8"))["name"]
+			try:
+				get_controller(name)
+			except ImportError as e:
+				broken.append(f"{name}: {e}")
+
+		self.assertEqual(broken, [], "migrate would delete these:\n  " + "\n  ".join(broken))
