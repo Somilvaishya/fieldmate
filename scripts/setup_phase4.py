@@ -120,7 +120,7 @@ SCHEMES = [
 
 
 def note(kind, what, detail=""):
-	print("  %-9s %-46s %s" % (kind, what, detail))
+	print(f"  {kind:<9} {what:<46} {detail}")
 
 
 # --------------------------------------------------------------------------------------
@@ -163,7 +163,7 @@ def ensure_item(sku: dict) -> str:
 			data.setdefault(field.fieldname, choices[0])
 
 	frappe.get_doc(data).insert(ignore_permissions=True)
-	note("created", "Item " + code, "%s, %d/case" % (sku["name"], sku["per_case"]))
+	note("created", "Item " + code, f"{sku['name']}, {sku['per_case']}/case")
 	return code
 
 
@@ -174,7 +174,7 @@ def ensure_price(sku: dict, price_list: str) -> None:
 	existing = frappe.db.get_value("Item Price", {"item_code": sku["code"], "price_list": price_list}, "name")
 	if existing:
 		frappe.db.set_value("Item Price", existing, "price_list_rate", sku["rate"])
-		note("updated", "Item Price " + sku["code"], "Rs %.2f" % sku["rate"])
+		note("updated", "Item Price " + sku["code"], "Rs {:.2f}".format(sku["rate"]))
 		return
 	frappe.get_doc({
 		"doctype": "Item Price",
@@ -183,7 +183,7 @@ def ensure_price(sku: dict, price_list: str) -> None:
 		"selling": 1,
 		"price_list_rate": sku["rate"],
 	}).insert(ignore_permissions=True)
-	note("created", "Item Price " + sku["code"], "Rs %.2f" % sku["rate"])
+	note("created", "Item Price " + sku["code"], "Rs {:.2f}".format(sku["rate"]))
 
 
 def ensure_catalogue() -> str:
@@ -204,7 +204,7 @@ def ensure_catalogue() -> str:
 		],
 	})
 	doc.insert(ignore_permissions=True)
-	note("created", "Catalogue " + CATALOGUE_NAME, "%d SKUs" % len(SKUS))
+	note("created", "Catalogue " + CATALOGUE_NAME, f"{len(SKUS)} SKUs")
 	return doc.name
 
 
@@ -252,7 +252,7 @@ def build() -> None:
 		or frappe.db.get_single_value("Selling Settings", "selling_price_list")
 		or frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
 	)
-	print("\nPrice list: %s\n" % price_list)
+	print(f"\nPrice list: {price_list}\n")
 
 	ensure_case_uom()
 	for sku in SKUS:
@@ -288,7 +288,7 @@ def show_state() -> None:
 	for row in frappe.get_all("FieldMate Scheme", filters={"is_active": 1, "docstatus": 1},
 	                          fields=["name", "scheme_name", "priority", "basis", "basis_uom"],
 	                          order_by="priority asc"):
-		print("  %-4s %-40s %s / %s" % (row.priority, row.scheme_name, row.basis, row.basis_uom))
+		print(f"  {row.priority:<4} {row.scheme_name:<40} {row.basis} / {row.basis_uom}")
 
 
 def undo() -> None:
@@ -319,7 +319,7 @@ def main() -> None:
 	frappe.init(site=SITE)
 	frappe.connect()
 	frappe.set_user("Administrator")
-	print("Site: %s" % SITE)
+	print(f"Site: {SITE}")
 
 	if UNDO:
 		undo()

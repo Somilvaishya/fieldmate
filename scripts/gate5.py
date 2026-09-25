@@ -18,6 +18,10 @@ from frappe.utils import add_days, flt, today
 
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
+# Run directly rather than imported, so `scripts` is not on the path until we put it there.
+sys.path.insert(0, __file__.rsplit("/", 1)[0])
+from clean_gate_fixtures import purge
+
 results = []
 
 
@@ -273,8 +277,15 @@ def main():
         criterion_2(fx)
         criterion_3(fx)
     finally:
-        # Nothing this script made survives it.
+        # A rollback is not enough on its own. This script commits its fixtures, and several of
+        # the services it exercises commit internally anyway, so a transaction lasting to the end
+        # was never on offer - six runs of gate2 left 868 records on testerp2 before anybody
+        # noticed. The rollback stays as a backstop; `purge` is what actually clears up.
         frappe.db.rollback()
+        try:
+            purge("G5")
+        except Exception as e:
+            print(f"  !! could not clean up: {e} - run scripts/clean_gate_fixtures.py")
         frappe.destroy()
 
     print("-" * 70)

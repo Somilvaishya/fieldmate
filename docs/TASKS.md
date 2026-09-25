@@ -75,7 +75,11 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [x] 2.8 Mock-location detection + trail plausibility
 - [x] 2.9 APIs: `day.start`, `day.current`, `day.end`, `day.trail_upload`, `beat.today`, `beat.outlets`
 - [x] 2.10 PWA: Day Start (selfie + GPS), Today board, Day End, background ping batching
-- [ ] **Gate 2** — verify all 5 criteria on testerp2
+- [x] **Gate 2** — 5/5 on testerp2 via `scripts/gate2.py`. Written late: phases 3–6
+      each got their gate as they shipped and this one did not, so its criteria had
+      only ever been checked by unit tests. Two halves are not testable on this bench
+      and say so rather than passing quietly — v16 is a CI matrix question, and
+      "killing the app" needs a real device
 
 ## Phase 3 — Visit execution · 3 weeks
 
