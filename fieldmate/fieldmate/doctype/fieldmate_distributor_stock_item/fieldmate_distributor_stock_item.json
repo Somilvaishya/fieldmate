@@ -1,0 +1,108 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-25 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-25 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Distributor Stock Item",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "istable": 1,
+ "editable_grid": 1,
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "item_code.item_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "opening_qty",
+   "fieldtype": "Float",
+   "label": "Opening",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "primary_qty",
+   "fieldtype": "Float",
+   "label": "Primary",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "What we billed them in the period. Read from Sales Invoices where we have them, typed where the distributor reports it themselves."
+  },
+  {
+   "fieldname": "closing_qty",
+   "fieldtype": "Float",
+   "label": "Closing",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "secondary_qty",
+   "fieldtype": "Float",
+   "label": "Secondary",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "opening + primary - closing. The identity the whole DocType exists for."
+  },
+  {
+   "fieldname": "reported_secondary_qty",
+   "fieldtype": "Float",
+   "label": "They Reported",
+   "description": "What their own secondary sales file said, where they sent one."
+  },
+  {
+   "fieldname": "variance_qty",
+   "fieldtype": "Float",
+   "label": "Difference",
+   "read_only": 1,
+   "description": "Implied minus reported. A gap here is either unrecorded sales or stock that has gone missing, and both are worth a phone call."
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "conversion_factor",
+   "fieldtype": "Float",
+   "label": "Per Unit",
+   "default": 1
+  }
+ ],
+ "field_order": [
+  "item_code",
+  "item_name",
+  "opening_qty",
+  "primary_qty",
+  "closing_qty",
+  "secondary_qty",
+  "reported_secondary_qty",
+  "variance_qty",
+  "uom",
+  "conversion_factor"
+ ]
+}

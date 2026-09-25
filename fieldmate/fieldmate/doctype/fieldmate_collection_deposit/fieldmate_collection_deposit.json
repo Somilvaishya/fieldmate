@@ -1,0 +1,356 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-25 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-25 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Collection Deposit",
+ "owner": "Administrator",
+ "sort_field": "deposit_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Sales Head",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Regional Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1,
+   "write": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1,
+   "create": 1,
+   "submit": 1,
+   "if_owner": 1
+  }
+ ],
+ "is_submittable": 1,
+ "search_fields": "field_user,deposit_date,total_amount",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "FM-DEP-.######",
+   "default": "FM-DEP-.######",
+   "reqd": 1
+  },
+  {
+   "fieldname": "deposit_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "field_user",
+   "fieldtype": "Link",
+   "label": "Field User",
+   "options": "FieldMate Field User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Where It Went",
+   "options": "Bank Branch\nCash Deposit Machine\nDistributor Counter\nPickup Agent",
+   "default": "Bank Branch",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_context",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "options": "Bank Account",
+   "depends_on": "eval:['Bank Branch','Cash Deposit Machine'].includes(doc.channel)"
+  },
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Handed To",
+   "options": "FieldMate Distributor Profile",
+   "depends_on": "eval:doc.channel=='Distributor Counter'"
+  },
+  {
+   "fieldname": "section_lines",
+   "fieldtype": "Section Break",
+   "label": "What Is In It"
+  },
+  {
+   "fieldname": "lines",
+   "fieldtype": "Table",
+   "label": "Collections",
+   "options": "FieldMate Deposit Line"
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "cash_amount",
+   "fieldtype": "Currency",
+   "label": "Cash",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cheque_amount",
+   "fieldtype": "Currency",
+   "label": "Cheques",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cheque_count",
+   "fieldtype": "Int",
+   "label": "Cheques Bagged",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Declared",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "ours_amount",
+   "fieldtype": "Currency",
+   "label": "Ours To Post",
+   "read_only": 1,
+   "description": "The part collected from distributors. Only this posts a Payment Entry (ADR-025); the rest is the distributor's own money passing through."
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "section_proof",
+   "fieldtype": "Section Break",
+   "label": "Proof"
+  },
+  {
+   "fieldname": "reference_no",
+   "fieldtype": "Data",
+   "label": "Slip / Txn No",
+   "reqd": 1,
+   "description": "The machine's transaction id or the counter slip number. Without it a declared deposit is an assertion nobody can check."
+  },
+  {
+   "fieldname": "deposited_at",
+   "fieldtype": "Data",
+   "label": "Branch / Machine"
+  },
+  {
+   "fieldname": "column_proof",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "proof_photo",
+   "fieldtype": "Attach Image",
+   "label": "Slip Photo",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "confirmed_by",
+   "fieldtype": "Link",
+   "label": "Confirmed By",
+   "options": "User",
+   "read_only": 1,
+   "description": "A human at our end, never the rep. Confirmation is what turns a declaration into a posting, so the two cannot be the same person."
+  },
+  {
+   "fieldname": "confirmed_on",
+   "fieldtype": "Datetime",
+   "label": "Confirmed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Declared\nConfirmed\nRejected\nCancelled",
+   "default": "Declared",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Why Rejected"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "section_sync",
+   "fieldtype": "Section Break",
+   "label": "Sync",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "label": "Client UUID",
+   "unique": 1,
+   "no_copy": 1,
+   "reqd": 1,
+   "description": "Device-assigned. A replayed push returns this record rather than taking the money twice."
+  },
+  {
+   "fieldname": "created_offline",
+   "fieldtype": "Check",
+   "label": "Created Offline"
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry"
+  },
+  {
+   "fieldname": "column_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "label": "Sync Status",
+   "options": "Synced\nPending\nConflict",
+   "default": "Synced"
+  },
+  {
+   "fieldname": "synced_at",
+   "fieldtype": "Datetime",
+   "label": "Synced At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "FieldMate Collection Deposit",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "field_order": [
+  "naming_series",
+  "deposit_date",
+  "field_user",
+  "channel",
+  "column_context",
+  "company",
+  "bank_account",
+  "distributor",
+  "section_lines",
+  "lines",
+  "section_totals",
+  "cash_amount",
+  "cheque_amount",
+  "cheque_count",
+  "column_totals",
+  "total_amount",
+  "ours_amount",
+  "currency",
+  "section_proof",
+  "reference_no",
+  "deposited_at",
+  "column_proof",
+  "proof_photo",
+  "confirmed_by",
+  "confirmed_on",
+  "section_status",
+  "status",
+  "rejection_reason",
+  "remarks",
+  "section_sync",
+  "client_uuid",
+  "created_offline",
+  "device_id",
+  "column_sync",
+  "sync_status",
+  "synced_at",
+  "app_version",
+  "amended_from"
+ ]
+}

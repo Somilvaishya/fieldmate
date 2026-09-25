@@ -75,7 +75,11 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [x] 2.8 Mock-location detection + trail plausibility
 - [x] 2.9 APIs: `day.start`, `day.current`, `day.end`, `day.trail_upload`, `beat.today`, `beat.outlets`
 - [x] 2.10 PWA: Day Start (selfie + GPS), Today board, Day End, background ping batching
-- [ ] **Gate 2** — verify all 5 criteria on testerp2
+- [x] **Gate 2** — 5/5 on testerp2 via `scripts/gate2.py`. Written late: phases 3–6
+      each got their gate as they shipped and this one did not, so its criteria had
+      only ever been checked by unit tests. Two halves are not testable on this bench
+      and say so rather than passing quietly — v16 is a CI matrix question, and
+      "killing the app" needs a real device
 
 ## Phase 3 — Visit execution · 3 weeks
 
@@ -91,39 +95,84 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 
 ## Phase 4 — Orders and scheme engine · 3 weeks
 
-- [ ] 4.1 Scheme rule specification format (the single source both engines compile from)
-- [ ] 4.2 `FieldMate Scheme` + `Slab` + `Item` + `Scope`
-- [ ] 4.3 Python scheme engine in `fieldmate/services/scheme.py`
-- [ ] 4.4 JS scheme engine compiled from the same spec
-- [ ] 4.5 60-case parity suite — **zero tolerance for divergence**
-- [ ] 4.6 `FieldMate Scheme Ledger` + budget accrual
-- [ ] 4.7 `FieldMate Order` + `Order Item` + `Scheme Applied` + `Free Goods`
-- [ ] 4.8 `FieldMate Order Approval Rule` + credit check via compat + override workflow
-- [ ] 4.9 Sales Order creation in `on_submit` (idempotent) + cancel cascade
-- [ ] 4.10 APIs: `catalogue.items`, `catalogue.prices`, `scheme.applicable`, `scheme.evaluate`
-- [ ] 4.11 APIs: `order.estimate`, `order.submit`, `order.list`, `order.cancel`, `order.approve`
-- [ ] 4.12 PWA: catalogue, cart with repeat-order prefill, scheme preview, review and submit
-- [ ] **Gate 4** — verify all 6 criteria on testerp2
+> **A retailer order is a secondary sale and never becomes a Sales Order — ADR-023.**
+> It routes to the distributor's queue and posts nothing. Task 4.9 and Gate 4 criterion 2 below
+> are rewritten from the build plan, which had them the other way round.
 
-## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016)*
+- [x] 4.1 Scheme rule specification format → `docs/SCHEME_SPEC.md`, the normative contract
+- [x] 4.2 `FieldMate Scheme` + `Slab` + `Item` + `Scope`
+- [x] 4.3 Python scheme engine in `fieldmate/services/scheme_engine.py`
+- [x] 4.4 JS scheme engine in `frontend/src/scheme/engine.js`, mirrored step for step
+- [x] 4.5 Parity suite — **100 cases, zero divergence across python↔corpus, node↔corpus, python↔node**
+- [x] 4.6 `FieldMate Scheme Ledger` + budget accrual and reversal
+- [x] 4.7 `FieldMate Order` + `Order Item` + `Scheme Applied` + `Free Goods`
+- [x] 4.8 `FieldMate Order Approval Rule` + credit check + override workflow
+- [x] 4.9 **Route to the distributor queue on submit** + cancel withdraws it. No Sales Order, no
+      GL Entry. ERPNext documents are created only where we are genuinely the seller — van sales
+      or a directly-billed outlet — and that test lives only in `services/credit.py`
+- [x] 4.10 APIs: `catalogue.items`, `catalogue.prices`, `scheme.applicable`, `scheme.evaluate`
+- [x] 4.11 APIs: `order.estimate`, `order.submit`, `order.list`, `order.cancel`, `order.approve`
+- [x] 4.12 PWA: catalogue, cart with repeat-order prefill, scheme preview, review and submit
+- [ ] **Gate 4** — verify all 6 criteria on testerp2, with criterion 2 read as: an offline order
+      creates exactly one `FieldMate Order`, routed to exactly one distributor queue, and **no**
+      accounting document
 
-- [ ] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
-- [ ] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline
-- [ ] 5.3 `FieldMate Distributor Stock`
-- [ ] 5.4 `FieldMate Van Load`, `FieldMate Van Settlement`, vehicle-as-Warehouse Stock Entries
-- [ ] 5.5 APIs: `stock.retailer_stock_save`, `stock.secondary_sales_upload`
-- [ ] 5.6 PWA: stock & sales audit, van load sheet, settlement
-- [ ] **Gate 5** — verify all 4 criteria on testerp2
+## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016 + ADR-024)*
+
+> **A van sale is the distributor's sale too — ADR-024.** The stock in the vehicle belongs to the
+> distributor; the rep carries it. So van sales posts nothing either, and task 5.4 below is
+> rewritten: a vehicle is **not** an ERPNext Warehouse, because that stock is not ours to hold.
+
+The offtake identity, in the owner's own words:
+
+```
+opening + primary billing − secondary sale = closing
+opening + primary billing − closing        = secondary sale
+```
+
+- [x] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
+- [x] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline.
+      **Standard columns**, with mapping configurable per distributor because no two of them
+      export the same header:
+
+      | Column | Required | Notes |
+      |---|---|---|
+      | `date` | yes | the sale date, not the upload date |
+      | `item_code` | yes | ours; a distributor's own code maps to it |
+      | `qty` | yes | in `uom` |
+      | `uom` | no | defaults to the item's stock UOM |
+      | `retailer_name` | no | free text — most distributors have no shop id we share |
+      | `retailer_code` | no | their id, kept verbatim so a shop can be matched later |
+      | `amount` | no | recomputed from our price list where absent |
+      | `invoice_no` | no | their bill reference, for reconciliation |
+
+      A bad row is reported with its row number and reason and the good rows still import
+      (Gate 5 criterion 1). Nothing here posts.
+- [x] 5.3 `FieldMate Distributor Stock`
+- [x] 5.4 `FieldMate Van Load` + `FieldMate Van Settlement`, recorded at **FieldMate level only**.
+      What went out, what was sold, what came back — for operational control. **No Stock Entry,
+      no Warehouse, no GL Entry**, because the goods were sold to the distributor at primary
+      billing and are already theirs
+- [x] 5.5 APIs in `fieldmate/api/stock.py`: `sheet`, `save`, `van_load`, `save_van_load`,
+      `settlement`, `save_settlement`, `secondary_sales_upload`
+- [x] 5.6 PWA: `StockCheck.vue`, `VanLoad.vue`, `VanSettle.vue`, reachable from the visit
+      hub and — for a van rep only, read off the bootstrap's `sales_mode` — from Today
+- [ ] **Gate 5** — verify all 4 criteria on testerp2, with criterion 3 read as: van load → 3 cash
+      sales → settle-in returns the vehicle's FieldMate stock to zero and reconciles to what was
+      loaded, and **the Stock Ledger is not touched at all**
 
 ## Phase 6 — Collections · 1.5 weeks
 
-- [ ] 6.1 `FieldMate Collection` + `FieldMate Collection Allocation`
-- [ ] 6.2 `FieldMate Collection Deposit` + Payment Entry posting via compat
-- [ ] 6.3 Bounce reversal path
-- [ ] 6.4 `FieldMate Outstanding Snapshot` + cash-in-hand ageing alert
-- [ ] 6.5 APIs: `collection.outstanding`, `collection.create`, `collection.list`, `collection.deposit`
-- [ ] 6.6 PWA: outstanding with ageing, collection entry with receipt photo, deposit declaration
-- [ ] **Gate 6** — verify all 5 criteria on testerp2
+- [x] 6.1 `FieldMate Collection` + `FieldMate Collection Allocation`
+- [x] 6.2 `FieldMate Collection Deposit` + Payment Entry on **confirmation only**, via compat,
+      and only for money that was ours to begin with (ADR-025)
+- [x] 6.3 Bounce reversal path
+- [x] 6.4 `FieldMate Outstanding Snapshot` + cash-in-hand ageing alert
+- [x] 6.5 APIs in `fieldmate/api/collection.py`: `outstanding`, `create`, `list`, `in_hand`,
+      `deposit`, `confirm`, `bounce`
+- [x] 6.6 PWA: `Outstanding.vue`, `CollectionEntry.vue`, `DepositDeclare.vue`
+- [x] **Gate 6** — 6/6 on testerp2, criterion 2 read as ADR-025 sharpens it: a shop's cash
+      produces no Payment Entry ever, confirmed or not
 
 ## Phase 7 — Targets, incentives, expenses · 2 weeks
 

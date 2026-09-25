@@ -18,14 +18,26 @@ export async function localOutlet(name) {
   return db.records.get(['FieldMate Outlet', name])
 }
 
-/** Refresh the mirror. Offline is not a failure here — the caller keeps what it has. */
+/** Refresh the mirror. Offline is not a failure here — the caller keeps what it has.
+ *
+ * Rows are MERGED, not replaced. The search endpoint returns the narrow list projection,
+ * while the sync pull and the shop's own screen store a fuller record; overwriting wholesale
+ * silently deleted fields that were already on the phone, so a shop opened offline lost its
+ * GSTIN, credit terms and photo the next time the list refreshed.
+ *
+ * No error escapes: a caller's onMounted has nowhere to put a rejection, and an expired
+ * session used to surface as a silent unhandled promise.
+ */
 export async function refreshOutlets() {
   try {
     const { outlets } = await api.outlets()
-    for (const row of outlets) await putRecord('FieldMate Outlet', row)
+    for (const row of outlets) {
+      const existing = await db.records.get(['FieldMate Outlet', row.name])
+      await putRecord('FieldMate Outlet', { ...(existing || {}), ...row })
+    }
     return { ok: true, count: outlets.length }
   } catch (e) {
     if (e instanceof ApiError && e.code === 'OFFLINE') return { ok: false, offline: true }
-    throw e
+    return { ok: false, error: e instanceof ApiError ? e.message : 'Could not refresh shops.' }
   }
 }

@@ -1,0 +1,346 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-25 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-25 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Van Settlement",
+ "owner": "Administrator",
+ "sort_field": "settlement_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Sales Head",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Regional Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1,
+   "write": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1,
+   "create": 1,
+   "submit": 1,
+   "if_owner": 1
+  }
+ ],
+ "is_submittable": 1,
+ "search_fields": "field_user,settlement_date,van_load",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "FM-VST-.######",
+   "default": "FM-VST-.######",
+   "reqd": 1
+  },
+  {
+   "fieldname": "settlement_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "van_load",
+   "fieldtype": "Link",
+   "label": "Van Load",
+   "options": "FieldMate Van Load",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "The morning's load this settles. Loaded quantities are read from it, never retyped."
+  },
+  {
+   "fieldname": "field_user",
+   "fieldtype": "Link",
+   "label": "Field User",
+   "options": "FieldMate Field User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_context",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Godown",
+   "options": "FieldMate Distributor Profile",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vehicle_no",
+   "fieldtype": "Data",
+   "label": "Vehicle",
+   "read_only": 1
+  },
+  {
+   "fieldname": "day_start",
+   "fieldtype": "Link",
+   "label": "Day",
+   "options": "FieldMate Day Start"
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Stock Reconciliation"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "FieldMate Van Settlement Item"
+  },
+  {
+   "fieldname": "section_stock",
+   "fieldtype": "Section Break",
+   "label": "The Equation"
+  },
+  {
+   "fieldname": "loaded_qty",
+   "fieldtype": "Float",
+   "label": "Loaded",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sold_qty",
+   "fieldtype": "Float",
+   "label": "Sold",
+   "read_only": 1
+  },
+  {
+   "fieldname": "returned_qty",
+   "fieldtype": "Float",
+   "label": "Returned",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_stock",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "short_qty",
+   "fieldtype": "Float",
+   "label": "Short",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "loaded - sold - returned. Never rounded away, never allowed through without an explanation."
+  },
+  {
+   "fieldname": "short_value",
+   "fieldtype": "Currency",
+   "label": "Short Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shortfall_note",
+   "fieldtype": "Small Text",
+   "label": "What Happened",
+   "description": "Required whenever anything is short. This is the field the whole screen exists to collect."
+  },
+  {
+   "fieldname": "section_cash",
+   "fieldtype": "Section Break",
+   "label": "Cash"
+  },
+  {
+   "fieldname": "cash_collected",
+   "fieldtype": "Currency",
+   "label": "Collected Today",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cash_deposited",
+   "fieldtype": "Currency",
+   "label": "Already Deposited"
+  },
+  {
+   "fieldname": "column_cash",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cash_to_hand_over",
+   "fieldtype": "Currency",
+   "label": "To Hand Over",
+   "read_only": 1,
+   "description": "Handed to the distributor, not to the company - the goods were theirs (ADR-024)."
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "settlement_status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nSettled\nCancelled",
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "settled_on",
+   "fieldtype": "Datetime",
+   "label": "Settled On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "section_sync",
+   "fieldtype": "Section Break",
+   "label": "Sync",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "label": "Client UUID",
+   "unique": 1,
+   "reqd": 1,
+   "no_copy": 1,
+   "description": "Device-assigned. A replayed push returns this record rather than creating a second one. Not copied on amend, because two documents cannot hold the same identity."
+  },
+  {
+   "fieldname": "created_offline",
+   "fieldtype": "Check",
+   "label": "Created Offline"
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry"
+  },
+  {
+   "fieldname": "column_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "label": "Sync Status",
+   "options": "Synced\nPending\nConflict",
+   "default": "Synced"
+  },
+  {
+   "fieldname": "synced_at",
+   "fieldtype": "Datetime",
+   "label": "Synced At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "FieldMate Van Settlement",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "field_order": [
+  "naming_series",
+  "settlement_date",
+  "van_load",
+  "field_user",
+  "column_context",
+  "distributor",
+  "vehicle_no",
+  "day_start",
+  "section_items",
+  "items",
+  "section_stock",
+  "loaded_qty",
+  "sold_qty",
+  "returned_qty",
+  "column_stock",
+  "short_qty",
+  "short_value",
+  "shortfall_note",
+  "section_cash",
+  "cash_collected",
+  "cash_deposited",
+  "column_cash",
+  "cash_to_hand_over",
+  "currency",
+  "section_status",
+  "settlement_status",
+  "settled_on",
+  "remarks",
+  "section_sync",
+  "client_uuid",
+  "created_offline",
+  "device_id",
+  "column_sync",
+  "sync_status",
+  "synced_at",
+  "app_version",
+  "amended_from"
+ ]
+}

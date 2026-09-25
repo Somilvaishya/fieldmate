@@ -11,7 +11,7 @@ produces the same plan. Anything that varies between runs would make a plan impo
 from __future__ import annotations
 
 import frappe
-from frappe.utils import add_days, cint, date_diff, getdate, now_datetime
+from frappe.utils import add_days, cint, date_diff, flt, getdate, now_datetime
 
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -33,6 +33,38 @@ def beats_for(field_user: str) -> list[dict]:
 		fields=["name", "beat_name", "visit_day", "frequency", "week_pattern", "outlet_count"],
 		order_by="beat_name",
 	)
+
+
+def next_run(beat: dict, from_date, horizon: int = 35) -> str | None:
+	"""The next date this beat runs, counting from `from_date` inclusive.
+
+	Walks forward rather than computing a formula because the answer depends on weekday,
+	frequency and the week-of-month pattern together, and `beat_runs_on` already holds all
+	three. 35 days covers the longest cycle a monthly beat can have.
+	"""
+	start = getdate(from_date)
+	for offset in range(horizon):
+		day = add_days(start, offset)
+		if beat_runs_on(beat, day):
+			return day
+	return None
+
+
+def my_beats(field_user: str, date=None) -> list[dict]:
+	"""Every route assigned to this rep, with when each one next runs."""
+	date = getdate(date or frappe.utils.today())
+	out = []
+	for beat in beats_for(field_user):
+		upcoming = next_run(beat, date)
+		out.append({
+			**beat,
+			"runs_today": bool(upcoming and upcoming == date),
+			"next_run": str(upcoming) if upcoming else None,
+			"days_away": date_diff(upcoming, date) if upcoming else None,
+		})
+	# Soonest first: a rep looks at this to answer "what am I doing next", not to browse.
+	out.sort(key=lambda b: (b["days_away"] is None, b["days_away"], b["beat_name"] or ""))
+	return out
 
 
 def holidays_between(holiday_list: str | None, from_date, to_date) -> set:
@@ -196,4 +228,17 @@ def day_for(field_user: str, date) -> dict | None:
 		return None
 
 	row["journey_plan"] = plan.name
+
+	# The route's own estimates, so a rep can see what the day asks of them before they
+	# commit to it. The plan day holds only a link; these live on the beat.
+	if row.get("beat"):
+		beat = frappe.db.get_value(
+			"FieldMate Beat", row["beat"],
+			["beat_name", "estimated_travel_km", "estimated_duration_min"],
+			as_dict=True,
+		) or {}
+		row["beat_name"] = beat.get("beat_name") or row["beat"]
+		row["estimated_travel_km"] = flt(beat.get("estimated_travel_km")) or None
+		row["estimated_duration_min"] = cint(beat.get("estimated_duration_min")) or None
+
 	return row

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import json
+import re
 from collections.abc import Callable
 
 import frappe
@@ -103,7 +104,7 @@ def endpoint(require_auth: bool = True, require_device: bool = False) -> Callabl
 
 			except frappe.ValidationError as e:
 				frappe.local.response["http_status_code"] = 400
-				return fail(Err.VALIDATION_FAILED, str(e))
+				return fail(Err.VALIDATION_FAILED, readable(e))
 
 			except Exception:
 				frappe.log_error(title=f"fieldmate.api.{fn.__name__}")
@@ -117,6 +118,50 @@ def endpoint(require_auth: bool = True, require_device: bool = False) -> Callabl
 		return wrapper
 
 	return decorator
+
+
+# Frappe's own mandatory-field error, e.g. "[FieldMate Outlet, FM-OUT-05153]: distributor".
+# It names a document the rep never saw and a column they have no word for.
+_RAW_MANDATORY = re.compile(r"^\[(?P<doctype>[^,\]]+)[^\]]*\]:\s*(?P<fields>.+)$")
+
+
+def readable(e: Exception) -> str:
+	"""Turn a framework error into something a rep standing in a market can act on.
+
+	Every message from here is read on a phone, in the field, with no support line. A raw
+	MandatoryError leaked to a real screen during Phase 3 testing, which is what prompted this:
+	the rep saw `[FieldMate Outlet, FM-OUT-05153]: distributor` and could do nothing with it.
+
+	Our own `frappe.throw` calls already say something useful, so those pass through unchanged.
+	"""
+	message = frappe.utils.strip_html(str(e) or "").strip()
+	if not message:
+		return "That did not work. Check what you entered and try again."
+
+	match = _RAW_MANDATORY.match(message)
+	if not match:
+		return message
+
+	doctype = match.group("doctype").strip()
+	labels = []
+	for fieldname in re.split(r",\s*|\s+and\s+", match.group("fields")):
+		fieldname = fieldname.strip()
+		if not fieldname:
+			continue
+		label = None
+		try:
+			field = frappe.get_meta(doctype).get_field(fieldname)
+			label = field.label if field else None
+		except Exception:
+			# A message we cannot decode is still better than one we invent.
+			pass
+		labels.append(label or fieldname.replace("_", " "))
+
+	if not labels:
+		return "Something required is missing. Check the form and try again."
+	if len(labels) == 1:
+		return f"{labels[0]} is required."
+	return f"These are required: {', '.join(labels)}."
 
 
 def _status_for(code: str) -> int:

@@ -8,7 +8,16 @@ closing it records what actually happened rather than what was typed.
 from __future__ import annotations
 
 import frappe
-from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, time_diff_in_hours
+from frappe.utils import (
+	cint,
+	flt,
+	get_datetime,
+	getdate,
+	now_datetime,
+	time_diff_in_hours,
+	time_diff_in_seconds,
+	today,
+)
 
 from fieldmate import compat
 from fieldmate.services import field_user as field_user_service
@@ -38,6 +47,11 @@ def current(field_user: str) -> dict | None:
 		"day_date": str(doc.day_date),
 		"started_at": str(doc.start_time),
 		"planned_beat": doc.planned_beat,
+		# The name, not only the id. A rep reads "South Market", not "FM-BEAT-0003", and
+		# without this the home screen showed them the document id all day.
+		"planned_beat_name": frappe.db.get_value(
+			"FieldMate Beat", doc.planned_beat, "beat_name"
+		) if doc.planned_beat else None,
 		"journey_plan": doc.journey_plan,
 		"is_mock_location": bool(doc.is_mock_location),
 	}
@@ -88,6 +102,12 @@ def start(field_user: str, payload: dict) -> dict:
 		"created_offline": cint(payload.get("created_offline")),
 	})
 	doc.insert(ignore_permissions=True)
+	# A Field Rep holds create and read on their own records, never write or submit - that is
+	# deliberate (ADR-004), and it is what keeps generic endpoints like frappe.client.save
+	# closed to them. The server submits on their behalf once it has checked who is asking,
+	# exactly as it does when posting a Sales Order. Without this a rep could not start a day
+	# at all; every gate passed only because it ran as Administrator.
+	doc.flags.ignore_permissions = True
 
 	# The photo arrives as a base64 data URL and has to become a real private file: the field
 	# holds a path, not an image. Saved after the insert so it attaches to a document that
@@ -152,6 +172,8 @@ def end(field_user: str, payload: dict) -> dict:
 		**counts,
 	})
 	doc.insert(ignore_permissions=True)
+	# See the note in start(): a rep holds no submit right of their own (ADR-004).
+	doc.flags.ignore_permissions = True
 	doc.submit()
 
 	start_doc.db_set("status", "Closed", update_modified=False)
@@ -172,6 +194,7 @@ def day_counts(field_user: str, date) -> dict:
 	counts = {
 		"planned_visits": 0,
 		"actual_visits": 0,
+		"planned_covered": 0,
 		"productive_visits": 0,
 		"orders_count": 0,
 		"order_value": 0.0,
@@ -187,11 +210,31 @@ def day_counts(field_user: str, date) -> dict:
 		counts["actual_visits"] = frappe.db.count(
 			"FieldMate Visit", {"field_user": field_user, "visit_date": date, "docstatus": 1}
 		)
+		# Coverage is about the route, so it counts only shops that were on it. Counting
+		# every visit let a rep read 100% coverage on a card that was, two lines below,
+		# naming the planned shops they had not been to.
+		counts["planned_covered"] = frappe.db.count(
+			"FieldMate Visit",
+			{"field_user": field_user, "visit_date": date, "docstatus": 1, "is_planned": 1},
+		)
 		counts["productive_visits"] = frappe.db.count(
 			"FieldMate Visit",
 			{"field_user": field_user, "visit_date": date, "docstatus": 1,
 			 "visit_outcome": "Order Taken"},
 		)
+
+	# Orders arrived in Phase 4. Read from the records like everything else here, because a
+	# phone that spent the day with no signal cannot know which of its orders finally landed -
+	# and a Day End that reports the phone's count rather than the server's is the figure a rep
+	# argues about at month end.
+	if frappe.db.table_exists("FieldMate Order"):
+		booked = frappe.get_all(
+			"FieldMate Order",
+			filters={"field_user": field_user, "order_date": getdate(date), "docstatus": 1},
+			fields=["net_total"],
+		)
+		counts["orders_count"] = len(booked)
+		counts["order_value"] = sum(flt(row.net_total) for row in booked)
 
 	counts["new_outlets"] = frappe.db.count(
 		"FieldMate Outlet",
@@ -200,9 +243,80 @@ def day_counts(field_user: str, date) -> dict:
 
 	if counts["planned_visits"]:
 		counts["coverage_pct"] = round(
-			100.0 * counts["actual_visits"] / counts["planned_visits"], 2
+			100.0 * min(counts["planned_covered"], counts["planned_visits"])
+			/ counts["planned_visits"], 2
 		)
 	return counts
+
+
+def summary(field_user: str, date=None) -> dict:
+	"""What the day has produced so far, without ending it.
+
+	The Finish Day screen shows a rep what they are about to close. Everything here is read
+	from the records, never from the phone - the same figures `end()` will write, so the
+	screen cannot promise one thing and the Day End record say another.
+	"""
+	date = getdate(date or today())
+	open_day = current(field_user)
+	counts = day_counts(field_user, date)
+	planned = journey_service.day_for(field_user, date) or {}
+
+	minutes = None
+	if open_day and open_day.get("started_at"):
+		minutes = max(0, round(
+			time_diff_in_seconds(now_datetime(), get_datetime(open_day["started_at"])) / 60.0
+		))
+
+	return {
+		"date": str(date),
+		"open": bool(open_day),
+		"day_start": open_day["day_start"] if open_day else None,
+		"started_at": open_day["started_at"] if open_day else None,
+		"minutes_on_route": minutes,
+		"beat": planned.get("beat"),
+		"beat_name": planned.get("beat_name"),
+		"distance_km": round(trail_service.distance_for(field_user, date), 1),
+		"pending_shops": pending_shops(field_user, date, planned.get("beat")),
+		**counts,
+	}
+
+
+def pending_shops(field_user: str, date, beat: str | None) -> list[dict]:
+	"""Shops on today's route that have no submitted visit yet.
+
+	Named, not counted. "2 shops pending" tells a rep nothing they can act on in the ten
+	minutes before they close the day; "Gupta Traders, New Star Stores" does.
+	"""
+	if not beat:
+		return []
+
+	rows = frappe.get_all(
+		"FieldMate Beat Outlet", filters={"parent": beat},
+		fields=["outlet", "sequence"], order_by="sequence asc", limit_page_length=0,
+	)
+	if not rows:
+		return []
+
+	visited = set(frappe.get_all(
+		"FieldMate Visit",
+		filters={"field_user": field_user, "visit_date": getdate(date), "docstatus": 1},
+		pluck="outlet",
+	))
+	missing = [r for r in rows if r.outlet not in visited]
+	if not missing:
+		return []
+
+	names = {
+		o.name: o.outlet_name
+		for o in frappe.get_all(
+			"FieldMate Outlet", filters={"name": ["in", [r.outlet for r in missing]]},
+			fields=["name", "outlet_name"], limit_page_length=0,
+		)
+	}
+	return [
+		{"outlet": r.outlet, "outlet_name": names.get(r.outlet, r.outlet), "sequence": r.sequence}
+		for r in missing
+	]
 
 
 def mirror_to_hrms(day_start, log_type: str, timestamp=None, day_end: str | None = None,

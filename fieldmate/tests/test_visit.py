@@ -64,10 +64,31 @@ class VisitFixture(DayFixture):
 		payload.update(kwargs)
 		return visit_service.check_in(self.rep.name, payload)
 
-	def check_out(self, visit, **kwargs):
+	def check_out(self, visit, answer_required=True, **kwargs):
+		"""Finish a visit the way a rep would: required questions answered.
+
+		The site this runs on has its own live checklist templates - a real one always does -
+		and they apply to the test's shops just as they would to any other. So unless a test is
+		specifically about the blocking rule, it answers whatever is required first. Leaning on
+		the site happening to be empty is what broke these tests the first time.
+		"""
+		if answer_required:
+			self.answer_required(visit)
 		payload = {"visit_outcome": "Order Taken", "latitude": NEAR[0], "longitude": NEAR[1]}
 		payload.update(kwargs)
 		return visit_service.check_out(visit, payload)
+
+	def answer_required(self, visit):
+		doc = frappe.get_doc("FieldMate Visit", visit)
+		answers = [
+			{"question_code": row.question_code,
+			 "answer_number": 1 if row.answer_type in ("Number", "Rating") else None,
+			 "answer": None if row.answer_type in ("Number", "Rating") else "Yes"}
+			for row in doc.checklist_answers
+			if row.is_required and not row.is_answered
+		]
+		if answers:
+			visit_service.save_tasks(visit, {"answers": answers})
 
 	def make_reason(self, **kwargs):
 		data = {
@@ -358,6 +379,19 @@ class TestCheckOut(VisitFixture):
 
 
 class ChecklistFixture(VisitFixture):
+	def setUp(self):
+		super().setUp()
+		self.my_templates = set()
+
+	def mine(self, result):
+		"""Only the questions that came from templates this test created.
+
+		A live site carries its own active templates and they apply here too. Asserting on the
+		whole checklist would make every one of these tests a test of the site's data.
+		"""
+		checklist = result["checklist"] if isinstance(result, dict) else result
+		return [q for q in checklist if q.get("template") in self.my_templates]
+
 	def make_template(self, questions=None, **kwargs):
 		data = {
 			"doctype": "FieldMate Checklist Template",
@@ -375,6 +409,7 @@ class ChecklistFixture(VisitFixture):
 		data.update(kwargs)
 		doc = frappe.get_doc(data).insert(ignore_permissions=True)
 		self.track("FieldMate Checklist Template", doc.name)
+		self.my_templates.add(doc.name)
 		return doc
 
 
@@ -441,15 +476,13 @@ class TestChecklistTemplate(ChecklistFixture):
 class TestChecklistOnVisit(ChecklistFixture):
 	def test_questions_are_snapshotted_onto_the_visit(self):
 		self.make_template()
-		result = self.check_in()
-		codes = [q["question_code"] for q in result["checklist"]]
+		codes = [q["question_code"] for q in self.mine(self.check_in())]
 		self.assertEqual(codes, ["SHELF", "PRICE"])
 
 	def test_the_answer_carries_the_version_it_was_asked_under(self):
 		template = self.make_template()
-		result = self.check_in()
-		row = frappe.get_doc("FieldMate Visit", result["visit"]).checklist_answers[0]
-		self.assertEqual(row.template_version, template.version)
+		asked = self.mine(self.check_in())
+		self.assertEqual(asked[0]["template_version"], template.version)
 
 	def test_rewording_later_does_not_change_what_an_old_visit_asked(self):
 		template = self.make_template()
@@ -458,13 +491,14 @@ class TestChecklistOnVisit(ChecklistFixture):
 		template.questions[0].question = "Completely different question"
 		template.save(ignore_permissions=True)
 
-		row = frappe.get_doc("FieldMate Visit", result["visit"]).checklist_answers[0]
+		row = next(r for r in frappe.get_doc("FieldMate Visit", result["visit"]).checklist_answers
+		           if r.template == template.name)
 		self.assertEqual(row.question, "Is our shelf clean?")
 		self.assertEqual(row.template_version, 1)
 
 	def test_a_template_for_another_territory_does_not_apply(self):
 		self.make_template(territory=self.make_territory())
-		self.assertEqual(self.check_in()["checklist"], [])
+		self.assertEqual(self.mine(self.check_in()), [])
 
 	def test_a_template_scoped_to_a_parent_territory_reaches_the_shop(self):
 		"""A survey for 'North' must reach a shop in 'North / Delhi', not just one pinned to
@@ -472,25 +506,25 @@ class TestChecklistOnVisit(ChecklistFixture):
 		child = self.make_territory(parent=self.territory)
 		shop = self.make_outlet(territory=child, approval_status="Approved")
 		self.make_template(territory=self.territory)
-		self.assertEqual(len(self.check_in(outlet=shop.name)["checklist"]), 2)
+		self.assertEqual(len(self.mine(self.check_in(outlet=shop.name))), 2)
 
 	def test_the_root_territory_means_everywhere(self):
 		"""Frappe fills an empty Territory field from the session default, so a template a
 		planner never scoped arrives pinned to the root. It must still apply everywhere."""
 		self.make_template(territory="All Territories")
-		self.assertEqual(len(self.check_in()["checklist"]), 2)
+		self.assertEqual(len(self.mine(self.check_in())), 2)
 
 	def test_an_inactive_template_does_not_apply(self):
 		self.make_template(is_active=0)
-		self.assertEqual(self.check_in()["checklist"], [])
+		self.assertEqual(self.mine(self.check_in()), [])
 
 	def test_a_future_template_does_not_apply_yet(self):
 		self.make_template(effective_from=add_to_date(today(), days=7))
-		self.assertEqual(self.check_in()["checklist"], [])
+		self.assertEqual(self.mine(self.check_in()), [])
 
 	def test_a_new_outlet_template_skips_approved_shops(self):
 		self.make_template(applies_to="New Outlet Only")
-		self.assertEqual(self.check_in()["checklist"], [])
+		self.assertEqual(self.mine(self.check_in()), [])
 
 	def test_answers_are_saved_and_replayable(self):
 		self.make_template()
@@ -502,7 +536,7 @@ class TestChecklistOnVisit(ChecklistFixture):
 		again = visit_service.save_tasks(opened["visit"], {
 			"answers": [{"question_code": "SHELF", "answer": "No"}],
 		})
-		by_code = {q["question_code"]: q for q in again["checklist"]}
+		by_code = {q["question_code"]: q for q in self.mine(again)}
 		self.assertEqual(by_code["SHELF"]["answer"], "No")
 		# The untouched row keeps what it had rather than being wiped by a partial save.
 		self.assertEqual(by_code["PRICE"]["answer_number"], 42)
@@ -512,14 +546,14 @@ class TestChecklistOnVisit(ChecklistFixture):
 			{"question_code": "STOCK", "question": "Stock level?", "answer_type": "Single Choice",
 			 "options": "Full\nLow\nOut", "sequence": 1},
 		])
-		question = self.check_in()["checklist"][0]
+		question = self.mine(self.check_in())[0]
 		self.assertEqual(question["options"], ["Full", "Low", "Out"])
 
 	def test_a_required_answer_blocks_check_out_at_an_open_shop(self):
 		self.make_template()
 		opened = self.check_in()
 		with self.assertRaises(frappe.ValidationError) as ctx:
-			self.check_out(opened["visit"])
+			self.check_out(opened["visit"], answer_required=False)
 		self.assertIn("Answer these before you leave", str(ctx.exception))
 
 	def test_a_required_answer_does_not_trap_a_rep_at_a_closed_shop(self):
@@ -543,7 +577,9 @@ class TestChecklistOnVisit(ChecklistFixture):
 		                         {"answers": [{"question_code": "FACE", "answer_number": 0}]})
 		closed = self.check_out(opened["visit"])
 		self.assertTrue(closed["checked_out_at"])
-		self.assertTrue(closed["checklist"][0]["is_answered"])
+		face = next(q for q in self.mine(closed) if q["question_code"] == "FACE")
+		self.assertTrue(face["is_answered"])
+		self.assertEqual(face["answer_number"], 0)
 
 	def test_an_untouched_numeric_question_still_blocks_check_out(self):
 		self.make_template(questions=[
@@ -552,7 +588,7 @@ class TestChecklistOnVisit(ChecklistFixture):
 		])
 		opened = self.check_in()
 		with self.assertRaises(frappe.ValidationError):
-			self.check_out(opened["visit"])
+			self.check_out(opened["visit"], answer_required=False)
 
 	def test_answering_lets_the_rep_leave(self):
 		self.make_template()

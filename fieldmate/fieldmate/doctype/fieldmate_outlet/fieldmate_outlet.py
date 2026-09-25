@@ -2,6 +2,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import flt, now_datetime, today
 
+from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import settings as settings_service
 
@@ -18,9 +19,32 @@ class FieldMateOutlet(Document):
 			self.approval_status = "Pending Approval"
 
 	def validate(self):
+		self.store_photos()
 		self.validate_geo()
 		self.validate_billing()
 		self.validate_contacts()
+
+	def store_photos(self):
+		"""Turn a camera capture into a File, and keep the path.
+
+		`shop_photo` is an Attach Image: varchar(140) holding a path, not bytes. A phone sends
+		a base64 data URL of ~120 KB, which fails with "Data too long for column" - the same
+		way the start-of-day selfie did in Phase 2. Handled in the controller rather than in
+		outlet.create because the offline queue pushes outlets straight through frappe.get_doc
+		and would otherwise hit exactly the same wall.
+		"""
+		from fieldmate.services import files as file_service
+		from fieldmate.services import settings as settings_service
+
+		for fieldname in ("shop_photo", "shop_board_photo"):
+			value = self.get(fieldname)
+			if not file_service.is_data_url(value):
+				continue
+			self.set(fieldname, file_service.attach_photo(
+				value, filename=f"{fieldname}-{self.name}",
+				doctype=self.doctype, name=self.name, fieldname=fieldname,
+				max_kb=settings_service.value("photo_max_kb"),
+			))
 
 	def validate_geo(self):
 		if self.latitude or self.longitude:
@@ -35,13 +59,25 @@ class FieldMateOutlet(Document):
 			frappe.throw(frappe._("Geo Fence Radius must be between 10 and 5000 metres."))
 
 	def validate_billing(self):
-		"""The shop is only a billing party in van sales (ADR-013, amended by ADR-016)."""
+		"""A Customer here means the company invoices this shop itself, and nothing else.
+
+		This used to be tied to van sales: ADR-016 said the shop was billed on the spot in that
+		mode, so a Customer was refused unless van sales was on. ADR-024 corrected it - the
+		stock in the vehicle is the distributor's and a van sale is their sale too - so the mode
+		has nothing to do with it. What is left is ADR-001's escape hatch, for the rare outlet
+		the company genuinely invoices direct, and that is a commercial arrangement rather than
+		a switch in Settings.
+
+		It is still worth one check. A shop whose billing account is its own distributor would
+		make `credit.we_are_the_seller()` answer yes and no to the same question.
+		"""
 		if not self.customer:
 			return
-		if "Van Sales" not in settings_service.enabled_modes():
+		if self.customer == self.distributor:
 			frappe.throw(
-				frappe._("This outlet has a Customer set, which only applies to van sales. "
-				         "Enable van sales in FieldMate Settings, or clear the Customer.")
+				frappe._("This outlet is billed direct to {0}, which is also its distributor. "
+				         "One of the two is wrong: either the shop buys from the distributor, "
+				         "or we invoice it ourselves.").format(frappe.bold(self.customer))
 			)
 
 	def validate_contacts(self):
@@ -70,7 +106,9 @@ class FieldMateOutlet(Document):
 		return True, ""
 
 	def billing_party(self) -> str | None:
-		"""Who the money is owed by. The whole order and collection path hangs off this."""
-		if settings_service.is_van_sales(field_user_service.for_user()):
-			return self.customer or None
-		return self.distributor
+		"""Who the money is owed by. The whole order and collection path hangs off this.
+
+		Delegated to the credit service so the two sales models branch in exactly one place
+		(ADR-016). A second copy of that branch, here, is how the split starts.
+		"""
+		return credit_service.billing_party(self, field_user_service.for_user())["party"]

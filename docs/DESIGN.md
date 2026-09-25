@@ -23,22 +23,44 @@ feel like a well-made tool, not a consumer product.
 
 ## Colors
 
-Defined as tokens; both light and dark are designed, since reps work indoors and outdoors.
+**Derived from the logo, not chosen.** `frontend/scripts/make-palette.py` reads the brand mark
+at `frontend/brand/app-icon.png`, pulls the navy and the green out of it, walks each colour's
+lightness down until it measures 4.5:1 *where it is actually used*, and refuses to emit a
+palette that fails. Every value below is audited output. Change the logo, re-run it, and the
+theme follows.
 
-| Token | Light | Purpose |
+| Token | Value | Purpose |
 |---|---|---|
-| `--bg` | `#F4F6F5` | page ground |
+| `--bg` | `#F4F5F7` | page ground, faintly navy |
 | `--surface` | `#FFFFFF` | cards, sheets |
-| `--ink` | `#141E1C` | primary text |
-| `--muted` | `#5F706B` | secondary text (still ≥4.5:1) |
-| `--line` | `#D3DCD9` | borders |
-| `--primary` | `#B81E5A` | primary action |
-| `--ok` | `#2C6E45` | done, synced, in credit |
-| `--warn` | `#9A6410` | pending, due now, queue backlog |
-| `--crit` | `#A32A26` | blocked, overdue, breach |
+| `--ink` | `#05172E` | primary text |
+| `--muted` | `#465972` | secondary text (6.6:1 on the page) |
+| `--line` | `#BFC7D2` | borders |
+| `--primary` | `#092850` | primary action — the logo navy, 14.7:1 on white |
+| `--primary-soft` | `#E6EAEE` | tinted fill that navy text sits on |
+| `--on-primary` | `#FFFFFF` | text on the primary fill |
+| `--accent` | `#3BBF62` | the logo green — **fills and icons only** |
+| `--ok` | `#277D40` | done, synced, in credit |
+| `--ok-soft` | `#E4F6E9` | the card an `ok` message sits on |
+| `--warn` | `#955F07` | pending, due now, queue backlog |
+| `--warn-soft` | `#F9ECD8` | the card a `warn` message sits on |
+| `--crit` | `#C62A25` | blocked, overdue, breach |
+| `--crit-soft` | `#FAE4E3` | the card a `crit` message sits on |
 
 **Minimum 4.5:1 contrast throughout.** No thin grey-on-grey — it disappears in sunlight. Semantic
 colour (ok/warn/crit) is separate from the primary accent and never doubles as decoration.
+
+Two rules the audit exists to enforce, both of which were broken before it existed:
+
+- **The brand green is never text on white.** It measures 2.4:1, which is illegible outdoors.
+  It is a fill and an icon colour. `--ok` is the same hue darkened until it is readable, so the
+  family still reads as one.
+- **Status colours are checked against their own tinted card**, not against white. Amber text on
+  an amber card is a strictly harder pairing than amber text on a page, and checking only the
+  easy case passed three colours that failed where they are actually rendered.
+
+Dark mode is **not** implemented. The tokens are structured for it, but no dark values are
+defined and `color-scheme` is `light`.
 
 ## Buttons
 
@@ -75,8 +97,15 @@ These are requirements, not preferences. A screen that fails any of them is not 
 9. **Credit headroom shown before the cart is built**, never as a rejection afterwards.
 10. **Scheme results explained in words** — "Qty slab 4+ case → 3% off, free 2 pc soap". "Why did I
     get this discount" is the single most common field support call.
-11. **Renders at 360 px.** That is the device that matters.
-12. **All strings translatable.** No hard-coded user-facing text, from day one.
+11. **Free goods are listed, never folded into a discount.** A scheme that gives 2 free packs and
+    ₹19.68 off reads as *"₹19.68 off, and 2 free packs"* — never as one combined "₹263.68 saved".
+    Free stock ships at ₹0.00 in addition to the order; its value is not a deduction. Showing a
+    single savings figure that includes it pays the shop twice on paper, and the distributor
+    settles a claim for the half nobody authorised. `SCHEME_SPEC.md` S9 has the two figures:
+    `discount_paise` is what comes off the bill and is the only thing a total may subtract;
+    `benefit_paise` is what the shop received and belongs on the scheme card, labelled as such.
+12. **Renders at 360 px.** That is the device that matters.
+13. **All strings translatable.** No hard-coded user-facing text, from day one.
 
 ## Breakpoints
 

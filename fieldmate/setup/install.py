@@ -35,6 +35,7 @@ def before_install() -> None:
 
 def after_install() -> None:
 	create_roles()
+	create_idempotency_fields()
 	frappe.db.commit()
 
 
@@ -86,6 +87,41 @@ def create_roles() -> None:
 				"is_custom": 1,
 			}
 		).insert(ignore_permissions=True)
+
+
+# Where a caller's idempotency key is kept on the two ERPNext documents we post. Custom Fields
+# rather than core edits, so `bench update` stays boring (compat rule 3).
+IDEMPOTENCY_FIELDS = (
+	("Sales Order", "A field order retried after a dropped connection must not become two "
+	                "company commitments."),
+	("Payment Entry", "A deposit confirmation retried must not pay the same money twice."),
+)
+
+
+def create_idempotency_fields() -> None:
+	"""Give Sales Order and Payment Entry somewhere to keep our key. Idempotent.
+
+	`compat.make_sales_order` and `make_payment_entry` **refuse to post** without this rather
+	than posting blind, because the alternative is a duplicate nothing on the site can detect.
+	So this is not decoration: without it the two adapters simply do not work.
+	"""
+	for doctype, description in IDEMPOTENCY_FIELDS:
+		if frappe.db.exists("Custom Field", {"dt": doctype, "fieldname": "fm_source_key"}):
+			continue
+		frappe.get_doc({
+			"doctype": "Custom Field",
+			"dt": doctype,
+			"fieldname": "fm_source_key",
+			"label": "FieldMate Source",
+			"fieldtype": "Data",
+			"read_only": 1,
+			"no_copy": 1,
+			"print_hide": 1,
+			"unique": 1,
+			"insert_after": "naming_series" if frappe.get_meta(doctype).has_field("naming_series")
+			                else "title",
+			"description": description,
+		}).insert(ignore_permissions=True)
 
 
 def _fmt(version: tuple[int, ...]) -> str:

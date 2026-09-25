@@ -1,0 +1,296 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-25 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-25 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Secondary Sales",
+ "owner": "Administrator",
+ "sort_field": "to_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Sales Head",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Regional Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1,
+   "write": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1
+  }
+ ],
+ "is_submittable": 1,
+ "search_fields": "distributor,from_date,to_date",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "FM-SEC-.######",
+   "default": "FM-SEC-.######",
+   "reqd": 1
+  },
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Distributor",
+   "options": "FieldMate Distributor Profile",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_context",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "File Upload\nPortal\nManual",
+   "default": "File Upload"
+  },
+  {
+   "fieldname": "file_name",
+   "fieldtype": "Data",
+   "label": "File",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Sales"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Lines",
+   "options": "FieldMate Secondary Sales Item"
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "total_lines",
+   "fieldtype": "Int",
+   "label": "Lines",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_qty",
+   "fieldtype": "Float",
+   "label": "Base Units",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "matched_outlets",
+   "fieldtype": "Int",
+   "label": "Shops Matched",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_import",
+   "fieldtype": "Section Break",
+   "label": "Import"
+  },
+  {
+   "fieldname": "rows_read",
+   "fieldtype": "Int",
+   "label": "Rows Read",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rows_rejected",
+   "fieldtype": "Int",
+   "label": "Rows Rejected",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_import",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rejections",
+   "fieldtype": "Long Text",
+   "label": "Rejected Rows",
+   "read_only": 1,
+   "description": "Row number and reason for every line that did not import. The good rows still land - a file is never all-or-nothing (Gate 5 criterion 1)."
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "section_sync",
+   "fieldtype": "Section Break",
+   "label": "Sync",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "label": "Client UUID",
+   "unique": 1,
+   "no_copy": 1,
+   "description": "Optional here. Nothing in the field creates this document - it is entered in Desk or arrives through the portal - but the unique index still stops a replayed import landing twice."
+  },
+  {
+   "fieldname": "created_offline",
+   "fieldtype": "Check",
+   "label": "Created Offline",
+   "hidden": 1
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry",
+   "hidden": 1
+  },
+  {
+   "fieldname": "column_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "label": "Sync Status",
+   "options": "Synced\nPending\nConflict",
+   "default": "Synced"
+  },
+  {
+   "fieldname": "synced_at",
+   "fieldtype": "Datetime",
+   "label": "Synced At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "FieldMate Secondary Sales",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "field_order": [
+  "naming_series",
+  "distributor",
+  "from_date",
+  "to_date",
+  "column_context",
+  "company",
+  "source",
+  "file_name",
+  "section_items",
+  "items",
+  "section_totals",
+  "total_lines",
+  "total_qty",
+  "column_totals",
+  "total_amount",
+  "matched_outlets",
+  "section_import",
+  "rows_read",
+  "rows_rejected",
+  "column_import",
+  "rejections",
+  "remarks",
+  "section_sync",
+  "client_uuid",
+  "created_offline",
+  "device_id",
+  "column_sync",
+  "sync_status",
+  "synced_at",
+  "app_version",
+  "amended_from"
+ ]
+}

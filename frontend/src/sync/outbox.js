@@ -28,6 +28,20 @@ export async function pendingCount() {
   return db.outbox.where('state').anyOf('queued', 'failed').count()
 }
 
+/** Records that have stopped retrying and need a human.
+ *
+ * These were invisible: every count in the app asked for `queued` and `failed` only, so a
+ * permanently rejected record vanished from the status strip entirely and the app reported
+ * "everything synced" over work that was never going anywhere.
+ */
+export async function blockedCount() {
+  return db.outbox.where('state').equals('blocked').count()
+}
+
+export async function blockedRecords() {
+  return db.outbox.where('state').equals('blocked').toArray()
+}
+
 function backoffMs(attempts) {
   return Math.min(2 ** attempts, 64) * 1000
 }

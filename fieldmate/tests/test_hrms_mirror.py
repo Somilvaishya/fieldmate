@@ -47,9 +47,17 @@ class TestHrmsAttendanceMirror(DayFixture):
 		return doc.name
 
 	def checkins(self):
+		"""Only the checkins this test made.
+
+		Filtering on the employee alone is not enough. tearDown deletes the Employee, and
+		Frappe's naming series then hands the same id back to the next test - so every test
+		in this class is really looking at `HR-EMP-00001`, and a row left behind by an
+		interrupted run counts as one of this test's own. The window matches what tearDown
+		cleans, so the test says the same thing on a dirty site as on a fresh one.
+		"""
 		return frappe.get_all(
 			"Employee Checkin",
-			filters={"employee": self.employee},
+			filters={"employee": self.employee, "creation": [">=", self._started_at]},
 			fields=["name", "log_type", "latitude", "longitude", "time"],
 			order_by="creation asc",
 		)

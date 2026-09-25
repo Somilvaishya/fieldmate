@@ -11,6 +11,10 @@ const saving = ref(false)
 // above the question asking whether it is in stock.
 const questions = computed(() => visitStore.visibleQuestions(visit.value))
 const remaining = computed(() => visitStore.unansweredRequired(visit.value))
+const answered = computed(() => questions.value.filter((q) => q.is_answered).length)
+const percent = computed(() =>
+  questions.value.length ? Math.round((answered.value / questions.value.length) * 100) : 0
+)
 
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
@@ -69,8 +73,15 @@ async function done() {
 
 <template>
   <div class="wrap screen" v-if="visit">
-    <h2>Checklist</h2>
-    <p class="muted">{{ visit.outletName }}</p>
+    <div class="head">
+      <div>
+        <span class="eyebrow">Store checklist</span>
+        <h2>{{ visit.outletName }}</h2>
+      </div>
+      <span class="state" :class="remaining.length ? 'warn' : 'ok'">
+        {{ remaining.length ? `${remaining.length} required left` : 'All answered' }}
+      </span>
+    </div>
 
     <p v-if="!questions.length" class="empty">
       No questions are set for this shop today.
@@ -127,20 +138,43 @@ async function done() {
     </ol>
 
     <div class="bottom">
-      <p v-if="remaining.length" class="muted note">
-        {{ remaining.length }} required {{ remaining.length === 1 ? 'question' : 'questions' }} left.
-      </p>
+      <div class="progress" v-if="questions.length">
+        <div class="ptext">
+          <span class="tnum">{{ answered }} of {{ questions.length }} answered</span>
+          <span v-if="remaining.length" class="warnt tnum">
+            {{ remaining.length }} required left
+          </span>
+        </div>
+        <div class="track">
+          <div class="fill" :style="{ width: percent + '%' }"></div>
+        </div>
+      </div>
       <button class="btn-primary" @click="done">
         {{ saving ? 'Saving…' : 'Back to visit' }}
       </button>
+      <p class="muted note">Every answer is saved on this phone as you go.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
 .screen { display: flex; flex-direction: column; min-height: 100%; }
-h2 { margin: 8px 0 4px; }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+        margin: 8px 0 4px; }
+.eyebrow { display: block; font-size: 14px; font-weight: 700; letter-spacing: 0.05em;
+           text-transform: uppercase; color: var(--muted); }
+h2 { margin: 2px 0 0; font-size: 20px; overflow-wrap: anywhere; }
+.state { flex: none; font-size: 14px; font-weight: 700; padding: 4px 10px; border-radius: 4px; }
+.state.ok { background: var(--ok-soft); color: var(--ok); }
+.state.warn { background: var(--warn-soft); color: var(--warn); }
 .muted { color: var(--muted); font-size: 14px; }
+
+.progress { margin-bottom: 10px; }
+.ptext { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted);
+         margin-bottom: 6px; }
+.warnt { color: var(--warn); font-weight: 600; }
+.track { height: 6px; border-radius: 3px; background: var(--primary-soft); overflow: hidden; }
+.fill { height: 100%; background: var(--ok); }
 .empty { margin-top: 24px; padding: 16px; background: var(--surface);
          border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .qs { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 14px; }

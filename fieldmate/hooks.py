@@ -85,6 +85,14 @@ required_apps = ["erpnext"]  # hrms is optional - probed via fieldmate.compat.ca
 before_install = "fieldmate.setup.install.before_install"
 after_install = "fieldmate.setup.install.after_install"
 
+# The idempotency keys have to reach sites that were installed before Phase 6, not only new ones.
+# Both are idempotent, so running them on every migrate costs nothing and means an existing site
+# is never left with adapters that refuse to post.
+after_migrate = [
+	"fieldmate.setup.install.create_roles",
+	"fieldmate.setup.install.create_idempotency_fields",
+]
+
 # Uninstallation
 # ------------
 

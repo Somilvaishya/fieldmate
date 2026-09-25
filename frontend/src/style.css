@@ -1,17 +1,34 @@
 /* Field constraints, not preferences. See docs/DESIGN.md.
    48px touch targets, 16px minimum body text, 4.5:1 contrast - a rep uses this
    standing, one-handed, in sunlight. */
+/* Derived from the brand mark, not chosen by eye. Regenerate with
+   `../../env/bin/python frontend/scripts/make-palette.py`, which walks each colour's
+   lightness down until it measures 4.5:1 where it is actually used and refuses to emit a
+   palette that fails. Every value below is audited output. */
 :root {
-  --bg: #faf8ff;
+  --bg: #f4f5f7;
   --surface: #ffffff;
-  --ink: #131b2e;
-  --muted: #434655;
-  --line: #c3c6d7;
-  --primary: #004ac6;
+  --ink: #05172e;
+  --muted: #465972;
+  --line: #bfc7d2;
+
+  --primary: #092850;         /* the logo navy — 14.7:1 on white */
+  --primary-soft: #e6eaee;    /* tinted fill that navy text sits on */
   --on-primary: #ffffff;
-  --ok: #006c49;
-  --warn: #8a5a0b;
-  --crit: #ba1a1a;
+
+  /* The logo green. Fills and icons only: it measures 2.4:1 on white, which is
+     unreadable in sunlight. `--ok` is the same hue darkened until it is legible. */
+  --accent: #3bbf62;
+
+  /* Each status colour is checked against its own tinted card, not against white —
+     amber text on an amber card is a stricter pairing than amber text on a page. */
+  --ok: #277d40;
+  --ok-soft: #e4f6e9;
+  --warn: #955f07;
+  --warn-soft: #f9ecd8;
+  --crit: #c62a25;
+  --crit-soft: #fae4e3;
+
   color-scheme: light;
 }
 * { box-sizing: border-box; }

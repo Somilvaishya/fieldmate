@@ -14,6 +14,7 @@ import json
 import frappe
 from frappe.utils import cint, now_datetime
 
+from fieldmate.services import field_user as field_user_service
 from fieldmate.services import registry
 
 # A batch larger than this is refused rather than allowed to time out mid-way.
@@ -139,6 +140,15 @@ def _apply(record: dict, user: str, device, batch, resolved: dict) -> dict:
 	for owned in entry.server_owned:
 		data.pop(owned, None)
 
+	# Whose record this is, filled from the session rather than trusted from the payload.
+	# The phone has no reason to know its rep's FieldMate Field User id, and every offline
+	# record was being rejected for a missing mandatory field because of it. Filling it here
+	# also closes the obvious hole: a device cannot push work onto a colleague's name.
+	if frappe.get_meta(doctype).has_field("field_user"):
+		mine = field_user_service.for_user(user)
+		if mine:
+			data["field_user"] = mine
+
 	# A submittable record must go in as a draft and then be submitted, never inserted with
 	# docstatus already 1 - Frappe would take that at face value and skip before_submit
 	# entirely, which is where the visit checks it is actually finished.
@@ -154,8 +164,16 @@ def _apply(record: dict, user: str, device, batch, resolved: dict) -> dict:
 
 	try:
 		doc = frappe.get_doc(data)
+		# insert() keeps the permission check: `create` is the gate that decides whether this
+		# rep may push this DocType at all, and the controllers enforce that the record names
+		# them and nobody else.
 		doc.insert()
 		if wants_submit:
+			# Submit is elevated, for the same reason as everywhere else: a rep holds create
+			# and read on their own records and never submit (ADR-004). Without this every
+			# submit_on_push record came back as a permission conflict for a real rep, and
+			# nothing caught it because every gate ran as Administrator.
+			doc.flags.ignore_permissions = True
 			doc.submit()
 		resolved[client_uuid] = doc.name
 		return {**base, "status": "created", "name": doc.name,

@@ -4,17 +4,22 @@ import { useRouter } from 'vue-router'
 import { ApiError } from '../api/client'
 import { getPosition } from '../lib/geo'
 import * as visitStore from '../stores/visit'
+import * as photoQueue from '../sync/photos'
+import Icon from '../components/Icon.vue'
+import { formatPaise } from '../lib/money'
 
 const router = useRouter()
 const visit = visitStore.activeVisit
 
 const OUTCOMES = [
-  { value: 'Order Taken', label: 'Order taken' },
-  { value: 'No Order', label: 'No order' },
-  { value: 'Outlet Closed', label: 'Shop closed' },
-  { value: 'Owner Absent', label: 'Owner away' },
-  { value: 'Stock Sufficient', label: 'Enough stock' },
+  { value: 'Order Taken', label: 'Order taken', icon: 'check' },
+  { value: 'No Order', label: 'No order', icon: 'close' },
+  { value: 'Outlet Closed', label: 'Shop closed', icon: 'store' },
+  { value: 'Owner Absent', label: 'Owner away', icon: 'person' },
+  { value: 'Stock Sufficient', label: 'Enough stock', icon: 'shelves' },
 ]
+
+const NOTE_LIMIT = 200
 
 const outcome = ref(null)
 const reasonName = ref(null)
@@ -22,6 +27,7 @@ const reasons = ref([])
 const note = ref('')
 const busy = ref(false)
 const error = ref('')
+const photos = ref(0)
 
 const needsReason = computed(() => outcome.value && outcome.value !== 'Order Taken')
 const reason = computed(() => reasons.value.find((r) => r.name === reasonName.value))
@@ -42,11 +48,33 @@ const ready = computed(() => {
   return missing.value.length === 0
 })
 
+const minutes = computed(() => {
+  if (!visit.value?.checkInTime) return null
+  const started = new Date(visit.value.checkInTime.replace(' ', 'T'))
+  return Math.max(0, Math.round((Date.now() - started.getTime()) / 60000))
+})
+
+/** What this visit actually captured, so a rep sees it before committing. */
+const captured = computed(() => {
+  const v = visit.value
+  if (!v) return ''
+  const parts = []
+  const answered = v.checklist.filter((q) => q.is_answered).length
+  if (answered) parts.push(`${answered} answers`)
+  if (photos.value) parts.push(`${photos.value} ${photos.value === 1 ? 'photo' : 'photos'}`)
+  return parts.join(' · ')
+})
+
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
   if (!visit.value) return router.replace('/today')
   note.value = visit.value.remarks || ''
   reasons.value = await visitStore.noOrderReasons()
+  photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
+  // The app already knows an order was booked here, so asking is a tap that can only be got
+  // wrong. Still a normal selection, not a lock: a rep who books an order and then has it
+  // refused at the counter has to be able to say so.
+  if (visit.value.order) outcome.value = 'Order Taken'
 })
 
 async function finish() {
@@ -72,13 +100,27 @@ async function finish() {
 <template>
   <div class="wrap screen" v-if="visit">
     <h2>Finish at {{ visit.outletName }}</h2>
-    <p class="muted">What came of this visit?</p>
+    <p class="muted tnum" v-if="minutes !== null">
+      In the shop {{ minutes }} min<span v-if="captured"> · {{ captured }}</span>
+    </p>
 
-    <div class="chips">
-      <button v-for="o in OUTCOMES" :key="o.value" type="button"
-              class="chip" :class="{ on: outcome === o.value }"
+    <p class="lead">What came of this visit?</p>
+    <p v-if="visit?.order" class="booked">
+      <Icon :name="visit.order.offline ? 'cloud-off' : 'check'" size="18" />
+      <span>
+        Order of &#8377;{{ formatPaise(visit.order.net) }} booked here{{
+          visit.order.offline ? ', waiting to sync' : '' }}.
+      </span>
+    </p>
+
+    <div class="outcomes" role="radiogroup" aria-label="Visit outcome">
+      <button v-for="o in OUTCOMES" :key="o.value" type="button" role="radio"
+              class="outcome" :class="{ on: outcome === o.value }"
+              :aria-checked="outcome === o.value"
               @click="outcome = o.value; reasonName = null">
-        {{ o.label }}
+        <Icon :name="o.icon" size="20" />
+        <span>{{ o.label }}</span>
+        <Icon v-if="outcome === o.value" name="check" size="20" class="mark" />
       </button>
     </div>
 
@@ -96,9 +138,14 @@ async function finish() {
     </template>
 
     <label class="lbl" for="note">
-      Note <span class="muted">{{ needsNote ? '(required for this reason)' : '(optional)' }}</span>
+      <span>
+        Note <span class="muted">{{ needsNote ? '(required for this reason)' : '(optional)' }}</span>
+      </span>
+      <span class="count tnum" :class="{ over: note.length > NOTE_LIMIT }">
+        {{ note.length }} / {{ NOTE_LIMIT }}
+      </span>
     </label>
-    <textarea id="note" v-model="note" rows="3"
+    <textarea id="note" v-model="note" rows="3" :maxlength="NOTE_LIMIT"
               placeholder="What actually happened at the shop" />
 
     <p v-if="missing.length" class="blocked">
@@ -123,6 +170,25 @@ async function finish() {
 h2 { margin: 8px 0 4px; }
 h3 { margin: 24px 0 8px; font-size: 16px; }
 .muted { color: var(--muted); font-size: 14px; }
+.lead { margin: 16px 0 0; font-weight: 600; }
+.booked { display: flex; align-items: center; gap: 8px; margin: 0 0 14px;
+          background: var(--ok-soft); color: var(--ok);
+          border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 1.45; }
+
+/* Stacked full-width rows rather than wrapped chips: five outcomes wrap raggedly at 360px,
+   and this is the one choice on the screen that must be unmistakable. */
+.outcomes { display: grid; gap: 8px; margin-top: 10px; }
+.outcome { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px;
+           padding: 0 14px; border-radius: 6px; font-size: 16px; font-weight: 600;
+           background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.outcome.on { background: var(--primary); border-color: var(--primary);
+              color: var(--on-primary); }
+.outcome span { flex: 1; text-align: left; }
+.mark { flex: none; }
+.lbl { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.count { font-size: 14px; color: var(--muted); }
+.count.over { color: var(--crit); }
+
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .chip { background: var(--surface); border: 1px solid var(--line); color: var(--ink);
         padding: 0 16px; }

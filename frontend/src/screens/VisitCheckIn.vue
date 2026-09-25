@@ -6,6 +6,14 @@ import { getPosition } from '../lib/geo'
 import * as outletStore from '../stores/outlets'
 import * as dayStore from '../stores/day'
 import * as visitStore from '../stores/visit'
+import Icon from '../components/Icon.vue'
+
+const REASONS = [
+  'Shop has moved',
+  'Met the owner elsewhere',
+  'Shutter down, met outside',
+  'GPS drifting here',
+]
 
 const route = useRoute()
 const router = useRouter()
@@ -16,6 +24,11 @@ const locating = ref(true)
 const busy = ref(false)
 const error = ref('')
 const note = ref('')
+
+// Checked before the rep touches anything, not after they tap. The old screen let them take a
+// fix, type a note and press a live button that silently refused - the one reading of a dead
+// control is that the app is broken.
+const dayOpen = computed(() => !!dayStore.openDay.value)
 
 const distance = computed(() => {
   if (!fix.value || !outlet.value?.latitude || !outlet.value?.longitude) return null
@@ -61,10 +74,7 @@ async function locate() {
 
 async function begin() {
   error.value = ''
-  if (!dayStore.openDay.value) {
-    error.value = 'Start your day before visiting a shop.'
-    return
-  }
+  if (!dayOpen.value) return router.push('/day/start')
   busy.value = true
   try {
     const visit = await visitStore.checkIn(outlet.value, {
@@ -92,28 +102,54 @@ async function begin() {
         <span v-else-if="!locating" class="muted">Tap to try again</span>
       </button>
 
-      <p v-if="distance !== null" class="dist tnum" :class="{ far: outsideFence }">
-        <template v-if="outsideFence">
-          You are <b>{{ distance }} m</b> from this shop, outside its {{ fenceRadius }} m range.
-          You can still check in — your manager will see the distance.
-        </template>
-        <template v-else>
-          <b>{{ distance }} m</b> from the shop.
-        </template>
+      <!-- Being far away is recorded, never refused. This card has to read as a fact being
+           logged, not a door being closed - a rep who reads it as a rejection stops checking
+           in at all, and then there is no coverage data to act on. -->
+      <div v-if="outsideFence" class="dist far">
+        <b class="tnum">You are {{ distance }} m from this shop, outside its
+          {{ fenceRadius }} m range.</b>
+        <p>You can still check in. Your manager will see the distance saved with this visit.</p>
+        <div class="facts">
+          <span class="tnum"><Icon name="pin" size="16" /> Now: {{ distance }} m away</span>
+          <span class="tnum"><Icon name="check" size="16" /> Usual range: {{ fenceRadius }} m
+            or less</span>
+        </div>
+      </div>
+      <p v-else-if="distance !== null" class="dist tnum">
+        <b>{{ distance }} m</b> from the shop.
       </p>
       <p v-else-if="fix && !outlet.latitude" class="muted">
         This shop has no saved location, so distance cannot be checked.
       </p>
 
-      <label class="lbl" for="note">Note <span class="muted">(optional)</span></label>
-      <input id="note" v-model="note" placeholder="Why this shop, if it is off your route" />
+      <label class="lbl" for="note">
+        {{ outsideFence ? 'Reason for the distance' : 'Note' }}
+        <span class="muted">(optional)</span>
+      </label>
+      <input id="note" v-model="note"
+             :placeholder="outsideFence
+               ? 'e.g. shop has moved, met the owner elsewhere'
+               : 'Why this shop, if it is off your route'" />
+      <!-- Typed one-handed at a doorstep, so the common answers are one tap. -->
+      <div class="chips" v-if="outsideFence">
+        <button v-for="r in REASONS" :key="r" type="button" class="chip" @click="note = r">
+          + {{ r }}
+        </button>
+      </div>
 
+      <p v-if="!dayOpen" class="notice">
+        <Icon name="alert" />
+        <span>Your day has not started yet. Start it and this shop will be waiting.</span>
+      </p>
       <p v-if="error" class="err">{{ error }}</p>
     </div>
 
     <div class="bottom">
       <button class="btn-primary" :disabled="busy" @click="begin">
-        {{ busy ? 'Checking in…' : 'Check in' }}
+        {{ busy ? 'Checking in…'
+           : !dayOpen ? 'Start my day'
+           : outsideFence ? 'Check in with the distance logged'
+           : 'Check in' }}
       </button>
       <button class="btn-plain" @click="router.back()">Cancel</button>
     </div>
@@ -131,10 +167,23 @@ h2 { margin: 8px 0 4px; }
         min-height: 48px; cursor: pointer; }
 .tile b { display: block; }
 .tile.done { border-color: var(--ok); }
-.dist { margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--surface);
+.dist { margin-top: 12px; padding: 12px; border-radius: 6px; background: var(--surface);
         border: 1px solid var(--line); }
-.dist.far { border-color: var(--warn); color: var(--warn); }
+.dist.far { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+.dist.far b { display: block; font-size: 16px; line-height: 1.4; }
+.dist.far p { margin: 6px 0 0; font-size: 14px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.facts span { display: inline-flex; align-items: center; gap: 6px; font-size: 14px;
+              font-weight: 600; padding: 5px 10px; border-radius: 4px;
+              background: var(--surface); border: 1px solid var(--warn); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip { min-height: 48px; padding: 0 12px; border-radius: 6px; font-size: 14px;
+        font-weight: 600; background: var(--primary-soft); border: 0; color: var(--primary); }
 .lbl { display: block; margin: 20px 0 6px; font-weight: 600; }
 .err { color: var(--crit); margin-top: 14px; }
+.notice { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px;
+          background: var(--warn-soft); color: var(--warn);
+          border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 1.45; }
+.notice :deep(.icon) { margin-top: 1px; flex-shrink: 0; }
 .btn-plain { background: none; border: 1px solid var(--line); color: var(--ink); width: 100%; }
 </style>

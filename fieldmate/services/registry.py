@@ -73,7 +73,8 @@ def clear() -> None:
 #               FieldMate Outlet Channel / Class, catalogues (pull only).
 # Phase 2 adds: FieldMate Journey Plan, Day Start, Day End, Location Trail.
 # Phase 3 adds: FieldMate Visit and its children.
-# Phase 4 adds: FieldMate Order, FieldMate Scheme (pull only).
+# Phase 4 adds: FieldMate Order (push), FieldMate Distributor Profile (pull) and the
+#               compiled scheme specs (pull) - not the scheme masters, see ADR-021.
 # Phase 6 adds: FieldMate Collection.
 #
 register(
@@ -115,6 +116,43 @@ register(Syncable(doctype="FieldMate Outlet Channel", push=False, pull=True,
 register(Syncable(doctype="FieldMate Outlet Class", push=False, pull=True,
                   pull_fields=("name", "class_name", "is_active", "visits_per_month",
                                "min_visit_duration_minutes")))
+
+# ---------------------------------------------------------------------------- the day
+#
+# A day captured with no signal has to land like anything else. Without these two entries a
+# rep who started their day in a village kept nothing: the API call failed, nothing was
+# queued, and every visit afterwards was refused because the server had no open day. The
+# visit's `day_start` link resolves through `depends_on`, so a queued day and the visits
+# that hang off it can travel in the same batch.
+register(
+	Syncable(
+		doctype="FieldMate Day Start",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		server_owned=("employee_checkin", "synced_at", "journey_plan", "planned_beat"),
+	)
+)
+
+register(
+	Syncable(
+		doctype="FieldMate Day End",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		depends_on=("day_start",),
+		# Everything the day produced is counted from the records on the server. A phone
+		# that has been offline all day cannot know what finally synced.
+		server_owned=(
+			"employee_checkin", "synced_at", "duration_hours", "distance_km", "coverage_pct",
+			"planned_visits", "actual_visits", "productive_visits", "new_outlets",
+			"orders_count", "order_value", "collection_amount",
+		),
+	)
+)
+
 
 # ---------------------------------------------------------------------------- Phase 3
 # A visit is pushed, never pulled. The phone that recorded it already has it, and a rep has no
@@ -170,6 +208,144 @@ register(Syncable(doctype="FieldMate Must Sell List", push=False, pull=True,
                   pull_fields=("name", "list_name", "is_active", "territory", "channel",
                                "outlet_class", "valid_from", "valid_to", "item_count",
                                "modified")))
+
+# ---------------------------------------------------------------------------- Phase 4
+# An order is pushed and never pulled, for the same reason a visit is: the phone that took it
+# already holds it, and one rep has no business downloading another rep's order book.
+#
+# Submitted on push, because a draft order is an order the distributor never sees. Submitting is
+# the whole event here - it routes the order to that distributor's queue and does nothing else.
+# No Sales Order, no invoice, no stock movement, no GL Entry (ADR-023): a shop order is a
+# secondary sale and is terminal in our books, so there is nothing a bad push could post.
+register(
+	Syncable(
+		doctype="FieldMate Order",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		# An order taken at a shop created the same morning has to travel in the same batch as
+		# that shop, and an order taken during a call has to land after the call it came out of.
+		depends_on=("outlet", "visit"),
+		# Every figure the business acts on, and every state only the office can move the order
+		# into. The totals are recomputed from the engine on save, so a value sent for one of
+		# them would be overwritten anyway - discarding it here means the phone never even gets
+		# to propose the number a manager will read. order_status and the two hand-off fields are
+		# listed for a different reason: a device that could mark its own order Accepted, or stamp
+		# a distributor reference it invented, would make the distributor's queue decorative.
+		#
+		# `proposed_net_total` is deliberately absent. It is not the server's figure and is not
+		# meant to be - it is the device's own statement of the number the rep said out loud
+		# across a counter, and it has to survive exactly as sent or there is nothing left to
+		# compare the server against when the two engines drift.
+		server_owned=(
+			"gross_total", "discount_total", "net_total", "tax_total", "grand_total",
+			"incentive_amount", "total_qty", "total_lines",
+			"credit_status", "credit_limit_at_order", "outstanding_at_order",
+			"approval_required", "approval_rule", "approval_status", "approved_by", "approved_on",
+			"totals_match", "sales_order", "order_status",
+			"sent_to_distributor_on", "distributor_reference",
+			"sync_status", "synced_at",
+		),
+	)
+)
+
+# The rep picks nothing here - the outlet already names its distributor - but the phone still has
+# to show who the order is going to and what it can promise about delivery, and it has to do that
+# with no signal. Delivery days and the minimum order value are read out to the shopkeeper at the
+# counter, so they cannot wait for a round trip.
+register(Syncable(doctype="FieldMate Distributor Profile", push=False, pull=True,
+                  pull_fields=("name", "customer", "distributor_code", "status", "territory",
+                               "price_list", "min_order_value", "credit_days", "delivery_days",
+                               "mobile_no", "modified")))
+
+# TODO (Phase 4, blocked): the compiled scheme specs the cart re-prices against offline.
+# ADR-021 is explicit that the phone caches *compiled specs* and never the scheme masters, so
+# there is nothing here to register yet - `services/scheme_compile.py` and whatever it writes the
+# compiled JSON to do not exist at the time of writing. Registering `FieldMate Scheme` in the
+# meantime would be worse than leaving the gap: the device would cache unresolved masters, the
+# two engines would be fed different input, and Gate 4 parity would be measuring the wrong thing.
+
+# ---------------------------------------------------------------------------- Phase 5
+# A stock count and a van day are captured in the field like everything else, and just as often
+# with no signal - a godown at 6am and a kirana shelf at noon are both places the network is not.
+register(
+	Syncable(
+		doctype="FieldMate Retailer Stock",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		depends_on=("outlet", "visit"),
+		# Counted against listed, and whether the count was finished, are read from the rows.
+		# A phone that proposed its own coverage figure could flatter it.
+		server_owned=("counted_lines", "total_lines", "coverage_pct", "is_partial",
+		              "previous_stock", "days_since_previous", "sync_status", "synced_at"),
+	)
+)
+
+register(
+	Syncable(
+		doctype="FieldMate Van Load",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		depends_on=("day_start",),
+		server_owned=("total_skus", "total_qty", "stock_value", "has_variance", "variance_skus",
+		              "load_status", "sync_status", "synced_at"),
+	)
+)
+
+register(
+	Syncable(
+		doctype="FieldMate Van Settlement",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		depends_on=("van_load", "day_start"),
+		# Everything in the equation except what the rep counted back in. Loaded comes from the
+		# morning, sold from their own orders, and short falls out of the two - a settlement a
+		# phone could state would be a settlement that always balances.
+		server_owned=("loaded_qty", "sold_qty", "short_qty", "short_value", "cash_collected",
+		              "cash_to_hand_over", "settlement_status", "settled_on", "distributor",
+		              "vehicle_no", "sync_status", "synced_at"),
+	)
+)
+
+# ---------------------------------------------------------------------------- Phase 6
+# Money taken at a counter has to reach us whatever the signal was like when it was taken. The
+# receipt number is issued server-side, so a phone that queued three collections in a village
+# gets three real numbers when they land rather than three guesses.
+register(
+	Syncable(
+		doctype="FieldMate Collection",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		depends_on=("outlet", "visit"),
+		server_owned=("receipt_no", "party", "posts_to_ledger", "status", "deposit",
+		              "payment_entry", "allocated_amount", "unallocated_amount",
+		              "sync_status", "synced_at"),
+	)
+)
+
+register(
+	Syncable(
+		doctype="FieldMate Collection Deposit",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		# Everything about what the deposit is worth is read from the collections inside it.
+		# A phone that could state its own totals could declare more than it is carrying.
+		server_owned=("cash_amount", "cheque_amount", "cheque_count", "total_amount",
+		              "ours_amount", "status", "confirmed_by", "confirmed_on",
+		              "sync_status", "synced_at"),
+	)
+)
 
 # The device's own record is readable by the device, but it is created through
 # sync.register_device rather than pushed as part of a batch.

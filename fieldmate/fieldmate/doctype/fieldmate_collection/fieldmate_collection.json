@@ -1,0 +1,426 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-25 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-25 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Collection",
+ "owner": "Administrator",
+ "sort_field": "collection_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Sales Head",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Regional Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1,
+   "write": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1,
+   "create": 1,
+   "submit": 1,
+   "if_owner": 1
+  }
+ ],
+ "is_submittable": 1,
+ "search_fields": "party,collection_date,amount",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "FM-COL-.######",
+   "default": "FM-COL-.######",
+   "reqd": 1
+  },
+  {
+   "fieldname": "collection_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Collected From",
+   "options": "Outlet\nDistributor",
+   "default": "Outlet",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Whose money this is. A shop owes its distributor, so cash taken at a shop is the distributor's and reaches no ledger of ours. A distributor owes us."
+  },
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Shop",
+   "options": "FieldMate Outlet",
+   "depends_on": "eval:doc.party_type=='Outlet'",
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Distributor",
+   "options": "FieldMate Distributor Profile",
+   "search_index": 1,
+   "description": "The party the money is owed to in both cases - either because they sold to the shop, or because they are the one paying us."
+  },
+  {
+   "fieldname": "column_context",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "field_user",
+   "fieldtype": "Link",
+   "label": "Field User",
+   "options": "FieldMate Field User",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "visit",
+   "fieldtype": "Link",
+   "label": "Visit",
+   "options": "FieldMate Visit"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Data",
+   "label": "Party",
+   "read_only": 1,
+   "description": "Whoever the money came from, resolved from the two links above so reports do not have to branch."
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "section_money",
+   "fieldtype": "Section Break",
+   "label": "Money"
+  },
+  {
+   "fieldname": "mode",
+   "fieldtype": "Select",
+   "label": "Mode",
+   "options": "Cash\nUPI\nCheque\nDD\nBank Transfer",
+   "default": "Cash",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "column_money",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "instrument_no",
+   "fieldtype": "Data",
+   "label": "Cheque / Ref No",
+   "depends_on": "eval:['Cheque','DD','UPI','Bank Transfer'].includes(doc.mode)"
+  },
+  {
+   "fieldname": "instrument_date",
+   "fieldtype": "Date",
+   "label": "Instrument Date",
+   "depends_on": "eval:['Cheque','DD'].includes(doc.mode)"
+  },
+  {
+   "fieldname": "instrument_bank",
+   "fieldtype": "Data",
+   "label": "Bank",
+   "depends_on": "eval:['Cheque','DD'].includes(doc.mode)"
+  },
+  {
+   "fieldname": "section_against",
+   "fieldtype": "Section Break",
+   "label": "Against Which Bills"
+  },
+  {
+   "fieldname": "allocations",
+   "fieldtype": "Table",
+   "label": "Allocations",
+   "options": "FieldMate Collection Allocation"
+  },
+  {
+   "fieldname": "allocated_amount",
+   "fieldtype": "Currency",
+   "label": "Allocated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "unallocated_amount",
+   "fieldtype": "Currency",
+   "label": "On Account",
+   "read_only": 1,
+   "description": "Money taken against no particular bill. Ordinary at a kirana counter and not an error, but it has to be visible rather than quietly spread about."
+  },
+  {
+   "fieldname": "section_proof",
+   "fieldtype": "Section Break",
+   "label": "Proof"
+  },
+  {
+   "fieldname": "receipt_no",
+   "fieldtype": "Data",
+   "label": "Receipt No",
+   "read_only": 1,
+   "description": "What the shopkeeper is handed. Generated here so two phones cannot issue the same number."
+  },
+  {
+   "fieldname": "receipt_photo",
+   "fieldtype": "Attach Image",
+   "label": "Receipt Photo",
+   "allow_on_submit": 1,
+   "description": "Arrives after the record, on its own queue - records sync first and pictures follow (ADR-019)."
+  },
+  {
+   "fieldname": "collected_from_name",
+   "fieldtype": "Data",
+   "label": "Handed Over By",
+   "description": "The person who actually handed the cash across. A receipt naming only a shop settles no argument three weeks later."
+  },
+  {
+   "fieldname": "column_proof",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "denominations",
+   "fieldtype": "Small Text",
+   "label": "Notes Counted",
+   "description": "The denomination tally, kept as the rep counted it. It is what turns a shortfall at deposit into a conversation about a specific bundle."
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "6"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "6"
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Collected\nDeposited\nCleared\nBounced\nCancelled",
+   "default": "Collected",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "deposit",
+   "fieldtype": "Link",
+   "label": "Deposit",
+   "options": "FieldMate Collection Deposit",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "posts_to_ledger",
+   "fieldtype": "Check",
+   "label": "Ours To Post",
+   "read_only": 1,
+   "description": "Set from party_type (ADR-025). Only a distributor's payment is ours, and only that one ever produces a Payment Entry - on deposit, never here."
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "options": "Payment Entry",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Empty until the deposit is confirmed, and empty forever for a shop collection."
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "section_sync",
+   "fieldtype": "Section Break",
+   "label": "Sync",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "label": "Client UUID",
+   "unique": 1,
+   "no_copy": 1,
+   "reqd": 1,
+   "description": "Device-assigned. A replayed push returns this record rather than taking the money twice."
+  },
+  {
+   "fieldname": "created_offline",
+   "fieldtype": "Check",
+   "label": "Created Offline"
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry"
+  },
+  {
+   "fieldname": "column_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "label": "Sync Status",
+   "options": "Synced\nPending\nConflict",
+   "default": "Synced"
+  },
+  {
+   "fieldname": "synced_at",
+   "fieldtype": "Datetime",
+   "label": "Synced At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "FieldMate Collection",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "field_order": [
+  "naming_series",
+  "collection_date",
+  "party_type",
+  "outlet",
+  "distributor",
+  "column_context",
+  "field_user",
+  "visit",
+  "party",
+  "company",
+  "section_money",
+  "mode",
+  "amount",
+  "currency",
+  "column_money",
+  "instrument_no",
+  "instrument_date",
+  "instrument_bank",
+  "section_against",
+  "allocations",
+  "allocated_amount",
+  "unallocated_amount",
+  "section_proof",
+  "receipt_no",
+  "receipt_photo",
+  "collected_from_name",
+  "column_proof",
+  "denominations",
+  "latitude",
+  "longitude",
+  "section_status",
+  "status",
+  "deposit",
+  "column_status",
+  "posts_to_ledger",
+  "payment_entry",
+  "remarks",
+  "section_sync",
+  "client_uuid",
+  "created_offline",
+  "device_id",
+  "column_sync",
+  "sync_status",
+  "synced_at",
+  "app_version",
+  "amended_from"
+ ]
+}

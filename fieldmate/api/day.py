@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import frappe
 
-from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
+from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json, readable
 from fieldmate.services import day as day_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import journey as journey_service
@@ -33,7 +33,8 @@ def start(device_uuid: str | None = None, _device=None, **kwargs):
 	try:
 		return ok(day_service.start(_me(), payload))
 	except frappe.ValidationError as e:
-		raise FieldMateError(Err.VALIDATION_FAILED, str(e)) from e
+		# readable() exists so a framework message never reaches a rep; str(e) bypassed it.
+		raise FieldMateError(Err.VALIDATION_FAILED, readable(e)) from e
 
 
 @frappe.whitelist()
@@ -47,6 +48,17 @@ def current(**kwargs):
 	return ok({"open": True, **open_day})
 
 
+@frappe.whitelist()
+@endpoint()
+def summary(date: str | None = None, **kwargs):
+	"""What the day has produced so far, without closing it.
+
+	The Finish Day screen shows a rep what they are about to commit to. It reads the same
+	figures `end()` writes, so the screen cannot show one number and the record keep another.
+	"""
+	return ok(day_service.summary(_me(), date))
+
+
 @frappe.whitelist(methods=["POST"])
 @endpoint(require_device=True)
 def end(device_uuid: str | None = None, _device=None, **kwargs):
@@ -55,7 +67,8 @@ def end(device_uuid: str | None = None, _device=None, **kwargs):
 	try:
 		return ok(day_service.end(_me(), payload))
 	except frappe.ValidationError as e:
-		raise FieldMateError(Err.VALIDATION_FAILED, str(e)) from e
+		# readable() exists so a framework message never reaches a rep; str(e) bypassed it.
+		raise FieldMateError(Err.VALIDATION_FAILED, readable(e)) from e
 
 
 @frappe.whitelist(methods=["POST"])
@@ -111,6 +124,13 @@ def today(**kwargs):
 
 @frappe.whitelist()
 @endpoint()
+def my_beats(**kwargs):
+	"""Every route assigned to this rep, soonest first, with when each next runs."""
+	return ok({"beats": journey_service.my_beats(_me())})
+
+
+@frappe.whitelist()
+@endpoint()
 def outlets(beat: str | None = None, **kwargs):
 	"""Every outlet on a beat, for offline prefetch."""
 	if not beat:
@@ -132,14 +152,19 @@ def beat_outlets(beat: str) -> list[dict]:
 	if not rows:
 		return []
 
+	# get_list, not get_all. `frappe.get_all` forces ignore_permissions=True and discards any
+	# value passed for it, so the territory filter the loop below relies on never ran and
+	# every shop on the beat came back regardless of who asked. Same defect Gate 1 found in
+	# sync.pull; `user` is what actually applies this rep's territory.
 	details = {
 		o.name: o
-		for o in frappe.get_all(
+		for o in frappe.get_list(
 			"FieldMate Outlet",
 			filters={"name": ["in", [r.outlet for r in rows]]},
 			fields=["name", "outlet_name", "city", "mobile_no", "latitude", "longitude",
 			        "geo_fence_radius_m", "approval_status", "outlet_status", "outlet_class"],
 			limit_page_length=0,
+			user=frappe.session.user,
 		)
 	}
 

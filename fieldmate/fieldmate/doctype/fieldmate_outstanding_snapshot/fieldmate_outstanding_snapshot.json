@@ -1,0 +1,288 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-25 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-25 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Outstanding Snapshot",
+ "owner": "Administrator",
+ "sort_field": "as_of",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Sales Head",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Regional Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1,
+   "write": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1,
+   "if_owner": 1
+  }
+ ],
+ "search_fields": "party,as_of,outstanding_amount",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "FM-OSN-.######",
+   "default": "FM-OSN-.######",
+   "reqd": 1
+  },
+  {
+   "fieldname": "as_of",
+   "fieldtype": "Date",
+   "label": "As Of",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "Outlet\nDistributor",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Data",
+   "label": "Party",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_context",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "outlet",
+   "fieldtype": "Link",
+   "label": "Shop",
+   "options": "FieldMate Outlet"
+  },
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Distributor",
+   "options": "FieldMate Distributor Profile"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "section_amounts",
+   "fieldtype": "Section Break",
+   "label": "What Is Owed"
+  },
+  {
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "overdue_amount",
+   "fieldtype": "Currency",
+   "label": "Overdue"
+  },
+  {
+   "fieldname": "credit_limit",
+   "fieldtype": "Currency",
+   "label": "Limit"
+  },
+  {
+   "fieldname": "column_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "oldest_due_date",
+   "fieldtype": "Date",
+   "label": "Oldest Bill Due"
+  },
+  {
+   "fieldname": "days_overdue",
+   "fieldtype": "Int",
+   "label": "Days Overdue"
+  },
+  {
+   "fieldname": "bill_count",
+   "fieldtype": "Int",
+   "label": "Open Bills"
+  },
+  {
+   "fieldname": "section_ageing",
+   "fieldtype": "Section Break",
+   "label": "Ageing"
+  },
+  {
+   "fieldname": "bucket_0_7",
+   "fieldtype": "Currency",
+   "label": "0-7 Days"
+  },
+  {
+   "fieldname": "bucket_8_14",
+   "fieldtype": "Currency",
+   "label": "8-14 Days"
+  },
+  {
+   "fieldname": "column_ageing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bucket_15_30",
+   "fieldtype": "Currency",
+   "label": "15-30 Days"
+  },
+  {
+   "fieldname": "bucket_30_plus",
+   "fieldtype": "Currency",
+   "label": "Over 30 Days",
+   "description": "The bucket that decides whether a rep pushes or walks away. Kept separate rather than folded into a total, because a total hides it."
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Soft Ledger\nERPNext",
+   "default": "Soft Ledger",
+   "read_only": 1,
+   "description": "A shop's outstanding is ours to hold because nobody else does (ADR-025). A distributor's is read from ERPNext, where it is real."
+  },
+  {
+   "fieldname": "section_sync",
+   "fieldtype": "Section Break",
+   "label": "Sync",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "label": "Client UUID",
+   "unique": 1,
+   "no_copy": 1,
+   "description": "Device-assigned. A replayed push returns this record rather than taking the money twice."
+  },
+  {
+   "fieldname": "created_offline",
+   "fieldtype": "Check",
+   "label": "Created Offline"
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry"
+  },
+  {
+   "fieldname": "column_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "label": "Sync Status",
+   "options": "Synced\nPending\nConflict",
+   "default": "Synced"
+  },
+  {
+   "fieldname": "synced_at",
+   "fieldtype": "Datetime",
+   "label": "Synced At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version",
+   "read_only": 1
+  }
+ ],
+ "field_order": [
+  "naming_series",
+  "as_of",
+  "party_type",
+  "party",
+  "column_context",
+  "outlet",
+  "distributor",
+  "company",
+  "section_amounts",
+  "outstanding_amount",
+  "overdue_amount",
+  "credit_limit",
+  "column_amounts",
+  "oldest_due_date",
+  "days_overdue",
+  "bill_count",
+  "section_ageing",
+  "bucket_0_7",
+  "bucket_8_14",
+  "column_ageing",
+  "bucket_15_30",
+  "bucket_30_plus",
+  "source",
+  "section_sync",
+  "client_uuid",
+  "created_offline",
+  "device_id",
+  "column_sync",
+  "sync_status",
+  "synced_at",
+  "app_version"
+ ]
+}

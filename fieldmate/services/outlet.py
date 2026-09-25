@@ -37,6 +37,20 @@ LIST_FIELDS = [
 	"latitude", "longitude", "geo_fence_radius_m", "monthly_potential", "modified",
 ]
 
+# What one shop's own screen shows, on top of the list row. Kept separate because
+# LIST_FIELDS is sent for every shop a rep holds - widening it put 5,000 outlets at
+# 6.6 MB against a 2.5 MB budget, which is what Gate 1 caught. This list is fetched
+# one shop at a time, so it can afford to be generous.
+DETAIL_FIELDS = [
+	*LIST_FIELDS,
+	"outlet_type", "owner_name", "alternate_mobile", "email_id",
+	"address_line1", "address_line2", "district", "state", "pincode",
+	"gstin", "fssai_no", "pan", "kyc_verified",
+	"credit_limit", "credit_days", "outstanding_amount",
+	"opening_time", "closing_time", "weekly_off",
+	"shop_photo", "shop_board_photo", "onboarding_date", "enable_geo_fence",
+]
+
 
 def search(query: str | None = None, beat: str | None = None, limit: int = 50,
            user: str | None = None) -> list[dict]:
@@ -85,7 +99,7 @@ def detail(outlet: str, user: str | None = None) -> dict:
 		credit = compat.get_credit_status(party, company)
 
 	return {
-		"outlet": {f: doc.get(f) for f in LIST_FIELDS if f != "name"} | {"name": doc.name},
+		"outlet": {f: doc.get(f) for f in DETAIL_FIELDS if f != "name"} | {"name": doc.name},
 		"contacts": [
 			{"person_name": c.person_name, "role_at_outlet": c.role_at_outlet,
 			 "mobile_no": c.mobile_no, "is_primary": bool(c.is_primary)}
@@ -97,6 +111,47 @@ def detail(outlet: str, user: str | None = None) -> dict:
 		"credit": credit,
 		"geo_fence_radius_m": doc.effective_geo_fence_radius(),
 	}
+
+
+def resolve_distributor(payload: dict, rep) -> str:
+	"""Which distributor this new shop belongs to.
+
+	A rep standing at a doorstep is not asked to pick one - they should not have to know, and a
+	dropdown of every customer in the company is the wrong thing to hand somebody on a phone.
+	So it is inferred, in order of how sure we can be:
+
+	  1. what the app sent, if it sent anything
+	  2. the distributor on the rep's own record
+	  3. the one distributor serving the rep's territory, but only if there is exactly one
+
+	If none of those settle it, we stop here with a sentence a rep can act on. Letting it fall
+	through produced `[FieldMate Outlet, FM-OUT-05153]: distributor` on a phone screen - a raw
+	framework error naming a document that was never saved.
+	"""
+	explicit = payload.get("distributor") or (rep.distributor if rep else None)
+	if explicit:
+		return explicit
+
+	territory = payload.get("territory") or (rep.territory if rep else None)
+	if territory:
+		serving = frappe.get_all(
+			"FieldMate Distributor Profile",
+			filters={"territory": territory, "status": "Active"},
+			pluck="customer",
+			limit_page_length=2,
+		)
+		if len(serving) == 1:
+			return serving[0]
+		if len(serving) > 1:
+			frappe.throw(frappe._(
+				"More than one distributor covers your area, so we cannot tell which one this "
+				"shop belongs to. Ask your manager to set yours."
+			))
+
+	frappe.throw(frappe._(
+		"Your account is not linked to a distributor yet, so a new shop has nowhere to belong. "
+		"Ask your manager to set it on your FieldMate user."
+	))
 
 
 def create(payload: dict, user: str | None = None) -> dict:
@@ -116,7 +171,7 @@ def create(payload: dict, user: str | None = None) -> dict:
 	data = {k: v for k, v in payload.items() if k in REP_EDITABLE}
 	data.update({
 		"doctype": "FieldMate Outlet",
-		"distributor": payload.get("distributor") or (rep.distributor if rep else None),
+		"distributor": resolve_distributor(payload, rep),
 		"territory": payload.get("territory") or (rep.territory if rep else None),
 		"client_uuid": client_uuid,
 		"created_offline": cint(payload.get("created_offline")),

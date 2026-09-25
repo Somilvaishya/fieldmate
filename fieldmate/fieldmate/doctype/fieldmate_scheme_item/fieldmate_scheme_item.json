@@ -1,0 +1,25 @@
+{
+ "actions": [], "creation": "2026-09-24 10:00:00.000000", "doctype": "DocType",
+ "editable_grid": 1, "engine": "InnoDB", "istable": 1,
+ "field_order": ["item_code", "item_name", "item_group", "brand", "case_uom", "conversion_factor", "stock_uom", "notes"],
+ "fields": [
+  {"fieldname": "item_code", "fieldtype": "Link", "label": "Item", "options": "Item", "in_list_view": 1, "columns": 2,
+   "description": "One SKU. Exactly one of Item, Item Group and Brand is set on a row - a row naming two of them reads differently to every person who opens it, and the compiler would have to guess which one the manager meant."},
+  {"fieldname": "item_name", "fieldtype": "Data", "label": "Name", "fetch_from": "item_code.item_name", "read_only": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "item_group", "fieldtype": "Link", "label": "Item Group", "options": "Item Group", "in_list_view": 1, "columns": 2,
+   "description": "Every SKU in the group qualifies, expanded to base item codes by the compiler so the engine is handed a flat list and never walks a tree on a phone."},
+  {"fieldname": "brand", "fieldtype": "Link", "label": "Brand", "options": "Brand", "in_list_view": 1, "columns": 2,
+   "description": "Every SKU of the brand qualifies. A brand scheme is the one most often written on a whiteboard and the one most often mis-scoped, because a brand quietly gains SKUs between the day it is typed and the day it runs."},
+  {"fieldname": "case_uom", "fieldtype": "Link", "label": "Case Unit", "options": "UOM",
+   "description": "What a case means for this row, when the slab numbers are typed in cases. A shopkeeper and a manager both say two cases; only the master knows whether that is twenty-four pieces or forty-eight."},
+  {"fieldname": "conversion_factor", "fieldtype": "Float", "label": "Conversion Factor", "precision": "6",
+   "description": "Base units in one case, for this row. Left at zero the compiler resolves it from the item master, which is the normal case; it is typed only where the master is wrong and a scheme cannot wait for the master to be fixed."},
+  {"fieldname": "stock_uom", "fieldtype": "Data", "label": "Base Unit", "fetch_from": "item_code.stock_uom", "read_only": 1,
+   "description": "The unit the slab is really counted in once the conversion has happened. Shown because a manager typing cases should be able to see what the engine will actually measure."},
+  {"fieldname": "notes", "fieldtype": "Data", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-24 10:00:00.000000",
+ "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Scheme Item",
+ "owner": "Administrator", "permissions": [], "sort_field": "modified", "sort_order": "DESC",
+ "states": [], "track_changes": 0
+}

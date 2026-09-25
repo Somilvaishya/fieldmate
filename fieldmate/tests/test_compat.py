@@ -2,6 +2,7 @@ import frappe
 
 from fieldmate import compat
 from fieldmate.tests.base import FieldMateTestCase
+from fieldmate.tests.test_masters import MasterFixture
 
 
 class TestCompat(FieldMateTestCase):
@@ -50,3 +51,81 @@ class TestCompat(FieldMateTestCase):
 		if not company:
 			self.skipTest("no company on this site")
 		self.assertEqual(compat.get_outstanding(self.uid("NOCUST"), company), 0)
+
+	def test_open_orders_are_counted_only_when_asked_for(self):
+		company = frappe.db.get_value("Company", {}, "name")
+		if not company:
+			self.skipTest("no company on this site")
+		self.assertEqual(
+			compat.get_outstanding(self.uid("NOCUST"), company, include_open_orders=True), 0
+		)
+
+
+class TestPricingAdapters(MasterFixture):
+	"""The pricing path is where a wrong answer costs money rather than raising."""
+
+	def setUp(self):
+		super().setUp()
+		self.price_list = self.make_price_list()
+
+	def make_price_list(self) -> str:
+		doc = frappe.get_doc({
+			"doctype": "Price List",
+			"price_list_name": self.uid("PL"),
+			"selling": 1,
+			"enabled": 1,
+			"currency": frappe.db.get_value("Currency", {"enabled": 1}, "name") or "INR",
+		}).insert(ignore_permissions=True)
+		self.track("Price List", doc.name)
+		return doc.name
+
+	def make_item_price(self, item_code: str, rate) -> str:
+		doc = frappe.get_doc({
+			"doctype": "Item Price",
+			"item_code": item_code,
+			"price_list": self.price_list,
+			"price_list_rate": rate,
+		}).insert(ignore_permissions=True)
+		self.track("Item Price", doc.name)
+		return doc.name
+
+	def test_an_unpriced_item_reads_as_none_and_not_as_zero(self):
+		"""0.0 would send the line out free. None stops it and makes somebody answer."""
+		self.assertIsNone(compat.get_item_price(self.make_item(), self.price_list))
+
+	def test_a_rate_of_zero_is_a_real_rate(self):
+		item = self.make_item()
+		self.make_item_price(item, 0)
+		self.assertEqual(compat.get_item_price(item, self.price_list), 0.0)
+
+	def test_a_price_comes_back_as_a_number(self):
+		item = self.make_item()
+		self.make_item_price(item, 122.5)
+		self.assertEqual(compat.get_item_price(item, self.price_list, qty=24), 122.5)
+
+	def test_details_come_back_once_per_item(self):
+		priced, unpriced = self.make_item(), self.make_item()
+		self.make_item_price(priced, 120)
+
+		rows = {row["item_code"]: row for row in
+		        compat.get_item_details([priced, unpriced], self.price_list)}
+		self.assertEqual(len(rows), 2)
+		self.assertEqual(rows[priced]["price_list_rate"], 120)
+		self.assertIsNone(rows[unpriced]["price_list_rate"])
+		self.assertEqual(rows[priced]["conversion_factor"], 1.0)
+		self.assertEqual(rows[priced]["sales_uom"], rows[priced]["stock_uom"])
+		self.assertFalse(rows[priced]["disabled"])
+
+	def test_an_empty_catalogue_request_asks_nothing(self):
+		self.assertEqual(compat.get_item_details([]), [])
+
+
+class TestSalesOrderAdapters(FieldMateTestCase):
+	def test_an_order_with_no_key_is_refused(self):
+		"""Without a key a retried sync would post a second commitment for the same order."""
+		with self.assertRaises(frappe.ValidationError):
+			compat.make_sales_order({"customer": "nobody"})
+
+	def test_cancelling_what_is_not_there_is_not_an_error(self):
+		"""A retried cancel is the ordinary state after a dropped connection."""
+		self.assertIsNone(compat.cancel_sales_order("SAL-ORD-does-not-exist"))

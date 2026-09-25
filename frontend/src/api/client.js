@@ -12,12 +12,20 @@ export class ApiError extends Error {
   }
 }
 
+// A stalled link is worse than a dead one: fetch never settles, so a button stays disabled
+// and the rep is stuck with no way forward. Long enough for a photo on a slow uplink,
+// short enough that nobody stares at a frozen screen.
+const TIMEOUT_MS = 45_000
+
 async function call(method, params = {}, { post = false } = {}) {
   const url = BASE + method
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   const opts = {
     method: post ? 'POST' : 'GET',
     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     credentials: 'same-origin',
+    signal: controller.signal,
   }
 
   let target = url
@@ -34,10 +42,20 @@ async function call(method, params = {}, { post = false } = {}) {
   let res
   try {
     res = await fetch(target, opts)
-  } catch {
+  } catch (e) {
     // fetch rejects with a bare TypeError("Failed to fetch") when there is no connection.
     // That string is a browser internal, not something to show a rep standing in a market.
-    throw new ApiError('OFFLINE', 'No connection. Your work is saved on this phone.', 0)
+    // A timeout is treated the same way: from the rep's side a link that never answers and
+    // a link that is not there are the same problem, and both keep the work on the phone.
+    throw new ApiError(
+      'OFFLINE',
+      e && e.name === 'AbortError'
+        ? 'The connection is too slow to finish that. Your work is saved on this phone.'
+        : 'No connection. Your work is saved on this phone.',
+      0,
+    )
+  } finally {
+    clearTimeout(timer)
   }
 
   let body
@@ -57,14 +75,18 @@ async function call(method, params = {}, { post = false } = {}) {
       res.status
     )
   }
-  if (res.status === 401 || res.status === 403) {
-    throw new ApiError('AUTH_REQUIRED', 'Please sign in again.', res.status)
-  }
-
   // Frappe wraps whitelisted return values in { message: ... }
   const payload = body.message ?? body
+
+  // Our own envelope is read BEFORE the status code. A 403 from FieldMate carries a
+  // sentence a rep can act on - "That shop is not in your territory" - and rewriting every
+  // 403 into "Please sign in again" both hid that and bounced the rep out to the login
+  // screen over a permission problem that signing in again cannot fix.
   if (payload && payload.ok === false) {
     throw new ApiError(payload.code, payload.message, res.status)
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new ApiError('AUTH_REQUIRED', 'Please sign in again.', res.status)
   }
   return payload?.data ?? payload
 }
@@ -96,6 +118,8 @@ export const api = {
     call('day.trail_upload', { device_uuid: deviceUuid, pings }, { post: true }),
   todayBeat: () => call('day.today'),
   beatOutlets: (beat) => call('day.outlets', { beat }),
+  daySummary: (date) => call('day.summary', { date }),
+  myBeats: () => call('day.my_beats'),
 
   checkIn: (deviceUuid, payload) =>
     call('visit.check_in', { device_uuid: deviceUuid, payload }, { post: true }),
@@ -109,4 +133,83 @@ export const api = {
   visitHistory: (date) => call('visit.history', { date }),
   checklistForms: () => call('visit.forms'),
   noOrderReasons: () => call('visit.no_order_reasons'),
+
+  // ------------------------------------------------------------------- Phase 4: the order
+  //
+  // Note what is NOT here: nothing takes a price list, a field user or a rate. Every one of those
+  // is resolved on the server from the session, because a device that could name its own price
+  // list could quote the whole cart off whichever one is cheapest, and a device that could name a
+  // rep could read another rep's shops and another rep's order book. A stolen phone is the
+  // ordinary way that happens rather than the exotic one.
+
+  // Everything this shop may be sold, priced, plus the last order's quantities. One call, because
+  // the cart screen needs both before it can draw anything and a second round trip on a market
+  // uplink is a second chance for the rep to give up on it.
+  catalogue: (outlet) => call('catalogue.items', { outlet }),
+
+  // The repeat-order prefill. There is no endpoint of its own for it - `catalogue.items` carries
+  // `last_order` deliberately, for the reason above - so this is the same call reading one key out
+  // of the payload. Callers that already hold a cached catalogue should read `last_order` off that
+  // instead of pulling four hundred priced SKUs down to fill in eight quantities.
+  catalogueLastOrder: (outlet) =>
+    call('catalogue.items', { outlet }).then((data) => data.last_order),
+
+  // Fresh rates for a cart that already exists. POSTed rather than sent as a query string: a
+  // forty-line cart of long SKU codes runs past what some proxies will carry in a URL, and a
+  // truncated cart re-prices as a different cart. `items` is [{item_code, qty}] in BASE units,
+  // because that is what a quantity break on Item Price is measured in.
+  cataloguePrices: (outlet, items) => call('catalogue.prices', { outlet, items }, { post: true }),
+
+  // The compiled specs for this shop, for the phone to cache and evaluate against with no signal.
+  // `skipped` comes back beside them: a scheme a manager has to fix must not look live in Desk and
+  // absent in the field for as long as nobody happens to notice.
+  schemesFor: (outlet) => call('scheme.applicable', { outlet }),
+
+  // The same specs run on the server against server prices - the figure of record. The phone's own
+  // answer is what the rep said out loud; docs/SCHEME_SPEC.md allows the two no divergence, so
+  // where they differ one of the two engines is wrong and we would like to know which.
+  // `lines` is [{item_code, qty, uom}].
+  schemeEvaluate: (outlet, lines) => call('scheme.evaluate', { outlet, lines }, { post: true }),
+
+  // fieldmate.api.order.* — written by another workstream and not on disk at the time these were
+  // added, so the parameter names below are this client's half of the contract rather than
+  // something read off the server. `payload` is the FieldMate Order as the store builds it (doc
+  // field names, money in rupees); `order` is the document name. If the server lands on different
+  // names, this is the one file that changes.
+  //
+  // estimate books nothing at all: it is submit's arithmetic without the document, for a review
+  // screen that wants the server's total before the rep commits to it.
+  orderEstimate: (payload) => call('order.estimate', { payload }, { post: true }),
+  orderSubmit: (deviceUuid, payload) =>
+    call('order.submit', { device_uuid: deviceUuid, payload }, { post: true }),
+  orderList: (filters = {}) => call('order.list', { limit: 50, ...filters }),
+  orderDetail: (name) => call('order.detail', { order: name }),
+  orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
+
+  // fieldmate.api.stock.* — the shop count and the van day.
+  //
+  // The count sheet carries the previous count with it rather than offering it on a second call.
+  // A rep standing at a shelf with no signal would otherwise either wait for a round trip or
+  // count blind, and counting blind makes "same as last time" impossible to offer.
+  stockSheet: (outlet) => call('stock.sheet', { outlet }),
+  stockSave: (payload) => call('stock.save', { payload }, { post: true }),
+
+  // The van is the distributor's stock, not ours (ADR-024), so none of these post anything.
+  vanLoad: (on) => call('stock.van_load', { on }),
+  vanLoadSave: (payload) => call('stock.save_van_load', { payload }, { post: true }),
+  // Computed and not saved: the rep opens this to see where he stands before entering the one
+  // number that is his to enter.
+  vanSettlement: (on) => call('stock.settlement', { on }),
+  vanSettlementSave: (payload) => call('stock.save_settlement', { payload }, { post: true }),
+
+  // fieldmate.api.collection.* — money taken at a counter.
+  //
+  // None of these post anything. A shop's cash belongs to its distributor and never reaches our
+  // ledger at all; a distributor's does, but only when somebody at our end confirms the deposit
+  // (ADR-025). There is deliberately no endpoint here that a rep can call to post a payment.
+  outstanding: (outlet) => call('collection.outstanding', { outlet }),
+  collectionCreate: (payload) => call('collection.create', { payload }, { post: true }),
+  collectionsMine: (status) => call('collection.list', { status, limit: 50 }),
+  cashInHand: () => call('collection.in_hand'),
+  depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
 }
