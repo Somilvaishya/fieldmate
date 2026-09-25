@@ -25,6 +25,11 @@ const busy = ref(false)
 const error = ref('')
 const note = ref('')
 
+// Checked before the rep touches anything, not after they tap. The old screen let them take a
+// fix, type a note and press a live button that silently refused - the one reading of a dead
+// control is that the app is broken.
+const dayOpen = computed(() => !!dayStore.openDay.value)
+
 const distance = computed(() => {
   if (!fix.value || !outlet.value?.latitude || !outlet.value?.longitude) return null
   return Math.round(haversineM(
@@ -69,10 +74,7 @@ async function locate() {
 
 async function begin() {
   error.value = ''
-  if (!dayStore.openDay.value) {
-    error.value = 'Start your day before visiting a shop.'
-    return
-  }
+  if (!dayOpen.value) return router.push('/day/start')
   busy.value = true
   try {
     const visit = await visitStore.checkIn(outlet.value, {
@@ -135,12 +137,19 @@ async function begin() {
         </button>
       </div>
 
+      <p v-if="!dayOpen" class="notice">
+        <Icon name="alert" />
+        <span>Your day has not started yet. Start it and this shop will be waiting.</span>
+      </p>
       <p v-if="error" class="err">{{ error }}</p>
     </div>
 
     <div class="bottom">
       <button class="btn-primary" :disabled="busy" @click="begin">
-        {{ busy ? 'Checking in…' : outsideFence ? 'Check in with the distance logged' : 'Check in' }}
+        {{ busy ? 'Checking in…'
+           : !dayOpen ? 'Start my day'
+           : outsideFence ? 'Check in with the distance logged'
+           : 'Check in' }}
       </button>
       <button class="btn-plain" @click="router.back()">Cancel</button>
     </div>
@@ -172,5 +181,9 @@ h2 { margin: 8px 0 4px; }
         font-weight: 600; background: var(--primary-soft); border: 0; color: var(--primary); }
 .lbl { display: block; margin: 20px 0 6px; font-weight: 600; }
 .err { color: var(--crit); margin-top: 14px; }
+.notice { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px;
+          background: var(--warn-soft); color: var(--warn);
+          border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 1.45; }
+.notice :deep(.icon) { margin-top: 1px; flex-shrink: 0; }
 .btn-plain { background: none; border: 1px solid var(--line); color: var(--ink); width: 100%; }
 </style>

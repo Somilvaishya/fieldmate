@@ -32,9 +32,16 @@ export async function refresh() {
     return { offline: false }
   } catch (e) {
     if (offline(e)) {
-      openDay.value = await getMeta('openDay')
+      // Only today's day counts. A cached day from yesterday came back as open on a phone with
+      // no signal, so the Today screen said the day had started while the server - which had
+      // closed it at day end - refused every check-in with "start your day first". The rep was
+      // stuck with two screens telling them opposite things and no way through.
+      const cached = await getMeta('openDay')
+      openDay.value = cached && cached.day_date === stamp().slice(0, 10) ? cached : null
+      if (cached && !openDay.value) await setMeta('openDay', null)
       plannedToday.value = await getMeta('plannedToday')
       if (openDay.value && !pinger.isRunning()) pinger.start()
+      if (!openDay.value) pinger.stop()
       return { offline: true }
     }
     throw e
