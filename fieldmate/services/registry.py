@@ -314,6 +314,39 @@ register(
 	)
 )
 
+# ---------------------------------------------------------------------------- Phase 6
+# Money taken at a counter has to reach us whatever the signal was like when it was taken. The
+# receipt number is issued server-side, so a phone that queued three collections in a village
+# gets three real numbers when they land rather than three guesses.
+register(
+	Syncable(
+		doctype="FieldMate Collection",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		depends_on=("outlet", "visit"),
+		server_owned=("receipt_no", "party", "posts_to_ledger", "status", "deposit",
+		              "payment_entry", "allocated_amount", "unallocated_amount",
+		              "sync_status", "synced_at"),
+	)
+)
+
+register(
+	Syncable(
+		doctype="FieldMate Collection Deposit",
+		uuid_field="client_uuid",
+		push=True,
+		pull=False,
+		submit_on_push=True,
+		# Everything about what the deposit is worth is read from the collections inside it.
+		# A phone that could state its own totals could declare more than it is carrying.
+		server_owned=("cash_amount", "cheque_amount", "cheque_count", "total_amount",
+		              "ours_amount", "status", "confirmed_by", "confirmed_on",
+		              "sync_status", "synced_at"),
+	)
+)
+
 # The device's own record is readable by the device, but it is created through
 # sync.register_device rather than pushed as part of a batch.
 register(

@@ -297,6 +297,7 @@ def build_tasks(outlet) -> list[dict]:
 	tasks = [
 		{"task": frappe._("Check the shelf"), "task_type": "Merchandising", "is_mandatory": 0},
 		{"task": frappe._("Count his stock"), "task_type": "Stock Audit", "is_mandatory": 0},
+		{"task": frappe._("Collect what is due"), "task_type": "Collection", "is_mandatory": 0},
 		{"task": frappe._("Take the order"), "task_type": "Order", "is_mandatory": 0},
 	]
 	if outlet.approval_status != "Approved":

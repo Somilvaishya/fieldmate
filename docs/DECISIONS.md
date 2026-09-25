@@ -518,3 +518,41 @@ already sold to the distributor at primary billing.
   as well, which is the whole point.
 - What still differs between the two modes is *when* stock moves and *when* money is collected,
   not who sells. That difference lives in Phase 5 and Phase 6, not in `credit.py`.
+
+## ADR-025 — Who the cash belongs to is decided by who it was collected from
+
+**Decision.** A collection carries a **party type**, and that one field decides everything
+downstream:
+
+| Collected from | Whose money | What it reduces | What it posts |
+|---|---|---|---|
+| **A retail shop** | the **distributor's** | the shop's soft ledger with that distributor | **nothing** |
+| **A distributor** | **ours** | the distributor's real outstanding with us | a `Payment Entry`, **on deposit confirmation only** |
+
+The test lives in `services/collection.py` and is asked once, exactly as
+`credit.we_are_the_seller()` is asked once for orders. There is no `if outlet:` scattered through
+the deposit, bounce or snapshot code.
+
+**Reason.** Owner decision, 25 Sep 2026, and it follows from where the sale happened. A shop buys
+from its distributor (ADR-023, ADR-024), so what it owes is owed to the distributor and the rep
+collecting it is carrying the distributor's money — recording a Payment Entry would credit us for
+cash we never earned and reduce an ERPNext receivable that was never raised. A distributor buys
+from us, so what they owe is ours and a Payment Entry is exactly right.
+
+The rep's own hands look identical in both cases, which is the trap: the same person, the same
+receipt book, the same satchel. Only the counterparty differs, so only the counterparty may decide.
+
+**Consequences.**
+- **No Payment Entry is created when a collection is recorded**, in either case. Gate 6
+  criterion 2 asks for that in as many words, and adds that a rep role may not create one
+  directly — which they cannot, because they hold no permission on the DocType at all (ADR-004).
+  The posting happens on `FieldMate Collection Deposit` confirmation, through `compat`, and only
+  for money that was ours to begin with.
+- A shop collection still needs a deposit: the rep is holding the distributor's cash and it has
+  to be accounted for and handed over. That deposit posts nothing, exactly like a van settlement
+  (ADR-024). Cash-in-hand ageing applies to both, because the risk is the satchel, not the ledger.
+- Outstanding has two sources. A distributor's comes from ERPNext through `compat.get_outstanding`.
+  A shop's is ours to hold, because nobody else does — it accrues from `FieldMate Order` and is
+  reduced by collections, and it is a **soft** ledger that posts nothing.
+- A bounced cheque reverses whichever of the two it was, and a bounce on a distributor cheque
+  additionally cancels its Payment Entry.

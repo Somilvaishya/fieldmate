@@ -710,10 +710,147 @@ def create_employee_checkin(
 
 
 # --------------------------------------------------------------------------------------
+# payments — posted only when a deposit is confirmed, and only for money that was ours
+# --------------------------------------------------------------------------------------
+
+PAYMENT_ENTRY_KEY_FIELD = "fm_source_key"
+
+
+def _payment_key_column() -> str | None:
+	return PAYMENT_ENTRY_KEY_FIELD if _has_column("Payment Entry", PAYMENT_ENTRY_KEY_FIELD) else None
+
+
+def payment_entry_for_key(key: str) -> str | None:
+	"""The Payment Entry already posted for this key, if there is one."""
+	column = _payment_key_column()
+	if not (key and column):
+		return None
+	return frappe.db.get_value("Payment Entry", {column: key, "docstatus": ["<", 2]}, "name")
+
+
+def make_payment_entry(payload: dict) -> str:
+	"""Credit a customer for money that has actually arrived. Safe to call twice with one key.
+
+	Reached only from `collection.confirm_deposit`, and only for a collection taken from a
+	**distributor** (ADR-025). A shop's cash belongs to its distributor and never becomes a
+	receipt of ours, so it never reaches this function at all.
+
+	Never called from a rep's session either. A Field Rep holds no permission on Payment Entry
+	and must not be given one (ADR-004) - Gate 6 criterion 2 checks exactly that.
+	"""
+	payload = dict(payload or {})
+	key = payload.pop("fm_source_key", None)
+	if not key:
+		frappe.throw(frappe._("A Payment Entry cannot be posted without an idempotency key."))
+
+	column = _payment_key_column()
+	if not column:
+		# Refused rather than posted blind. Without somewhere to keep the key, a retried
+		# confirmation pays the same money twice and nothing on the site can tell.
+		frappe.throw(
+			frappe._("Payment Entry has no {0} field on this site, so a retried deposit could "
+			         "pay twice. Install the FieldMate custom fields and try again.")
+			.format(PAYMENT_ENTRY_KEY_FIELD)
+		)
+
+	existing = payment_entry_for_key(key)
+	if existing:
+		return existing
+
+	references = payload.pop("references", None) or []
+	doc = frappe.new_doc("Payment Entry")
+	doc.payment_type = "Receive"
+	doc.party_type = payload.get("party_type") or "Customer"
+	doc.party = payload["party"]
+	doc.company = payload.get("company")
+	doc.posting_date = payload.get("posting_date")
+	doc.paid_amount = flt(payload.get("paid_amount"))
+	doc.received_amount = flt(payload.get("paid_amount"))
+	doc.reference_no = payload.get("reference_no")
+	doc.reference_date = payload.get("reference_date")
+	if payload.get("mode_of_payment") and frappe.db.exists(
+		"Mode of Payment", payload["mode_of_payment"]
+	):
+		doc.mode_of_payment = payload["mode_of_payment"]
+	doc.set(column, key)
+
+	for reference in references:
+		doc.append("references", {
+			"reference_doctype": reference["reference_doctype"],
+			"reference_name": reference["reference_name"],
+			"allocated_amount": flt(reference.get("allocated_amount")),
+		})
+
+	# Where the money landed. ERPNext fills the party side itself but not this one, and without
+	# it the document fails on an exchange rate that has nothing to do with the real problem.
+	doc.paid_to = payload.get("paid_to") or _deposit_account(doc.company, payload.get("bank_account"))
+	if not doc.paid_to:
+		frappe.throw(
+			frappe._("{0} has no default bank or cash account, so there is nowhere to record the "
+			         "money as having arrived.").format(doc.company)
+		)
+
+	doc.setup_party_account_field()
+	doc.set_missing_values()
+
+	# One currency on both sides is the ordinary case and ERPNext still wants the rates stated.
+	# Left at zero it refuses with "Target Exchange Rate is mandatory", which names neither the
+	# account nor the currency and sends whoever reads it looking in the wrong place.
+	company_currency = frappe.db.get_value("Company", doc.company, "default_currency")
+	if doc.get("paid_from_account_currency") == company_currency:
+		doc.source_exchange_rate = doc.source_exchange_rate or 1
+	if doc.get("paid_to_account_currency") == company_currency:
+		doc.target_exchange_rate = doc.target_exchange_rate or 1
+
+	doc.flags.ignore_permissions = True
+	doc.insert()
+	doc.submit()
+	return doc.name
+
+
+def _deposit_account(company: str, bank_account: str | None = None) -> str | None:
+	"""The GL account the money arrived in.
+
+	A named Bank Account first, because that is what the rep actually declared; then the
+	company's own defaults. Queried rather than imported - this is plain data and an ERPNext
+	helper here would be one more thing that can move between majors (compat rule 4).
+	"""
+	if bank_account:
+		account = frappe.db.get_value("Bank Account", bank_account, "account")
+		if account:
+			return account
+
+	for field in ("default_bank_account", "default_cash_account"):
+		account = frappe.db.get_value("Company", company, field)
+		if account:
+			return account
+
+	return frappe.db.get_value(
+		"Account",
+		{"company": company, "account_type": ["in", ["Bank", "Cash"]], "is_group": 0},
+		"name",
+	)
+
+
+def cancel_payment_entry(name: str) -> None:
+	"""Reverse a posted receipt - a bounced cheque, or a deposit withdrawn.
+
+	Quiet where the document is already gone or already cancelled: a bounce recorded twice is a
+	rep pressing a button twice, not an error worth showing anybody.
+	"""
+	if not name or not frappe.db.exists("Payment Entry", name):
+		return
+	doc = frappe.get_doc("Payment Entry", name)
+	if doc.docstatus != 1:
+		return
+	doc.flags.ignore_permissions = True
+	doc.cancel()
+
+
+# --------------------------------------------------------------------------------------
 # Deliberately not yet implemented
 # --------------------------------------------------------------------------------------
-# make_payment_entry() -> Phase 6, added with FieldMate Collection
-# make_credit_note()   -> Phase 9, added with FieldMate Claim
+# make_credit_note() -> Phase 9, added with FieldMate Claim
 #
-# These are left out rather than stubbed. An adapter written against a signature nobody has
-# verified is worse than no adapter: it looks finished and fails at the worst moment.
+# Left out rather than stubbed. An adapter written against a signature nobody has verified is
+# worse than no adapter: it looks finished and fails at the worst moment.

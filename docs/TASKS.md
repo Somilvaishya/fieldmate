@@ -159,13 +159,16 @@ opening + primary billing − closing        = secondary sale
 
 ## Phase 6 — Collections · 1.5 weeks
 
-- [ ] 6.1 `FieldMate Collection` + `FieldMate Collection Allocation`
-- [ ] 6.2 `FieldMate Collection Deposit` + Payment Entry posting via compat
-- [ ] 6.3 Bounce reversal path
-- [ ] 6.4 `FieldMate Outstanding Snapshot` + cash-in-hand ageing alert
-- [ ] 6.5 APIs: `collection.outstanding`, `collection.create`, `collection.list`, `collection.deposit`
-- [ ] 6.6 PWA: outstanding with ageing, collection entry with receipt photo, deposit declaration
-- [ ] **Gate 6** — verify all 5 criteria on testerp2
+- [x] 6.1 `FieldMate Collection` + `FieldMate Collection Allocation`
+- [x] 6.2 `FieldMate Collection Deposit` + Payment Entry on **confirmation only**, via compat,
+      and only for money that was ours to begin with (ADR-025)
+- [x] 6.3 Bounce reversal path
+- [x] 6.4 `FieldMate Outstanding Snapshot` + cash-in-hand ageing alert
+- [x] 6.5 APIs in `fieldmate/api/collection.py`: `outstanding`, `create`, `list`, `in_hand`,
+      `deposit`, `confirm`, `bounce`
+- [x] 6.6 PWA: `Outstanding.vue`, `CollectionEntry.vue`, `DepositDeclare.vue`
+- [x] **Gate 6** — 6/6 on testerp2, criterion 2 read as ADR-025 sharpens it: a shop's cash
+      produces no Payment Entry ever, confirmed or not
 
 ## Phase 7 — Targets, incentives, expenses · 2 weeks
 
