@@ -221,6 +221,21 @@ export async function saveProgress() {
   }
 }
 
+/** Record that an order came out of this visit.
+ *
+ * The cart is emptied the moment it is submitted, so without this the visit hub would go back to
+ * reading "no order yet" thirty seconds after the rep booked one, and the check-out screen would
+ * ask them to pick an outcome the app already knows. Kept on the visit rather than looked up,
+ * because the order may still be sitting in the outbox with no server name at all.
+ */
+export async function recordOrder({ clientUuid, name = null, net = 0, offline = false }) {
+  const visit = activeVisit.value
+  if (!visit) return
+  visit.order = { clientUuid, name, net, offline, at: new Date().toISOString() }
+  await saveProgress()
+  return visit.order
+}
+
 export function answer(questionCode, { answer = null, answerNumber = null } = {}) {
   const visit = activeVisit.value
   if (!visit) return

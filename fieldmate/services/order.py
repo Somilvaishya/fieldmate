@@ -359,6 +359,31 @@ def route(doc) -> None:
 		_raise_sales_order(doc, seller)
 
 	accrue(doc)
+	roll_up_to_visit(doc)
+
+
+def roll_up_to_visit(doc) -> None:
+	"""Put what was ordered onto the visit it came out of.
+
+	`FieldMate Visit.order_value` and `lines_sold` were built in Phase 3 and left at zero waiting
+	for this. Leaving them there costs more than it looks: productive-call rate, strike rate and
+	every coverage figure a manager reads are computed off the visit, not off the order, so a rep
+	who booked all day would report as having sold nothing.
+
+	Server-owned on the visit, so it is written directly rather than through a save - the visit
+	is submitted by now and the rep holds no write on it at all.
+	"""
+	if not doc.visit:
+		return
+	orders = frappe.get_all(
+		"FieldMate Order",
+		filters={"visit": doc.visit, "docstatus": 1},
+		fields=["net_total", "total_lines"],
+	)
+	frappe.db.set_value("FieldMate Visit", doc.visit, {
+		"order_value": sum(flt(o.net_total) for o in orders),
+		"lines_sold": sum(cint(o.total_lines) for o in orders),
+	}, update_modified=False)
 
 
 def _raise_sales_order(doc, seller: dict) -> None:
@@ -482,6 +507,7 @@ def withdraw(doc) -> None:
 	"""Called from the controller's `on_cancel`, for the same reason `route` lives there."""
 	doc.db_set("order_status", "Cancelled", update_modified=False)
 	reverse(doc)
+	roll_up_to_visit(doc)
 	if doc.sales_order:
 		compat.cancel_sales_order(doc.sales_order)
 

@@ -461,6 +461,27 @@ export function reprice() {
  * that awaits the network cannot work in a basement market - and the cart it would have refused to
  * open is the order the rep then writes in a notebook.
  */
+/** What is in this shop's cart, read straight from the phone.
+ *
+ * The visit hub needs a line count and a value to put on its Order card, and it must not pay for
+ * that with a catalogue fetch and a scheme compile - the rep is standing in the shop and the hub
+ * has to paint immediately. No network, no state change, safe to call from anywhere.
+ */
+export async function peek(outletName) {
+  if (!outletName) return { lines: 0, units: 0 }
+  try {
+    const cached = await db.carts.get(outletName)
+    const rows = cached?.lines || []
+    return {
+      lines: rows.length,
+      units: rows.reduce((total, row) => total + (Number(row.qty) || 0), 0),
+    }
+  } catch {
+    // A cart we cannot read is a cart we report as empty. The hub still has to render.
+    return { lines: 0, units: 0 }
+  }
+}
+
 export async function openOutlet(name, { refresh = true } = {}) {
   const token = ++loadToken
 
@@ -993,9 +1014,12 @@ export async function submit(options = {}) {
 
   const doc = buildOrderDoc({ ...options, visit: visitRef, clientUuid, deviceId: device })
 
+  const net = totals.value.net_paise
+
   try {
     const data = await api.orderSubmit(device, doc)
     await rememberName(clientUuid, 'FieldMate Order', data.order)
+    await visitStore.recordOrder({ clientUuid, name: data.order, net, offline: false })
     await clear()
     return { order: data.order, client_uuid: clientUuid, offline: false, queued: false, server: data }
   } catch (e) {
@@ -1010,6 +1034,7 @@ export async function submit(options = {}) {
     { ...doc, created_offline: 1 },
     { clientUuid, dependsOn }
   )
+  await visitStore.recordOrder({ clientUuid, name: null, net, offline: true })
   await clear()
   return { order: clientUuid, client_uuid: clientUuid, offline: true, queued: true }
 }

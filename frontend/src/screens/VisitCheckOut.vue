@@ -6,6 +6,7 @@ import { getPosition } from '../lib/geo'
 import * as visitStore from '../stores/visit'
 import * as photoQueue from '../sync/photos'
 import Icon from '../components/Icon.vue'
+import { formatPaise } from '../lib/money'
 
 const router = useRouter()
 const visit = visitStore.activeVisit
@@ -70,6 +71,10 @@ onMounted(async () => {
   note.value = visit.value.remarks || ''
   reasons.value = await visitStore.noOrderReasons()
   photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
+  // The app already knows an order was booked here, so asking is a tap that can only be got
+  // wrong. Still a normal selection, not a lock: a rep who books an order and then has it
+  // refused at the counter has to be able to say so.
+  if (visit.value.order) outcome.value = 'Order Taken'
 })
 
 async function finish() {
@@ -100,6 +105,14 @@ async function finish() {
     </p>
 
     <p class="lead">What came of this visit?</p>
+    <p v-if="visit?.order" class="booked">
+      <Icon :name="visit.order.offline ? 'cloud-off' : 'check'" size="18" />
+      <span>
+        Order of &#8377;{{ formatPaise(visit.order.net) }} booked here{{
+          visit.order.offline ? ', waiting to sync' : '' }}.
+      </span>
+    </p>
+
     <div class="outcomes" role="radiogroup" aria-label="Visit outcome">
       <button v-for="o in OUTCOMES" :key="o.value" type="button" role="radio"
               class="outcome" :class="{ on: outcome === o.value }"
@@ -158,6 +171,10 @@ h2 { margin: 8px 0 4px; }
 h3 { margin: 24px 0 8px; font-size: 16px; }
 .muted { color: var(--muted); font-size: 14px; }
 .lead { margin: 16px 0 0; font-weight: 600; }
+.booked { display: flex; align-items: center; gap: 8px; margin: 0 0 14px;
+          background: var(--ok-soft); color: var(--ok);
+          border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 1.45; }
+
 /* Stacked full-width rows rather than wrapped chips: five outcomes wrap raggedly at 360px,
    and this is the one choice on the screen that must be unmistakable. */
 .outcomes { display: grid; gap: 8px; margin-top: 10px; }

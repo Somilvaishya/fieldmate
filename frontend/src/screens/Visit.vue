@@ -5,6 +5,8 @@ import { getMeta, db } from '../db'
 import { compress } from '../lib/image'
 import { getPosition } from '../lib/geo'
 import * as visitStore from '../stores/visit'
+import * as orderStore from '../stores/order'
+import { formatPaise } from '../lib/money'
 import * as photoQueue from '../sync/photos'
 import Icon from '../components/Icon.vue'
 
@@ -13,6 +15,7 @@ const visit = visitStore.activeVisit
 const elapsed = ref(0)
 const photos = ref(0)
 const shelfDone = ref(false)
+const cart = ref({ lines: 0, units: 0 })
 const error = ref('')
 const busy = ref(false)
 let ticker = null
@@ -30,9 +33,43 @@ const answered = computed(() => {
   }
 })
 
+// Taking the order is the reason the rep is standing in the shop, so it sits with the other work
+// rather than behind a menu. It reads three ways: an order already booked here, a cart part-built
+// and waiting, or nothing yet.
+const orderCard = computed(() => {
+  const booked = visit.value?.order
+  if (booked) {
+    return {
+      pill: booked.offline ? 'Saved on phone' : 'Booked',
+      sub: `₹${formatPaise(booked.net)} — ${booked.offline ? 'will sync by itself' : 'sent to the distributor'}`,
+      tone: 'ok',
+      pct: 100,
+    }
+  }
+  if (cart.value.lines) {
+    return {
+      pill: `${cart.value.lines} in cart`,
+      sub: 'Started but not punched yet',
+      tone: 'warn',
+      pct: 50,
+    }
+  }
+  return { pill: 'None yet', sub: 'Catalogue, schemes and credit', tone: 'muted', pct: 0 }
+})
+
 const jobs = computed(() => {
   const a = answered.value
+  const order = orderCard.value
   return [
+    {
+      key: 'order', icon: 'cart', title: 'Order',
+      sub: order.sub,
+      pill: order.pill,
+      tone: order.tone,
+      pct: order.pct,
+      to: { name: 'order-catalogue', params: { outlet: visit.value?.outlet } },
+      disabled: !visit.value?.outlet,
+    },
     {
       key: 'checklist', icon: 'list', title: 'Checklist',
       sub: 'Store hygiene, banners and display',
@@ -77,6 +114,8 @@ onMounted(async () => {
   if (!visit.value) await visitStore.resume()
   if (!visit.value) return router.replace('/today')
   photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
+  // Read from the phone, never fetched: the hub has to paint while the rep is mid-sentence.
+  cart.value = await orderStore.peek(visit.value.outlet)
   shelfDone.value = !!(visit.value.tasks || [])
     .find((t) => t.task_type === 'Merchandising' && t.status === 'Done')
   clock()

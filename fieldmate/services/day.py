@@ -223,6 +223,19 @@ def day_counts(field_user: str, date) -> dict:
 			 "visit_outcome": "Order Taken"},
 		)
 
+	# Orders arrived in Phase 4. Read from the records like everything else here, because a
+	# phone that spent the day with no signal cannot know which of its orders finally landed -
+	# and a Day End that reports the phone's count rather than the server's is the figure a rep
+	# argues about at month end.
+	if frappe.db.table_exists("FieldMate Order"):
+		booked = frappe.get_all(
+			"FieldMate Order",
+			filters={"field_user": field_user, "order_date": getdate(date), "docstatus": 1},
+			fields=["net_total"],
+		)
+		counts["orders_count"] = len(booked)
+		counts["order_value"] = sum(flt(row.net_total) for row in booked)
+
 	counts["new_outlets"] = frappe.db.count(
 		"FieldMate Outlet",
 		{"created_by_rep": field_user, "onboarding_date": getdate(date)},

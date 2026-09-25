@@ -274,7 +274,10 @@ class TestCataloguePricing(CatalogueFixture):
 
 		payload = self.catalogue_for()
 		self.assertIn(unpriced, self.codes_in(payload))
-		self.assertEqual(payload["unpriceable_count"], 1)
+		row = next(r for r in payload["items"] if r["item_code"] == unpriced)
+		self.assertTrue(row["unpriceable"], "the SKU itself has to carry the flag")
+		self.assertGreaterEqual(payload["unpriceable_count"], 1,
+		                        "and the count has to include it")
 
 	def test_a_rate_of_zero_is_a_real_rate(self):
 		"""A sample or a trial pack is genuinely free, and that is not the same as unpriced."""
@@ -341,10 +344,14 @@ class TestCatalogueIsNotNPlusOne(CatalogueFixture):
 			with patch.object(compat, "get_item_price") as per_item:
 				payload = self.catalogue_for()
 
-		self.assertEqual(bulk.call_count, 1)
+		self.assertEqual(bulk.call_count, 1, "one bulk call, never one per SKU")
 		self.assertEqual(per_item.call_count, 0)
-		self.assertEqual(sorted(bulk.call_args.args[0]), sorted(items))
-		self.assertEqual(len(payload["items"]), 6)
+		# A superset, not an exact list: any catalogue scoped to everywhere legitimately adds
+		# its own SKUs to this shop, and asserting equality made the test depend on the site
+		# being empty of real masters.
+		self.assertTrue(set(items).issubset(set(bulk.call_args.args[0])),
+		                "every item in this catalogue has to be in the one call")
+		self.assertTrue(set(items).issubset(self.codes_in(payload)))
 
 	def test_the_query_count_does_not_grow_with_the_catalogue(self):
 		small = self.make_outlet(territory=self.delhi, approval_status="Approved")
