@@ -104,6 +104,10 @@ function handle(e) {
 // have to guess and an order-booking rep is not shown two cards that will always be empty.
 const vanRep = computed(() => boot.value?.sales_mode === 'Van Sales')
 
+// Shown only when the rep is actually carrying something. A permanent card saying "nothing to
+// deposit" is a card nobody reads, and then they miss the day it matters.
+const inHand = ref(null)
+
 async function showCached() {
   const cached = await getMeta('profile')
   if (cached) {
@@ -127,6 +131,12 @@ async function load() {
     })
 
     await dayStore.refresh()
+    // Best effort. A rep with no signal still gets the rest of Today.
+    try {
+      inHand.value = await api.cashInHand()
+    } catch {
+      inHand.value = null
+    }
     if (openDay.value) {
       beat.value = await api.todayBeat()
       // Kept, or the route vanishes the moment the rep reloads with no signal - and the
@@ -351,6 +361,17 @@ onUnmounted(() => {
          day is stuck. -->
     <!-- The van bookends the day: load it before the first shop, settle it after the last.
          Both sit above the primary action rather than competing with it. -->
+    <RouterLink v-if="inHand?.count" to="/deposit" class="vcard money"
+                :class="{ late: inHand.is_overdue }">
+      <Icon name="tag" size="20" />
+      <span>
+        <b>Hand in {{ inHand.total_amount.toLocaleString('en-IN') }}</b>
+        <em v-if="inHand.is_overdue">Carrying it {{ inHand.oldest_days }} days — your manager is told</em>
+        <em v-else>{{ inHand.count }} collection{{ inHand.count > 1 ? 's' : '' }} in hand</em>
+      </span>
+      <Icon name="chevron" size="18" class="go" />
+    </RouterLink>
+
     <div v-if="vanRep" class="van">
       <RouterLink v-if="!openDay" to="/van/load" class="vcard">
         <Icon name="truck" size="20" />
@@ -406,6 +427,9 @@ onUnmounted(() => {
 .vcard b { font-size: 16px; }
 .vcard em { font-style: normal; font-size: 14px; color: var(--muted); }
 .vcard .go { color: var(--muted); }
+.vcard.money { margin-top: 16px; }
+.vcard.money.late { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.vcard.money.late em { color: inherit; }
 
 .screen { display: flex; flex-direction: column; min-height: 100%; }
 .top { flex: 1; }

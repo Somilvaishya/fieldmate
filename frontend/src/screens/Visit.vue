@@ -6,6 +6,7 @@ import { compress } from '../lib/image'
 import { getPosition } from '../lib/geo'
 import * as visitStore from '../stores/visit'
 import * as orderStore from '../stores/order'
+import { api } from '../api/client'
 import { formatPaise } from '../lib/money'
 import * as photoQueue from '../sync/photos'
 import Icon from '../components/Icon.vue'
@@ -17,6 +18,8 @@ const photos = ref(0)
 const shelfDone = ref(false)
 const cart = ref({ lines: 0, units: 0 })
 const stockDone = ref(false)
+const owed = ref(0)
+const collected = ref(false)
 const error = ref('')
 const busy = ref(false)
 let ticker = null
@@ -98,6 +101,15 @@ const jobs = computed(() => {
       disabled: !visit.value?.outlet,
     },
     {
+      key: 'money', icon: 'tag', title: 'Collect payment',
+      sub: owed.value ? formatPaise(owed.value * 100) + ' outstanding' : 'Nothing outstanding',
+      pill: collected.value ? 'Taken' : (owed.value ? 'Due' : 'Clear'),
+      tone: collected.value ? 'ok' : (owed.value ? 'warn' : 'muted'),
+      pct: collected.value ? 100 : 0,
+      to: { name: 'outstanding', params: { outlet: visit.value?.outlet } },
+      disabled: !visit.value?.outlet,
+    },
+    {
       key: 'photo', icon: 'camera', title: 'Photos',
       sub: 'Shopfront, shelf, damage',
       pill: photos.value ? `${photos.value} waiting` : 'None yet',
@@ -130,6 +142,14 @@ onMounted(async () => {
   // the rep has done the job he is standing in the shop to do.
   stockDone.value = !!(visit.value.tasks || [])
     .find((t) => t.task_type === 'Stock Audit' && t.status === 'Done')
+  collected.value = !!(visit.value.tasks || [])
+    .find((t) => t.task_type === 'Collection' && t.status === 'Done')
+  // Best effort: a rep with no signal still gets the rest of the hub, just without the figure.
+  try {
+    owed.value = (await api.outstanding(visit.value.outlet)).outstanding || 0
+  } catch {
+    owed.value = 0
+  }
   shelfDone.value = !!(visit.value.tasks || [])
     .find((t) => t.task_type === 'Merchandising' && t.status === 'Done')
   clock()

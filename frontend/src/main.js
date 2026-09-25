@@ -60,6 +60,13 @@ const router = createRouter({
     { path: '/stock/:outlet', component: () => import('./screens/StockCheck.vue'), name: 'stock-check' },
     { path: '/van/load', component: () => import('./screens/VanLoad.vue'), name: 'van-load' },
     { path: '/van/settle', component: () => import('./screens/VanSettle.vue'), name: 'van-settle' },
+
+    // Phase 6. Outstanding belongs to a shop; the deposit belongs to the rep's own satchel and
+    // so carries no id - there is one of those, and naming it in a URL would only invite a
+    // stale link into somebody else's cash.
+    { path: '/outstanding/:outlet', component: () => import('./screens/Outstanding.vue'), name: 'outstanding' },
+    { path: '/collect/:outlet', component: () => import('./screens/CollectionEntry.vue'), name: 'collect' },
+    { path: '/deposit', component: () => import('./screens/DepositDeclare.vue'), name: 'deposit' },
   ],
 })
 

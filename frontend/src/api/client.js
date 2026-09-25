@@ -201,4 +201,15 @@ export const api = {
   // number that is his to enter.
   vanSettlement: (on) => call('stock.settlement', { on }),
   vanSettlementSave: (payload) => call('stock.save_settlement', { payload }, { post: true }),
+
+  // fieldmate.api.collection.* — money taken at a counter.
+  //
+  // None of these post anything. A shop's cash belongs to its distributor and never reaches our
+  // ledger at all; a distributor's does, but only when somebody at our end confirms the deposit
+  // (ADR-025). There is deliberately no endpoint here that a rep can call to post a payment.
+  outstanding: (outlet) => call('collection.outstanding', { outlet }),
+  collectionCreate: (payload) => call('collection.create', { payload }, { post: true }),
+  collectionsMine: (status) => call('collection.list', { status, limit: 50 }),
+  cashInHand: () => call('collection.in_hand'),
+  depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
 }
