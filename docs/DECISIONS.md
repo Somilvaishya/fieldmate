@@ -472,3 +472,49 @@ Both are the same test — "is the billing party us?" — and both are answered 
   the queue; the cancel cascade only reaches ERPNext under the exceptions.
 - Phase 9's distributor portal is no longer optional polish — it is the other end of this pipe. Until
   it ships, the queue is a Desk list view filtered by distributor, which is enough to pilot.
+
+## ADR-024 — Van sales is the distributor's sale too, so it posts nothing either
+
+**Decision.** Van sales is **not** a case where the company sells. The stock in the vehicle belongs
+to the **distributor**; the rep carries it and hands it over at the counter. So a van sale is a
+**secondary** sale exactly like a booked order, and it creates no Sales Order, no Sales Invoice, no
+GL Entry and no Stock Entry in our books.
+
+`credit.we_are_the_seller()` is therefore left with exactly **one** case: an outlet the company
+genuinely invoices direct, which is ADR-001's escape hatch. Everything else routes to the
+distributor.
+
+**This supersedes the second half of ADR-016.** That ADR said "in van sales the shop is billed on
+the spot" and made `FieldMate Outlet.customer` live in that mode. The first half still stands — both
+models ship, chosen by configuration — but the billing claim was wrong.
+
+**Reason.** Owner correction, 25 Sep 2026: *"van sale bhi billing distributor ko hota hai, na ki
+company ko — van sale = distributor, bas sales person carry karta hai apne paas."*
+
+Van sales is not a different **seller**, it is a different **delivery timing**:
+
+| | Order booking | Van sales |
+|---|---|---|
+| Who sells to the shop | the distributor | the distributor |
+| Whose stock | the distributor's | the distributor's |
+| When the goods move | delivered later | handed over at the counter |
+| What reaches our books | nothing | nothing |
+
+Modelling it as a company sale would have done precisely what ADR-023 was written to prevent, one
+mode later: revenue recorded on a sale we did not make, and a Stock Ledger holding goods we had
+already sold to the distributor at primary billing.
+
+**Consequences.**
+- Build-plan task 5.4, "vehicle-as-Warehouse Stock Entries", is wrong and is rewritten. A vehicle
+  is **not** an ERPNext `Warehouse`, because the stock in it is not ours to hold. `FieldMate Van
+  Load` and `FieldMate Van Settlement` record the movement at FieldMate level for operational
+  control — what went out, what was sold, what came back — and post nothing.
+- `FieldMate Field User.vehicle_warehouse` loses its meaning. It stays as a field (schema is
+  append-only, compat rule 5) but nothing reads it; the van is identified by the Field User.
+- Gate 5 criterion 3 said "van load → 3 cash sales → settle-in leaves vehicle stock at zero and
+  the **Stock Ledger** balanced". Rewritten: the vehicle's FieldMate stock returns to zero and
+  reconciles to what was loaded, and **the Stock Ledger is not touched at all**.
+- Gate 5 criterion 4 — *no secondary sales document produces a GL Entry* — now covers van sales
+  as well, which is the whole point.
+- What still differs between the two modes is *when* stock moves and *when* money is collected,
+  not who sells. That difference lives in Phase 5 and Phase 6, not in `credit.py`.

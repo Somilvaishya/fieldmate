@@ -73,22 +73,6 @@ class CreditFixture(OutletFixture):
 			self._group = doc.name
 		return self._group
 
-	def fresh_settings(self):
-		"""Settings is a Single: frappe hands back one shared instance, and a stale copy saved
-		twice raises TimestampMismatchError. Every read here loads its own."""
-		frappe.clear_document_cache("FieldMate Settings", "FieldMate Settings")
-		doc = frappe.get_single("FieldMate Settings")
-		doc.flags.ignore_permissions = True
-		return doc
-
-	def apply_settings(self, **values):
-		doc = self.fresh_settings()
-		for key, value in values.items():
-			doc.set(key, value)
-		doc.save()
-		frappe.cache().delete_value("fieldmate_settings")
-		return doc
-
 	def _set_company_limit(self, amount) -> None:
 		frappe.db.set_value("Company", self.company, "credit_limit", flt(amount))
 		# get_credit_limit reads the company through the document cache, which db.set_value on

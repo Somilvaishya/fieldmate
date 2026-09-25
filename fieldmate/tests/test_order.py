@@ -141,14 +141,13 @@ class TestAnOrderIsASecondarySale(OrderFixture):
 			frappe.set_user("Administrator")
 
 
-class TestVanSalesIsTheOneException(OrderFixture):
-	"""Where we are genuinely the seller, an ERPNext document is correct — and required."""
+class TestOnlyADirectlyBilledOutletIsOurs(OrderFixture):
+	"""One case, and only one, puts the company on the other side of the counter."""
 
 	def test_the_seller_test_lives_only_in_credit(self):
 		answer = order_service.credit_service.we_are_the_seller(self.outlet.name, self.rep.name)
 		self.assertFalse(answer["we_bill"])
 		self.assertTrue(answer["routes_to_distributor"])
-		self.assertEqual(answer["reason"], "order booking")
 
 	def test_a_directly_billed_outlet_is_not_routed_to_a_distributor(self):
 		"""ADR-001's escape hatch: an outlet the company genuinely invoices itself."""
@@ -158,6 +157,64 @@ class TestVanSalesIsTheOneException(OrderFixture):
 		self.assertTrue(answer["we_bill"])
 		self.assertFalse(answer["routes_to_distributor"])
 		self.assertEqual(answer["reason"], "directly billed outlet")
+
+
+class TestVanSalesIsStillTheDistributorsSale(OrderFixture):
+	"""ADR-024, and the correction that prompted it.
+
+	Van sales looks like a company sale and is not. The stock in the vehicle belongs to the
+	distributor - the rep carries it and hands it over - so the sale is the distributor's whoever
+	is holding the box. What changes in van sales is *when* the goods move, not who sold them.
+
+	The app modelled this as a company sale until 25 Sep 2026, which would have recorded revenue
+	on a sale we did not make and put goods in our Stock Ledger that we had already sold to the
+	distributor at primary billing. That is ADR-023's mistake in a different mode, and these
+	tests exist so it cannot come back in either.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		# Through the helper, not frappe.db: services/settings.get() reads a cache that a raw
+		# row write leaves stale, and the mode would still resolve to Order Booking.
+		self._was_van = self.fresh_settings().enable_van_sales
+		self.apply_settings(enable_van_sales=1)
+		frappe.db.set_value("FieldMate Field User", self.rep.name, "sales_mode", "Van Sales",
+		                    update_modified=False)
+		self.rep.reload()
+
+	def tearDown(self):
+		self.apply_settings(enable_van_sales=self._was_van)
+		super().tearDown()
+
+	def test_a_van_rep_is_still_not_the_seller(self):
+		answer = order_service.credit_service.we_are_the_seller(self.outlet.name, self.rep.name)
+
+		self.assertFalse(answer["we_bill"], "van stock is the distributor's, not ours")
+		self.assertTrue(answer["routes_to_distributor"])
+		self.assertTrue(answer["delivers_now"],
+		                "the mode still says the goods move at the counter")
+
+	def test_a_van_sale_creates_no_sales_order_and_no_gl_entry(self):
+		before_so = frappe.db.count("Sales Order")
+		before_gl = frappe.db.count("GL Entry")
+
+		result = self.book()
+
+		self.assertIsNone(result["sales_order"])
+		self.assertEqual(frappe.db.count("Sales Order"), before_so)
+		self.assertEqual(frappe.db.count("GL Entry"), before_gl,
+		                 "a van sale reaches the ledger exactly as little as a booked order")
+
+	def test_a_van_sale_routes_to_the_distributor_like_any_other(self):
+		result = self.book()
+		self.assertEqual(result["order_status"], "Sent To Distributor")
+		self.assertTrue(result["sent_to_distributor_on"])
+
+	def test_a_directly_billed_outlet_still_wins_over_the_mode(self):
+		"""The one real exception survives whichever mode the rep is in."""
+		self.outlet.db_set("customer", self.make_distributor(), update_modified=False)
+		answer = order_service.credit_service.we_are_the_seller(self.outlet.name, self.rep.name)
+		self.assertTrue(answer["we_bill"])
 
 
 # --------------------------------------------------------------------------------------

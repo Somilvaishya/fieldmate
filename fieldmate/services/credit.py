@@ -56,27 +56,35 @@ def we_are_the_seller(outlet, field_user: str | None = None) -> dict:
 	revenue on a sale we did not make, eat the distributor's credit for stock they never asked
 	for, and double-count against stock they may already be holding.
 
-	Two cases put us on the other side of the counter, and they are the same case asked twice:
-	van sales, where the goods come off our vehicle and we bill at the door; and an outlet the
-	company genuinely invoices direct, which is the escape hatch `FieldMate Outlet.customer`
-	exists for. Only those produce an ERPNext document.
+	Exactly **one** case puts us on the other side of the counter: an outlet the company genuinely
+	invoices direct, which is the escape hatch `FieldMate Outlet.customer` exists for. Only that
+	produces an ERPNext document.
+
+	**Van sales is not the second case, though it looks like one** (ADR-024). The stock in the
+	vehicle belongs to the distributor; the rep carries it and hands it over. Van sales is not a
+	different seller, it is a different delivery timing - the goods move at the counter instead of
+	later - and the sale is the distributor's either way. Treating it as ours would record revenue
+	on a sale we did not make and put goods in our Stock Ledger that we had already sold to the
+	distributor at primary billing, which is ADR-023's mistake wearing a different hat.
 
 	`order.py` asks this and branches once on the answer. That is the whole point: an
 	`if van_sales:` in the order code, and another in the collection code, and another in the
 	scheme code, is how one app quietly becomes two that share a name.
 	"""
 	party = billing_party(outlet, field_user)
-	van = party["mode"] == settings_service.VAN_SALES
-	direct = bool(not van and _outlet(outlet).customer)
+	direct = bool(_outlet(outlet).customer)
 
 	return {
 		**party,
-		"we_bill": bool(van or direct),
-		"reason": "van sales" if van else ("directly billed outlet" if direct else "order booking"),
-		# What the order routes to when we are NOT the seller. The distributor's queue is the
-		# whole downstream in order booking, and until the Phase 9 portal ships it is a Desk
-		# list view filtered on this party.
-		"routes_to_distributor": not (van or direct),
+		"we_bill": direct,
+		"reason": "directly billed outlet" if direct else "the distributor sells to this shop",
+		# What the order routes to when we are NOT the seller - which is nearly always. The
+		# distributor's queue is the whole downstream, and until the Phase 9 portal ships it is a
+		# Desk list view filtered on this party.
+		"routes_to_distributor": not direct,
+		# Kept because Phase 5 and Phase 6 still need it: van sales moves stock at the counter and
+		# takes money at the door. What it no longer decides is who sells.
+		"delivers_now": party["mode"] == settings_service.VAN_SALES,
 	}
 
 

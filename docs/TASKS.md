@@ -113,15 +113,31 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
       creates exactly one `FieldMate Order`, routed to exactly one distributor queue, and **no**
       accounting document
 
-## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016)*
+## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016 + ADR-024)*
+
+> **A van sale is the distributor's sale too — ADR-024.** The stock in the vehicle belongs to the
+> distributor; the rep carries it. So van sales posts nothing either, and task 5.4 below is
+> rewritten: a vehicle is **not** an ERPNext Warehouse, because that stock is not ours to hold.
+
+The offtake identity, in the owner's own words:
+
+```
+opening + primary billing − secondary sale = closing
+opening + primary billing − closing        = secondary sale
+```
 
 - [ ] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
 - [ ] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline
 - [ ] 5.3 `FieldMate Distributor Stock`
-- [ ] 5.4 `FieldMate Van Load`, `FieldMate Van Settlement`, vehicle-as-Warehouse Stock Entries
+- [ ] 5.4 `FieldMate Van Load` + `FieldMate Van Settlement`, recorded at **FieldMate level only**.
+      What went out, what was sold, what came back — for operational control. **No Stock Entry,
+      no Warehouse, no GL Entry**, because the goods were sold to the distributor at primary
+      billing and are already theirs
 - [ ] 5.5 APIs: `stock.retailer_stock_save`, `stock.secondary_sales_upload`
 - [ ] 5.6 PWA: stock & sales audit, van load sheet, settlement
-- [ ] **Gate 5** — verify all 4 criteria on testerp2
+- [ ] **Gate 5** — verify all 4 criteria on testerp2, with criterion 3 read as: van load → 3 cash
+      sales → settle-in returns the vehicle's FieldMate stock to zero and reconciles to what was
+      loaded, and **the Stock Ledger is not touched at all**
 
 ## Phase 6 — Collections · 1.5 weeks
 

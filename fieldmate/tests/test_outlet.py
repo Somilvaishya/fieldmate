@@ -136,12 +136,22 @@ class TestOutletValidation(OutletFixture):
 	def test_outlet_specific_geo_fence_wins(self):
 		self.assertEqual(self.make_outlet(geo_fence_radius_m=250).effective_geo_fence_radius(), 250)
 
-	def test_customer_is_refused_while_van_sales_is_off(self):
-		"""ADR-013: in order booking the shop is never a billing party."""
-		customer = self.make_distributor()
+	def test_a_directly_billed_outlet_needs_no_mode_switched_on(self):
+		"""ADR-024. A Customer here is ADR-001's escape hatch, not a van-sales setting.
+
+		The old rule refused it unless van sales was enabled, on ADR-016's claim that the shop
+		was billed on the spot in that mode. That claim was wrong - a van sale is the
+		distributor's sale too - so the mode never had anything to say about this.
+		"""
+		outlet = self.make_outlet(customer=self.make_distributor())
+		self.assertTrue(outlet.customer)
+
+	def test_a_shop_cannot_be_billed_direct_by_its_own_distributor(self):
+		"""Both at once would make the seller test answer yes and no to one question."""
+		shared = self.make_distributor()
 		with self.assertRaises(frappe.ValidationError) as ctx:
-			self.make_outlet(customer=customer)
-		self.assertIn("van sales", str(ctx.exception))
+			self.make_outlet(distributor=shared, customer=shared)
+		self.assertIn("also its distributor", str(ctx.exception))
 
 	def test_only_one_primary_contact(self):
 		with self.assertRaises(frappe.ValidationError) as ctx:

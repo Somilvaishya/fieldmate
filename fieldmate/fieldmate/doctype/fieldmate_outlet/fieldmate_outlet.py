@@ -59,13 +59,25 @@ class FieldMateOutlet(Document):
 			frappe.throw(frappe._("Geo Fence Radius must be between 10 and 5000 metres."))
 
 	def validate_billing(self):
-		"""The shop is only a billing party in van sales (ADR-013, amended by ADR-016)."""
+		"""A Customer here means the company invoices this shop itself, and nothing else.
+
+		This used to be tied to van sales: ADR-016 said the shop was billed on the spot in that
+		mode, so a Customer was refused unless van sales was on. ADR-024 corrected it - the
+		stock in the vehicle is the distributor's and a van sale is their sale too - so the mode
+		has nothing to do with it. What is left is ADR-001's escape hatch, for the rare outlet
+		the company genuinely invoices direct, and that is a commercial arrangement rather than
+		a switch in Settings.
+
+		It is still worth one check. A shop whose billing account is its own distributor would
+		make `credit.we_are_the_seller()` answer yes and no to the same question.
+		"""
 		if not self.customer:
 			return
-		if "Van Sales" not in settings_service.enabled_modes():
+		if self.customer == self.distributor:
 			frappe.throw(
-				frappe._("This outlet has a Customer set, which only applies to van sales. "
-				         "Enable van sales in FieldMate Settings, or clear the Customer.")
+				frappe._("This outlet is billed direct to {0}, which is also its distributor. "
+				         "One of the two is wrong: either the shop buys from the distributor, "
+				         "or we invoice it ourselves.").format(frappe.bold(self.customer))
 			)
 
 	def validate_contacts(self):

@@ -10,6 +10,29 @@ class FieldMateTestCase(FrappeTestCase):
 	never relying on rollback between methods.
 	"""
 
+	def fresh_settings(self):
+		"""FieldMate Settings is a Single: frappe hands back one shared instance, and a stale
+		copy saved twice raises TimestampMismatchError. Every read here loads its own."""
+		frappe.clear_document_cache("FieldMate Settings", "FieldMate Settings")
+		doc = frappe.get_single("FieldMate Settings")
+		doc.flags.ignore_permissions = True
+		return doc
+
+	def apply_settings(self, **values):
+		"""Change settings and drop the cache, which is the half everybody forgets.
+
+		`services/settings.get()` reads through `frappe.cache()`, so a test that writes with
+		`frappe.db.set_single_value` changes the row and nothing else - the service keeps
+		answering with the old value and the test fails somewhere unrelated. Lives here rather
+		than on one fixture because three test files have now needed it.
+		"""
+		doc = self.fresh_settings()
+		for key, value in values.items():
+			doc.set(key, value)
+		doc.save()
+		frappe.cache().delete_value("fieldmate_settings")
+		return doc
+
 	def uid(self, prefix: str = "T") -> str:
 		return f"{prefix}-{frappe.generate_hash(length=10)}"
 
