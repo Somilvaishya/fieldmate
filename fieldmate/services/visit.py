@@ -296,6 +296,7 @@ def build_tasks(outlet) -> list[dict]:
 	"""What this visit is expected to include."""
 	tasks = [
 		{"task": frappe._("Check the shelf"), "task_type": "Merchandising", "is_mandatory": 0},
+		{"task": frappe._("Count his stock"), "task_type": "Stock Audit", "is_mandatory": 0},
 		{"task": frappe._("Take the order"), "task_type": "Order", "is_mandatory": 0},
 	]
 	if outlet.approval_status != "Approved":

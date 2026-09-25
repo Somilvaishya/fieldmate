@@ -100,6 +100,10 @@ function handle(e) {
   return false
 }
 
+// Only a van rep sees the van. The bootstrap already carries the mode, so the phone does not
+// have to guess and an order-booking rep is not shown two cards that will always be empty.
+const vanRep = computed(() => boot.value?.sales_mode === 'Van Sales')
+
 async function showCached() {
   const cached = await getMeta('profile')
   if (cached) {
@@ -345,6 +349,21 @@ onUnmounted(() => {
          is actually doing: carry on with an open visit, else walk to the next shop, else
          close the day. Finish day stays reachable throughout - a rep who cannot end their
          day is stuck. -->
+    <!-- The van bookends the day: load it before the first shop, settle it after the last.
+         Both sit above the primary action rather than competing with it. -->
+    <div v-if="vanRep" class="van">
+      <RouterLink v-if="!openDay" to="/van/load" class="vcard">
+        <Icon name="truck" size="20" />
+        <span><b>Load the van</b><em>What you are carrying today</em></span>
+        <Icon name="chevron" size="18" class="go" />
+      </RouterLink>
+      <RouterLink v-else to="/van/settle" class="vcard">
+        <Icon name="truck" size="20" />
+        <span><b>Settle the van</b><em>Sold, returned, and cash to hand over</em></span>
+        <Icon name="chevron" size="18" class="go" />
+      </RouterLink>
+    </div>
+
     <div class="bottom">
       <RouterLink v-if="openVisit" class="btn-primary"
                   :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
@@ -379,6 +398,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.van { margin-top: 16px; }
+.vcard { display: flex; align-items: center; gap: 12px; text-decoration: none;
+         background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+         padding: 12px 14px; color: var(--ink); min-height: 48px; }
+.vcard > span { flex: 1; display: grid; }
+.vcard b { font-size: 16px; }
+.vcard em { font-style: normal; font-size: 14px; color: var(--muted); }
+.vcard .go { color: var(--muted); }
+
 .screen { display: flex; flex-direction: column; min-height: 100%; }
 .top { flex: 1; }
 .bottom { padding-top: 16px; display: grid; gap: 8px; }

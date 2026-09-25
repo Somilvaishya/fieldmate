@@ -126,8 +126,8 @@ opening + primary billing − secondary sale = closing
 opening + primary billing − closing        = secondary sale
 ```
 
-- [ ] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
-- [ ] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline.
+- [x] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
+- [x] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline.
       **Standard columns**, with mapping configurable per distributor because no two of them
       export the same header:
 
@@ -144,13 +144,15 @@ opening + primary billing − closing        = secondary sale
 
       A bad row is reported with its row number and reason and the good rows still import
       (Gate 5 criterion 1). Nothing here posts.
-- [ ] 5.3 `FieldMate Distributor Stock`
-- [ ] 5.4 `FieldMate Van Load` + `FieldMate Van Settlement`, recorded at **FieldMate level only**.
+- [x] 5.3 `FieldMate Distributor Stock`
+- [x] 5.4 `FieldMate Van Load` + `FieldMate Van Settlement`, recorded at **FieldMate level only**.
       What went out, what was sold, what came back — for operational control. **No Stock Entry,
       no Warehouse, no GL Entry**, because the goods were sold to the distributor at primary
       billing and are already theirs
-- [ ] 5.5 APIs: `stock.retailer_stock_save`, `stock.secondary_sales_upload`
-- [ ] 5.6 PWA: stock & sales audit, van load sheet, settlement
+- [x] 5.5 APIs in `fieldmate/api/stock.py`: `sheet`, `save`, `van_load`, `save_van_load`,
+      `settlement`, `save_settlement`, `secondary_sales_upload`
+- [x] 5.6 PWA: `StockCheck.vue`, `VanLoad.vue`, `VanSettle.vue`, reachable from the visit
+      hub and — for a van rep only, read off the bootstrap's `sales_mode` — from Today
 - [ ] **Gate 5** — verify all 4 criteria on testerp2, with criterion 3 read as: van load → 3 cash
       sales → settle-in returns the vehicle's FieldMate stock to zero and reconciles to what was
       loaded, and **the Stock Ledger is not touched at all**

@@ -16,6 +16,7 @@ const elapsed = ref(0)
 const photos = ref(0)
 const shelfDone = ref(false)
 const cart = ref({ lines: 0, units: 0 })
+const stockDone = ref(false)
 const error = ref('')
 const busy = ref(false)
 let ticker = null
@@ -88,6 +89,15 @@ const jobs = computed(() => {
       to: { name: 'visit-merchandising' },
     },
     {
+      key: 'stock', icon: 'shelves', title: 'Stock check',
+      sub: stockDone.value ? 'Counted this visit' : 'What he is still holding',
+      pill: stockDone.value ? 'Done' : 'None yet',
+      tone: stockDone.value ? 'ok' : 'muted',
+      pct: stockDone.value ? 100 : 0,
+      to: { name: 'stock-check', params: { outlet: visit.value?.outlet } },
+      disabled: !visit.value?.outlet,
+    },
+    {
       key: 'photo', icon: 'camera', title: 'Photos',
       sub: 'Shopfront, shelf, damage',
       pill: photos.value ? `${photos.value} waiting` : 'None yet',
@@ -116,6 +126,10 @@ onMounted(async () => {
   photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
   // Read from the phone, never fetched: the hub has to paint while the rep is mid-sentence.
   cart.value = await orderStore.peek(visit.value.outlet)
+  // Counted during THIS visit, not ever. A count from last month says nothing about whether
+  // the rep has done the job he is standing in the shop to do.
+  stockDone.value = !!(visit.value.tasks || [])
+    .find((t) => t.task_type === 'Stock Audit' && t.status === 'Done')
   shelfDone.value = !!(visit.value.tasks || [])
     .find((t) => t.task_type === 'Merchandising' && t.status === 'Done')
   clock()

@@ -53,6 +53,13 @@ const router = createRouter({
     { path: '/order/:outlet/cart', component: () => import('./screens/OrderCart.vue'), name: 'order-cart' },
     { path: '/order/:outlet/schemes', component: () => import('./screens/OrderSchemes.vue'), name: 'order-schemes' },
     { path: '/order/:outlet/review', component: () => import('./screens/OrderReview.vue'), name: 'order-review' },
+
+    // Phase 5. The stock check belongs to a shop; the van belongs to the day, so it carries no
+    // id at all - a rep has one vehicle and one load, and naming either in the URL would invite
+    // a stale deep link to open somebody else's morning.
+    { path: '/stock/:outlet', component: () => import('./screens/StockCheck.vue'), name: 'stock-check' },
+    { path: '/van/load', component: () => import('./screens/VanLoad.vue'), name: 'van-load' },
+    { path: '/van/settle', component: () => import('./screens/VanSettle.vue'), name: 'van-settle' },
   ],
 })
 
