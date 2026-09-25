@@ -338,32 +338,56 @@ screen exists to end it.*
 
 # Phase 5 — stock and van sales
 
-### 18. Shop stock audit
-> A stock-taking screen for recording how much of our product a shop currently holds.
+> **The van holds the distributor's stock, not ours (ADR-024).** The rep collects it from the
+> distributor's godown and carries it; a van sale is the distributor's sale. No screen here may
+> say "invoice created", "our warehouse" or "deposit to company". The full generation prompt for
+> these three is `docs/STITCH_PROMPT_PHASE5.md`.
 
-- Same row pattern as the catalogue but a single quantity field per product, no stepper
-- A muted line per row showing what they held last time: `Last visit: 4 cases`
-- A summary strip: `8 of 24 products counted`
-- Bottom third: **Save stock**
+### 18. Shop stock audit
+> A stock-taking screen for recording how much of our product a shop currently holds. He is
+> counting boxes on a shelf while the shopkeeper watches, so every extra tap costs him a second
+> of the conversation.
+
+- Same row pattern as the catalogue but a single quantity field per product, no stepper — he is
+  typing 14, not tapping plus fourteen times. Numeric keypad, with a Cases / Pieces toggle
+- A muted line per row showing what they held last time: `Last visit: 4 cases`, and
+  `Never counted here` where there is no history
+- **A zero is a real answer** and must not look like an empty field. An `Out of stock` chip
+- `Same as last time` per row — most shops barely move between visits, and this is the single
+  biggest time saver on the screen
+- A pinned summary strip: `8 of 24 products counted`, with search beneath it
+- Bottom third: **Save stock**. A partial count still saves — it is worth more than no count
 
 ### 19. Van load sheet *(van sales only)*
-> A morning van-loading screen listing what stock is being taken out for the day.
+> A morning van-loading screen listing what stock is being taken out for the day, **out of the
+> distributor's godown**.
 
-- A date and vehicle header
-- Product rows with loaded quantity, tabular
-- A total value line
+- A date, vehicle and distributor header. `Verified by godown` once the storekeeper confirms
+- A summary strip: `42 SKUs · 186 cases · ₹2,84,600` — the value matters because a shortfall at
+  settlement needs a number attached to it
+- Product rows read-only by default with an edit affordance: the godown loads, the rep checks
+- A row he changed shows **both** figures — `Godown said 12, you counted 10` — and any difference
+  raises an amber block with a required note
 - Bottom third: **Confirm load**
 - Muted: `This becomes your opening stock for the day.`
 
 ### 20. Van settlement *(van sales only)*
-> An end-of-day reconciliation screen for a van sales rep: loaded, sold, returned, and cash to
-> deposit.
+> An end-of-day reconciliation: loaded, sold, returned, and cash to hand over. The most
+> scrutinised screen in the app, read by a tired man at 8pm.
 
-- A four-column summary strip, tabular: `Loaded 120 · Sold 94 · Returned 24 · Short 2`
-- **Any shortfall highlighted in red with a required note field.** This is where stock loss is
-  caught, so a difference must never be silently rounded away
-- A cash block: `Cash collected ₹18,400`, `To deposit ₹18,400`
-- Bottom third: **Settle day**
+- **The stock equation laid out as an equation**, not four unrelated tiles:
+  `Loaded 186 − Sold 94 − Returned 89 = Short 3`. Loaded is fixed from the morning, Sold is
+  computed from his orders, **Returned is the one number he enters**, Short is derived and moves
+  as he types
+- **Any shortfall in red, in the largest type on the screen, with a required note field.** This
+  is where stock loss is caught, so a difference must never be silently rounded away. Zero turns
+  the line green and reads `All accounted for`
+- An expandable per-SKU breakdown of where the difference is, so he can find it rather than guess
+- A cash block: `Cash collected ₹18,400`, `Already deposited ₹12,000`, `To hand over ₹6,400`,
+  and **to the distributor** — never to the company
+- Good / Damaged split on returned stock. Damaged returns are a real cost and vanish if the
+  screen does not ask
+- Bottom third: **Settle day**, disabled until a shortfall has a note
 
 ---
 

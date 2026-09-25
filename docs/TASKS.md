@@ -127,7 +127,23 @@ opening + primary billing − closing        = secondary sale
 ```
 
 - [ ] 5.1 `FieldMate Retailer Stock` + `Item`, implied offtake calculation
-- [ ] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline
+- [ ] 5.2 `FieldMate Secondary Sales` + `Item` + distributor upload pipeline.
+      **Standard columns**, with mapping configurable per distributor because no two of them
+      export the same header:
+
+      | Column | Required | Notes |
+      |---|---|---|
+      | `date` | yes | the sale date, not the upload date |
+      | `item_code` | yes | ours; a distributor's own code maps to it |
+      | `qty` | yes | in `uom` |
+      | `uom` | no | defaults to the item's stock UOM |
+      | `retailer_name` | no | free text — most distributors have no shop id we share |
+      | `retailer_code` | no | their id, kept verbatim so a shop can be matched later |
+      | `amount` | no | recomputed from our price list where absent |
+      | `invoice_no` | no | their bill reference, for reconciliation |
+
+      A bad row is reported with its row number and reason and the good rows still import
+      (Gate 5 criterion 1). Nothing here posts.
 - [ ] 5.3 `FieldMate Distributor Stock`
 - [ ] 5.4 `FieldMate Van Load` + `FieldMate Van Settlement`, recorded at **FieldMate level only**.
       What went out, what was sold, what came back — for operational control. **No Stock Entry,
