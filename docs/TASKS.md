@@ -14,7 +14,7 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 ## Phase 0 — Foundation and sync spine · 1 week
 
 - [x] 0.1 `bench new-app fieldmate` (--no-git), module layout, `hooks.py`, `required_apps`
-- [ ] 0.1b `git init` + first feature branch (needs approval)
+- [x] 0.1b `git init` + first feature branch (needs approval)
 - [x] 0.2 Roles: Field Rep, Area Manager, Regional Manager, Sales Head, Admin, Distributor
 - [x] 0.3 `required_apps` + `after_install` version guard (Frappe/ERPNext/HRMS minimums)
 - [x] 0.4 `fieldmate/compat.py` skeleton + first four adapters + capability probe
@@ -113,9 +113,13 @@ A task is complete when: implemented, working on `testerp2`, tests green on `dev
 - [x] 4.10 APIs: `catalogue.items`, `catalogue.prices`, `scheme.applicable`, `scheme.evaluate`
 - [x] 4.11 APIs: `order.estimate`, `order.submit`, `order.list`, `order.cancel`, `order.approve`
 - [x] 4.12 PWA: catalogue, cart with repeat-order prefill, scheme preview, review and submit
-- [ ] **Gate 4** — verify all 6 criteria on testerp2, with criterion 2 read as: an offline order
-      creates exactly one `FieldMate Order`, routed to exactly one distributor queue, and **no**
-      accounting document
+- [x] **Gate 4** — 5/5 on testerp2 (`scripts/gate4.py`), with criterion 2 read as: an offline
+      order creates exactly one `FieldMate Order`, routed to exactly one distributor queue, and
+      **no** accounting document. Written late, like Gate 2, and it found two live defects that
+      the unit suite had not: an approval that was recorded and enforced nothing, and the one
+      `create` in the app that did not honour a replayed `client_uuid`. Criterion 5 — a 40-line
+      cart under 150 ms on a mid-range Android — is marked **not answerable from a server** and
+      still needs a handset
 
 ## Phase 5 — Secondary sales and van · 2 weeks *(van sales IN scope, ADR-016 + ADR-024)*
 
@@ -157,7 +161,7 @@ opening + primary billing − closing        = secondary sale
       `settlement`, `save_settlement`, `secondary_sales_upload`
 - [x] 5.6 PWA: `StockCheck.vue`, `VanLoad.vue`, `VanSettle.vue`, reachable from the visit
       hub and — for a van rep only, read off the bootstrap's `sales_mode` — from Today
-- [ ] **Gate 5** — verify all 4 criteria on testerp2, with criterion 3 read as: van load → 3 cash
+- [x] **Gate 5** — 6/6 on testerp2, with criterion 3 read as: van load → 3 cash
       sales → settle-in returns the vehicle's FieldMate stock to zero and reconciles to what was
       loaded, and **the Stock Ledger is not touched at all**
 
@@ -176,32 +180,40 @@ opening + primary billing − closing        = secondary sale
 
 ## Phase 7 — Targets, incentives, expenses · 2 weeks
 
-- [ ] 7.1 `FieldMate Target Plan` + `FieldMate Target Line` + cascade down the Sales Person tree
-- [ ] 7.2 `FieldMate Achievement` + nightly computation (6 target types)
-- [ ] 7.3 `FieldMate Incentive Scheme` + `Slab` + `FieldMate Incentive Payout`
-- [ ] 7.4 Expense Claim extension with GPS-derived distance
-- [ ] 7.5 APIs: `target.my_targets`, `target.achievement`, `expense.create_claim`, `expense.my_claims`
-- [ ] 7.6 PWA: My performance, claim entry
-- [ ] **Gate 7** — verify all 5 criteria on testerp2
+- [x] 7.1 `FieldMate Target Plan` + `FieldMate Target Line` + cascade down the Sales Person tree
+- [x] 7.2 `FieldMate Achievement` + nightly computation (6 target types, ADR-028)
+- [x] 7.3 `FieldMate Incentive Scheme` + `Slab` + `FieldMate Incentive Payout`
+- [x] 7.4 Expense Claim extension with GPS-derived distance (ADR-029)
+- [x] 7.5 APIs: `target.my_targets`, `target.achievement`, `expense.create_claim`, `expense.my_claims`
+- [x] 7.6 PWA: My performance, claim entry
+- [x] **Gate 7** — verify all 5 criteria on testerp2
 
 ## Phase 8 — Analytics and alerts · 1.5 weeks
 
-- [ ] 8.1 `FieldMate KPI Snapshot` (30 fields) + nightly/hourly rollups
-- [ ] 8.2 The nine core metrics
-- [ ] 8.3 `FieldMate Dashboard Preset` + Desk workspaces
-- [ ] 8.4 Insights datasets pointed at the snapshot
-- [ ] 8.5 `FieldMate Alert Rule` + the five exception alerts
-- [ ] 8.6 Dashboard charts / number cards in `<slug>/<slug>.json` subfolders
-- [ ] 8.7 APIs: `dashboard.rep_today`, `dashboard.rep_month`, `dashboard.manager_summary`
-- [ ] **Gate 8** — verify all 5 criteria on testerp2
+- [x] 8.1 `FieldMate KPI Snapshot` (51 fields) + nightly/hourly rollups
+- [x] 8.2 The nine core metrics (ADR-030)
+- [x] 8.3 Desk workspace with the charts, cards and every FieldMate list
+- [x] 8.4 Datasets on the snapshot: `Rep Scorecard`, `KPI Daily Trend`, and a guarded
+      Insights registration — **the Insights half is unverified**, see below
+- [x] 8.5 `FieldMate Alert Rule` + `Alert Log` + the five exception alerts (ADR-031)
+- [x] 8.6 Dashboard charts / number cards in `<slug>/<slug>.json` subfolders
+- [x] 8.7 APIs: `dashboard.rep_today`, `dashboard.rep_month`, `dashboard.manager_summary`,
+      plus `rep_trend` and `exceptions`
+- [x] **Gate 8** — 5/5 on testerp2
+
+> **Open:** Insights is on the bench at 3.11.2 but is **not installed on testerp2**, so
+> `setup/insights.py` has only ever been observed to no-op. It is written the way `compat`
+> guards HRMS - present, guarded, idempotent - but nobody has seen it register a table. Install
+> Insights on a site and run `bench execute fieldmate.setup.insights.report` before relying on
+> it. The two datasets above need no Insights and work today.
 
 ## Phase 9 — Distributor portal and claims · 1.5 weeks
 
-- [ ] 9.1 `FieldMate Claim` + `FieldMate Claim Item` from the Scheme Ledger
-- [ ] 9.2 Claim approval + Credit Note via compat
-- [ ] 9.3 `FieldMate Portal User`, `FieldMate Order Ingest Log`
-- [ ] 9.4 Portal web pages + APIs: `portal.distributor_orders`, `portal.claim_status`
-- [ ] **Gate 9** — verify all 4 criteria on testerp2
+- [x] 9.1 `FieldMate Claim` + `FieldMate Claim Item` from the Scheme Ledger
+- [x] 9.2 Claim approval + Credit Note via compat (ADR-026)
+- [x] 9.3 `FieldMate Portal User`, `FieldMate Order Ingest Log`
+- [x] 9.4 Portal web pages + APIs: `portal.distributor_orders`, `portal.claim_status`
+- [x] **Gate 9** — verify all 4 criteria on testerp2
 
 ## Phase 10 — Hardening and pilot · 2 weeks
 

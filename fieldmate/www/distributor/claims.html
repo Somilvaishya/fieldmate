@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheme Claims · {{ depot_name }}</title>
+<link rel="stylesheet" href="/assets/fieldmate/css/portal.css">
+<script>window.frappe = {csrf_token: "{{ frappe.session.csrf_token }}"};</script>
+</head>
+<body>
+
+<header class="head">
+  <div class="brand">
+    <div class="mark">FM</div>
+    <div>
+      <div class="title">Distributor Portal</div>
+      <div class="sub">{{ depot_name }}</div>
+    </div>
+  </div>
+  <div class="who">
+    <b>{{ full_name }}</b>
+    <span>{{ designation }}</span>
+  </div>
+</header>
+
+<nav class="rail">
+  <div class="eyebrow">Depot</div>
+  <a href="/distributor/orders">Orders</a>
+  <a href="/distributor/claims" aria-current="page">Scheme Claims</a>
+  <div class="foot">
+    Every benefit a rep promised out of your stock is recorded the moment the order is booked.
+    A claim is how you get it back.
+  </div>
+</nav>
+
+<main>
+  <div class="page-head">
+    <div>
+      <h1>Scheme claims</h1>
+      <p>Discounts and free goods you gave at shop counters on our schemes, and where each claim has reached.</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="refresh" data-busy>Refresh</button>
+      {% if can_claim %}<button id="new-claim" class="primary" data-busy>Raise a claim</button>{% endif %}
+    </div>
+  </div>
+
+  <div id="toast" class="notice" hidden></div>
+
+  <section class="tiles" id="tiles"></section>
+
+  <div class="bar">
+    <div class="tabs" id="tabs" role="tablist"></div>
+  </div>
+
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:32px"></th>
+            <th>Claim</th>
+            <th>Period</th>
+            <th>Scheme</th>
+            <th class="num">Shops</th>
+            <th class="num">Claimed</th>
+            <th class="num">Approved</th>
+            <th>Reconciles</th>
+            <th>Status</th>
+            <th>Credit note</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="foot">
+      <span id="summary">Loading…</span>
+      <span>An approved claim is credited against your next primary invoice.</span>
+    </div>
+  </div>
+</main>
+
+<dialog id="raise">
+  <form method="dialog" class="body">
+    <h2>Raise a claim</h2>
+    <div class="row" style="display:flex;gap:10px">
+      <div style="flex:1"><label for="from">From</label><input id="from" type="date"></div>
+      <div style="flex:1"><label for="to">To</label><input id="to" type="date"></div>
+    </div>
+    <div><label for="ref">Your reference (optional)</label><input id="ref" type="text" placeholder="Your own claim number"></div>
+    <div id="preview" class="notice flat" style="background:var(--sunken);color:var(--muted)">
+      Pick a period to see what is claimable.
+    </div>
+    <div class="actions">
+      <button value="cancel" type="submit">Cancel</button>
+      <button value="ok" id="raise-go" class="primary" type="submit" disabled>Raise and submit</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="ask">
+  <form method="dialog" class="body">
+    <h2></h2>
+    <div><label></label><textarea rows="3"></textarea></div>
+    <div class="actions">
+      <button value="cancel" type="submit">Cancel</button>
+      <button value="ok" class="primary" type="submit">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/assets/fieldmate/js/portal.js"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = FM.esc, money = FM.money;
+
+  var TABS = [
+    {key: '',                 label: 'All'},
+    {key: 'Pending Approval', label: 'With us'},
+    {key: 'Approved',         label: 'Agreed, not yet credited'},
+    {key: 'Settled',          label: 'Credited'},
+    {key: 'Rejected',         label: 'Refused'}
+  ];
+  var TONE = {'Pending Approval': 'warn', 'Approved': 'calm', 'Settled': 'ok',
+              'Rejected': 'crit', 'Draft': 'flat', 'Cancelled': 'flat'};
+
+  var state = {status: '', claims: [], totals: null, open: null};
+
+  function tiles(t) {
+    var c = t.counts;
+    document.getElementById('tiles').innerHTML = [
+      ['', 'Claimed', money(t.claimed), c.claimed + ' claims raised',
+       'Everything you have asked for'],
+      ['is-warn', 'With us', money(t.pending), c.pending + ' waiting on a decision',
+       'Nobody here has answered yet'],
+      ['is-ok', 'Agreed', money(t.approved), c.approved + ' approved',
+       'Credited or about to be'],
+      ['is-crit', 'Refused', money(t.rejected), c.rejected + ' rejected',
+       'A reason is on each one']
+    ].map(function (r) {
+      return '<div class="tile ' + r[0] + '">' +
+        '<div class="label">' + esc(r[1]) + '</div>' +
+        '<div class="value" style="font-size:22px">' + r[2] + '</div>' +
+        '<div class="dim">' + esc(r[3]) + '</div>' +
+        '<div class="note">' + esc(r[4]) + '</div></div>';
+    }).join('');
+  }
+
+  function tabs() {
+    var c = state.totals ? state.totals.counts : {};
+    var n = {'': c.claimed || 0, 'Pending Approval': c.pending || 0,
+             'Approved': (c.approved || 0) - (c.settled || 0),
+             'Settled': c.settled || 0, 'Rejected': c.rejected || 0};
+    document.getElementById('tabs').innerHTML = TABS.map(function (t) {
+      return '<button role="tab" data-status="' + esc(t.key) + '" aria-selected="' +
+             (state.status === t.key) + '">' + esc(t.label) +
+             '<span class="n">' + FM.count(n[t.key]) + '</span></button>';
+    }).join('');
+  }
+
+  function reconciles(c) {
+    if (c.reconciles) {
+      return '<span class="pill ok">Matches the ledger</span>';
+    }
+    // A variance is not an accusation. A depot routinely claims part of a month, and the figure
+    // is shown so both sides are arguing about the same number rather than discovering it later.
+    var over = Number(c.variance_amount) > 0;
+    return '<span class="pill warn">' + (over ? money(c.variance_amount) + ' unclaimed'
+                                              : money(-c.variance_amount) + ' over') + '</span>';
+  }
+
+  function render() {
+    var body = document.getElementById('rows');
+    if (!state.claims.length) {
+      body.innerHTML = '<tr><td colspan="10" class="empty">No claims here yet.</td></tr>';
+      document.getElementById('summary').textContent = '0 claims';
+      return;
+    }
+    body.innerHTML = state.claims.map(function (c) {
+      var open = state.open === c.name;
+      return '<tr class="clickable">' +
+        '<td><button class="twisty" data-open="' + esc(c.name) + '" aria-expanded="' + open + '">' +
+          (open ? '&#9660;' : '&#9654;') + '</button></td>' +
+        '<td><div class="mono strong">' + esc(c.name) + '</div>' +
+          '<div class="dim">' + esc(FM.day(c.claim_date)) +
+          (c.reference_no ? ' · ' + esc(c.reference_no) : '') + '</div></td>' +
+        '<td>' + esc(FM.day(c.from_date)) + ' – ' + esc(FM.day(c.to_date)) + '</td>' +
+        '<td>' + esc(c.scheme || 'Every scheme that ran') +
+          '<div class="dim">' + FM.count(c.line_count) + ' benefits</div></td>' +
+        '<td class="num tnum">' + FM.count(c.outlet_count) + '</td>' +
+        '<td class="num tnum strong">' + money(c.claimed_amount) + '</td>' +
+        '<td class="num tnum">' + (c.claim_status === 'Pending Approval'
+            ? '<span class="dim">—</span>' : money(c.approved_amount)) + '</td>' +
+        '<td>' + reconciles(c) + '</td>' +
+        '<td><span class="pill ' + (TONE[c.claim_status] || 'flat') + '">' +
+          esc(c.claim_status) + '</span></td>' +
+        '<td>' + (c.credit_note
+            ? '<div class="mono">' + esc(c.credit_note) + '</div><div class="dim">' +
+              esc(FM.day(c.settled_on)) + '</div>'
+            : '<span class="dim">Not yet</span>') + '</td></tr>' +
+        (open ? drawer(c) : '');
+    }).join('');
+    document.getElementById('summary').textContent =
+      state.claims.length + ' claim' + (state.claims.length === 1 ? '' : 's') + ' shown';
+  }
+
+  function drawer(c) {
+    var d = c._detail;
+    if (!d) return '<tr class="drawer"><td colspan="10"><div class="inner dim">Loading…</div></td></tr>';
+
+    var shown = d.lines.slice(0, 25);
+    var lines = shown.map(function (l) {
+      return '<tr><td class="mono">' + esc(l.order) + '<div class="dim">' +
+          esc(FM.day(l.posting_date)) + '</div></td>' +
+        '<td>' + esc(l.outlet) + '</td>' +
+        '<td>' + esc(l.field_user || '') + '</td>' +
+        '<td>' + esc(l.benefit_kind) +
+          (l.item_code ? '<div class="dim mono">' + esc(l.item_code) + '</div>' : '') + '</td>' +
+        '<td class="num tnum">' + (l.free_qty ? FM.count(l.free_qty) : '<span class="dim">—</span>') + '</td>' +
+        '<td class="num tnum strong">' + money(l.benefit_amount) + '</td>' +
+        '<td class="mono dim">' + esc(l.ledger) + '</td></tr>';
+    }).join('');
+
+    var more = d.lines.length > shown.length
+      ? '<div class="dim">Showing ' + shown.length + ' of ' + d.lines.length +
+        ' benefits. The totals above cover all of them.</div>'
+      : '';
+
+    var verdict = d.claim_status === 'Rejected'
+      ? '<div class="notice crit">Refused: ' + esc(d.rejection_reason || 'no reason recorded') + '</div>'
+      : d.claim_status === 'Settled'
+        ? '<div class="notice ok">Credited on ' + esc(FM.day(d.settled_on)) + ' by ' +
+          esc(d.credit_note) + (d.settlement_reference
+            ? ', adjusted against ' + esc(d.settlement_reference) : '') + '.</div>'
+        : d.claim_status === 'Approved'
+          ? '<div class="notice warn">Agreed at ' + money(d.approved_amount) +
+            '. The credit note has not been released yet.</div>'
+          : '<div class="notice" style="background:var(--sunken);color:var(--muted)">' +
+            'With us since it was submitted. Nothing is needed from you.</div>';
+
+    return '<tr class="drawer"><td colspan="10"><div class="inner">' +
+      verdict +
+      '<div class="lines"><table><thead><tr>' +
+        '<th>Order</th><th>Shop</th><th>Rep</th><th>Benefit</th>' +
+        '<th class="num">Free qty</th><th class="num">Value</th><th>Ledger</th>' +
+      '</tr></thead><tbody>' + lines + '</tbody></table></div>' + more +
+      '<div class="panes">' +
+        '<div class="pane"><h3>What makes up this claim</h3>' +
+          '<div class="kv"><span>Bill discounts</span><span class="tnum">' +
+            money(d.discount_amount) + '</span></div>' +
+          '<div class="kv"><span>Free goods you supplied</span><span class="tnum">' +
+            money(d.free_goods_amount) + '</span></div>' +
+          '<div class="kv total"><span>Claimed</span><span class="tnum">' +
+            money(d.claimed_amount) + '</span></div></div>' +
+        '<div class="pane"><h3>Against the ledger</h3>' +
+          '<div class="kv"><span>Benefits recorded in this period</span><span class="tnum">' +
+            FM.count(d.ledger_count) + ' · ' + money(d.ledger_amount) + '</span></div>' +
+          '<div class="kv"><span>On this claim</span><span class="tnum">' +
+            FM.count(d.line_count) + ' · ' + money(d.claimed_amount) + '</span></div>' +
+          '<div class="kv total"><span>Difference</span><span class="tnum">' +
+            money(d.variance_amount) + '</span></div>' +
+          '<div class="dim">' + (d.reconciles
+            ? 'Everything recorded for this period is on this claim.'
+            : 'Some of what was recorded for this period is not on this claim. It stays ' +
+              'claimable and can go on the next one.') + '</div></div>' +
+      '</div></div></td></tr>';
+  }
+
+  function load() {
+    FM.busy(true);
+    return FM.call('portal.claim_status', {status: state.status})
+      .then(function (d) {
+        state.claims = d.claims;
+        state.totals = d.totals;
+        tiles(d.totals);
+        tabs();
+        render();
+      })
+      .catch(function (e) { FM.toast(e.message, 'crit'); })
+      .then(function () { FM.busy(false); });
+  }
+
+  function open(name) {
+    if (state.open === name) { state.open = null; render(); return; }
+    state.open = name;
+    render();
+    var c = state.claims.filter(function (x) { return x.name === name; })[0];
+    if (!c || c._detail) { render(); return; }
+    FM.call('portal.claim_detail', {claim: name}).then(function (d) {
+      c._detail = d;
+      if (state.open === name) render();
+    }).catch(function (e) { FM.toast(e.message, 'crit'); });
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button');
+    if (!t) return;
+    if (t.dataset.open) { open(t.dataset.open); return; }
+    if (t.getAttribute('role') === 'tab') {
+      state.status = t.dataset.status;
+      state.open = null;
+      load();
+    }
+  });
+
+  document.getElementById('refresh').addEventListener('click', load);
+
+  /* ---- raising one ---- */
+  var dlg = document.getElementById('raise');
+  var go = document.getElementById('raise-go');
+  var newBtn = document.getElementById('new-claim');
+
+  if (newBtn) {
+    newBtn.addEventListener('click', function () {
+      // Last calendar month, because that is what a depot claims. Computed from today rather
+      // than from a stored cycle so it stays right without anybody maintaining it.
+      var now = new Date();
+      var first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      var last = new Date(now.getFullYear(), now.getMonth(), 0);
+      document.getElementById('from').value = iso(first);
+      document.getElementById('to').value = iso(last);
+      go.disabled = true;
+      dlg.showModal();
+      preview();
+    });
+  }
+
+  function iso(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+           String(d.getDate()).padStart(2, '0');
+  }
+
+  function preview() {
+    var from = document.getElementById('from').value;
+    var to = document.getElementById('to').value;
+    var box = document.getElementById('preview');
+    if (!from || !to) { box.textContent = 'Pick a period.'; go.disabled = true; return; }
+    box.textContent = 'Checking…';
+    go.disabled = true;
+    FM.call('portal.claimable', {from_date: from, to_date: to}).then(function (d) {
+      if (!d.line_count) {
+        box.textContent = 'Nothing is left to claim in that period.';
+        go.disabled = true;
+        return;
+      }
+      box.innerHTML = '<b>' + money(d.total_amount) + '</b> across ' + FM.count(d.line_count) +
+        ' benefits at ' + FM.count(d.outlet_count) + ' shops.' +
+        (d.schemes.length ? '<div class="dim">' + d.schemes.map(function (s) {
+          return esc(s.scheme_name || s.scheme) + ' ' + money(s.amount);
+        }).join(' · ') + '</div>' : '');
+      go.disabled = false;
+    }).catch(function (e) {
+      box.textContent = e.message;
+      go.disabled = true;
+    });
+  }
+
+  ['from', 'to'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', preview);
+  });
+
+  if (dlg) {
+    dlg.addEventListener('close', function () {
+      if (dlg.returnValue !== 'ok') return;
+      FM.busy(true);
+      FM.call('portal.raise_claim', {
+        from_date: document.getElementById('from').value,
+        to_date: document.getElementById('to').value,
+        reference_no: document.getElementById('ref').value || undefined,
+        submit: 1
+      }, true).then(function (c) {
+        FM.toast(c.name + ' raised for ' + money(c.claimed_amount) + '.');
+        state.open = c.name;
+        return load();
+      }).catch(function (e) { FM.toast(e.message, 'crit'); })
+        .then(function () { FM.busy(false); });
+    });
+  }
+
+  load();
+}());
+</script>
+</body>
+</html>

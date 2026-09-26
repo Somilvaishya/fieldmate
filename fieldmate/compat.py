@@ -710,6 +710,224 @@ def create_employee_checkin(
 
 
 # --------------------------------------------------------------------------------------
+# expense claims — the only crossing that pays a person rather than a party
+# --------------------------------------------------------------------------------------
+
+EXPENSE_CLAIM_KEY_FIELD = "fm_source_key"
+
+
+def _expense_key_column() -> str | None:
+	if not is_installed("hrms") or not frappe.db.exists("DocType", "Expense Claim"):
+		return None
+	return EXPENSE_CLAIM_KEY_FIELD \
+		if _has_column("Expense Claim", EXPENSE_CLAIM_KEY_FIELD) else None
+
+
+def expense_claim_for_key(key: str) -> str | None:
+	column = _expense_key_column()
+	if not (key and column):
+		return None
+	return frappe.db.get_value("Expense Claim", {column: key, "docstatus": ["<", 2]}, "name")
+
+
+def _expense_claim_type(name: str) -> str | None:
+	"""An Expense Claim Type matching ours, or any that exists.
+
+	Falling back rather than creating one: an Expense Claim Type carries account defaults per
+	company, and a row this app invented would post to whatever Frappe guessed. Better to use
+	what the site's finance people already set up, and to say so when there is nothing.
+	"""
+	if frappe.db.exists("Expense Claim Type", name):
+		return name
+	return frappe.db.get_value("Expense Claim Type", {}, "name")
+
+
+def make_expense_claim(payload: dict) -> str | None:
+	"""Pay a rep for a day in the market. Safe to call twice with one key.
+
+	Returns None where HRMS is not installed, rather than throwing. A site running FieldMate
+	before HRMS still has reps owed money; the FieldMate claim records that it was approved and
+	settled, and somebody pays it by hand. Refusing would be the worse answer - it would make
+	the app unusable on exactly the sites that adopt it first.
+	"""
+	payload = dict(payload or {})
+	key = payload.get("key")
+	if not key:
+		frappe.throw(frappe._("An expense claim cannot be posted without an idempotency key."))
+
+	if not is_installed("hrms") or not frappe.db.exists("DocType", "Expense Claim"):
+		return None
+
+	column = _expense_key_column()
+	if not column:
+		frappe.throw(
+			frappe._("Expense Claim has no {0} field on this site, so a settlement cannot be "
+			         "posted without risking a duplicate. Run bench migrate.")
+			.format(EXPENSE_CLAIM_KEY_FIELD))
+
+	existing = expense_claim_for_key(key)
+	if existing:
+		return existing
+
+	employee = payload.get("employee")
+	if not employee:
+		# No Employee, no HR document. The FieldMate claim still settles and says so.
+		return None
+
+	claim_type = _expense_claim_type(payload.get("expense_type") or "Travel")
+	if not claim_type:
+		frappe.throw(
+			frappe._("This site has no Expense Claim Type set up, so an approved claim has "
+			         "nothing to post against. Create one before settling claims."))
+
+	amount = flt(payload.get("amount"))
+	if amount <= 0:
+		frappe.throw(frappe._("An expense claim for nothing is not an expense claim."))
+
+	doc = frappe.new_doc("Expense Claim")
+	doc.set(column, key)
+	doc.employee = employee
+	doc.company = payload.get("company")
+	doc.posting_date = payload.get("posting_date") or nowdate()
+	doc.expense_approver = payload.get("approver")
+	doc.append("expenses", {
+		"expense_date": payload.get("posting_date") or nowdate(),
+		"expense_type": claim_type,
+		"amount": amount,
+		"sanctioned_amount": amount,
+		"description": payload.get("description"),
+	})
+
+	doc.flags.ignore_permissions = True
+	doc.insert()
+	# Left as a draft on purpose. Submitting an Expense Claim books a liability and, on many
+	# sites, runs an approval workflow of its own that this app has no business short-circuiting.
+	# FieldMate says what is owed; HR decides when it is payable.
+	return doc.name
+
+
+def cancel_expense_claim(name: str) -> None:
+	"""Withdraw a settlement. Safe to call twice."""
+	if not name or not frappe.db.exists("Expense Claim", name):
+		return
+	doc = frappe.get_doc("Expense Claim", name)
+	doc.flags.ignore_permissions = True
+	if doc.docstatus == 1:
+		doc.cancel()
+	elif doc.docstatus == 0:
+		frappe.delete_doc("Expense Claim", name, force=True, ignore_permissions=True)
+
+
+# --------------------------------------------------------------------------------------
+# credit notes — the one accounting document an approved distributor claim produces
+# --------------------------------------------------------------------------------------
+
+CREDIT_NOTE_KEY_FIELD = "fm_source_key"
+
+
+def _credit_note_key_column() -> str | None:
+	return CREDIT_NOTE_KEY_FIELD if _has_column("Sales Invoice", CREDIT_NOTE_KEY_FIELD) else None
+
+
+def credit_note_for_key(key: str) -> str | None:
+	"""The credit note already raised for this key, if there is one."""
+	column = _credit_note_key_column()
+	if not (key and column):
+		return None
+	return frappe.db.get_value(
+		"Sales Invoice", {column: key, "is_return": 1, "docstatus": ["<", 2]}, "name")
+
+
+def make_credit_note(payload: dict) -> str:
+	"""Credit an approved claim to the distributor. Safe to call twice with one key.
+
+	One line, not one per SKU. The goods went to the distributor at full price and that sale
+	stands; what is being settled here is the cost of a promise a rep made at a shop counter out
+	of the distributor's stock. Crediting the SKUs would restate product revenue for a return
+	that never happened, and - with `update_stock` off - would do it while putting no goods back,
+	which is the worst of both readings.
+
+	`update_stock` is off for the same reason every other secondary document in this app posts no
+	stock (ADR-023, ADR-024): the stock was the distributor's from primary billing onward.
+	"""
+	payload = dict(payload or {})
+	key = payload.get("key")
+	if not key:
+		frappe.throw(frappe._("A credit note cannot be posted without an idempotency key."))
+
+	column = _credit_note_key_column()
+	if not column:
+		# Same refusal as the other two adapters, for the same reason: with nowhere to keep the
+		# key, an approval clicked twice credits the distributor twice, and nobody at our end
+		# finds it until a month-end reconciliation does.
+		frappe.throw(
+			frappe._("Sales Invoice has no {0} field on this site, so a claim cannot be settled "
+			         "without risking a duplicate credit. Run bench migrate.")
+			.format(CREDIT_NOTE_KEY_FIELD)
+		)
+
+	existing = credit_note_for_key(key)
+	if existing:
+		return existing
+
+	item_code = payload.get("item_code")
+	if not item_code:
+		frappe.throw(
+			frappe._("No settlement item is set in FieldMate Settings, so an approved claim has "
+			         "nothing to credit against. Set one before settling claims.")
+		)
+
+	amount = flt(payload.get("amount"))
+	if amount <= 0:
+		frappe.throw(frappe._("A credit note for nothing is not a credit note."))
+
+	doc = frappe.new_doc("Sales Invoice")
+	doc.set(column, key)
+	doc.is_return = 1
+	doc.customer = payload.get("customer")
+	doc.company = payload.get("company")
+	doc.posting_date = payload.get("posting_date") or nowdate()
+	doc.set_posting_time = 1
+	doc.update_stock = 0
+	# The scheme engine already decided every rupee of this (SCHEME_SPEC). A Pricing Rule running
+	# over the settlement line would discount a discount.
+	doc.ignore_pricing_rule = 1
+	for field in ("currency", "cost_center", "remarks", "po_no"):
+		if payload.get(field):
+			doc.set(field, payload[field])
+
+	# A return carries negative quantities. Rate stays positive: ERPNext multiplies the two, and
+	# a negative rate on a negative qty credits nobody.
+	line = {
+		"item_code": item_code,
+		"qty": -1,
+		"rate": amount,
+		"description": payload.get("description") or "FieldMate scheme claim settlement",
+	}
+	for field in ("income_account", "cost_center"):
+		if payload.get(field):
+			line[field] = payload[field]
+	doc.append("items", line)
+
+	doc.flags.ignore_permissions = True
+	doc.insert()
+	doc.submit()
+	return doc.name
+
+
+def cancel_credit_note(name: str) -> None:
+	"""Reverse a settled claim. Safe to call twice."""
+	if not name or not frappe.db.exists("Sales Invoice", name):
+		return
+	if frappe.db.get_value("Sales Invoice", name, "docstatus") != 1:
+		return
+
+	doc = frappe.get_doc("Sales Invoice", name)
+	doc.flags.ignore_permissions = True
+	doc.cancel()
+
+
+# --------------------------------------------------------------------------------------
 # payments — posted only when a deposit is confirmed, and only for money that was ours
 # --------------------------------------------------------------------------------------
 

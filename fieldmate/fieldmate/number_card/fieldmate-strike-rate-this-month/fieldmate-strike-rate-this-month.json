@@ -1,0 +1,22 @@
+{
+ "aggregate_function_based_on": "productive_visits",
+ "creation": "2026-09-26 16:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "FieldMate KPI Snapshot",
+ "dynamic_filters_json": "[[\"FieldMate KPI Snapshot\",\"snapshot_date\",\"Timespan\",\"this month\",false]]",
+ "filters_json": "[]",
+ "function": "Sum",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Productive Calls This Month",
+ "modified": "2026-09-26 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Productive Calls This Month",
+ "owner": "Administrator",
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Monthly",
+ "type": "Document Type"
+}

@@ -95,17 +95,24 @@ IDEMPOTENCY_FIELDS = (
 	("Sales Order", "A field order retried after a dropped connection must not become two "
 	                "company commitments."),
 	("Payment Entry", "A deposit confirmation retried must not pay the same money twice."),
+	("Sales Invoice", "A claim approval clicked twice must not credit the distributor twice."),
+	("Expense Claim", "A settled travel claim retried must not pay the rep twice."),
 )
 
 
 def create_idempotency_fields() -> None:
-	"""Give Sales Order and Payment Entry somewhere to keep our key. Idempotent.
+	"""Give each document we post somewhere to keep our key. Idempotent.
 
-	`compat.make_sales_order` and `make_payment_entry` **refuse to post** without this rather
-	than posting blind, because the alternative is a duplicate nothing on the site can detect.
-	So this is not decoration: without it the two adapters simply do not work.
+	Every adapter in `compat` **refuses to post** without this rather than posting blind, because
+	the alternative is a duplicate nothing on the site can detect. So this is not decoration:
+	without it those adapters simply do not work.
 	"""
 	for doctype, description in IDEMPOTENCY_FIELDS:
+		# Expense Claim belongs to HRMS, which is optional. A field on a DocType that is not
+		# installed is not a problem to report - it is a document this bench cannot post, and
+		# `compat.make_expense_claim` already answers None for that case.
+		if not frappe.db.exists("DocType", doctype):
+			continue
 		if frappe.db.exists("Custom Field", {"dt": doctype, "fieldname": "fm_source_key"}):
 			continue
 		frappe.get_doc({

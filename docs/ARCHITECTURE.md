@@ -35,14 +35,40 @@ Dexie (local truth)
                                                                        GL Entry
 ```
 
-Three crossings into ERPNext, each on a submit or approval event, each idempotent, each recording
-the created document's name back on the FieldMate record:
+Four crossings out of FieldMate, each on a submit or approval event, each idempotent, each keyed on
+`fm_source_key` and each recording the created document's name back on the FieldMate record:
 
-1. `FieldMate Order` submit → Sales Order
-2. `FieldMate Collection` deposit confirmation → Payment Entry
-3. `FieldMate Claim` approval → Credit Note
+1. `FieldMate Order` submit → Sales Order — **only at a directly-billed outlet** (ADR-023). A
+   retailer order routes to the distributor's queue and crosses nothing.
+2. `FieldMate Collection` deposit confirmation → Payment Entry — **only for money that was ours**
+   (ADR-025). A shop's cash was the distributor's all along.
+3. `FieldMate Claim` approval → Credit Note — one line, trade spend, no stock (ADR-026).
+4. `FieldMate Expense Claim` approval → a **draft** HRMS Expense Claim — the only crossing that
+   pays a person rather than a party, and left unsubmitted because HR decides when it is
+   payable (ADR-029).
 
-**Secondary sales never cross.** They are market intelligence, not accounting.
+**Secondary sales never cross.** They are market intelligence, not accounting. Van sales do not
+cross either: the van holds the distributor's stock (ADR-024).
+
+## The distributor's end
+
+```
+Rep phone ──push──→ FieldMate Order ──route──→ distributor's queue
+                          ↑                          │
+                          │                    /distributor/orders
+                          │                    accept · invoice · deliver
+                          │                          │
+                     delta pull ←── order_status ────┘
+                                                     │
+                     FieldMate Scheme Ledger ──claim──→ /distributor/claims
+                                                     │
+                                          approval → Credit Note
+```
+
+A depot logs in with an ordinary Frappe login resolved through `FieldMate Portal User`, holds
+`read` and nothing else, and is scoped twice — in `services/portal.py` and again by
+`permission_query_conditions` / `has_permission` (ADR-027). Every move it makes appends a
+`FieldMate Order Ingest Log` row in the same call.
 
 ## Folder structure
 

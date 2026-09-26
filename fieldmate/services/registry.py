@@ -222,7 +222,17 @@ register(
 		doctype="FieldMate Order",
 		uuid_field="client_uuid",
 		push=True,
-		pull=False,
+		# Phase 9 turned this on. The distributor now works the order at his end - accepts it,
+		# bills it, delivers it - and the rep is the person the shopkeeper asks about it the next
+		# morning. Without a pull the phone would still be showing "Sent To Distributor" on an
+		# order that was delivered on Tuesday, and the rep would be the last person in the chain
+		# to know. Narrow by design: every field below is server-owned anyway, so the phone is
+		# reading back the office's answer and never proposing one.
+		pull=True,
+		pull_fields=("name", "client_uuid", "order_date", "outlet", "field_user", "visit",
+		             "order_status", "credit_status", "approval_status", "net_total",
+		             "total_qty", "total_lines", "expected_delivery_date",
+		             "sent_to_distributor_on", "distributor_reference", "docstatus", "modified"),
 		submit_on_push=True,
 		# An order taken at a shop created the same morning has to travel in the same batch as
 		# that shop, and an order taken during a call has to land after the call it came out of.

@@ -49,6 +49,13 @@ const ICONS = {
   tag: '<path d="M3 12.5V4a1 1 0 0 1 1-1h8.5L21 11.5 12.5 20 3 12.5Z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   gift: '<rect x="3" y="9" width="18" height="11" rx="1"/><path d="M3 13h18"/><path d="M12 9v11"/><path d="M12 9S9.5 9 8 8a2.2 2.2 0 1 1 2.2-3.4C11.4 6 12 9 12 9Z"/><path d="M12 9s2.5 0 4-1a2.2 2.2 0 1 0-2.2-3.4C12.6 6 12 9 12 9Z"/>',
   cart: '<circle cx="9.5" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/><path d="M2 3h3l2.6 11.3a1 1 0 0 0 1 .7h8.4a1 1 0 0 0 1-.8L21 7H6"/>',
+  // Phase 7. Three marks the performance and expense screens need and nothing else carries:
+  // a target to aim at, a line going the right way, and a bill.
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/>',
+  trend: '<path d="m3 17 5.5-5.5 3.5 3.5L21 6"/><path d="M15 6h6v6"/>',
+  receipt: '<path d="M5 3v18l2.5-1.5L10 21l2.5-1.5L15 21l2.5-1.5L20 21V3z"/><path d="M8.5 8h7"/><path d="M8.5 12h7"/>',
+  // A route travelled, for the distance the trail recorded.
+  route: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>',
 }
 
 const props = defineProps({

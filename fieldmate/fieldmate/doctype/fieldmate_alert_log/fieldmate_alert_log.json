@@ -1,0 +1,57 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-09-26 16:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rule", "exception", "field_user", "occurred_on",
+  "column_head", "severity", "fired_on", "notified_count",
+  "section_what", "observed_value", "threshold", "base_value", "column_what", "consecutive_days", "message",
+  "section_key", "occurrence_key"
+ ],
+ "fields": [
+  {"fieldname": "rule", "fieldtype": "Link", "label": "Rule", "options": "FieldMate Alert Rule", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1},
+  {"fieldname": "exception", "fieldtype": "Data", "label": "Exception", "read_only": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "field_user", "fieldtype": "Link", "label": "Field User", "options": "FieldMate Field User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1},
+  {"fieldname": "occurred_on", "fieldtype": "Date", "label": "For The Day", "reqd": 1, "in_list_view": 1, "search_index": 1,
+   "description": "The day the exception happened, not the day it was noticed. A rollup that runs late must not file Monday's silence under Wednesday."},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "severity", "fieldtype": "Select", "label": "Severity", "options": "Info\nWarning\nCritical", "read_only": 1, "in_standard_filter": 1},
+  {"fieldname": "fired_on", "fieldtype": "Datetime", "label": "Noticed At", "read_only": 1},
+  {"fieldname": "notified_count", "fieldtype": "Int", "label": "People Told", "read_only": 1},
+
+  {"fieldname": "section_what", "fieldtype": "Section Break", "label": "What Was Seen"},
+  {"fieldname": "observed_value", "fieldtype": "Float", "label": "Observed", "read_only": 1, "precision": "2"},
+  {"fieldname": "threshold", "fieldtype": "Float", "label": "Threshold", "read_only": 1, "precision": "2"},
+  {"fieldname": "base_value", "fieldtype": "Float", "label": "Out Of", "read_only": 1, "precision": "2",
+   "description": "The denominator the observed figure was measured over. An alert saying 0% with no base is an alert nobody can act on - it might be a bad day or an empty one."},
+  {"fieldname": "column_what", "fieldtype": "Column Break"},
+  {"fieldname": "consecutive_days", "fieldtype": "Int", "label": "Days Running", "read_only": 1},
+  {"fieldname": "message", "fieldtype": "Small Text", "label": "Message", "read_only": 1},
+
+  {"fieldname": "section_key", "fieldtype": "Section Break", "label": "Idempotency", "collapsible": 1},
+  {"fieldname": "occurrence_key", "fieldtype": "Data", "label": "Occurrence Key", "unique": 1, "read_only": 1,
+   "description": "Rule, rep and day. Unique, so the same occurrence cannot be logged twice however many times the job runs - which is Gate 8 criterion 5, enforced by the database rather than by remembering to check."}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-26 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Alert Log",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1, "export": 1}
+ ],
+ "search_fields": "rule,field_user,occurred_on,exception",
+ "sort_field": "occurred_on",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

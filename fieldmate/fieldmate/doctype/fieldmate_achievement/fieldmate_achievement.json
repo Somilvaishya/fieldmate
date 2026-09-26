@@ -1,0 +1,60 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-09-26 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "target_plan", "plan_name", "sales_person", "field_user",
+  "column_head", "company", "from_date", "to_date", "computed_on",
+  "section_headline", "headline_pct", "calls", "column_headline", "productive_calls", "order_count",
+  "section_lines", "lines"
+ ],
+ "fields": [
+  {"fieldname": "target_plan", "fieldtype": "Link", "label": "Target Plan", "options": "FieldMate Target Plan",
+   "reqd": 1, "unique": 1, "in_list_view": 1, "search_index": 1,
+   "description": "One snapshot per plan, rewritten in place by the nightly job. Unique on purpose: two snapshots for one plan is two answers to the same question, and nothing downstream could choose between them."},
+  {"fieldname": "plan_name", "fieldtype": "Data", "label": "Plan", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "sales_person", "fieldtype": "Link", "label": "Sales Person", "options": "Sales Person", "read_only": 1, "in_standard_filter": 1, "search_index": 1},
+  {"fieldname": "field_user", "fieldtype": "Link", "label": "Field User", "options": "FieldMate Field User", "read_only": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "read_only": 1},
+  {"fieldname": "from_date", "fieldtype": "Date", "label": "From", "read_only": 1, "in_standard_filter": 1},
+  {"fieldname": "to_date", "fieldtype": "Date", "label": "To", "read_only": 1},
+  {"fieldname": "computed_on", "fieldtype": "Datetime", "label": "Computed On", "read_only": 1,
+   "description": "When the figures below were last counted. Shown on the rep's screen, because a percentage with no timestamp invites the one question the screen cannot answer: is this today or last Tuesday."},
+
+  {"fieldname": "section_headline", "fieldtype": "Section Break", "label": "Where They Stand"},
+  {"fieldname": "headline_pct", "fieldtype": "Percent", "label": "Achievement", "read_only": 1, "in_list_view": 1,
+   "description": "The value target, where there is one, because that is the number everybody means when they ask how somebody is doing. Not an average of the six - averaging a rupee target with a lines-per-call target produces a figure that is not a quantity."},
+  {"fieldname": "calls", "fieldtype": "Int", "label": "Calls", "read_only": 1},
+  {"fieldname": "column_headline", "fieldtype": "Column Break"},
+  {"fieldname": "productive_calls", "fieldtype": "Int", "label": "Productive Calls", "read_only": 1},
+  {"fieldname": "order_count", "fieldtype": "Int", "label": "Orders", "read_only": 1},
+
+  {"fieldname": "section_lines", "fieldtype": "Section Break", "label": "Against Each Target"},
+  {"fieldname": "lines", "fieldtype": "Table", "label": "Lines", "options": "FieldMate Achievement Line", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-26 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Achievement",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Field Rep", "read": 1}
+ ],
+ "search_fields": "field_user,plan_name,from_date,headline_pct",
+ "sort_field": "from_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "plan_name",
+ "track_changes": 0
+}
