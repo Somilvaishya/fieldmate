@@ -31,7 +31,12 @@ def targets(prefix: str = "G_"):
     is a single-character SQL wildcard rather than a regex.
     """
     return [
-        # Phase 7 first of all: a payout links to an achievement, which links to a plan, which
+        # Phase 8 first: nothing links to these, and Gate 8 writes thousands of them.
+        ("FieldMate Alert Log", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
+        ("FieldMate Alert Rule", {"rule_name": ["like", f"{prefix}-RULE-%"]}),
+        ("FieldMate KPI Snapshot", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
+
+        # Phase 7 next: a payout links to an achievement, which links to a plan, which
         # links to the plan above it. Children before parents, or the cascade refuses to come
         # apart - and Gate 7 builds 250 of them.
         ("FieldMate Incentive Payout", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
@@ -52,6 +57,7 @@ def targets(prefix: str = "G_"):
         ("FieldMate Portal User", {"name": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
         ("FieldMate Scheme Ledger", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
         ("FieldMate Scheme", {"scheme_name": ["like", f"{prefix}-SCH-%"]}),
+        ("FieldMate Order Approval Rule", {"rule_name": ["like", f"{prefix}-RULE-%"]}),
 
         ("FieldMate Van Settlement", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
         ("FieldMate Van Load", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),

@@ -78,6 +78,17 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 	if not outlet:
 		frappe.throw("An order needs a shop.")
 
+	# A push that already landed comes back as itself. The phone assigns identity and the server
+	# honours it - the rule the whole sync spine is built on - and this was the one create in the
+	# app that did not honour it. `sync.push` upserts on the uuid, so an offline order was always
+	# safe; an ONLINE submit whose answer never arrived raised a raw duplicate-key error instead,
+	# and the rep, told only that it had failed, retyped the cart.
+	uuid = data.get("client_uuid")
+	if uuid:
+		existing = frappe.db.get_value("FieldMate Order", {"client_uuid": uuid}, "name")
+		if existing:
+			return summarise(frappe.get_doc("FieldMate Order", existing))
+
 	lines = data.get("lines") or data.get("items") or []
 	if not lines:
 		frappe.throw("There is nothing in this order yet.")
@@ -347,6 +358,19 @@ def route(doc) -> None:
 	never touches this service. Anything that only ran here would simply not happen for the
 	offline majority.
 	"""
+	# An order waiting on a manager goes nowhere yet.
+	#
+	# `_write_credit` had been recording the breach, picking the approval rule and setting
+	# `approval_status` to Pending - and then this function handed the order to the distributor
+	# anyway. The approval existed on the document and stopped nothing, which is the worst shape
+	# a control can have: it reads as enforced in Desk and is not.
+	#
+	# Held before the accrual too. A rejected order that had already consumed scheme budget
+	# would overstate trade spend for a sale that never happened.
+	if cint(doc.approval_required) and doc.approval_status != "Approved":
+		doc.db_set("order_status", "Pending Approval", update_modified=False)
+		return
+
 	seller = credit_service.we_are_the_seller(doc.outlet, doc.field_user)
 
 	if seller["routes_to_distributor"]:
@@ -530,8 +554,16 @@ def approve(name: str, decision: str, remarks: str | None = None,
 		doc.db_set("approval_remarks", remarks, update_modified=False)
 	doc.db_set("credit_status", "Approved" if decision == "Approved" else doc.credit_status,
 	           update_modified=False)
-	doc.db_set("order_status", "Approved" if decision == "Approved" else "Rejected",
-	           update_modified=False)
+
+	if decision == "Approved":
+		# Release it through `route`, not by setting a status here. Routing is where the order
+		# reaches the distributor's queue, where the scheme benefits accrue and where the visit
+		# is rolled up - all of which were held while it waited. Writing "Approved" onto the
+		# field instead would leave an approved order that nobody was ever handed.
+		route(frappe.get_doc("FieldMate Order", name))
+	else:
+		doc.db_set("order_status", "Rejected", update_modified=False)
+
 	return summarise(frappe.get_doc("FieldMate Order", name))
 
 
