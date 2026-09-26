@@ -1,0 +1,57 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:user",
+ "creation": "2026-09-26 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user", "full_name", "distributor", "column_head", "designation", "is_active", "last_seen_on",
+  "section_rights", "can_accept_orders", "can_raise_claims", "column_rights", "notes"
+ ],
+ "fields": [
+  {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User", "reqd": 1, "unique": 1,
+   "in_list_view": 1, "search_index": 1,
+   "description": "The login. One row per person, not per distributor: a depot has a storekeeper taking orders and an accountant chasing claims, and a shared login makes every audit trail useless."},
+  {"fieldname": "full_name", "fieldtype": "Data", "label": "Name", "fetch_from": "user.full_name", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile",
+   "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1,
+   "description": "The one thing the whole portal is scoped by. Every query a portal session makes is narrowed to this profile, and a document belonging to anyone else is refused rather than hidden."},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "designation", "fieldtype": "Select", "label": "Role At Depot",
+   "options": "Owner\nStorekeeper\nAccountant", "default": "Owner", "in_list_view": 1,
+   "description": "What this person does at the depot. It labels the session on screen and in the ingest log; the two check boxes below are what actually decide anything."},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1", "in_standard_filter": 1,
+   "description": "Cleared when somebody leaves the depot. The login may still exist for other reasons, so access is revoked here rather than by deleting a User."},
+  {"fieldname": "last_seen_on", "fieldtype": "Datetime", "label": "Last Seen", "read_only": 1},
+
+  {"fieldname": "section_rights", "fieldtype": "Section Break", "label": "What They May Do"},
+  {"fieldname": "can_accept_orders", "fieldtype": "Check", "label": "May Accept Orders", "default": "1",
+   "description": "Moving an order through the queue commits the depot to supplying it. An accountant reading the same screen should not be able to."},
+  {"fieldname": "can_raise_claims", "fieldtype": "Check", "label": "May Raise Claims", "default": "1",
+   "description": "Raising a claim asks us for money. A storekeeper who can accept an order has no business doing that."},
+  {"fieldname": "column_rights", "fieldtype": "Column Break"},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-26 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Portal User",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1, "export": 1}
+ ],
+ "search_fields": "distributor,full_name,designation",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name",
+ "track_changes": 1
+}

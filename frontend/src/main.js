@@ -67,6 +67,13 @@ const router = createRouter({
     { path: '/outstanding/:outlet', component: () => import('./screens/Outstanding.vue'), name: 'outstanding' },
     { path: '/collect/:outlet', component: () => import('./screens/CollectionEntry.vue'), name: 'collect' },
     { path: '/deposit', component: () => import('./screens/DepositDeclare.vue'), name: 'deposit' },
+
+    // Phase 7. Both belong to the rep rather than to a shop or a day, so neither takes an id.
+    // Performance is a read of last night's snapshot; the expense claim reads the trail for
+    // whichever day it is asked about, which is why the date is a control on the screen and
+    // not a parameter in the URL.
+    { path: '/performance', component: () => import('./screens/MyPerformance.vue'), name: 'performance' },
+    { path: '/expense', component: () => import('./screens/ExpenseClaim.vue'), name: 'expense' },
   ],
 })
 

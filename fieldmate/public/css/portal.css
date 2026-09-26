@@ -1,0 +1,205 @@
+/* The distributor portal.
+   Same tokens as the rep's PWA (frontend/src/style.css), different constraints. A rep works
+   standing, one-handed, in sunlight; a depot works sitting, on a desktop, with a keyboard and a
+   printer. So the touch targets come down, the density goes up, and the numbers line up in
+   columns - but the palette, the status colours and their contrast ratios are the audited ones
+   and are not re-picked by eye here. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --sunken: #eff1f4;
+  --ink: #05172e;
+  --muted: #465972;
+  --line: #bfc7d2;
+  --line-soft: #dfe4ea;
+
+  --primary: #092850;
+  --primary-soft: #e6eaee;
+  --on-primary: #ffffff;
+  --accent: #3bbf62;
+
+  --ok: #277d40;
+  --ok-soft: #e4f6e9;
+  --warn: #955f07;
+  --warn-soft: #f9ecd8;
+  --crit: #c62a25;
+  --crit-soft: #fae4e3;
+
+  --rail: 248px;
+  --head: 60px;
+
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
+a { color: var(--primary); }
+.tnum { font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------- shell */
+.head {
+  position: fixed; inset: 0 0 auto 0; height: var(--head); z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--line-soft);
+}
+.head .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.head .mark {
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+  background: var(--primary); color: var(--on-primary);
+  display: grid; place-items: center; font-weight: 700; font-size: 15px;
+}
+.head .title { font-weight: 650; line-height: 1.2; }
+.head .sub { color: var(--muted); font-size: 13px; line-height: 1.2; }
+.head .who { text-align: right; line-height: 1.25; }
+.head .who b { font-weight: 650; }
+.head .who span { display: block; color: var(--muted); font-size: 13px; }
+
+.rail {
+  position: fixed; top: var(--head); bottom: 0; left: 0; width: var(--rail); z-index: 10;
+  background: var(--surface); border-right: 1px solid var(--line-soft);
+  padding: 14px 12px; display: flex; flex-direction: column; gap: 4px;
+}
+.rail .eyebrow {
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); padding: 4px 10px 8px;
+}
+.rail a {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+  color: var(--muted); text-decoration: none; font-weight: 500;
+}
+.rail a:hover { background: var(--sunken); color: var(--ink); }
+.rail a[aria-current="page"] { background: var(--primary); color: var(--on-primary); font-weight: 650; }
+.rail .foot { margin-top: auto; font-size: 12px; color: var(--muted); padding: 10px 12px;
+              background: var(--sunken); border-radius: 8px; }
+
+main { padding: calc(var(--head) + 20px) 20px 48px calc(var(--rail) + 20px); }
+.page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+             gap: 12px; margin-bottom: 16px; }
+h1 { font-size: 22px; line-height: 1.2; margin: 0; letter-spacing: -.01em; }
+.page-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+
+/* ---------------------------------------------------------------- tiles */
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+         margin-bottom: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px;
+        padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.tile .label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tile .count { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.tile .count small { font-size: 13px; font-weight: 400; color: var(--muted); }
+.tile .value { font-size: 17px; font-weight: 650; }
+.tile .note { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line-soft);
+              padding-top: 8px; margin-top: 2px; }
+.tile.is-warn .value { color: var(--warn); }
+.tile.is-ok .value { color: var(--ok); }
+.tile.is-crit .value { color: var(--crit); }
+
+/* ---------------------------------------------------------------- controls */
+.bar { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px;
+       padding: 12px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
+.bar .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar .row .grow { flex: 1 1 260px; }
+input, select, button, textarea { font: inherit; }
+input, select, textarea {
+  min-height: 38px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink); width: 100%;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 1px;
+}
+button { min-height: 38px; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+         border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+         font-weight: 600; }
+button:hover:not(:disabled) { background: var(--sunken); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+button.primary:hover:not(:disabled) { background: #0c3467; }
+button.quiet { border-color: transparent; background: transparent; color: var(--muted); }
+button.danger { color: var(--crit); border-color: var(--line); }
+button.danger:hover:not(:disabled) { background: var(--crit-soft); }
+button.sm { min-height: 30px; padding: 3px 10px; font-size: 13px; }
+
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-top: 1px solid var(--line-soft);
+        padding-top: 10px; }
+.tabs button { border: 0; background: transparent; color: var(--muted); font-weight: 500;
+               border-radius: 8px; }
+.tabs button[aria-selected="true"] { background: var(--sunken); color: var(--ink); font-weight: 650; }
+.tabs .n { color: var(--muted); font-weight: 400; margin-left: 4px; }
+
+/* ---------------------------------------------------------------- table */
+.card { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px;
+        overflow: hidden; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; padding: 10px 12px; white-space: nowrap;
+  background: var(--sunken); border-bottom: 1px solid var(--line-soft);
+}
+tbody td { padding: 11px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr.clickable:hover { background: var(--sunken); }
+td.num, th.num { text-align: right; }
+.strong { font-weight: 650; }
+.dim { color: var(--muted); font-size: 12px; }
+.mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+        font-size: 12px; font-weight: 650; white-space: nowrap; }
+.pill.ok   { background: var(--ok-soft);   color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.crit { background: var(--crit-soft); color: var(--crit); }
+.pill.calm { background: var(--primary-soft); color: var(--primary); }
+.pill.flat { background: var(--sunken); color: var(--muted); }
+
+.twisty { border: 0; background: transparent; color: var(--muted); min-height: 24px;
+          padding: 0 4px; font-size: 13px; cursor: pointer; }
+
+/* ---------------------------------------------------------------- detail drawer */
+.drawer td { background: var(--sunken); padding: 0; border-bottom: 1px solid var(--line-soft); }
+.drawer .inner { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.drawer .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+                padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.drawer .lines { background: var(--surface); border: 1px solid var(--line-soft);
+                 border-radius: 8px; overflow: hidden; }
+.drawer .lines thead th { background: var(--surface); }
+.drawer .panes { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.pane { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 8px;
+        padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.pane h3 { margin: 0; font-size: 13px; font-weight: 650; }
+.pane .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.pane .kv span:first-child { color: var(--muted); }
+.pane .total { border-top: 1px solid var(--line-soft); padding-top: 6px; font-weight: 700; }
+.pane .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.quote { background: var(--sunken); border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+.free { color: var(--ok); font-weight: 650; }
+
+/* ---------------------------------------------------------------- misc */
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+        padding: 10px 12px; background: var(--sunken); border-top: 1px solid var(--line-soft);
+        font-size: 12px; color: var(--muted); }
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.notice { border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.notice.crit { background: var(--crit-soft); color: var(--crit); }
+.notice.ok   { background: var(--ok-soft);   color: var(--ok); }
+.notice.warn { background: var(--warn-soft); color: var(--warn); }
+
+dialog { border: 0; border-radius: 12px; padding: 0; max-width: 420px; width: calc(100% - 32px); }
+dialog::backdrop { background: rgba(5, 23, 46, .45); }
+dialog .body { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+dialog h2 { margin: 0; font-size: 17px; }
+dialog .actions { display: flex; gap: 8px; justify-content: flex-end; }
+label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+
+/* A depot on a laptop is the common case; a depot on a tablet at the loading bay is not rare.
+   Below the rail's width the navigation moves above the content rather than disappearing. */
+@media (max-width: 900px) {
+  .rail { position: static; width: auto; height: auto; flex-direction: row; flex-wrap: wrap;
+          border-right: 0; border-bottom: 1px solid var(--line-soft); padding-top: calc(var(--head) + 8px); }
+  .rail .eyebrow, .rail .foot { display: none; }
+  main { padding: 16px; }
+}

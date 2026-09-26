@@ -1,0 +1,37 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-26 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": [
+  "target_type", "item_group", "brand", "target_value", "is_additive", "notes"
+ ],
+ "fields": [
+  {"fieldname": "target_type", "fieldtype": "Select", "label": "Target",
+   "options": "Value\nVolume\nOutlet Coverage\nProductive Calls\nNew Outlets\nLines Per Call",
+   "reqd": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "item_group", "fieldtype": "Link", "label": "Category", "options": "Item Group", "in_list_view": 1, "columns": 2,
+   "description": "Blank means the whole book. Set it to carry a category target beside the overall one - a rep can be at 110% overall and at 48% on tea, and only the second is worth a conversation."},
+  {"fieldname": "brand", "fieldtype": "Link", "label": "Brand", "options": "Brand", "in_list_view": 1, "columns": 2},
+  {"fieldname": "target_value", "fieldtype": "Float", "label": "Target", "reqd": 1, "in_list_view": 1, "columns": 2, "precision": "2",
+   "description": "Read in the unit the type implies: rupees for Value, base units for Volume, a count for the three counting types, and lines per productive call for the last one."},
+  {"fieldname": "is_additive", "fieldtype": "Check", "label": "Additive", "read_only": 1, "default": "1",
+   "description": "Set from the type, never by hand. An additive target is split among the children when it cascades; a ratio is copied to each of them unchanged. Stored rather than re-derived so a cascade can be read back and checked a year later against the rule that was in force when it ran."},
+  {"fieldname": "notes", "fieldtype": "Data", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-26 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Target Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "idx",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

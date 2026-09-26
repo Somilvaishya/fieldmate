@@ -34,6 +34,11 @@ DEFAULTS = {
 	"gps_trail_retention_days": 180,
 	"selfie_retention_days": 30,
 	"visit_photo_retention_days": 365,
+	# Phase 7. A tolerance and a receipt threshold both have defensible defaults; the three
+	# money rates do not, and are in `extra` below so that an unset rate reads as unset rather
+	# than as a number this app chose for somebody's reps.
+	"expense_receipt_required_above": 500,
+	"expense_distance_tolerance_pct": 10,
 }
 
 
@@ -45,7 +50,13 @@ def get() -> dict:
 
 	doc = frappe.get_single("FieldMate Settings")
 	values = dict(DEFAULTS)
-	extra = ("default_company", "default_price_list", "support_contact", "day_start_alert_time")
+	# Settings with no sensible default, so they are not in DEFAULTS and have to be named here.
+	# A field added to the DocType and not added to this tuple reads as unset for ever, which is
+	# how Phase 9 shipped a settlement item the claim code could never see - it is worth a moment
+	# when adding the next one.
+	extra = ("default_company", "default_price_list", "support_contact", "day_start_alert_time",
+	         "claim_settlement_item", "claim_expense_account", "claim_cost_center",
+	         "travel_rate_per_km", "daily_food_allowance", "daily_stay_allowance")
 	for key in (*DEFAULTS, *extra):
 		value = doc.get(key)
 		if value not in (None, ""):

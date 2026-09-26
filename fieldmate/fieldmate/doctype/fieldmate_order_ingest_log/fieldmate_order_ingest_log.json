@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-09-26 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series", "logged_on", "order", "distributor",
+  "column_head", "action", "from_status", "to_status", "source",
+  "section_who", "portal_user", "acted_by", "column_who", "distributor_reference", "remarks",
+  "section_key", "request_key"
+ ],
+ "fields": [
+  {"fieldname": "naming_series", "fieldtype": "Select", "label": "Series", "options": "FM-OIL-.YYYY.-.######", "default": "FM-OIL-.YYYY.-.######", "reqd": 1},
+  {"fieldname": "logged_on", "fieldtype": "Datetime", "label": "Logged On", "reqd": 1, "in_list_view": 1, "search_index": 1},
+  {"fieldname": "order", "fieldtype": "Link", "label": "Order", "options": "FieldMate Order", "reqd": 1,
+   "in_list_view": 1, "in_standard_filter": 1, "search_index": 1},
+  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile",
+   "in_standard_filter": 1, "search_index": 1},
+  {"fieldname": "column_head", "fieldtype": "Column Break"},
+  {"fieldname": "action", "fieldtype": "Select", "label": "Action",
+   "options": "Accepted\nRejected\nInvoiced\nDelivered\nReopened\nReference Set",
+   "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "from_status", "fieldtype": "Data", "label": "From", "read_only": 1},
+  {"fieldname": "to_status", "fieldtype": "Data", "label": "To", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "source", "fieldtype": "Select", "label": "Source", "options": "Portal\nAPI\nDesk",
+   "default": "Portal", "reqd": 1, "in_standard_filter": 1,
+   "description": "Where the move came from. A status somebody set on a Desk form and a status a depot set on the portal look identical on the order itself, and they are not the same evidence."},
+
+  {"fieldname": "section_who", "fieldtype": "Section Break", "label": "Who Moved It"},
+  {"fieldname": "portal_user", "fieldtype": "Link", "label": "Portal User", "options": "FieldMate Portal User"},
+  {"fieldname": "acted_by", "fieldtype": "Link", "label": "Acted By", "options": "User", "reqd": 1},
+  {"fieldname": "column_who", "fieldtype": "Column Break"},
+  {"fieldname": "distributor_reference", "fieldtype": "Data", "label": "Distributor Reference",
+   "description": "The depot invoice or challan number quoted with this move. It is the only thread back from our order to a bill raised out of their stock, which is the one thing nobody can reconstruct afterwards."},
+  {"fieldname": "remarks", "fieldtype": "Small Text", "label": "Remarks"},
+
+  {"fieldname": "section_key", "fieldtype": "Section Break", "label": "Idempotency", "collapsible": 1},
+  {"fieldname": "request_key", "fieldtype": "Data", "label": "Request Key", "unique": 1, "no_copy": 1,
+   "description": "Derived from the order and the move being asked for. A depot on a bad connection taps Accept twice, and the second tap must be the same answer rather than a second row saying the order was accepted again a minute later."}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-26 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Order Ingest Log",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "report": 1, "export": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1, "export": 1}
+ ],
+ "search_fields": "order,action,distributor",
+ "sort_field": "logged_on",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

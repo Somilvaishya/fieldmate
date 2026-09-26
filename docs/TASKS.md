@@ -176,13 +176,13 @@ opening + primary billing − closing        = secondary sale
 
 ## Phase 7 — Targets, incentives, expenses · 2 weeks
 
-- [ ] 7.1 `FieldMate Target Plan` + `FieldMate Target Line` + cascade down the Sales Person tree
-- [ ] 7.2 `FieldMate Achievement` + nightly computation (6 target types)
-- [ ] 7.3 `FieldMate Incentive Scheme` + `Slab` + `FieldMate Incentive Payout`
-- [ ] 7.4 Expense Claim extension with GPS-derived distance
-- [ ] 7.5 APIs: `target.my_targets`, `target.achievement`, `expense.create_claim`, `expense.my_claims`
-- [ ] 7.6 PWA: My performance, claim entry
-- [ ] **Gate 7** — verify all 5 criteria on testerp2
+- [x] 7.1 `FieldMate Target Plan` + `FieldMate Target Line` + cascade down the Sales Person tree
+- [x] 7.2 `FieldMate Achievement` + nightly computation (6 target types, ADR-028)
+- [x] 7.3 `FieldMate Incentive Scheme` + `Slab` + `FieldMate Incentive Payout`
+- [x] 7.4 Expense Claim extension with GPS-derived distance (ADR-029)
+- [x] 7.5 APIs: `target.my_targets`, `target.achievement`, `expense.create_claim`, `expense.my_claims`
+- [x] 7.6 PWA: My performance, claim entry
+- [x] **Gate 7** — verify all 5 criteria on testerp2
 
 ## Phase 8 — Analytics and alerts · 1.5 weeks
 
@@ -197,11 +197,11 @@ opening + primary billing − closing        = secondary sale
 
 ## Phase 9 — Distributor portal and claims · 1.5 weeks
 
-- [ ] 9.1 `FieldMate Claim` + `FieldMate Claim Item` from the Scheme Ledger
-- [ ] 9.2 Claim approval + Credit Note via compat
-- [ ] 9.3 `FieldMate Portal User`, `FieldMate Order Ingest Log`
-- [ ] 9.4 Portal web pages + APIs: `portal.distributor_orders`, `portal.claim_status`
-- [ ] **Gate 9** — verify all 4 criteria on testerp2
+- [x] 9.1 `FieldMate Claim` + `FieldMate Claim Item` from the Scheme Ledger
+- [x] 9.2 Claim approval + Credit Note via compat (ADR-026)
+- [x] 9.3 `FieldMate Portal User`, `FieldMate Order Ingest Log`
+- [x] 9.4 Portal web pages + APIs: `portal.distributor_orders`, `portal.claim_status`
+- [x] **Gate 9** — verify all 4 criteria on testerp2
 
 ## Phase 10 — Hardening and pilot · 2 weeks
 

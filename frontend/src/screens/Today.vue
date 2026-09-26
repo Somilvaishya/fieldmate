@@ -385,6 +385,22 @@ onUnmounted(() => {
       </RouterLink>
     </div>
 
+    <!-- Phase 7. Where the rep goes to find out how the month is going, and to claim the day
+         back. Both sit here because there is nowhere else: neither belongs to a shop or a
+         visit, and a screen with no way in is a screen that does not exist. -->
+    <div class="van">
+      <RouterLink to="/performance" class="vcard">
+        <Icon name="target" size="20" />
+        <span><b>My performance</b><em>Targets, and what the month is worth</em></span>
+        <Icon name="chevron" size="18" class="go" />
+      </RouterLink>
+      <RouterLink to="/expense" class="vcard">
+        <Icon name="receipt" size="20" />
+        <span><b>Claim expenses</b><em>Travel, food and what you spent today</em></span>
+        <Icon name="chevron" size="18" class="go" />
+      </RouterLink>
+    </div>
+
     <div class="bottom">
       <RouterLink v-if="openVisit" class="btn-primary"
                   :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">

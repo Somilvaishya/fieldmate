@@ -556,3 +556,147 @@ receipt book, the same satchel. Only the counterparty differs, so only the count
   reduced by collections, and it is a **soft** ledger that posts nothing.
 - A bounced cheque reverses whichever of the two it was, and a bounce on a distributor cheque
   additionally cancels its Payment Entry.
+
+## ADR-026 — A claim is settled as trade spend, not as a return of goods
+
+**Decision.** An approved `FieldMate Claim` produces exactly one accounting document: an ERPNext
+**Sales Invoice with `is_return = 1`** against the distributor's Customer, carrying **one line**
+on a configured settlement item, debiting a configured **trade scheme expense account** at a
+configured **cost centre**, with `update_stock` off.
+
+It is raised on **approval**, never on submission, and never per SKU.
+
+**Reason.** The goods reached the distributor at primary billing, at full price, and that sale
+stands. What is being settled is the cost of a promise a rep made at a shop counter out of the
+distributor's stock — trade spend, not a return.
+
+Crediting the SKUs instead would do two wrong things at once. It would restate product revenue
+for a return that never happened, and — with `update_stock` off, which it must be — it would do
+so while putting no goods back. A brand manager reading item-wise credit notes sees a sales
+shortfall where the truth is a scheme that worked.
+
+`update_stock` is off for the same reason every other secondary document in this app posts no
+stock (ADR-023, ADR-024): from primary billing onward the stock is the distributor's.
+
+**Consequences.**
+- Three settings carry the configuration: `claim_settlement_item`, `claim_expense_account`,
+  `claim_cost_center`. The expense account and cost centre fall back to the item and company
+  defaults; the settlement item does not fall back, and `compat.make_credit_note` **refuses to
+  post without one** rather than inventing an item.
+- Approval and settlement are separate states on the claim, because at most companies they are
+  separate decisions weeks apart. `approve(..., settle=True)` does both where they are one person.
+- The credit note is keyed on `CLAIM:<name>` in `fm_source_key`, so an approval clicked twice on
+  a slow connection returns the note that already exists. `Sales Invoice` joins `Sales Order` and
+  `Payment Entry` in `IDEMPOTENCY_FIELDS`.
+- An **Incentive** ledger row is never claimable. It is what the rep earned; it never came off a
+  shop bill and the distributor was never out of pocket for it. Claiming it would pay the same
+  money twice.
+- Reversal cancels the note **before** releasing the claim, because Frappe checks back-links
+  first. That is the third time this trap has been hit — Scheme Ledger on order cancel, Payment
+  Entry on a bounced collection, and now this — so it is a test rather than a comment.
+
+## ADR-027 — The portal is scoped in two places, and neither is the template
+
+**Decision.** Every distributor portal session resolves through one function, `portal.me()`,
+which reads a `FieldMate Portal User` row. Scoping is then applied **twice**: in the service
+layer, where `assert_scope` refuses a document belonging to another depot, and at the framework
+layer, through `permission_query_conditions` and `has_permission` hooks on `FieldMate Order` and
+`FieldMate Claim`.
+
+A portal user holds `read` and nothing else on any DocType. Every move is server-elevated after
+the scope check — the same posture as a Field Rep (ADR-004).
+
+**Reason.** The service layer covers the two screens the portal ships. The framework layer covers
+everything else: a report, a Desk list, an `api.resource` call, a query added next year by
+somebody who has never read this file. Either one on its own is a rule with a hole in it.
+
+A depot login is an ordinary Frappe login, so a `FieldMate Portal User` attached to a System
+Manager or a FieldMate Admin is refused at validation. Such an account would read as scoped while
+carrying permissions no narrowing here could take away.
+
+**Consequences.**
+- Gate 9 criterion 1 is asserted as a **refusal**, not an absence. Absence from a list proves
+  nothing on a site where the fixture created nothing, so the gate builds a second distributor
+  with a real order and goes after it by name, through both layers.
+- `FieldMate Order` gains `pull=True` in the sync registry. The depot now moves an order through
+  its own states, and the rep is the person the shopkeeper asks the next morning; without a pull
+  the phone would still read "Sent To Distributor" on an order delivered on Tuesday. Push is
+  unchanged: `order_status`, `sent_to_distributor_on` and `distributor_reference` stay
+  server-owned, or the queue would be decorative.
+- Every move the depot makes appends a `FieldMate Order Ingest Log` row in the same call, keyed
+  on order-plus-target-state, so a second tap on a bad connection is the same answer rather than
+  a second event a minute later.
+
+## ADR-028 — Five target types are split; the sixth is copied
+
+**Decision.** Of the six target types, **five are quantities and are divided** among a node's
+children when a plan cascades: Value, Volume, Outlet Coverage, Productive Calls, New Outlets.
+The sixth, **Lines Per Call, is a rate and is copied to every child unchanged.**
+
+The division happens in **whole units** — paise for money, ones for counts — by largest
+remainder, and the leftover units go to the largest share, recorded on the parent.
+
+**Reason.** Gate 7 criterion 1 says "the leaves sum to the root for every target type", and read
+literally that is wrong for one of the six. A root asking for 4.5 lines per productive call is
+asking *each* rep for 4.5. Dividing it between twenty reps would set each of them a target of
+0.225 lines, which is not a smaller version of the same goal — it is a different, meaningless
+one. A rate has no total.
+
+The integer split is the other half. Ten lakh divided three ways in floating point and stored to
+two places gives three numbers that add up to ₹9,99,999.99. Nobody finds that here; they find it
+at month end, in a regional report that is a rupee short, with no way to say which rep is
+carrying the difference. Largest remainder in paise makes the sum exact by construction, and
+ties break on position so a re-run produces the same answer — a cascade that moved the spare
+rupee between reps on every run would be uncheckable.
+
+**Consequences.**
+- `target.reconcile()` reports **per type**, not one verdict: an additive type reports root
+  against the sum of the leaves, a ratio type reports root against the *set* of leaf values and
+  passes only when that set is exactly `{root}`. One boolean could not carry both.
+- `FieldMate Target Line.is_additive` is stamped from the type at save and stored, so a plan
+  cascaded a year ago can still be read against the rule that was in force when it ran.
+- **Shortfall is zero on a ratio line.** A rep at 4.2 against 4.5 is not "0.3 lines behind";
+  they are selling narrower carts. A shortfall figure there would be summed into a total
+  somewhere and mean nothing.
+- The headline percentage on the rep's screen is the **Value** line, not an average of the six.
+  Averaging a rupee target with a lines-per-call target does not produce a quantity.
+- Default cascade weight is **outlet count**, because a rep with 280 shops cannot carry the same
+  number as one with 90 and it is the one weight every site already has without maintaining it.
+
+## ADR-029 — The distance is the server's, the claim is the rep's, the gap is the manager's
+
+**Decision.** A `FieldMate Expense Claim` for travel takes its distance from `FieldMate Location
+Trail`, computed server-side. The rep may claim **more**, and the claim is accepted — but any
+excess beyond a configured tolerance marks the claim `needs_approval`, and **a rep cannot
+approve their own claim** at all.
+
+An approved claim settles as a **draft HRMS Expense Claim** — the fourth and last crossing out
+of FieldMate, and the only one that pays a person rather than a party.
+
+**Reason.** Both halves of the rule are load-bearing and pull in opposite directions.
+
+A device that could state its own mileage could invent it, and this is the one figure in the app
+that turns directly into money. So the trail is read, never accepted.
+
+But a trail is *evidence, not truth*. It drops pings in a basement car park and in a market with
+no signal, and a rep who walked a beat for six hours has a real claim against a thin recording.
+Refusing anything above the trail would make the honest case unfileable, so the excess is
+measured and routed to somebody who can weigh it, along with the ping count so they can tell
+four readings from four hundred.
+
+**Consequences.**
+- `travel_rate_per_km` has **no default**. A claim is refused with a message naming the setting
+  rather than priced at zero — inventing a rate would quietly pay every rep a number nobody at
+  the company chose.
+- The rate is **frozen onto the claim** when it is filed, not read at approval. A rate changed
+  in between must not restate the figure the rep saw on the screen.
+- The HRMS document is left as a **draft**. Submitting it books a liability and, on many sites,
+  starts an approval workflow of its own that this app has no business short-circuiting.
+  FieldMate says what is owed; HR decides when it is payable.
+- Where HRMS is absent, `compat.make_expense_claim` returns None and the claim settles with
+  nothing behind it, saying so. A site running FieldMate before HRMS still has reps owed money,
+  and refusing to record that they were paid would be the worse answer.
+- A rep's own targets, achievement, payouts and claims are scoped by
+  `permission_query_conditions` and `has_permission` (as ADR-027 does for the portal). Territory
+  scoping cannot do this: a target belongs to a person, not a place, and two reps routinely
+  share a territory.

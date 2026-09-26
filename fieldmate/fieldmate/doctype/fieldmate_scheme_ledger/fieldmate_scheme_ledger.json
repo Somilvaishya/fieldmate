@@ -10,7 +10,7 @@
   "naming_series", "posting_date", "scheme", "status",
   "column_head", "order", "outlet", "field_user",
   "section_benefit", "benefit_kind", "item_code", "column_benefit", "benefit_amount", "free_qty",
-  "section_party", "distributor", "company", "column_party", "currency", "settled_on",
+  "section_party", "distributor", "claim", "company", "column_party", "currency", "settled_on",
   "section_sync", "client_uuid", "amended_from"
  ],
  "fields": [
@@ -44,6 +44,9 @@
   {"fieldname": "section_party", "fieldtype": "Section Break", "label": "Who Bears It"},
   {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile", "in_standard_filter": 1,
    "description": "The party who physically gave the discount or the stock. He is out of pocket from the moment the rep promised it, and this row is what he claims against."},
+  {"fieldname": "claim", "fieldtype": "Link", "label": "Claim", "options": "FieldMate Claim",
+   "read_only": 1, "allow_on_submit": 1, "no_copy": 1, "in_standard_filter": 1, "search_index": 1,
+   "description": "Which claim took this accrual off the table. Set when a claim is submitted and cleared when one is cancelled, which is what stops the same benefit being claimed a second time next month. Editable after submit because a claim happens weeks after the accrual and cancelling the row to record one would delete the evidence the claim stands on."},
   {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "reqd": 1},
   {"fieldname": "column_party", "fieldtype": "Column Break"},
   {"fieldname": "currency", "fieldtype": "Link", "label": "Currency", "options": "Currency", "reqd": 1},

@@ -32,6 +32,18 @@
   "section_credit",
   "block_order_on_credit_breach",
   "allow_credit_override",
+  "section_claims",
+  "claim_settlement_item",
+  "claim_expense_account",
+  "column_claims",
+  "claim_cost_center",
+  "section_expenses",
+  "travel_rate_per_km",
+  "daily_food_allowance",
+  "column_expenses",
+  "daily_stay_allowance",
+  "expense_receipt_required_above",
+  "expense_distance_tolerance_pct",
   "section_sync",
   "sync_batch_size",
   "sync_max_retries",
@@ -153,6 +165,67 @@
    "description": "Checked against the distributor in order booking, and against the outlet in van sales."
   },
   {"fieldname": "allow_credit_override", "fieldtype": "Check", "label": "Allow Manager Override", "default": "1"},
+
+  {"fieldname": "section_claims", "fieldtype": "Section Break", "label": "Scheme Claim Settlement",
+   "description": "Where an approved distributor claim lands in the books. A claim is trade spend settled in a lump sum, not a return of goods, so it posts one line against these three and moves no stock."},
+  {
+   "fieldname": "claim_settlement_item",
+   "fieldtype": "Link",
+   "label": "Settlement Item",
+   "options": "Item",
+   "description": "The non-stock item an approved claim is credited against. Crediting the SKUs instead would say we are taking product revenue back, which is not what happened: the goods were sold to the distributor at full price and the scheme is the expense of having promised part of it away at a shop counter."
+  },
+  {
+   "fieldname": "claim_expense_account",
+   "fieldtype": "Link",
+   "label": "Trade Scheme Expense Account",
+   "options": "Account",
+   "description": "Debited by the credit note. Blank falls back to the item default and then to the company default income account, which books the claim as negative sales rather than as trade spend - usable, but it is the number a brand manager reads as a shortfall."
+  },
+  {"fieldname": "column_claims", "fieldtype": "Column Break"},
+  {
+   "fieldname": "claim_cost_center",
+   "fieldtype": "Link",
+   "label": "Claim Cost Center",
+   "options": "Cost Center",
+   "description": "Blank falls back to the company default. Set it where trade spend is budgeted separately from the selling cost centre, which is the usual arrangement once anybody starts asking what a scheme actually cost."
+  },
+
+  {"fieldname": "section_expenses", "fieldtype": "Section Break", "label": "Field Expenses",
+   "description": "What a rep may claim for a day in the market. The travel rate has no default on purpose - inventing one would quietly pay every rep a number nobody at this company chose."},
+  {
+   "fieldname": "travel_rate_per_km",
+   "fieldtype": "Currency",
+   "label": "Travel Rate Per Km",
+   "description": "Multiplied by the distance the GPS trail recorded. Left unset, a travel claim is refused with a message naming this field rather than computed at zero."
+  },
+  {
+   "fieldname": "daily_food_allowance",
+   "fieldtype": "Currency",
+   "label": "Daily Food Allowance",
+   "description": "The most that may be claimed for food on one day in the field."
+  },
+  {"fieldname": "column_expenses", "fieldtype": "Column Break"},
+  {
+   "fieldname": "daily_stay_allowance",
+   "fieldtype": "Currency",
+   "label": "Daily Stay Allowance",
+   "description": "For an outstation night. Zero means stay is not claimable, which is the right answer for a beat a rep goes home from."
+  },
+  {
+   "fieldname": "expense_receipt_required_above",
+   "fieldtype": "Currency",
+   "label": "Receipt Required Above",
+   "default": "500",
+   "description": "A claim over this needs a photograph attached before it can be submitted. Zero means a receipt is never demanded, which is a decision somebody should take rather than inherit."
+  },
+  {
+   "fieldname": "expense_distance_tolerance_pct",
+   "fieldtype": "Percent",
+   "label": "Distance Tolerance",
+   "default": "10",
+   "description": "How far above the recorded trail a rep may claim without a manager. A trail drops pings in a basement car park and in a market with no signal, so a claim a little over the recording is ordinary rather than suspicious. Beyond this, the claim still goes in - it just waits for somebody to agree."
+  },
 
   {"fieldname": "section_sync", "fieldtype": "Section Break", "label": "Sync"},
   {"fieldname": "sync_batch_size", "fieldtype": "Int", "label": "Sync Batch Size", "default": "50"},

@@ -1,0 +1,43 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-26 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": [
+  "scheme_ledger", "scheme", "order", "outlet", "posting_date",
+  "benefit_kind", "item_code", "benefit_amount", "free_qty", "field_user"
+ ],
+ "fields": [
+  {"fieldname": "scheme_ledger", "fieldtype": "Link", "label": "Ledger Entry", "options": "FieldMate Scheme Ledger",
+   "reqd": 1, "in_list_view": 1, "columns": 2, "read_only": 1,
+   "description": "The accrual this line claims against. A claim line that cannot name one is a claim for a benefit nobody recorded granting, which is the whole argument a claim exists to settle."},
+  {"fieldname": "scheme", "fieldtype": "Link", "label": "Scheme", "options": "FieldMate Scheme", "read_only": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "order", "fieldtype": "Link", "label": "Order", "options": "FieldMate Order", "read_only": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "outlet", "fieldtype": "Link", "label": "Outlet", "options": "FieldMate Outlet", "read_only": 1},
+  {"fieldname": "posting_date", "fieldtype": "Date", "label": "Date", "read_only": 1},
+  {"fieldname": "benefit_kind", "fieldtype": "Select", "label": "Benefit",
+   "options": "Free Goods\nPercent Discount\nValue Discount\nRate Off\nIncentive", "read_only": 1, "in_list_view": 1, "columns": 1},
+  {"fieldname": "item_code", "fieldtype": "Link", "label": "Item", "options": "Item", "read_only": 1},
+  {"fieldname": "benefit_amount", "fieldtype": "Currency", "label": "Claimed", "options": "currency",
+   "read_only": 1, "in_list_view": 1, "columns": 2,
+   "description": "Copied from the ledger, never retyped. The distributor claims what was granted, not what he remembers granting."},
+  {"fieldname": "free_qty", "fieldtype": "Float", "label": "Free Qty", "read_only": 1,
+   "description": "Base units handed over. A distributor reconciles free goods in stock as well as in rupees, so the count travels with the valuation."},
+  {"fieldname": "field_user", "fieldtype": "Link", "label": "Rep", "options": "FieldMate Field User", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-26 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Claim Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

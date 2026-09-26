@@ -125,13 +125,33 @@ after_migrate = [
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
+# A distributor portal session is narrowed to its own depot by the framework as well as by
+# `services.portal`, which is the only thing that calls it. Belt and braces on purpose: the
+# service layer covers the portal's own screens, and these two cover every other route into the
+# same rows - a report, a Desk list, an api.resource call, anything added later that forgets.
+# Both return a no-op for every session that is not a portal user, which is nearly all of them.
 #
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+# Phase 7 adds a second, narrower rule on the four DocTypes that carry somebody's own numbers.
+# Territory scoping cannot cover these: a target belongs to a person, not to a place, and two
+# reps routinely share a territory. A rep sees the rows that name them; every manager keeps the
+# full view.
+permission_query_conditions = {
+	"FieldMate Order": "fieldmate.services.portal.order_query",
+	"FieldMate Claim": "fieldmate.services.portal.claim_query",
+	"FieldMate Target Plan": "fieldmate.services.field_user.target_plan_query",
+	"FieldMate Achievement": "fieldmate.services.field_user.achievement_query",
+	"FieldMate Incentive Payout": "fieldmate.services.field_user.incentive_payout_query",
+	"FieldMate Expense Claim": "fieldmate.services.field_user.expense_claim_query",
+}
+
+has_permission = {
+	"FieldMate Order": "fieldmate.services.portal.order_permission",
+	"FieldMate Claim": "fieldmate.services.portal.claim_permission",
+	"FieldMate Target Plan": "fieldmate.services.field_user.own_row_permission",
+	"FieldMate Achievement": "fieldmate.services.field_user.own_row_permission",
+	"FieldMate Incentive Payout": "fieldmate.services.field_user.own_row_permission",
+	"FieldMate Expense Claim": "fieldmate.services.field_user.own_row_permission",
+}
 
 # DocType Class
 # ---------------
@@ -268,5 +288,9 @@ scheduler_events = {
 		"fieldmate.tasks.close_stale_days",
 		# GPS trails track a named employee. Keep them only as long as FieldMate Settings says.
 		"fieldmate.tasks.purge_old_trails",
+		# Re-measure every live target plan. This is what makes a rep's performance screen a
+		# read of one stored row rather than a count over a month of orders on every open
+		# (Gate 7 criterion 5).
+		"fieldmate.tasks.measure_targets",
 	],
 }

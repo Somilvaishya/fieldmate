@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Queue · {{ depot_name }}</title>
+<link rel="stylesheet" href="/assets/fieldmate/css/portal.css">
+<script>window.frappe = {csrf_token: "{{ frappe.session.csrf_token }}"};</script>
+</head>
+<body>
+
+<header class="head">
+  <div class="brand">
+    <div class="mark">FM</div>
+    <div>
+      <div class="title">Distributor Portal</div>
+      <div class="sub">{{ depot_name }}</div>
+    </div>
+  </div>
+  <div class="who">
+    <b>{{ full_name }}</b>
+    <span>{{ designation }}</span>
+  </div>
+</header>
+
+<nav class="rail">
+  <div class="eyebrow">Depot</div>
+  <a href="/distributor/orders" aria-current="page">Orders</a>
+  <a href="/distributor/claims">Scheme Claims</a>
+  <div class="foot">
+    Orders arrive here the moment a rep syncs.<br>
+    What you set here reaches their phone on the next sync.
+  </div>
+</nav>
+
+<main>
+  <div class="page-head">
+    <div>
+      <h1>Orders from field reps</h1>
+      <p>Secondary sales booked at shops on your beats. You bill the shop from your own stock.</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="refresh" data-busy>Refresh</button>
+      {% if can_act %}<button id="accept-selected" class="primary" data-busy disabled>Accept selected</button>{% endif %}
+    </div>
+  </div>
+
+  <div id="toast" class="notice" hidden></div>
+
+  <section class="tiles" id="tiles"></section>
+
+  <div class="bar">
+    <div class="row">
+      <div class="grow">
+        <input id="search" type="search" placeholder="Shop, order number or rep…" aria-label="Search the queue">
+      </div>
+    </div>
+    <div class="tabs" id="tabs" role="tablist"></div>
+  </div>
+
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            {% if can_act %}<th style="width:36px"><input type="checkbox" id="all" aria-label="Select every order shown" style="width:auto;min-height:0"></th>{% endif %}
+            <th style="width:32px"></th>
+            <th>Order</th>
+            <th>Shop</th>
+            <th>Rep</th>
+            <th class="num">Lines</th>
+            <th class="num">Value</th>
+            <th>Credit</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="foot"><span id="summary">Loading…</span><span>Queue refreshes when you ask it to.</span></div>
+  </div>
+</main>
+
+<dialog id="ask">
+  <form method="dialog" class="body">
+    <h2></h2>
+    <div>
+      <label></label>
+      <textarea rows="3"></textarea>
+    </div>
+    <div class="actions">
+      <button value="cancel" type="submit">Cancel</button>
+      <button value="ok" class="primary" type="submit">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/assets/fieldmate/js/portal.js"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = FM.esc, money = FM.money;
+  var CAN_ACT = {{ 'true' if can_act else 'false' }};
+
+  var TABS = [
+    {key: '',                    label: 'All'},
+    {key: 'Sent To Distributor', label: 'Waiting on you'},
+    {key: 'Accepted',            label: 'Accepted'},
+    {key: 'Invoiced',            label: 'Invoiced'},
+    {key: 'Delivered',           label: 'Delivered'},
+    {key: 'Rejected',            label: 'Rejected'}
+  ];
+
+  // Which button a row gets is a property of where the order stands, not of who is looking at
+  // it. Keeping that in one table is what stops the screen offering a move the server refuses.
+  var NEXT = {
+    'Sent To Distributor': [{action: 'Accepted',  label: 'Accept', primary: true},
+                            {action: 'Rejected',  label: 'Reject', danger: true}],
+    'Accepted':            [{action: 'Invoiced',  label: 'Mark invoiced', primary: true}],
+    'Invoiced':            [{action: 'Delivered', label: 'Mark delivered', primary: true}],
+    'Delivered':           [],
+    'Rejected':            [{action: 'Reopened',  label: 'Reopen'}]
+  };
+
+  var TONE = {
+    'Sent To Distributor': 'warn', 'Accepted': 'calm', 'Invoiced': 'calm',
+    'Delivered': 'ok', 'Rejected': 'crit'
+  };
+  var SHORT = {'Sent To Distributor': 'New'};
+
+  var state = {status: '', search: '', orders: [], totals: null, open: null, chosen: {}};
+
+  function tiles(totals) {
+    var t = totals.tiles, out = [];
+    function tile(cls, label, bucket, note) {
+      out.push('<div class="tile ' + cls + '">' +
+        '<div class="label">' + esc(label) + '</div>' +
+        '<div class="count">' + FM.count(bucket.count) + ' <small>orders</small></div>' +
+        '<div class="value">' + money(bucket.value) + '</div>' +
+        '<div class="note">' + esc(note) + '</div></div>');
+    }
+    tile('', 'In the queue', totals.total, 'Everything routed to this depot');
+    tile('is-warn', 'Waiting on you', t['Sent To Distributor'], 'Nobody at the shop has been told yet');
+    tile('is-ok', 'Accepted', t['Accepted'], 'Yours to pick and bill');
+    tile('is-ok', 'Delivered', t['Delivered'], 'Closed at your end');
+    document.getElementById('tiles').innerHTML = out.join('');
+  }
+
+  function tabs() {
+    var counts = state.totals ? state.totals.tiles : {};
+    document.getElementById('tabs').innerHTML = TABS.map(function (t) {
+      var n = t.key ? (counts[t.key] ? counts[t.key].count : 0)
+                    : (state.totals ? state.totals.total.count : 0);
+      return '<button role="tab" data-status="' + esc(t.key) + '" aria-selected="' +
+             (state.status === t.key) + '">' + esc(t.label) +
+             '<span class="n">' + FM.count(n) + '</span></button>';
+    }).join('');
+  }
+
+  function pill(status) {
+    return '<span class="pill ' + (TONE[status] || 'flat') + '">' +
+           esc(SHORT[status] || status) + '</span>';
+  }
+
+  function credit(o) {
+    if (o.credit_status === 'Breach' || o.credit_status === 'Blocked') {
+      return '<span class="pill crit">Over limit</span>';
+    }
+    if (o.credit_status === 'Warning') return '<span class="pill warn">Near limit</span>';
+    return '<span class="pill ok">Within limit</span>';
+  }
+
+  function actions(o) {
+    if (!CAN_ACT) return '<span class="dim">View only</span>';
+    var moves = NEXT[o.order_status] || [];
+    if (!moves.length) return '<span class="dim">—</span>';
+    return moves.map(function (m) {
+      return '<button class="sm ' + (m.primary ? 'primary' : (m.danger ? 'danger' : '')) +
+             '" data-act="' + m.action + '" data-order="' + esc(o.name) + '" data-busy>' +
+             esc(m.label) + '</button>';
+    }).join(' ');
+  }
+
+  function render() {
+    var body = document.getElementById('rows');
+    if (!state.orders.length) {
+      body.innerHTML = '<tr><td colspan="10" class="empty">Nothing here yet. ' +
+        'Orders appear the moment a rep on your beats syncs one.</td></tr>';
+      document.getElementById('summary').textContent = '0 orders';
+      return;
+    }
+    body.innerHTML = state.orders.map(function (o) {
+      var open = state.open === o.name;
+      // Only an order with a move left on it gets a checkbox. A tick against a delivered order
+      // that the bulk button would then refuse is a control that lies about what it does.
+      var pickable = CAN_ACT && (NEXT[o.order_status] || []).length > 0;
+      var pick = !CAN_ACT ? ''
+        : pickable
+          ? '<td><input type="checkbox" data-pick="' + esc(o.name) + '"' +
+            (state.chosen[o.name] ? ' checked' : '') + ' style="width:auto;min-height:0"></td>'
+          : '<td></td>';
+      var row = '<tr class="clickable">' + pick +
+        '<td><button class="twisty" data-open="' + esc(o.name) + '" aria-expanded="' + open + '">' +
+          (open ? '&#9660;' : '&#9654;') + '</button></td>' +
+        '<td><div class="mono strong">' + esc(o.name) + '</div>' +
+          '<div class="dim">' + esc(FM.clock(o.sent_to_distributor_on) || FM.day(o.order_date)) + '</div></td>' +
+        '<td><div class="strong">' + esc(o.outlet_name) + '</div>' +
+          '<div class="dim">' + esc(o.outlet_territory || o.outlet) + '</div></td>' +
+        '<td>' + esc(o.rep_name) + '</td>' +
+        '<td class="num tnum">' + FM.count(o.total_lines) +
+          '<div class="dim">' + FM.count(o.total_qty) + ' units</div></td>' +
+        '<td class="num tnum strong">' + money(o.net_total) +
+          (Number(o.discount_total) ? '<div class="dim">less ' + money(o.discount_total) + '</div>' : '') +
+        '</td>' +
+        '<td>' + credit(o) + '</td>' +
+        '<td>' + pill(o.order_status) +
+          (o.distributor_reference ? '<div class="dim mono">' + esc(o.distributor_reference) + '</div>' : '') +
+        '</td>' +
+        '<td>' + actions(o) + '</td></tr>';
+      return row + (open ? drawer(o) : '');
+    }).join('');
+    document.getElementById('summary').textContent =
+      state.orders.length + ' order' + (state.orders.length === 1 ? '' : 's') + ' shown';
+    syncBulk();
+  }
+
+  function drawer(o) {
+    var d = o._detail;
+    var span = CAN_ACT ? 10 : 9;
+    if (!d) {
+      return '<tr class="drawer"><td colspan="' + span + '"><div class="inner dim">Loading…</div></td></tr>';
+    }
+    var lines = d.items.map(function (i) {
+      return '<tr><td><div class="strong">' + esc(i.item_name || i.item_code) + '</div>' +
+        '<div class="dim mono">' + esc(i.item_code) + '</div></td>' +
+        '<td>' + esc(i.qty_display || i.qty) + ' ' + esc(i.display_uom || i.uom || '') +
+          (i.display_uom && i.display_uom !== i.stock_uom
+            ? '<div class="dim">' + FM.count(i.qty) + ' ' + esc(i.stock_uom || '') + '</div>' : '') +
+        '</td>' +
+        '<td class="num tnum">' + money(i.rate) + '</td>' +
+        '<td class="num tnum">' + money(i.amount) + '</td>' +
+        '<td>' + (i.scheme_name ? '<span class="pill ok">' + esc(i.scheme_name) + '</span>'
+                                : '<span class="dim">—</span>') + '</td></tr>';
+    }).join('');
+
+    var free = d.free_goods.map(function (f) {
+      return '<tr><td><div class="free">' + esc(f.item_name || f.item_code) + '</div>' +
+        '<div class="dim">Free goods' + (f.scheme ? ' · ' + esc(f.scheme) : '') + '</div></td>' +
+        '<td class="free">' + FM.count(f.qty) + ' ' + esc(f.uom || '') + '</td>' +
+        '<td class="num tnum dim">' + money(0) + '</td>' +
+        '<td class="num tnum free">' + money(0) + '</td>' +
+        '<td><span class="pill ok">You supply, you claim it back</span></td></tr>';
+    }).join('');
+
+    var history = d.history.length ? d.history.map(function (h) {
+      return '<div class="kv"><span>' + esc(h.action) + '</span><span>' +
+             esc(FM.clock(h.logged_on)) + '</span></div>';
+    }).join('') : '<div class="dim">Nothing yet.</div>';
+
+    return '<tr class="drawer"><td colspan="' + span + '"><div class="inner">' +
+      '<div class="meta">' +
+        '<div><div class="dim">Order</div><div class="mono strong">' + esc(d.name) + '</div></div>' +
+        '<div><div class="dim">Booked</div><div>' + esc(FM.day(d.order_date)) + '</div></div>' +
+        '<div><div class="dim">Terms</div><div>' + esc(d.payment_term || 'As usual') +
+          (d.credit_days ? ' · ' + d.credit_days + ' days' : '') + '</div></div>' +
+        '<div><div class="dim">Wanted by</div><div>' +
+          esc(FM.day(d.expected_delivery_date) || 'Not stated') + '</div></div>' +
+      '</div>' +
+      '<div class="lines"><table><thead><tr>' +
+        '<th>Item</th><th>Quantity</th><th class="num">Rate</th>' +
+        '<th class="num">Amount</th><th>Scheme</th></tr></thead>' +
+        '<tbody>' + lines + free + '</tbody></table></div>' +
+      '<div class="panes">' +
+        '<div class="pane"><h3>What the rep wrote down</h3>' +
+          '<div class="quote">' + esc(d.remarks || d.delivery_instructions ||
+            'Nothing beyond the order itself.') + '</div>' +
+          '<div class="dim">Rep: ' + esc(d.rep_name || '') + '</div></div>' +
+        '<div class="pane"><h3>What the shop pays you</h3>' +
+          '<div class="kv"><span>Gross</span><span class="tnum">' + money(d.gross_total) + '</span></div>' +
+          '<div class="kv"><span>Scheme discounts</span><span class="tnum">' +
+            (Number(d.discount_total) ? '&minus; ' + money(d.discount_total) : money(0)) + '</span></div>' +
+          '<div class="kv total"><span>Net</span><span class="tnum">' + money(d.net_total) + '</span></div>' +
+          '<div class="dim">This is your bill to the shop. It is not our invoice, and it posts ' +
+            'nothing in our books.</div></div>' +
+        '<div class="pane"><h3>What has happened to it</h3>' + history +
+          '<div class="actions">' + actions(o) + '</div></div>' +
+      '</div></div></td></tr>';
+  }
+
+  function syncBulk() {
+    var btn = document.getElementById('accept-selected');
+    if (!btn) return;
+    var n = Object.keys(state.chosen).filter(function (k) { return state.chosen[k]; }).length;
+    btn.disabled = !n;
+    btn.textContent = n ? 'Accept ' + n + ' order' + (n === 1 ? '' : 's') : 'Accept selected';
+  }
+
+  function load() {
+    FM.busy(true);
+    return FM.call('portal.distributor_orders', {status: state.status, search: state.search})
+      .then(function (d) {
+        state.orders = d.orders;
+        state.totals = d.totals;
+        // A chosen order that has left the current filter is no longer on screen, and a bulk
+        // accept that quietly included it would move something nobody is looking at.
+        var visible = {};
+        state.orders.forEach(function (o) { visible[o.name] = true; });
+        Object.keys(state.chosen).forEach(function (k) {
+          if (!visible[k]) delete state.chosen[k];
+        });
+        tiles(d.totals);
+        tabs();
+        render();
+      })
+      .catch(function (e) { FM.toast(e.message, 'crit'); })
+      .then(function () { FM.busy(false); });
+  }
+
+  function open(name) {
+    if (state.open === name) { state.open = null; render(); return; }
+    state.open = name;
+    render();
+    var o = state.orders.filter(function (x) { return x.name === name; })[0];
+    if (!o || o._detail) { render(); return; }
+    FM.call('portal.order_detail', {order: name}).then(function (d) {
+      o._detail = d;
+      if (state.open === name) render();
+    }).catch(function (e) { FM.toast(e.message, 'crit'); });
+  }
+
+  function act(name, action) {
+    var needsReason = action === 'Rejected';
+    var needsRef = action === 'Invoiced';
+    var prompt = needsReason
+      ? FM.ask('Reject this order?', 'Tell the rep why. They have to tell the shop something.', true)
+      : needsRef
+        ? FM.ask('Mark invoiced', 'Your invoice number for this order.', true)
+        : Promise.resolve('');
+    return prompt.then(function (answer) {
+      if (answer === null) return;
+      FM.busy(true);
+      return FM.call('portal.set_fulfilment', {
+        order: name, action: action,
+        reference: needsRef ? answer : undefined,
+        remarks: needsReason ? answer : undefined
+      }, true).then(function (r) {
+        FM.toast(r.repeated ? 'Already ' + r.order_status.toLowerCase() + '.'
+                            : name + ' is now ' + r.order_status.toLowerCase() + '.');
+        delete state.chosen[name];
+        var o = state.orders.filter(function (x) { return x.name === name; })[0];
+        if (o) delete o._detail;
+        return load();
+      });
+    }).catch(function (e) { FM.toast(e.message, 'crit'); })
+      .then(function () { FM.busy(false); });
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button, input');
+    if (!t) return;
+    if (t.dataset.open) { open(t.dataset.open); return; }
+    if (t.dataset.act) { act(t.dataset.order, t.dataset.act); return; }
+    if (t.dataset.status !== undefined && t.getAttribute('role') === 'tab') {
+      state.status = t.dataset.status;
+      state.open = null;
+      load();
+      return;
+    }
+    if (t.dataset.pick) {
+      state.chosen[t.dataset.pick] = t.checked;
+      syncBulk();
+    }
+  });
+
+  var all = document.getElementById('all');
+  if (all) {
+    all.addEventListener('change', function () {
+      state.orders.forEach(function (o) {
+        if ((NEXT[o.order_status] || []).length) state.chosen[o.name] = all.checked;
+      });
+      render();
+    });
+  }
+
+  document.getElementById('refresh').addEventListener('click', load);
+
+  var timer;
+  document.getElementById('search').addEventListener('input', function (e) {
+    clearTimeout(timer);
+    var value = e.target.value;
+    timer = setTimeout(function () { state.search = value; load(); }, 250);
+  });
+
+  var bulk = document.getElementById('accept-selected');
+  if (bulk) {
+    bulk.addEventListener('click', function () {
+      var names = Object.keys(state.chosen).filter(function (k) { return state.chosen[k]; });
+      if (!names.length) return;
+      FM.busy(true);
+      FM.call('portal.set_fulfilment_bulk', {orders: names, action: 'Accepted'}, true)
+        .then(function (r) {
+          var done = r.done.filter(function (x) { return !x.repeated; }).length;
+          if (r.refused.length) {
+            FM.toast(done + ' accepted, ' + r.refused.length + ' could not be: ' +
+                     r.refused[0].reason, 'warn');
+          } else {
+            FM.toast(done + ' order' + (done === 1 ? '' : 's') + ' accepted.');
+          }
+          state.chosen = {};
+          return load();
+        })
+        .catch(function (e) { FM.toast(e.message, 'crit'); })
+        .then(function () { FM.busy(false); });
+    });
+  }
+
+  load();
+}());
+</script>
+</body>
+</html>

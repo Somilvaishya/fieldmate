@@ -1,0 +1,42 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-26 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": [
+  "slab_idx", "from_pct", "to_pct", "is_open_ended",
+  "column_payout", "payout_kind", "payout_amount", "payout_pct", "label"
+ ],
+ "fields": [
+  {"fieldname": "slab_idx", "fieldtype": "Int", "label": "#", "reqd": 1, "in_list_view": 1, "columns": 1},
+  {"fieldname": "from_pct", "fieldtype": "Percent", "label": "From %", "reqd": 1, "in_list_view": 1, "columns": 1,
+   "description": "Achievement at or above this earns the slab. Inclusive at the bottom and exclusive at the top, so a rep at exactly 80% lands in the 80 slab and in no other - the one boundary every incentive argument is about."},
+  {"fieldname": "to_pct", "fieldtype": "Percent", "label": "To %", "in_list_view": 1, "columns": 1},
+  {"fieldname": "is_open_ended", "fieldtype": "Check", "label": "Open Ended", "in_list_view": 1, "columns": 1,
+   "description": "The top slab has no ceiling. Without one, a rep at 140% against a table that stops at 120 earns nothing at all, which is the opposite of what anybody intended."},
+  {"fieldname": "column_payout", "fieldtype": "Column Break"},
+  {"fieldname": "payout_kind", "fieldtype": "Select", "label": "Pays",
+   "options": "Fixed Amount\nPercent Of Value", "default": "Fixed Amount", "reqd": 1, "in_list_view": 1, "columns": 2},
+  {"fieldname": "payout_amount", "fieldtype": "Currency", "label": "Amount", "in_list_view": 1, "columns": 2,
+   "description": "Flat rupees for hitting the slab. Read only where the kind is Fixed Amount."},
+  {"fieldname": "payout_pct", "fieldtype": "Percent", "label": "Percent",
+   "description": "Of the actual value achieved, not of the target. Paying a percentage of the target would pay the same to a rep at 81% and one at 119%."},
+  {"fieldname": "label", "fieldtype": "Data", "label": "Called", "in_list_view": 1, "columns": 2,
+   "description": "What the rep sees on the phone - Tier 1, Gold. A slab shown as a percent range is a slab nobody repeats in the canteen."}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-26 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Incentive Slab",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "slab_idx",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

@@ -93,3 +93,69 @@ def profile(user: str | None = None) -> dict:
 		"can_collect_payment": bool(doc.can_collect_payment),
 		"daily_target_calls": doc.daily_target_calls,
 	}
+
+
+# --------------------------------------------------------------------------------------
+# what is a rep's own — targets, achievement, incentive
+# --------------------------------------------------------------------------------------
+#
+# Territory scoping (above) answers "which shops", and User Permission enforces it everywhere.
+# It cannot answer "whose target", because a target belongs to a person rather than to a place
+# and two reps routinely share a territory.
+#
+# So Phase 7 adds a second, narrower rule for the three DocTypes that carry somebody's own
+# numbers: a Field Rep sees the rows that name them, and nobody else's. Applied through the
+# framework hooks rather than in each API, for the reason ADR-027 gives - the service layer only
+# covers the screens we wrote, and these rows are worth protecting from the ones we did not.
+# Everybody above a rep keeps the full view: a manager who cannot see their team's numbers has
+# no job to do.
+
+MANAGER_ROLES = ("FieldMate Area Manager", "FieldMate Regional Manager",
+                 "FieldMate Sales Head", "FieldMate Admin", "System Manager")
+
+
+def rep_only(user: str | None = None) -> str | None:
+	"""The Field User a session is limited to, or None for anyone not limited at all."""
+	user = user or frappe.session.user
+	if user in ("Guest", "Administrator"):
+		return None
+	roles = set(frappe.get_roles(user))
+	if not roles & {"FieldMate Field Rep"} or roles & set(MANAGER_ROLES):
+		return None
+	return for_user(user)
+
+
+def own_rows_query(doctype: str, user: str | None = None) -> str:
+	mine = rep_only(user)
+	if not mine:
+		return ""
+	return f"`tab{doctype}`.field_user = {frappe.db.escape(mine)}"
+
+
+def own_row(doc, user: str | None = None) -> bool:
+	mine = rep_only(user)
+	if not mine:
+		return True
+	# A plan above the leaves carries no field_user at all. A rep has no business reading the
+	# region's number, so an unowned row is refused rather than shared.
+	return getattr(doc, "field_user", None) == mine
+
+
+def target_plan_query(user: str | None = None) -> str:
+	return own_rows_query("FieldMate Target Plan", user)
+
+
+def achievement_query(user: str | None = None) -> str:
+	return own_rows_query("FieldMate Achievement", user)
+
+
+def incentive_payout_query(user: str | None = None) -> str:
+	return own_rows_query("FieldMate Incentive Payout", user)
+
+
+def expense_claim_query(user: str | None = None) -> str:
+	return own_rows_query("FieldMate Expense Claim", user)
+
+
+def own_row_permission(doc, user: str | None = None, permission_type: str | None = None) -> bool:
+	return own_row(doc, user)

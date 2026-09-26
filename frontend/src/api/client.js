@@ -212,4 +212,24 @@ export const api = {
   collectionsMine: (status) => call('collection.list', { status, limit: 50 }),
   cashInHand: () => call('collection.in_hand'),
   depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
+
+  // ------------------------------------------------------- Phase 7: targets and expenses
+  //
+  // Note what is missing again: none of these takes a rep. An endpoint that accepted one would
+  // be an endpoint that could be asked for somebody else's numbers, and a salary figure is the
+  // one thing on this app nobody may read sideways.
+  //
+  // `myPerformance` is one call rather than two because the screen shows targets and incentive
+  // together, and two round trips on a phone in a market is one too many.
+  myPerformance: (asOn) => call('target.achievement', { as_on: asOn }),
+  myTargets: (asOn) => call('target.my_targets', { as_on: asOn }),
+  myPayouts: (limit) => call('target.my_payouts', { limit }),
+
+  // The distance comes back from the server, computed from the GPS trail. The phone never
+  // states its own mileage - a device that could would be a device that could invent it, and
+  // this is the one figure on the app that turns straight into money.
+  expenseEstimate: (claimDate, expenseType) =>
+    call('expense.estimate', { claim_date: claimDate, expense_type: expenseType }),
+  expenseCreate: (payload) => call('expense.create_claim', { payload }, { post: true }),
+  expensesMine: (limit) => call('expense.my_claims', { limit }),
 }
