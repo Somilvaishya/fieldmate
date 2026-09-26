@@ -157,5 +157,9 @@ def expense_claim_query(user: str | None = None) -> str:
 	return own_rows_query("FieldMate Expense Claim", user)
 
 
+def kpi_snapshot_query(user: str | None = None) -> str:
+	return own_rows_query("FieldMate KPI Snapshot", user)
+
+
 def own_row_permission(doc, user: str | None = None, permission_type: str | None = None) -> bool:
 	return own_row(doc, user)

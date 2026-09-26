@@ -74,6 +74,11 @@ const router = createRouter({
     // not a parameter in the URL.
     { path: '/performance', component: () => import('./screens/MyPerformance.vue'), name: 'performance' },
     { path: '/expense', component: () => import('./screens/ExpenseClaim.vue'), name: 'expense' },
+
+    // Phase 8. The cockpit is today's own figures, counted live; everything with a month in it
+    // reads the snapshot. It takes no id for the same reason the two above do not - a rep has
+    // one day, and naming it in a URL would invite a stale link into yesterday's.
+    { path: '/cockpit', component: () => import('./screens/DayCockpit.vue'), name: 'cockpit' },
   ],
 })
 

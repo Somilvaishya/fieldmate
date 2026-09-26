@@ -6,6 +6,7 @@ import Icon from '../components/Icon.vue'
 import OfflineStrip from '../components/OfflineStrip.vue'
 
 const data = ref(null)
+const actual = ref(null)
 const loading = ref(true)
 const error = ref('')
 
@@ -29,6 +30,36 @@ const tiles = computed(() =>
 const categories = computed(() =>
   (targets.value.lines || []).filter((l) => l.item_group || l.brand)
 )
+
+// Phase 8: the nine, measured, as opposed to the targets above. Value, volume and new shops are
+// left out here - they already have their own card and their own bar further up, and repeating
+// a figure on one screen invites a reader to look for the difference between the two.
+const MEASURED = ['coverage_pct', 'productive_pct', 'visit_compliance_pct',
+                  'collection_efficiency_pct', 'lines_per_call', 'avg_order_value']
+const measured = computed(() =>
+  (actual.value?.metrics || []).filter((m) => MEASURED.includes(m.key))
+)
+
+// What has to happen each remaining day against what has been happening. The second half is the
+// part the target card cannot show: a rep ahead of the required rate is on track whatever the
+// percentage says today.
+const runRate = computed(() => {
+  const totals = actual.value?.totals
+  if (!totals || !headline.value) return null
+  const worked = totals.days_worked || 0
+  const perDay = worked ? totals.order_value / worked : 0
+  const left = targets.value.days_left || 0
+  return {
+    needed: headline.value.per_day_needed || 0,
+    current: Math.round(perDay),
+    onTrack: left > 0 && perDay > 0 && perDay >= (headline.value.per_day_needed || 0),
+    projection: Math.round(headline.value.actual_value + perDay * left),
+  }
+})
+
+function measuredValue(m) {
+  return m.is_pct ? Math.round(m.value) + '%' : Number(m.value).toFixed(m.value < 100 ? 1 : 0)
+}
 
 // A month's target is six or seven digits, and a 360px phone cannot show "₹10,00,000 of
 // ₹6,40,000" beside a percentage without wrapping into nonsense. Lakh and crore are how the
@@ -74,6 +105,14 @@ async function load() {
   error.value = ''
   try {
     data.value = await api.myPerformance()
+    // Phase 8. The targets above say what was asked for; this says how the month actually went,
+    // read from the KPI snapshot. A failure here must not take the target figures with it -
+    // they are the ones the rep opened the screen for.
+    try {
+      actual.value = await api.monthDashboard()
+    } catch {
+      actual.value = null
+    }
   } catch (e) {
     error.value = e instanceof ApiError
       ? e.message
@@ -126,6 +165,13 @@ onMounted(load)
             to get there
           </span>
         </div>
+        <!-- Phase 8: what has actually been happening per day, beside what needs to.
+             A rep ahead of the required rate is on track whatever today's percentage says. -->
+        <div v-if="runRate && runRate.current" class="rate" :class="{ ok: runRate.onTrack }">
+          <span>Doing <b class="tnum">{{ formatRupees(runRate.current) }} / day</b> so far</span>
+          <span v-if="runRate.onTrack">On course to close at {{ lakhs(runRate.projection) }}</span>
+          <span v-else>At this rate, {{ lakhs(runRate.projection) }} by month end</span>
+        </div>
         <div v-else-if="headline.achievement_pct >= 100" class="need ok">
           <Icon name="check" /><span>Target met. Everything from here is on top.</span>
         </div>
@@ -163,6 +209,28 @@ onMounted(load)
           <div class="dim">{{ show(t) }} of {{ showTarget(t) }}</div>
           <div class="bar thin"><i :style="{ width: width(t.achievement_pct) }"></i></div>
         </div>
+      </section>
+
+      <!-- Phase 8: how the month actually went, from the KPI snapshot rather than from a
+           target. These have no target beside them on purpose - a rep is measured on them,
+           not asked for them, and inventing a goal for each would be inventing six. -->
+      <section v-if="measured.length" class="card">
+        <div class="row"><h2>How the month is going</h2><span class="dim">measured</span></div>
+        <div class="nine">
+          <div v-for="m in measured" :key="m.key" class="cell">
+            <div class="dim">{{ m.label }}</div>
+            <div class="num tnum">{{ measuredValue(m) }}</div>
+            <!-- The base always travels with the ratio. 0% over no calls and 0% over twelve
+                 are not the same fact, and a number on its own cannot say which. -->
+            <div v-if="m.of" class="dim">
+              {{ Math.round(m.got) }} of {{ Math.round(m.of) }}
+            </div>
+          </div>
+        </div>
+        <p v-if="actual?.totals" class="dim fine">
+          {{ actual.totals.days_worked }} day<span v-if="actual.totals.days_worked !== 1">s</span>
+          in the field this month.
+        </p>
       </section>
 
       <!-- Category breakdown -->
@@ -214,6 +282,12 @@ onMounted(load)
 .need { display: flex; align-items: center; gap: 8px; background: var(--bg);
         border-radius: 8px; padding: 10px; font-size: 14px; }
 .need.ok { color: var(--ok); }
+.rate { display: flex; flex-direction: column; gap: 2px; background: var(--bg);
+        border-radius: 8px; padding: 10px; font-size: 13px; color: var(--muted); }
+.rate.ok { background: var(--ok-soft); color: var(--ok); }
+.nine { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.nine .cell { display: flex; flex-direction: column; gap: 1px; }
+.nine .num { font-size: 17px; font-weight: 700; }
 .tier { background: var(--ok); color: #fff; font-size: 12px; font-weight: 700;
         padding: 2px 10px; border-radius: 999px; }
 .slab .next { display: flex; flex-direction: column; gap: 2px; background: var(--surface);

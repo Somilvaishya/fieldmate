@@ -91,6 +91,12 @@ after_install = "fieldmate.setup.install.after_install"
 after_migrate = [
 	"fieldmate.setup.install.create_roles",
 	"fieldmate.setup.install.create_idempotency_fields",
+	# The five exception rules, created once and never edited again - a site that has tuned a
+	# threshold keeps its own (Phase 8).
+	"fieldmate.services.alerts.install_starter_rules",
+	# Point Insights at the snapshot, on the sites that have Insights. Silent everywhere else,
+	# which is most of them (Phase 8).
+	"fieldmate.setup.insights.after_migrate",
 ]
 
 # Uninstallation
@@ -142,6 +148,8 @@ permission_query_conditions = {
 	"FieldMate Achievement": "fieldmate.services.field_user.achievement_query",
 	"FieldMate Incentive Payout": "fieldmate.services.field_user.incentive_payout_query",
 	"FieldMate Expense Claim": "fieldmate.services.field_user.expense_claim_query",
+	# Phase 8. A rep's own numbers, for the same reason as the four above.
+	"FieldMate KPI Snapshot": "fieldmate.services.field_user.kpi_snapshot_query",
 }
 
 has_permission = {
@@ -151,6 +159,7 @@ has_permission = {
 	"FieldMate Achievement": "fieldmate.services.field_user.own_row_permission",
 	"FieldMate Incentive Payout": "fieldmate.services.field_user.own_row_permission",
 	"FieldMate Expense Claim": "fieldmate.services.field_user.own_row_permission",
+	"FieldMate KPI Snapshot": "fieldmate.services.field_user.own_row_permission",
 }
 
 # DocType Class
@@ -292,5 +301,15 @@ scheduler_events = {
 		# read of one stored row rather than a count over a month of orders on every open
 		# (Gate 7 criterion 5).
 		"fieldmate.tasks.measure_targets",
+		# Phase 8. The KPI snapshot is what every chart, report and screen reads, so it is
+		# rebuilt before anybody looks at it, and the alerts run after - they read the rows the
+		# rollup just wrote, and running them first would judge yesterday on the day before's
+		# numbers.
+		"fieldmate.tasks.roll_up_kpis",
+		"fieldmate.tasks.run_alerts",
+	],
+	"hourly": [
+		# Today only. A manager watching the morning should not be reading last night.
+		"fieldmate.tasks.refresh_today_kpis",
 	],
 }

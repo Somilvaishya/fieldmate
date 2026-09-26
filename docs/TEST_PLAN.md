@@ -124,6 +124,25 @@ reports it as **not run** rather than as passed.
 - Backdated visit correction picked up by next rollup, restates the snapshot
 - Each alert rule fires exactly once per occurrence
 
+**Criterion 1 is counted twice, by different code.** A gate that asserts the rollup equals the
+rollup proves nothing, so `scripts/gate8.py` builds a week and then counts it again in a
+deliberately naive loop written the way somebody would with a calculator. The fixture is shaped
+so the answers are not trivial: eight shops of which five are billed (coverage 62.5%, not 100%)
+and more visits than orders (lines per call is a real division, not 0 ÷ 0).
+
+**Criterion 3 is enforced more tightly than it reads.** Taken literally it bans a report listing
+*which* visits breached the geo-fence and by how many metres — detail the snapshot does not carry
+and cannot be rebuilt from. What the criterion protects is that a metric has one definition. So
+the gate enforces: a chart or card may **never** read a raw document; a report may only if it is
+named in `DRILLDOWN_REPORTS` with a reason and aggregates nothing; and **no report or chart may
+work out one of the nine metrics over a raw table** — which is the real failure, and was not
+being checked at all. See ADR-030.
+
+**Criterion 2 seeds six months of snapshots for 40 reps.** `--fast` skips it and the gate then
+reports it as **not run** rather than as passed.
+
+Manual walkthrough: `docs/MANUAL_TESTS_PHASE8.md`. Seed it with `scripts/setup_phase8.py`.
+
 ### Portal and claims (Phase 9)
 - Distributor sees only own orders/claims — verified by attempting another's document
 - Month's claim reconciles exactly to applied benefits on those orders

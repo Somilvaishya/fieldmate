@@ -146,7 +146,7 @@ def weights_for(sales_people: list[str], basis: str, plan) -> list[int]:
 
 def _outlet_count(sales_person: str) -> int:
 	users = frappe.get_all("FieldMate Field User",
-	                       filters={"sales_person": ["in", _subtree(sales_person)]},
+	                       filters={"sales_person": ["in", subtree(sales_person)]},
 	                       pluck="name")
 	if not users:
 		return 0
@@ -159,7 +159,7 @@ def _outlet_count(sales_person: str) -> int:
 	                       {"territory": ["in", territories], "outlet_status": "Active"})
 
 
-def _subtree(sales_person: str) -> list[str]:
+def subtree(sales_person: str) -> list[str]:
 	"""A node and everything under it. Iterative, because a tree that loops should not hang."""
 	found, queue, seen = [], [sales_person], set()
 	while queue:
@@ -359,7 +359,7 @@ def reconcile(plan_name: str) -> dict:
 
 def _field_users_under(sales_person: str) -> list[str]:
 	return frappe.get_all("FieldMate Field User",
-	                      filters={"sales_person": ["in", _subtree(sales_person)]},
+	                      filters={"sales_person": ["in", subtree(sales_person)]},
 	                      pluck="name")
 
 

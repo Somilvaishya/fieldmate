@@ -2,7 +2,9 @@
 
 import frappe
 
+from fieldmate.services import alerts as alerts_service
 from fieldmate.services import day as day_service
+from fieldmate.services import kpi as kpi_service
 from fieldmate.services import settings as settings_service
 from fieldmate.services import target as target_service
 from fieldmate.services import trail as trail_service
@@ -39,3 +41,46 @@ def measure_targets():
 		frappe.log_error(
 			title="fieldmate measure_targets",
 			message="These plans could not be measured:\n" + "\n".join(result["failed"]))
+
+
+def roll_up_kpis():
+	"""Rebuild the KPI snapshot for the last few days, every night.
+
+	A window rather than only yesterday: a day is corrected after it ends - an order pushed from
+	a phone that had no signal, a visit a manager amended - and a job that only looked at
+	yesterday would leave those corrections invisible for ever. The fingerprint on each row
+	makes the days nobody touched nearly free (Gate 8 criterion 4).
+	"""
+	started = frappe.utils.now_datetime()
+	result = kpi_service.roll_up_all(days_back=7)
+	seconds = (frappe.utils.now_datetime() - started).total_seconds()
+
+	frappe.logger("fieldmate").info(
+		f"rolled up {result['written']} rep-days for {result['reps']} reps in {seconds:.1f}s "
+		f"({result['unchanged']} unchanged)"
+		+ (f", {len(result['failed'])} failed" if result["failed"] else ""))
+	if result["failed"]:
+		frappe.log_error(
+			title="fieldmate roll_up_kpis",
+			message="These reps could not be rolled up:\n" + "\n".join(result["failed"]))
+
+
+def refresh_today_kpis():
+	"""Today only, hourly, so a manager's screen is never more than an hour stale."""
+	result = kpi_service.roll_up_all(days_back=1)
+	if result["written"]:
+		frappe.logger("fieldmate").info(f"refreshed {result['written']} rep-days for today")
+
+
+def run_alerts():
+	"""Evaluate every active rule over the last few days.
+
+	The same window as the rollup, and for the same reason: a snapshot recomputed at noon can
+	turn an ordinary day into an exception. Re-running is free - an occurrence already logged is
+	refused by a unique key rather than duplicated (Gate 8 criterion 5).
+	"""
+	result = alerts_service.evaluate_all(days_back=3)
+	if result["fired"]:
+		frappe.logger("fieldmate").info(
+			f"{result['fired']} alerts fired across {result['rules']} rules "
+			f"({result['already_logged']} were already logged)")

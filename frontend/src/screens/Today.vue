@@ -389,6 +389,13 @@ onUnmounted(() => {
          back. Both sit here because there is nowhere else: neither belongs to a shop or a
          visit, and a screen with no way in is a screen that does not exist. -->
     <div class="van">
+      <!-- Phase 8. Today's own numbers, counted live. Sits above the month because a rep
+           standing in a market is asking about this morning, not about September. -->
+      <RouterLink v-if="openDay" to="/cockpit" class="vcard">
+        <Icon name="list" size="20" />
+        <span><b>How today is going</b><em>Calls, orders and cash so far</em></span>
+        <Icon name="chevron" size="18" class="go" />
+      </RouterLink>
       <RouterLink to="/performance" class="vcard">
         <Icon name="target" size="20" />
         <span><b>My performance</b><em>Targets, and what the month is worth</em></span>

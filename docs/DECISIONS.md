@@ -700,3 +700,76 @@ four readings from four hundred.
   `permission_query_conditions` and `has_permission` (as ADR-027 does for the portal). Territory
   scoping cannot do this: a target belongs to a person, not a place, and two reps routinely
   share a territory.
+
+## ADR-030 — Analytics read one materialised table, and ratios are not summed
+
+**Decision.** Every chart, card, report, dashboard and manager's summary reads
+`FieldMate KPI Snapshot` — **one row per rep per day** — and nothing counts visits or orders for
+itself. The one exception is `dashboard.rep_today`, which measures the current day live.
+
+A month is those daily rows **added up**, except for the six ratios, which are **recomputed from
+the summed numerators and denominators**. Both halves of every ratio are therefore stored on
+each row.
+
+**Reason.** Two reasons, and the second is the larger one.
+
+Speed is the obvious one: Gate 8 asks for a 40-rep dashboard over six months in under two
+seconds, and counting that from raw visits every time somebody opens a page does not get there.
+
+The one that matters more is that **a metric must have one definition**. Two places counting
+"productive calls" from raw documents is two places that will eventually disagree, and the
+argument is unwinnable because each is right according to its own query. One materialised table
+makes the definition a thing that exists in one file.
+
+Ratios do not sum, and the failure is silent. A rep who made one call and converted it, then
+twelve calls and converted three, has a strike rate of 4 in 13 — **not** the average of 100% and
+25%, which reads as 62.5% and is wrong by half. Averaging daily percentages answers a question
+nobody asked. So `aggregate()` re-divides the totals, and `derive()` is the single function both
+the daily row and the monthly total go through.
+
+**Consequences.**
+- Nine metrics, named once in `CORE_METRICS`: coverage, strike rate, plan compliance, collection
+  efficiency, lines per call, average order value, value, volume, new shops.
+- **A ratio always travels with its base.** 0% over no calls and 0% over twelve calls are not the
+  same fact, and a percentage on its own cannot say which. `outlets_in_scope`, `actual_visits`
+  and `billable_base` are stored, and every API and screen carries them beside the ratio.
+- **Monthly coverage is counted, not summed.** A shop billed on Monday and again on Friday is one
+  covered shop; the daily sum says two. `distinct_outlets_billed` answers that separately.
+- Each row carries a **fingerprint** of the documents it was counted from, so a rollup over a
+  month skips the days nobody touched. A backdated correction bumps `modified` on the document
+  it corrects, that day stops matching, and the next run restates it — which is Gate 8
+  criterion 4, falling out of the shape rather than needing machinery.
+- **Drill-downs are not analytics.** Gate 8 criterion 3 reads literally as "no report queries
+  `FieldMate Visit`", and read that way it bans something the snapshot cannot replace: a list of
+  *which* visits breached the fence and by how many metres. The rule as enforced is sharper — a
+  chart or card may **never** read a raw document, and a report may only if it is named in the
+  gate with a reason and aggregates nothing. Anything new fails until somebody justifies it.
+
+## ADR-031 — An occurrence is rule, rep and day, and the database enforces it
+
+**Decision.** A `FieldMate Alert Log` row carries `occurrence_key` = rule + rep + day, with a
+**unique index**. An alert rule chooses one of **five known exceptions** and sets a threshold and
+an audience; it never carries a condition of its own.
+
+**Reason.** Gate 8 criterion 5 asks that each rule fires exactly once per occurrence. The
+evaluator runs hourly and over a trailing window, so it will meet the same occurrence many
+times — and two workers can meet it at the same instant. A check-then-insert loses that race;
+a unique column does not, and it keeps the promise even for the code paths nobody thought about.
+
+Conditions live in `services/alerts.py` rather than in the rule for a related reason: a site that
+could write its own condition is a site where nobody can say what an alert means six months
+later, and where "fires once per occurrence" stops being a checkable sentence.
+
+**Consequences.**
+- `_log` catches **both** `UniqueValidationError` and `DuplicateEntryError`. Frappe raises the
+  first for a unique column and the second for a clashing primary key; catching only the second —
+  which this did at first — let a real race escape as a server error on the one path that exists
+  to make races harmless.
+- Three guards exist so the channel stays readable: `minimum_base` (a ratio over almost nothing
+  is noise), `consecutive_days` (one bad day is weather, three is a pattern) and `cooldown_days`
+  (a rule that repeats every morning about the same unresolved thing gets filtered into a
+  folder). An alert nobody reads is worse than no alert.
+- A rep with **no snapshot** is never reported. No row means the rollup has not run, not that the
+  rep did nothing, and firing on it would blame them for our own lateness.
+- The five ship as `STARTER_RULES`, created once on migrate and never edited again — a site that
+  has tuned a threshold keeps its own.

@@ -1,0 +1,21 @@
+{
+ "creation": "2026-09-26 16:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "FieldMate Alert Log",
+ "dynamic_filters_json": "[[\"FieldMate Alert Log\",\"occurred_on\",\"Timespan\",\"this week\",false]]",
+ "filters_json": "[]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Exceptions This Week",
+ "modified": "2026-09-26 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Exceptions This Week",
+ "owner": "Administrator",
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Weekly",
+ "type": "Document Type"
+}

@@ -232,4 +232,15 @@ export const api = {
     call('expense.estimate', { claim_date: claimDate, expense_type: expenseType }),
   expenseCreate: (payload) => call('expense.create_claim', { payload }, { post: true }),
   expensesMine: (limit) => call('expense.my_claims', { limit }),
+
+  // ------------------------------------------------------------- Phase 8: the numbers
+  //
+  // `dayCockpit` is the one call in the app that measures live rather than reading the
+  // materialised snapshot. The rep is looking at what they did in the last hour, and last
+  // night's row is the one figure they would immediately know to be wrong. Everything with a
+  // month in it reads the table.
+  dayCockpit: (onDate) => call('dashboard.rep_today', { on_date: onDate }),
+  monthDashboard: (fromDate, toDate) =>
+    call('dashboard.rep_month', { from_date: fromDate, to_date: toDate }),
+  kpiTrend: (days) => call('dashboard.rep_trend', { days }),
 }
