@@ -5,7 +5,6 @@ import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
-import OfflineStrip from '../components/OfflineStrip.vue'
 
 const CHANNELS = [
   { value: 'Cash Deposit Machine', label: 'Cash deposit machine', hint: 'CDM or recycler' },
@@ -95,7 +94,6 @@ async function submit() {
   </div>
 
   <div v-else class="wrap screen">
-    <OfflineStrip />
 
     <div v-if="loading" class="muted pad">Loading what you are carrying…</div>
 

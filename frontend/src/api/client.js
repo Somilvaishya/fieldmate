@@ -182,7 +182,7 @@ export const api = {
   orderEstimate: (payload) => call('order.estimate', { payload }, { post: true }),
   orderSubmit: (deviceUuid, payload) =>
     call('order.submit', { device_uuid: deviceUuid, payload }, { post: true }),
-  orderList: (filters = {}) => call('order.list', { limit: 50, ...filters }),
+  orderList: (filters = {}) => call('order.list_mine', { limit: 50, ...filters }),
   orderDetail: (name) => call('order.detail', { order: name }),
   orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
 
@@ -209,8 +209,9 @@ export const api = {
   // (ADR-025). There is deliberately no endpoint here that a rep can call to post a payment.
   outstanding: (outlet) => call('collection.outstanding', { outlet }),
   collectionCreate: (payload) => call('collection.create', { payload }, { post: true }),
-  collectionsMine: (status) => call('collection.list', { status, limit: 50 }),
+  collectionsMine: (status) => call('collection.list_mine', { status, limit: 50 }),
   cashInHand: () => call('collection.in_hand'),
+  distributors: () => call('collection.distributors'),
   depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
 
   // ------------------------------------------------------- Phase 7: targets and expenses

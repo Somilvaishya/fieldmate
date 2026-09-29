@@ -79,6 +79,12 @@ const router = createRouter({
     // reads the snapshot. It takes no id for the same reason the two above do not - a rep has
     // one day, and naming it in a URL would invite a stale link into yesterday's.
     { path: '/cockpit', component: () => import('./screens/DayCockpit.vue'), name: 'cockpit' },
+
+    // The three the bottom bar needs. None of them takes an id: they are the rep's own lists,
+    // and a rep has exactly one of each.
+    { path: '/orders', component: () => import('./screens/Orders.vue'), name: 'orders' },
+    { path: '/money', component: () => import('./screens/Money.vue'), name: 'money' },
+    { path: '/me', component: () => import('./screens/Me.vue'), name: 'me' },
   ],
 })
 

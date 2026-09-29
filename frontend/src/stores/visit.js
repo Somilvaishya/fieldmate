@@ -4,6 +4,7 @@ import { db, deviceUuid, getMeta, setMeta, rememberName } from '../db'
 import { enqueue } from '../sync/outbox'
 import * as photoQueue from '../sync/photos'
 import * as dayStore from './day'
+import { flushSoon } from '../sync/pinger'
 
 // The visit the rep is standing in, if any.
 export const activeVisit = ref(null)
@@ -177,6 +178,10 @@ export async function checkIn(outlet, { fix = {}, deviationNote = null } = {}) {
 
   await db.visits.put(plain(local))
   activeVisit.value = local
+  // Walking into a shop is one of the two moments the desk looks the trail up. Sending the
+  // fixes now rather than at the next batch window is what makes the trail arrive while the
+  // rep is still standing there.
+  flushSoon().catch(() => {})
   return local
 }
 
@@ -366,6 +371,8 @@ async function finish(visit) {
   await db.visits.put(plain(visit))
   activeVisit.value = null
   photoQueue.drain().catch(() => {})
+  // And walking out is the other one.
+  flushSoon().catch(() => {})
 }
 
 export async function todaysVisits() {

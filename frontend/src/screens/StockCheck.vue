@@ -5,7 +5,6 @@ import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
-import OfflineStrip from '../components/OfflineStrip.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -141,7 +140,6 @@ function done() {
   </div>
 
   <div v-else class="wrap screen">
-    <OfflineStrip />
 
     <div v-if="loading" class="muted pad">Loading the product list…</div>
 

@@ -7,6 +7,15 @@ import * as pinger from '../sync/pinger'
 export const openDay = ref(null)
 export const plannedToday = ref(null)
 
+// Has anybody actually asked the server yet this session?
+//
+// `openDay` starts as null, and null is also what "no day is open" looks like - so a screen
+// reading it before anything has loaded cannot tell "not started" from "not known yet". Check-in
+// read it directly and told reps their day had not started when it had; the rep had come from
+// Beats rather than Today, and Today was the only screen that ever refreshed.
+export const loaded = ref(false)
+let inFlight = null
+
 function offline(e) {
   return e instanceof ApiError && e.code === 'OFFLINE'
 }
@@ -29,6 +38,7 @@ export async function refresh() {
     await setMeta('plannedToday', plannedToday.value)
     if (openDay.value && !pinger.isRunning()) pinger.start()
     if (!openDay.value) pinger.stop()
+    loaded.value = true
     return { offline: false }
   } catch (e) {
     if (offline(e)) {
@@ -42,10 +52,36 @@ export async function refresh() {
       plannedToday.value = await getMeta('plannedToday')
       if (openDay.value && !pinger.isRunning()) pinger.start()
       if (!openDay.value) pinger.stop()
+      loaded.value = true
       return { offline: true }
     }
     throw e
   }
+}
+
+/** Make sure the day is known, once, without every screen having to think about it.
+ *
+ * Reads the phone's own copy first so a screen has something true to show immediately, then
+ * confirms with the server. Concurrent callers share one request rather than each firing their
+ * own - two screens mounting together used to mean two `day.current` calls on a market
+ * connection.
+ */
+export async function ensure() {
+  if (loaded.value) return { cached: true }
+  if (inFlight) return inFlight
+
+  // The cached day, but only if it is today's. A yesterday left in storage reads as open and
+  // puts the phone back in the state where it says the day has started and the server refuses
+  // every check-in.
+  const cached = await getMeta('openDay')
+  if (cached && cached.day_date === stamp().slice(0, 10) && !openDay.value) {
+    openDay.value = cached
+  }
+
+  inFlight = refresh()
+    .catch(() => ({ offline: true }))
+    .finally(() => { inFlight = null })
+  return inFlight
 }
 
 /** Open the day. Works with no signal: the record is queued and the rep carries on.
@@ -63,9 +99,13 @@ export async function start(payload) {
   try {
     const data = await api.dayStart(device, body)
     openDay.value = data
+    loaded.value = true
     await rememberName(clientUuid, 'FieldMate Day Start', data.day_start)
     await setMeta('openDay', data)
     pinger.start()
+    // The trail document should exist on the server while the rep is still looking at the
+    // screen that started the day, not ten minutes later (see sync/pinger.js).
+    pinger.flush().catch(() => {})
     return data
   } catch (e) {
     if (!offline(e)) throw e
@@ -100,6 +140,7 @@ export async function start(payload) {
   }, { clientUuid })
 
   openDay.value = local
+  loaded.value = true
   await setMeta('openDay', local)
   pinger.start()
   return local

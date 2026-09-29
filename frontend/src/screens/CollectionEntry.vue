@@ -6,7 +6,6 @@ import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
-import OfflineStrip from '../components/OfflineStrip.vue'
 
 const MODES = [
   { value: 'Cash', label: 'Cash' },
@@ -155,7 +154,6 @@ function finish() {
   </div>
 
   <div v-else class="wrap screen">
-    <OfflineStrip />
 
     <div v-if="loading" class="muted pad">Loading…</div>
 

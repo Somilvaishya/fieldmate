@@ -6,7 +6,6 @@ import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
 import * as dayStore from '../stores/day'
 import Icon from '../components/Icon.vue'
-import OfflineStrip from '../components/OfflineStrip.vue'
 
 const router = useRouter()
 
@@ -114,7 +113,6 @@ async function settle() {
   </div>
 
   <div v-else class="wrap screen">
-    <OfflineStrip />
 
     <div v-if="loading" class="muted pad">Working out tonight's figures…</div>
 

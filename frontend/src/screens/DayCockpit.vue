@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
-import OfflineStrip from '../components/OfflineStrip.vue'
 
 const day = ref(null)
 const trend = ref([])
@@ -76,7 +75,6 @@ onMounted(load)
 
 <template>
   <div class="wrap">
-    <OfflineStrip />
 
     <header class="head">
       <div>

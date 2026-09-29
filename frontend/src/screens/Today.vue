@@ -71,17 +71,11 @@ const plannedHours = computed(() => {
   return h ? `${h}h ${mins % 60}m` : `${mins}m`
 })
 
-// Shops to show before the day starts: the route when there is one, otherwise whatever is
-// in this rep's territory. Capped, with a link to the full list - a rep holding 400 shops
-// does not want all of them on the home screen.
-const BROWSE_LIMIT = 8
+// Counted from the mirror so the tile has a number with or without a signal. The shops
+// themselves live on the Shops tab - listing them here as well gave the home screen a
+// second, shorter copy of that tab, and left a rep guessing which was the real list.
 const localShops = ref([])
 const totalShops = computed(() => (planned.value?.beat ? shops.value : localShops.value).length)
-const browseShops = computed(() =>
-  (planned.value?.beat && shops.value.length ? shops.value : localShops.value)
-    .slice(0, BROWSE_LIMIT)
-)
-const moreShops = computed(() => totalShops.value > BROWSE_LIMIT)
 
 const onOnline = () => (online.value = true)
 const onOffline = () => (online.value = false)
@@ -107,6 +101,44 @@ const vanRep = computed(() => boot.value?.sales_mode === 'Van Sales')
 // Shown only when the rep is actually carrying something. A permanent card saying "nothing to
 // deposit" is a card nobody reads, and then they miss the day it matters.
 const inHand = ref(null)
+
+function rupees(n) {
+  return '₹' + Number(n || 0).toLocaleString('en-IN')
+}
+
+// Everything a rep opens from home, as one grid rather than a column of full-width rows each
+// carrying a sentence. Two across is what a thumb covers on a phone; the order is what a rep
+// reaches for most often first, and a tile that would say nothing is not built at all.
+const tiles = computed(() => {
+  const out = []
+  if (openDay.value) {
+    out.push({ to: '/cockpit', icon: 'list', title: 'Today so far',
+               note: 'Calls, orders and cash' })
+  }
+  out.push({
+    to: '/outlets', icon: 'store', title: 'Shops',
+    note: totalShops.value ? `${totalShops.value} in your area` : 'Sync to bring yours down',
+  })
+  // The Beats screen was built in Phase 3 and nothing ever linked to it - it was reachable
+  // only by typing the URL. A rep asking "when do I next walk this route" had nowhere to look.
+  out.push({ to: '/beats', icon: 'directions', title: 'My routes',
+             note: 'When each one runs' })
+  out.push({ to: '/orders', icon: 'cart', title: 'My orders', note: 'Where each one reached' })
+  out.push({
+    to: '/money', icon: 'tag', title: 'Collections',
+    note: inHand.value?.count ? `${rupees(inHand.value.total_amount)} with you` : 'What you took',
+  })
+  if (vanRep.value) {
+    out.push(openDay.value
+      ? { to: '/van/settle', icon: 'truck', title: 'Settle the van', note: 'Sold, returned, cash' }
+      : { to: '/van/load', icon: 'truck', title: 'Load the van', note: 'What you carry today' })
+  }
+  out.push({ to: '/performance', icon: 'target', title: 'My performance',
+             note: 'Targets and the month' })
+  out.push({ to: '/expense', icon: 'receipt', title: 'Claim expenses',
+             note: 'Travel, food, what you spent' })
+  return out
+})
 
 async function showCached() {
   const cached = await getMeta('profile')
@@ -158,9 +190,9 @@ async function load() {
     if (!beat.value) beat.value = await getMeta('todayBeat')
   }
   await visitStore.resume()
-  // Read from the mirror, so the list is there with or without a signal.
+  // Read from the mirror, so the count is there with or without a signal.
   localShops.value = await localOutlets()
-  // A planned route the day has not started yet still has shops worth showing.
+  // A planned route the day has not started yet still has shops worth counting.
   if (!openDay.value && planned.value?.beat && !beat.value) {
     beat.value = (await getMeta('todayBeat')) || null
   }
@@ -301,37 +333,33 @@ onUnmounted(() => {
         </template>
       </div>
 
-      <!-- The shops a rep can work, whether or not a route was planned. This screen used to
-           be three lines and a wall of empty space; a rep with no beat had nothing to act
-           on and no way to see what was near them. -->
-      <template v-if="!loading && !openDay && browseShops.length">
-        <div class="section">
-          <h3>{{ planned?.beat ? 'On this route' : 'Shops in your area' }}</h3>
-          <span class="muted tnum">{{ browseShops.length }}</span>
-        </div>
-        <RouterLink v-for="o in browseShops" :key="o.name" :to="`/outlet/${o.name}`"
-                    class="shop">
-          <span class="info">
-            <b>{{ o.outlet_name }}</b>
-            <span class="muted">{{ o.city || 'No area recorded' }}</span>
-          </span>
-          <span v-if="o.approval_status !== 'Approved'" class="pill">
-            <Icon name="alert" size="18" /> Pending
-          </span>
-          <Icon v-else class="go" name="chevron" size="22" />
-        </RouterLink>
-        <RouterLink to="/outlets" class="more" v-if="moreShops">
-          See all {{ totalShops }} shops
-        </RouterLink>
-      </template>
+      <!-- Cash in hand keeps a full-width card of its own above the grid. It is the one
+           thing on this screen the rep is personally answerable for, and a late one is a row
+           their manager is already looking at. -->
+      <RouterLink v-if="inHand?.count" to="/deposit" class="money"
+                  :class="{ late: inHand.is_overdue }">
+        <Icon name="tag" size="20" />
+        <span>
+          <b class="tnum">Hand in {{ rupees(inHand.total_amount) }}</b>
+          <em v-if="inHand.is_overdue">
+            Carrying it {{ inHand.oldest_days }} days — your manager is told
+          </em>
+          <em v-else>{{ inHand.count }} collection{{ inHand.count > 1 ? 's' : '' }} in hand</em>
+        </span>
+        <Icon name="chevron" size="18" class="go" />
+      </RouterLink>
 
-      <div v-else-if="!loading && !openDay" class="empty">
-        <Icon name="store" size="36" />
-        <b>No shops on this phone yet</b>
-        <p class="muted">Tap Sync now to bring your shops down.</p>
+      <!-- The grid: everything else a rep opens from home, two across. -->
+      <div v-if="!loading" class="grid">
+        <RouterLink v-for="t in tiles" :key="t.to" :to="t.to" class="tile">
+          <Icon :name="t.icon" size="22" />
+          <b>{{ t.title }}</b>
+          <em>{{ t.note }}</em>
+        </RouterLink>
       </div>
 
-      <!-- Today's shops -->
+      <!-- Today's shops. Only once the day is running: before that the route is a plan and
+           not a worklist, and the Shops tab is where a rep goes to look one up. -->
       <template v-if="openDay && shops.length">
         <div class="section">
           <h3>Today's shops</h3>
@@ -359,55 +387,6 @@ onUnmounted(() => {
          is actually doing: carry on with an open visit, else walk to the next shop, else
          close the day. Finish day stays reachable throughout - a rep who cannot end their
          day is stuck. -->
-    <!-- The van bookends the day: load it before the first shop, settle it after the last.
-         Both sit above the primary action rather than competing with it. -->
-    <RouterLink v-if="inHand?.count" to="/deposit" class="vcard money"
-                :class="{ late: inHand.is_overdue }">
-      <Icon name="tag" size="20" />
-      <span>
-        <b>Hand in {{ inHand.total_amount.toLocaleString('en-IN') }}</b>
-        <em v-if="inHand.is_overdue">Carrying it {{ inHand.oldest_days }} days — your manager is told</em>
-        <em v-else>{{ inHand.count }} collection{{ inHand.count > 1 ? 's' : '' }} in hand</em>
-      </span>
-      <Icon name="chevron" size="18" class="go" />
-    </RouterLink>
-
-    <div v-if="vanRep" class="van">
-      <RouterLink v-if="!openDay" to="/van/load" class="vcard">
-        <Icon name="truck" size="20" />
-        <span><b>Load the van</b><em>What you are carrying today</em></span>
-        <Icon name="chevron" size="18" class="go" />
-      </RouterLink>
-      <RouterLink v-else to="/van/settle" class="vcard">
-        <Icon name="truck" size="20" />
-        <span><b>Settle the van</b><em>Sold, returned, and cash to hand over</em></span>
-        <Icon name="chevron" size="18" class="go" />
-      </RouterLink>
-    </div>
-
-    <!-- Phase 7. Where the rep goes to find out how the month is going, and to claim the day
-         back. Both sit here because there is nowhere else: neither belongs to a shop or a
-         visit, and a screen with no way in is a screen that does not exist. -->
-    <div class="van">
-      <!-- Phase 8. Today's own numbers, counted live. Sits above the month because a rep
-           standing in a market is asking about this morning, not about September. -->
-      <RouterLink v-if="openDay" to="/cockpit" class="vcard">
-        <Icon name="list" size="20" />
-        <span><b>How today is going</b><em>Calls, orders and cash so far</em></span>
-        <Icon name="chevron" size="18" class="go" />
-      </RouterLink>
-      <RouterLink to="/performance" class="vcard">
-        <Icon name="target" size="20" />
-        <span><b>My performance</b><em>Targets, and what the month is worth</em></span>
-        <Icon name="chevron" size="18" class="go" />
-      </RouterLink>
-      <RouterLink to="/expense" class="vcard">
-        <Icon name="receipt" size="20" />
-        <span><b>Claim expenses</b><em>Travel, food and what you spent today</em></span>
-        <Icon name="chevron" size="18" class="go" />
-      </RouterLink>
-    </div>
-
     <div class="bottom">
       <RouterLink v-if="openVisit" class="btn-primary"
                   :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
@@ -442,26 +421,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.van { margin-top: 16px; }
-.vcard { display: flex; align-items: center; gap: 12px; text-decoration: none;
-         background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-         padding: 12px 14px; color: var(--ink); min-height: 48px; }
-.vcard > span { flex: 1; display: grid; }
-.vcard b { font-size: 16px; }
-.vcard em { font-style: normal; font-size: 14px; color: var(--muted); }
-.vcard .go { color: var(--muted); }
-.vcard.money { margin-top: 16px; }
-.vcard.money.late { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
-.vcard.money.late em { color: inherit; }
-
 .screen { display: flex; flex-direction: column; min-height: 100%; }
 .top { flex: 1; }
-.bottom { padding-top: 16px; display: grid; gap: 8px; }
 h2 { margin: 8px 0 12px; }
 h3 { margin: 20px 0 8px; font-size: 1rem; }
 .muted { color: var(--muted); font-size: 14px; }
 .err { color: var(--crit); }
-.who { display: grid; gap: 2px; margin-bottom: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
         padding: 12px; margin-bottom: 12px; }
 .card.open { border-color: var(--ok); }
@@ -472,7 +437,6 @@ h3 { margin: 20px 0 8px; font-size: 1rem; }
    the whole palette was derived to guarantee. The row still reads as done; it stays
    legible in sunlight. */
 .shop.visited { background: var(--bg); }
-.pill.done { border-color: var(--ok); color: var(--ok); }
 .card p { margin: 4px 0 0; }
 .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 
@@ -505,14 +469,25 @@ h3 { margin: 20px 0 8px; font-size: 1rem; }
               font-weight: 600; padding: 5px 10px; border-radius: 4px;
               background: var(--primary-soft); color: var(--primary); }
 
-.more { display: flex; align-items: center; justify-content: center; min-height: 48px;
-        margin-top: 4px; border-radius: 6px; border: 1px solid var(--primary);
-        color: var(--primary); font-weight: 600; text-decoration: none; }
+.money { display: flex; align-items: center; gap: 12px; text-decoration: none;
+         background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+         padding: 12px 14px; color: var(--ink); min-height: 56px; margin-bottom: 12px; }
+.money > span { flex: 1; display: grid; }
+.money b { font-size: 16px; }
+.money em { font-style: normal; font-size: 14px; color: var(--muted); }
+.money.late { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.money.late em { color: inherit; }
 
-.empty { display: grid; justify-items: center; gap: 6px; text-align: center;
-         padding: 32px 16px; color: var(--muted); }
-.empty b { color: var(--ink); font-size: 16px; }
-.empty p { margin: 0; }
+/* Two columns at every phone width, and each tile sized by its own content rather than by
+   the tallest in the row - a tile stretched over dead space reads as something missing
+   from it. */
+.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: start; }
+.tile { display: grid; gap: 4px; align-content: start; padding: 14px 12px; min-height: 92px;
+        background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+        text-decoration: none; color: var(--ink); }
+.tile > svg { color: var(--primary); }
+.tile b { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+.tile em { font-style: normal; font-size: 13px; color: var(--muted); line-height: 1.3; }
 
 .section { display: flex; justify-content: space-between; align-items: baseline;
            margin: 20px 0 8px; gap: 8px; }
@@ -539,7 +514,7 @@ em { font-style: normal; }
 /* Sticky, not fixed. The app already has a tab bar below this; a fixed bar would sit on
    top of it. Sticking to the bottom of the scroll container puts it above the tabs. */
 .bottom { position: sticky; bottom: 0; padding: 12px 0 4px; display: grid; gap: 8px;
-          background: var(--bg); border-top: 1px solid var(--line); margin-top: 8px; }
+          background: var(--bg); border-top: 1px solid var(--line); margin-top: 16px; }
 .btn-primary { display: flex; align-items: center; justify-content: center; gap: 6px;
                text-align: center; text-decoration: none; padding: 14px; min-height: 52px;
                border-radius: 6px; }

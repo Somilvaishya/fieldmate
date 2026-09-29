@@ -31,8 +31,8 @@ import { useRoute, useRouter } from 'vue-router'
 import * as cart from '../stores/order'
 import { credit, creditFetchedAt, creditOffline, loadCredit, assessCredit } from '../lib/credit'
 import {
-  appliedWords, billDiscountPaise, incentivePaise, moneyLabel, nearMissWords, planNudge,
-  qtyWords, symbolFor, totalErrorWords, uomLabel,
+  appliedWords, billDiscountPaise, droppedWords, incentivePaise, moneyLabel, nearMissWords,
+  planNudge, qtyWords, symbolFor, totalErrorWords, uomLabel,
 } from '../lib/schemeWords'
 import { toPaise } from '../lib/money'
 import { getMeta, setMeta } from '../db'
@@ -615,10 +615,17 @@ function blockerLines(blocker) {
           </p>
         </section>
 
-        <!-- An offer that was taken away is said out loud, never swallowed. -->
+        <!-- An offer that was taken away is said out loud, never swallowed - and with the reason
+             the engine already sent. This used to hardcode "is not being applied to this order",
+             which told a rep nothing they could act on: an empty budget, a better offer winning
+             and too few pieces all read identically. The sentence comes from `droppedWords` so
+             this screen and the offers screen say the same words about the same state. -->
         <p v-for="d in droppedSchemes" :key="d.scheme" class="flag warn small">
           <Icon name="alert" size="20" />
-          <span>{{ d.scheme_name || d.scheme }} is not being applied to this order.</span>
+          <span class="why">
+            <b>{{ d.scheme_name || d.scheme }}</b>
+            <em>{{ droppedWords(d.reason) }}</em>
+          </span>
         </p>
       </template>
     </div>
@@ -696,6 +703,9 @@ h3 { margin: 0; font-size: 16px; }
 .flag.warn { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
 .flag.crit { background: var(--crit-soft); color: var(--crit); border-color: var(--crit); }
 .flag.small { padding: 8px 10px; }
+/* Name over reason, the same shape the offers screen uses for the same fact. */
+.why { display: grid; gap: 1px; }
+.why em { font-style: normal; font-size: 15px; }
 .link { background: none; border: 0; padding: 0; min-height: 0; color: inherit; font-size: 16px;
         font-weight: 700; text-decoration: underline; display: block; margin-top: 6px; }
 
