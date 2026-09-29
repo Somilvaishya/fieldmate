@@ -33,3 +33,27 @@ class FieldMateSchemeLedger(Document):
 				frappe._("Record the date the money moved. A settled claim with no date is the "
 				         "first thing anybody disputes at month end.")
 			)
+
+	def on_cancel(self):
+		"""Give the budget back, whoever cancelled this row and however they reached it.
+
+		This used to live only in `order.reverse()`, which walks the rows still at docstatus 1
+		and refunds each one. That works when an order is cancelled through the service, and not
+		otherwise: a submitted ledger row links to the order, so Desk cancels the linked row
+		first to get the back-link out of the way. By the time the order's `on_cancel` ran there
+		were no docstatus 1 rows left to find, the refund never happened, and the scheme went on
+		reporting a budget it had been given back - with the row beside it still labelled
+		Accrued.
+
+		Here the accrual and its undoing sit on the same document, so they cannot come apart.
+		"""
+		self.db_set("status", "Reversed", update_modified=False)
+
+		consumed = flt(frappe.db.get_value("FieldMate Scheme", self.scheme, "consumed_amount") or 0)
+		# Never below zero. A row cancelled twice, or one whose scheme was reset underneath it,
+		# must not leave a negative budget that then reads as headroom nobody granted.
+		frappe.db.set_value(
+			"FieldMate Scheme", self.scheme,
+			"consumed_amount", max(0.0, consumed - flt(self.benefit_amount)),
+			update_modified=False,
+		)

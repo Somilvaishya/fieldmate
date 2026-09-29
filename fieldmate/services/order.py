@@ -489,22 +489,31 @@ def reverse(doc) -> None:
 
 	Called before the order's own cancel, never only from `on_cancel` - by then the back-link
 	check has already refused.
+
+	The refund itself is not done here. It lives on the ledger row's own `on_cancel`, so that a
+	row cancelled by Desk's linked-document cascade - which is what actually happens when
+	somebody cancels an order from the desk - gives the budget back too. Doing it in both places
+	would hand it back twice.
 	"""
 	for entry in frappe.get_all(
 		"FieldMate Scheme Ledger",
 		filters={"order": doc.name, "docstatus": 1},
-		fields=["name", "scheme", "benefit_amount"],
+		fields=["name"],
 	):
 		row = frappe.get_doc("FieldMate Scheme Ledger", entry.name)
-		row.db_set("status", "Reversed", update_modified=False)
 		row.flags.ignore_permissions = True
 		row.cancel()
-		_consume_budget(entry.scheme, -flt(entry.benefit_amount))
 
 
 # --------------------------------------------------------------------------------------
 # cancel and approve
 # --------------------------------------------------------------------------------------
+
+
+# Once the depot has billed or delivered, the goods and the paperwork have moved and this is no
+# longer the rep's to undo. ERPNext would refuse the underlying Sales Order anyway, but it would
+# say so in its own words, about a document the rep has never seen.
+DEPOT_HAS_ACTED = ("Invoiced", "Delivered")
 
 
 def cancel(name: str, reason: str | None = None) -> dict:
@@ -514,6 +523,13 @@ def cancel(name: str, reason: str | None = None) -> dict:
 
 	if doc.docstatus == 2:
 		return summarise(doc)
+
+	if doc.order_status in DEPOT_HAS_ACTED:
+		frappe.throw(
+			frappe._("The depot has already {0} this order. Ask them to raise a return - "
+			         "cancelling it here would leave their paperwork with nothing behind it.")
+			.format("billed" if doc.order_status == "Invoiced" else "delivered")
+		)
 
 	# Before the cancel, not after: a submitted ledger row links to this order and
 	# Frappe checks for back-links before `on_cancel` ever runs.

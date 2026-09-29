@@ -16,6 +16,7 @@ import frappe
 from frappe.utils import cint, flt, now_datetime
 
 from fieldmate import compat
+from fieldmate.services import catalogue as catalogue_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import settings as settings_service
 
@@ -92,7 +93,14 @@ def detail(outlet: str, user: str | None = None) -> dict:
 	doc = frappe.get_doc("FieldMate Outlet", outlet)
 	allowed, reason = doc.can_take_order()
 	party = doc.billing_party()
-	company = doc.get("company") or settings_service.value("default_company")
+
+	# Whose books, resolved the way the rest of the app resolves it: from the rep, then from
+	# settings. This used to read `doc.get("company")` first - a field FieldMate Outlet does not
+	# have - so the whole expression fell through to `default_company`, and on any site where
+	# nobody had set that, every shop came back with no credit at all. The phone read the empty
+	# block as "not on this phone" while `credit.check()`, which asks the rep, was answering
+	# "Within Limit, 50,000" for the same shop a function away.
+	company = catalogue_service.resolve_company(field_user_service.for_user(user))
 
 	credit = {}
 	if party and company:
