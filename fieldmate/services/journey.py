@@ -172,6 +172,19 @@ def build_days(field_user: str, from_date, to_date, holiday_list: str | None = N
 	return days
 
 
+def holiday_list_for(field_user: str) -> str | None:
+	"""The rep's own holiday list, reached through their Employee record.
+
+	None is a normal answer, not a failure: HRMS may not be installed, or the field user may
+	have no employee linked. The plan then simply has no holidays in it, which is honest - we
+	would rather plan a day that turns out to be a holiday than silently invent one.
+	"""
+	employee = frappe.db.get_value("FieldMate Field User", field_user, "employee")
+	if not employee or not frappe.db.has_column("Employee", "holiday_list"):
+		return None
+	return frappe.db.get_value("Employee", employee, "holiday_list")
+
+
 def generate(field_user: str, from_date, to_date, holiday_list: str | None = None,
              submit: bool = False) -> str:
 	"""Create a journey plan for the window. Replaces any existing draft for the same window."""
@@ -184,10 +197,7 @@ def generate(field_user: str, from_date, to_date, holiday_list: str | None = Non
 	if existing:
 		frappe.delete_doc("FieldMate Journey Plan", existing, force=True, ignore_permissions=True)
 
-	if not holiday_list:
-		employee = frappe.db.get_value("FieldMate Field User", field_user, "employee")
-		if employee and frappe.db.has_column("Employee", "holiday_list"):
-			holiday_list = frappe.db.get_value("Employee", employee, "holiday_list")
+	holiday_list = holiday_list or holiday_list_for(field_user)
 
 	doc = frappe.get_doc({
 		"doctype": "FieldMate Journey Plan",

@@ -200,6 +200,50 @@ def distributor_outstanding(distributor: str) -> dict:
 # --------------------------------------------------------------------------------------
 
 
+def distributors_for(field_user: str | None = None) -> list[dict]:
+	"""The depots this rep can take money from, with what each one owes.
+
+	Derived from the shops they actually serve rather than from a field on the rep: a rep works
+	whoever supplies their beat, and the `distributor` column on FieldMate Field User is empty on
+	most sites - it was on the one this was written against. The rep's own is folded in when it
+	is set, so a rep with no outlets yet is not left with an empty list.
+
+	Names are the `FieldMate Distributor Profile`, because that is what a collection links to.
+	The outlet carries the Customer, which is a different document with, often, the same name.
+	"""
+	field_user = field_user or field_user_service.for_user()
+	if not field_user:
+		return []
+
+	customers = set(frappe.get_all(
+		"FieldMate Outlet",
+		filters={"territory": frappe.db.get_value("FieldMate Field User", field_user, "territory")},
+		pluck="distributor",
+	))
+	own = frappe.db.get_value("FieldMate Field User", field_user, "distributor")
+	if own:
+		customers.add(own)
+	customers.discard(None)
+	if not customers:
+		return []
+
+	out = []
+	for profile in frappe.get_all(
+		"FieldMate Distributor Profile",
+		filters={"customer": ["in", list(customers)]},
+		fields=["name", "customer"],
+	):
+		owed = distributor_outstanding(profile.name)
+		out.append({
+			"distributor": profile.name,
+			"distributor_name": frappe.db.get_value("Customer", profile.customer,
+			                                        "customer_name") or profile.customer,
+			"outstanding": flt(owed.get("outstanding")),
+		})
+	out.sort(key=lambda d: d["distributor_name"] or "")
+	return out
+
+
 def create(payload: dict, field_user: str | None = None) -> dict:
 	"""Record a collection. Posts nothing, whoever it came from."""
 	field_user = field_user or field_user_service.for_user()

@@ -47,6 +47,13 @@ def list_mine(status: str | None = None, limit: int = 50):
 
 @frappe.whitelist()
 @endpoint()
+def distributors():
+	"""The depots this rep can take money from. Needed before they can take any."""
+	return ok({"distributors": collection_service.distributors_for(_me())})
+
+
+@frappe.whitelist()
+@endpoint()
 def in_hand():
 	"""What the rep is still carrying, and since when."""
 	return ok(collection_service.undeposited(_me()))
