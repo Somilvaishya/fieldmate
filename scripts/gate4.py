@@ -460,13 +460,29 @@ def criterion_5(fx):
 def criterion_6(fx, scheme):
     from fieldmate.services import order as order_service
 
+    # Give the scheme room again before booking.
+    #
+    # Criterion 4 leaves it deliberately exhausted, and this criterion used to run straight into
+    # that: the order it books accrued NOTHING, so "the budget came back" was asked of an order
+    # that had never taken any. It passed on 0 -> 0 and would have gone on passing with the
+    # refund deleted outright - which is exactly the bug it exists to catch, and exactly what
+    # criterion 4's own comment warns about two criteria sharing one fixture.
+    frappe.db.set_value("FieldMate Scheme", scheme.name, "consumed_amount", 0,
+                        update_modified=False)
+    frappe.db.set_value("FieldMate Scheme", scheme.name, "budget_amount", 100000,
+                        update_modified=False)
+    frappe.db.commit()
+
     created = book(fx, qty=30)
     as_rep(fx, order_service.submit_order, created["name"])
 
     consumed_before = flt(frappe.db.get_value("FieldMate Scheme", scheme.name,
                                               "consumed_amount"))
-    accrued = frappe.db.count("FieldMate Scheme Ledger",
-                              {"order": created["name"], "docstatus": 1})
+    rows = frappe.get_all("FieldMate Scheme Ledger",
+                          filters={"order": created["name"], "docstatus": 1},
+                          fields=["benefit_amount"], limit_page_length=0)
+    accrued = len(rows)
+    benefit = sum(flt(r.benefit_amount) for r in rows)
 
     as_rep(fx, order_service.cancel, created["name"], "gate 4")
 
@@ -474,14 +490,24 @@ def criterion_6(fx, scheme):
                                              "consumed_amount"))
     left_standing = frappe.db.count("FieldMate Scheme Ledger",
                                     {"order": created["name"], "docstatus": 1})
+    reversed_rows = frappe.db.count("FieldMate Scheme Ledger",
+                                    {"order": created["name"], "status": "Reversed"})
     state = frappe.db.get_value("FieldMate Order", created["name"],
                                 ["docstatus", "order_status", "sales_order"], as_dict=True)
 
     check(6, "Cancelling an order returns the budget and leaves no orphan of any kind",
-          state.docstatus == 2 and left_standing == 0 and state.sales_order is None
-          and consumed_after <= consumed_before + 0.005,
-          f"{accrued} ledger row(s) accrued, {left_standing} still standing · "
-          f"consumed {consumed_before:g} -> {consumed_after:g} · order is docstatus "
+          # An accrual that never happened cannot be returned, so the criterion refuses to
+          # answer at all unless there was one.
+          accrued > 0
+          and state.docstatus == 2 and left_standing == 0 and state.sales_order is None
+          # The exact amount back, not merely "no higher than before".
+          and abs(consumed_after - (consumed_before - benefit)) < 0.005
+          # And the row says what it is. A cancelled row still labelled Accrued is what a
+          # claim would later pay out against.
+          and reversed_rows == accrued,
+          f"{accrued} ledger row(s) accrued worth {benefit:g}, {left_standing} still standing, "
+          f"{reversed_rows} marked Reversed · consumed {consumed_before:g} -> "
+          f"{consumed_after:g} (expected {consumed_before - benefit:g}) · order is docstatus "
           f"{state.docstatus} ({state.order_status}) · sales_order {state.sales_order}")
 
 

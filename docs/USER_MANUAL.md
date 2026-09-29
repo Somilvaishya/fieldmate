@@ -260,19 +260,56 @@ Roles: **FieldMate Field Rep** only.
 - Frequency: Weekly · Visit Day: today's weekday
 - Add your outlets in the child table
 
-## 2.9 A scheme
+## 2.9 The journey plan — *skip this and the phone says "No route planned"*
+
+A beat is a **rule**: "this route, Mondays, weekly". It is not a schedule. The app never reads the
+beat — it reads a **journey plan**, which is that rule turned into real dates, minus holidays and
+approved leave. With a beat but no plan, the rep's Today screen says *No route planned* every
+morning while a perfectly good beat sits in the desk.
+
+**Desk → FieldMate Journey Plan → New.**
+- **Field User:** your rep
+- **From Date / To Date:** this month. 120 days is the ceiling — generate one month at a time
+- **Holiday List:** leave it blank; it is filled from the rep's Employee record if there is one
+- Click **Generate Days**
+
+The button fills the table without saving anything, so you can change the dates and press it
+again. Read what it tells you — it reports what it *found*, not that it ran:
+
+- *"30 days, 22 with a route."* — good, carry on.
+- *"30 days, none with a route."* — the beat is not reaching this rep. Check the beat is
+  **Active**, that **Assigned To** is this field user, and that **Visit Day** falls inside your date
+  window.
+
+**Save, then Submit.** A draft plan is invisible to the phone — only submitted plans are read.
+
+**Check:** the plan's *Planned Days* should be the number of times your beat runs in the window
+(four or five for a weekly beat in a month), not 1. One day row means somebody added it by hand.
+
+> **When you change a beat later, the plan does not follow.** It holds dates, not rules. Move a
+> beat from Saturday to Monday and every plan already generated still says Saturday — the rep
+> gets no route on the Monday and a route on the Saturday nobody is working. Cancel the plan and
+> generate a new one. The Beat form warns you about this when you touch Visit Day, Frequency or
+> Week Pattern.
+>
+> **Two submitted plans may not overlap** for one rep — "today's beat" would be ambiguous. Cancel
+> the old one before generating the new.
+
+## 2.10 A scheme
 
 **Desk → FieldMate Scheme → New.**
 - Scheme Name: `10% on 20 pieces` · Type: Volume Slab · Priority: 10 · Active
 - Basis: Qty · Basis UOM: Unit · Measured Over: Item Set · Stacking: Stackable
 - Valid From: last week · On Exhaust: Block
-- **Budget Amount: 5,000** — Part 7 will exhaust it
+- **Budget Amount: 100** — small on purpose, so Part 7 can actually exhaust it by hand. At
+  ₹16.50 a piece, twenty pieces at 10% off is ₹33 of benefit, so three orders take it to ₹99 and
+  the fourth has nowhere to go. A 5,000 budget would need 152 orders to test the same thing.
 - Items: one of your SKUs
 - Slabs: `#1 · from 20 · open ended · Percent Discount · per Slab · 10%`
 
 **Submit it.**
 
-## 2.10 Checklist and reasons (optional)
+## 2.11 Checklist and reasons (optional)
 
 **FieldMate No Order Reason**, **FieldMate Deviation Reason**, **FieldMate Checklist Template** —
 create a couple of each if you want to see those screens do something.
@@ -364,10 +401,14 @@ Catalogue → pick your scheme SKU → **quantity 20**.
 
 ## 6.2 An unpriced item
 
-Add the item you left without a price.
+Try to add the item you left without a price.
 
-**Expected:** it is named and excluded, and the order **refuses to commit** until you remove it.
-Not booked free.
+**Expected:** it refuses to go into the cart at all, and says to ask your manager to set a price.
+The one thing that must never happen is that it books at zero — a line nobody priced is a line
+somebody eats.
+
+The refusal happens at the moment you tap it rather than at submit, which is stricter than it
+needs to be and better: a rep finds out standing at the shelf, not after building a whole cart.
 
 ## 6.3 Submit
 
@@ -453,12 +494,26 @@ budget goes back down. No orphan anywhere.
 
 # Part 7 — Budget exhaustion
 
-Book enough orders to use up the scheme's 5,000 budget.
+This only works with a budget you can reach. If the scheme still has 5,000 on it, open
+**FieldMate Scheme**, cancel, amend, set **Budget Amount: 100**, submit. Then check it is really
+starting from zero: **Consumed Amount must be 0**, and the Scheme Ledger must be empty. If
+Consumed says something and the ledger is empty, the scheme is carrying a figure from a wiped
+run — zero it before you start, or every number below will be off by that much.
 
-**Expected:** with **On Exhaust = Block**, the scheme stops applying once the budget is gone.
-Consumed never exceeds the budget.
+Book orders of **20 × RIN-250** from a shop, one at a time. Each one is ₹33 of benefit:
 
-**Check:** the scheme ledger's total equals the consumed amount, to the paisa.
+| Order | Benefit | Consumed after | Expected |
+|---|---|---|---|
+| 1 | 33 | 33 | applies |
+| 2 | 33 | 66 | applies |
+| 3 | 33 | 99 | applies |
+| 4 | — | 99 | **no scheme** — only ₹1 left and On Exhaust is Block |
+
+**Expected:** with **On Exhaust = Block** the scheme stops applying once the budget cannot cover
+the whole benefit. It never part-applies, and consumed never exceeds the budget.
+
+**Check:** the scheme ledger's rows add up to exactly the consumed amount, to the paisa. Three
+rows of 33.00, consumed 99.00.
 
 ---
 
