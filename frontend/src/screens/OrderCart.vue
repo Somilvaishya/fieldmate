@@ -131,6 +131,13 @@ watch(outlet, (name) => name && open(name))
 async function bump(line, delta) {
   notice.value = null
   try {
+    // At the floor, minus takes the line off. Same reasoning as the catalogue: the button was
+    // disabled there instead, which left a dead control under the rep's thumb and no way down
+    // from one except selecting the number and clearing it.
+    if (delta < 0 && line.display_qty <= floorFor(line)) {
+      await remove(line)
+      return
+    }
     await cart.bumpQty(line.item_code, delta, { unit: 'display' })
   } catch (e) {
     say(e.message || 'That quantity could not be set.', 'crit')
@@ -515,8 +522,10 @@ function blockerLines(blocker) {
 
           <div v-else class="lrow">
             <div class="stepper">
-              <button type="button" class="step" :disabled="line.display_qty <= floorFor(line)"
-                      :aria-label="`One ${line.display_uom} less`" @click="bump(line, -1)">
+              <button type="button" class="step"
+                      :aria-label="line.display_qty <= floorFor(line)
+                        ? `Remove ${line.item_name}` : `One ${line.display_uom} less`"
+                      @click="bump(line, -1)">
                 <Icon name="minus" size="22" />
               </button>
               <label class="qtybox">

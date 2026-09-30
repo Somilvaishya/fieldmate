@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import { deviceUuid, getMeta, setMeta, rememberName } from '../db'
 import { enqueue } from '../sync/outbox'
+import * as photoQueue from '../sync/photos'
 import * as pinger from '../sync/pinger'
 
 export const openDay = ref(null)
@@ -150,6 +151,11 @@ export async function start(payload) {
 export async function end(payload) {
   const device = await deviceUuid()
   await pinger.flush()          // send the trail before the server computes distance from it
+
+  // Yesterday's thumbnails. They are kept so a rep can see this morning's photos after they
+  // upload; a week of them on a phone nobody clears is a different thing. The full images went
+  // days ago - this is a few kilobytes each.
+  photoQueue.forgetSentBefore(Date.now() - 2 * 24 * 60 * 60 * 1000).catch(() => {})
 
   try {
     const data = await api.dayEnd(device, payload)

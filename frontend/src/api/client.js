@@ -126,8 +126,11 @@ export const api = {
   currentVisit: () => call('visit.current'),
   saveVisitTasks: (visit, payload) =>
     call('visit.save_tasks', { visit, payload }, { post: true }),
-  uploadPhoto: (visit, payload) =>
-    call('visit.upload_photo', { visit, payload }, { post: true }),
+  // The device id is not optional: `visit.upload_photo` is declared `require_device=True`, so
+  // without it the endpoint refuses before it reads the photo. It was missing here, which meant
+  // every shelf photo ever taken failed and then retried until the queue gave up on it.
+  uploadPhoto: (deviceUuid, visit, payload) =>
+    call('visit.upload_photo', { device_uuid: deviceUuid, visit, payload }, { post: true }),
   checkOut: (deviceUuid, visit, payload) =>
     call('visit.check_out', { device_uuid: deviceUuid, visit, payload }, { post: true }),
   visitHistory: (date) => call('visit.history', { date }),

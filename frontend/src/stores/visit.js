@@ -269,10 +269,10 @@ export function unansweredRequired(visit) {
   return visibleQuestions(visit).filter((q) => q.is_required && !q.is_answered)
 }
 
-export async function addPhoto({ dataUrl, purpose, caption, kb, fix }) {
+export async function addPhoto({ dataUrl, thumb, purpose, caption, kb, fix }) {
   const visit = activeVisit.value
   if (!visit) return
-  await photoQueue.queue(visit.clientUuid, { dataUrl, purpose, caption, kb, fix })
+  await photoQueue.queue(visit.clientUuid, { dataUrl, thumb, purpose, caption, kb, fix })
   visit.photoCount = (visit.photoCount || 0) + 1
   await db.visits.put(plain(visit))
 }
