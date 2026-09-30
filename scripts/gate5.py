@@ -16,6 +16,8 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
+from _guard import require_test_site
+
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
 # Run directly rather than imported, so `scripts` is not on the path until we put it there.
@@ -267,6 +269,7 @@ def criterion_3(fx):
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 

@@ -17,6 +17,8 @@ import sys
 
 import frappe
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
     if not arg.startswith("--"):
@@ -135,6 +137,7 @@ def purge(prefix: str = "G_", quiet: bool = False, passes: int = 3) -> int:
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
 
     print(f"\nGate fixtures on {SITE}{'' if GO else '   (dry run — nothing will be deleted)'}")

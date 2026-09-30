@@ -40,6 +40,8 @@ import sys
 import frappe
 from frappe.utils import add_days, today
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
 	if not arg.startswith("--"):
@@ -318,6 +320,7 @@ def undo() -> None:
 def main() -> None:
 	frappe.init(site=SITE)
 	frappe.connect()
+	require_test_site(SITE)
 	frappe.set_user("Administrator")
 	print(f"Site: {SITE}")
 

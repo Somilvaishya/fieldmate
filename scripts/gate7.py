@@ -27,6 +27,8 @@ import time
 import frappe
 from frappe.utils import add_days, flt, today
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
     # A positional argument is the site; a flag is a flag. Reading argv[1] blindly made
@@ -487,6 +489,7 @@ def criterion_5(fx):
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 

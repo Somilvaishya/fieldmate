@@ -20,6 +20,8 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
+from _guard import require_test_site
+
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
@@ -377,6 +379,7 @@ def criterion_4(fx, mine_order):
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 
