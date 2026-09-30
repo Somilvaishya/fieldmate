@@ -49,11 +49,9 @@ class FieldMateSchemeLedger(Document):
 		"""
 		self.db_set("status", "Reversed", update_modified=False)
 
-		consumed = flt(frappe.db.get_value("FieldMate Scheme", self.scheme, "consumed_amount") or 0)
-		# Never below zero. A row cancelled twice, or one whose scheme was reset underneath it,
-		# must not leave a negative budget that then reads as headroom nobody granted.
-		frappe.db.set_value(
-			"FieldMate Scheme", self.scheme,
-			"consumed_amount", max(0.0, consumed - flt(self.benefit_amount)),
-			update_modified=False,
-		)
+		# The same function that charges it, so the accrual and the refund can never drift into
+		# two different ideas of the arithmetic. It updates in SQL, so two cancellations at once
+		# do not lose one of the refunds.
+		from fieldmate.services.order import _consume_budget
+
+		_consume_budget(self.scheme, -flt(self.benefit_amount))

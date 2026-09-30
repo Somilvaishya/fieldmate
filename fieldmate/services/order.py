@@ -421,7 +421,10 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		"delivery_date": doc.expected_delivery_date or getdate(doc.order_date),
 		"currency": doc.currency,
 		"selling_price_list": doc.price_list,
-		"fm_source_key": doc.name,
+		# `compat.make_sales_order` reads this as `key` and refuses without it. Sending it under
+		# the name of the column it eventually lands in meant every directly-billed order threw
+		# "A Sales Order cannot be posted without an idempotency key" and none ever posted.
+		"key": doc.name,
 		"items": [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate}
 			for row in (doc.items or [])
@@ -474,9 +477,31 @@ def accrue(doc) -> None:
 
 
 def _consume_budget(scheme: str, amount) -> None:
-	consumed = flt(frappe.db.get_value("FieldMate Scheme", scheme, "consumed_amount") or 0)
-	frappe.db.set_value("FieldMate Scheme", scheme, "consumed_amount",
-	                    consumed + flt(amount), update_modified=False)
+	"""Charge the scheme's budget, in the database rather than in Python.
+
+	Read-modify-write loses a write the moment two reps submit against one scheme at the same
+	second: both read 33, both write 66, and the scheme has paid out 66 while reporting 33. Two
+	orders at one moment is not an exotic case for a field force of any size - it is a Monday
+	morning. `UPDATE ... SET consumed = consumed + x` leaves the arithmetic to the row lock that
+	is already there.
+
+	The floor at zero belongs here too: a refund for a row whose scheme was reset underneath it
+	must not leave a negative budget, which would then read as headroom nobody granted.
+	"""
+	frappe.db.sql(
+		"""
+		update `tabFieldMate Scheme`
+		   set consumed_amount = greatest(0, ifnull(consumed_amount, 0) + %(amount)s)
+		 where name = %(scheme)s
+		""",
+		{"amount": flt(amount), "scheme": scheme},
+	)
+
+	# Raw SQL goes round the document cache, and the scheme is read back through it: the compiled
+	# spec the engine prices against carries `consumed_paise` straight off the cached document.
+	# Without this the second order of the morning is priced against the first one's stale figure
+	# and the budget is spent twice. Gate 4 criterion 4 caught exactly that.
+	frappe.clear_document_cache("FieldMate Scheme", scheme)
 
 
 def reverse(doc) -> None:

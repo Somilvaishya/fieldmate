@@ -957,7 +957,11 @@ def make_payment_entry(payload: dict) -> str:
 	and must not be given one (ADR-004) - Gate 6 criterion 2 checks exactly that.
 	"""
 	payload = dict(payload or {})
-	key = payload.pop("fm_source_key", None)
+	# Either name. `make_sales_order`, `make_credit_note` and `make_expense_claim` all read
+	# `key`; this one alone read `fm_source_key`, which is the name of the column the key ends up
+	# in rather than the name of the argument. A caller that copied the wrong sibling got a
+	# throw, and that is exactly how every directly-billed Sales Order failed for a whole phase.
+	key = payload.pop("key", None) or payload.pop("fm_source_key", None)
 	if not key:
 		frappe.throw(frappe._("A Payment Entry cannot be posted without an idempotency key."))
 
