@@ -23,7 +23,7 @@
  "fields": [
   {"fieldname": "naming_series", "fieldtype": "Select", "label": "Series", "options": "FM-CLM-.YYYY.-.#####", "default": "FM-CLM-.YYYY.-.#####", "reqd": 1},
   {"fieldname": "claim_date", "fieldtype": "Date", "label": "Claim Date", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1},
-  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile",
+  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "Customer",
    "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1,
    "description": "Who is out of pocket. He gave the discount or the stock at the counter the moment a rep promised it, and this document is how he gets it back."},
   {"fieldname": "customer", "fieldtype": "Link", "label": "Customer", "options": "Customer", "read_only": 1,

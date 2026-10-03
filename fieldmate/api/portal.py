@@ -15,6 +15,7 @@ import frappe
 
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import claim as claim_service
+from fieldmate.services import party as party_service
 from fieldmate.services import portal as portal_service
 
 
@@ -33,20 +34,28 @@ def _session():
 @endpoint()
 def whoami():
 	row = _session()
-	profile = frappe.db.get_value(
-		"FieldMate Distributor Profile", row.distributor,
-		["distributor_code", "customer", "territory", "credit_days", "delivery_days"],
+	# The depot is a Customer since step 2d. Credit days are not a field on it - they are derived
+	# from its Payment Terms Template, because a template with rows is what actually bills this
+	# party and no single integer states one.
+	party = frappe.db.get_value(
+		"Customer", row.distributor,
+		["customer_name", "territory", "fm_distributor_code", "fm_delivery_days"],
 		as_dict=True) or {}
 	return ok({
 		"user": row.user,
 		"full_name": frappe.db.get_value("User", row.user, "full_name"),
 		"distributor": row.distributor,
-		"distributor_name": frappe.db.get_value("Customer", profile.get("customer"),
-		                                        "customer_name") or row.distributor,
+		"distributor_name": party.get("customer_name") or row.distributor,
 		"designation": row.designation,
 		"can_accept_orders": bool(row.can_accept_orders),
 		"can_raise_claims": bool(row.can_raise_claims),
-		**profile,
+		# Kept under the names the portal pages already read, so that retiring the profile is not
+		# also a rename of everything on the screen.
+		"customer": row.distributor,
+		"distributor_code": party.get("fm_distributor_code"),
+		"territory": party.get("territory"),
+		"credit_days": party_service.credit_days(row.distributor),
+		"delivery_days": party.get("fm_delivery_days"),
 	})
 
 

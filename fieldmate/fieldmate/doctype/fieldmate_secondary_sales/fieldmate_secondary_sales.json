@@ -80,7 +80,7 @@
    "fieldname": "distributor",
    "fieldtype": "Link",
    "label": "Distributor",
-   "options": "FieldMate Distributor Profile",
+   "options": "Customer",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,

@@ -26,15 +26,21 @@ class OrderFixture(SchemeFixture):
 		super().setUp()
 		self.rep = self.make_field_user(territory=self.territory_for_orders())
 		self.outlet = self.make_outlet(territory=self.rep.territory, approval_status="Approved")
-		# An order routes to a distributor, so that distributor has to be one we hold a profile
-		# for. Building the Customer without the profile would test a shape the real system
-		# never has - which is the exact family of bug that shipped three times in Phase 3.
-		self.distributor = frappe.get_doc({
-			"doctype": "FieldMate Distributor Profile",
-			"customer": self.outlet.distributor,
-			"territory": self.rep.territory,
-		}).insert(ignore_permissions=True)
-		self.track("FieldMate Distributor Profile", self.distributor.name)
+		# An order routes to a distributor, and since step 2d a distributor IS a Customer with a
+		# channel tier - there is no second document beside it. The outlet already names the
+		# Customer, so this marks the one it names rather than building another. Marking it
+		# matters: `outlet.create` and `channel.resolve` both ask for the tier, and a Customer
+		# without one is not a party FieldMate sells through.
+		# Tier only, not territory. Nothing in the order path reads the distributor's territory,
+		# and writing it here would make this Customer an answer to "who covers the rep's
+		# territory" - so a second fixture doing the same would turn an unrelated test's shop
+		# onboarding into "more than one distributor covers your area".
+		frappe.db.set_value(
+			"Customer", self.outlet.distributor,
+			{"fm_tier": "Distributor", "fm_buys_from": "Company"},
+			update_modified=False)
+		frappe.clear_document_cache("Customer", self.outlet.distributor)
+		self.distributor = frappe.get_doc("Customer", self.outlet.distributor)
 		self.price_item(self.item, 100)
 
 	def territory_for_orders(self):

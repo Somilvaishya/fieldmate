@@ -32,5 +32,5 @@ def get_context(context):
 
 
 def _depot_name(distributor: str) -> str:
-	customer = frappe.db.get_value("FieldMate Distributor Profile", distributor, "customer")
-	return frappe.db.get_value("Customer", customer, "customer_name") or distributor
+	"""What to call this depot on its own screens. The distributor is the Customer (step 2d)."""
+	return frappe.db.get_value("Customer", distributor, "customer_name") or distributor

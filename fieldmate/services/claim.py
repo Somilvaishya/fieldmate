@@ -84,15 +84,15 @@ def build(distributor: str, from_date, to_date, scheme: str | None = None,
 			.format(getdate(from_date), getdate(to_date))
 		)
 
-	profile = frappe.db.get_value(
-		"FieldMate Distributor Profile", distributor, ["customer"], as_dict=True)
 	company = frappe.db.get_value("FieldMate Scheme Ledger", rows[0].name, "company") \
 		or settings_service.value("default_company")
 
 	doc = frappe.new_doc("FieldMate Claim")
 	doc.claim_date = nowdate()
 	doc.distributor = distributor
-	doc.customer = profile.customer if profile else None
+	# `customer` is deliberately not set here. `resolve_party` on the controller is the one place
+	# that decides it, and it answers the same way whether the claim was built from this service,
+	# from the portal or by hand in Desk.
 	doc.company = company
 	doc.currency = frappe.db.get_value("Company", company, "default_currency")
 	doc.from_date = getdate(from_date)

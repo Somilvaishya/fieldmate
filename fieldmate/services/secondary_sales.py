@@ -185,14 +185,13 @@ def outlets_for(distributor: str) -> dict:
 	Only their own shops: matching across distributors would attach one distributor's sales to
 	another's outlet, and the mistake would be invisible in every report afterwards.
 	"""
-	customer = frappe.db.get_value("FieldMate Distributor Profile", distributor, "customer")
-	if not customer:
+	if not frappe.db.exists("Customer", distributor):
 		return {}
 
 	shops = {}
 	for row in frappe.get_all(
 		"FieldMate Outlet",
-		filters={"distributor": customer},
+		filters={"distributor": distributor},
 		fields=["name", "outlet_name", "outlet_code"] if
 		frappe.get_meta("FieldMate Outlet").has_field("outlet_code")
 		else ["name", "outlet_name"],

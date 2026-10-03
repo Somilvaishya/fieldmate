@@ -11,7 +11,7 @@
   {"fieldname": "beat", "fieldtype": "Link", "label": "Beat", "options": "FieldMate Beat", "in_list_view": 1, "columns": 2},
   {"fieldname": "outlet", "fieldtype": "Link", "label": "Outlet", "options": "FieldMate Outlet", "in_list_view": 1, "columns": 2,
    "description": "One named shop. Used for a pilot before a scheme goes wide, and for the single large counter that negotiates its own terms."},
-  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile",
+  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "Customer",
    "description": "The billing party the order routes through. A scheme a distributor funds cannot run through a distributor who never agreed to it."},
   {"fieldname": "is_excluded", "fieldtype": "Check", "label": "Exclude", "in_list_view": 1, "columns": 1,
    "description": "Carves this row out instead of including it, which is how a manager writes all of North except modern trade without listing every beat. An exclusion row that names nothing would exclude everywhere and silently switch the scheme off, so it is refused at save."}

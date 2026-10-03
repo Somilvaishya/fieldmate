@@ -180,17 +180,24 @@ def last_payment_for(outlet) -> dict | None:
 
 
 def distributor_outstanding(distributor: str) -> dict:
-	"""What a distributor owes us. Real, and read from ERPNext rather than held here."""
-	customer = frappe.db.get_value("FieldMate Distributor Profile", distributor, "customer")
+	"""What a distributor owes us. Real, and read from ERPNext rather than held here.
+
+	The distributor is the Customer since step 2d, so `customer` in the answer is the same name.
+	It stays in the payload because the portal and the phone both read that key, and because
+	saying which billing account a figure came from is worth one repeated string.
+	"""
 	company = settings_service.value("default_company")
-	if not customer:
+	if not frappe.db.exists("Customer", distributor):
+		# A name with no billing account behind it. Answering zero rather than raising: this is
+		# read to draw a screen, and a rep looking at a list of depots should see the ones that
+		# do work rather than an error for the one that does not.
 		return {"distributor": distributor, "outstanding": 0.0, "source": "ERPNext"}
 
 	return {
 		"distributor": distributor,
-		"customer": customer,
-		"outstanding": flt(compat.get_outstanding(customer, company)),
-		"credit_limit": flt(compat.get_credit_limit(customer, company)),
+		"customer": distributor,
+		"outstanding": flt(compat.get_outstanding(distributor, company)),
+		"credit_limit": flt(compat.get_credit_limit(distributor, company)),
 		"source": "ERPNext",
 	}
 
@@ -208,8 +215,9 @@ def distributors_for(field_user: str | None = None) -> list[dict]:
 	most sites - it was on the one this was written against. The rep's own is folded in when it
 	is set, so a rep with no outlets yet is not left with an empty list.
 
-	Names are the `FieldMate Distributor Profile`, because that is what a collection links to.
-	The outlet carries the Customer, which is a different document with, often, the same name.
+	Names are Customers, which is what a collection links to and what the outlet carries. Until
+	step 2d those were two documents that happened to share a name, and this function existed
+	largely to translate between them.
 	"""
 	field_user = field_user or field_user_service.for_user()
 	if not field_user:
@@ -228,16 +236,18 @@ def distributors_for(field_user: str | None = None) -> list[dict]:
 		return []
 
 	out = []
-	for profile in frappe.get_all(
-		"FieldMate Distributor Profile",
-		filters={"customer": ["in", list(customers)]},
-		fields=["name", "customer"],
+	# No filter on `disabled`, which the profile-based version did not have either. A party you
+	# have stopped selling to is exactly one you may still be collecting overdue money from, and
+	# dropping them from this list would hide the debt rather than the party.
+	for row in frappe.get_all(
+		"Customer",
+		filters={"name": ["in", list(customers)]},
+		fields=["name", "customer_name"],
 	):
-		owed = distributor_outstanding(profile.name)
+		owed = distributor_outstanding(row.name)
 		out.append({
-			"distributor": profile.name,
-			"distributor_name": frappe.db.get_value("Customer", profile.customer,
-			                                        "customer_name") or profile.customer,
+			"distributor": row.name,
+			"distributor_name": row.customer_name or row.name,
 			"outstanding": flt(owed.get("outstanding")),
 		})
 	out.sort(key=lambda d: d["distributor_name"] or "")
@@ -489,10 +499,10 @@ def post_payment(collection: str, deposit) -> str | None:
 	if doc.payment_entry:
 		return doc.payment_entry
 
-	customer = frappe.db.get_value("FieldMate Distributor Profile", doc.distributor, "customer")
-	if not customer:
+	customer = doc.distributor
+	if not frappe.db.exists("Customer", customer):
 		frappe.throw(
-			frappe._("{0} has no billing account, so there is nothing to credit the payment to.")
+			frappe._("{0} is not a billing account, so there is nothing to credit the payment to.")
 			.format(doc.distributor)
 		)
 

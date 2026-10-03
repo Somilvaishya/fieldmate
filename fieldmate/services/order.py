@@ -735,8 +735,12 @@ def assert_owner(doc) -> None:
 
 
 def _distributor_for(outlet) -> str | None:
-	customer = frappe.db.get_value("FieldMate Outlet", outlet, "distributor")
-	if not customer:
-		return None
-	return frappe.db.get_value("FieldMate Distributor Profile", {"customer": customer}, "name") \
-		or frappe.db.get_value("FieldMate Distributor Profile", customer, "name")
+	"""Who bills this shop. One read now that a distributor is a Customer (Phase 1, step 2d).
+
+	This used to read the outlet's Customer and then look up the FieldMate Distributor Profile
+	behind it, twice, because the two documents could in principle be named differently. They
+	never were - the profile was named after its Customer - so the second read was the identity
+	function wearing a lookup, and the fallback beside it was the same lookup spelled the other
+	way round.
+	"""
+	return frappe.db.get_value("FieldMate Outlet", outlet, "distributor")

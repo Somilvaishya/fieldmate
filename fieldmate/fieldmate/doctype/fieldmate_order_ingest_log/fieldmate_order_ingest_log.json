@@ -16,7 +16,7 @@
   {"fieldname": "logged_on", "fieldtype": "Datetime", "label": "Logged On", "reqd": 1, "in_list_view": 1, "search_index": 1},
   {"fieldname": "order", "fieldtype": "Link", "label": "Order", "options": "FieldMate Order", "reqd": 1,
    "in_list_view": 1, "in_standard_filter": 1, "search_index": 1},
-  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile",
+  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "Customer",
    "in_standard_filter": 1, "search_index": 1},
   {"fieldname": "column_head", "fieldtype": "Column Break"},
   {"fieldname": "action", "fieldtype": "Select", "label": "Action",

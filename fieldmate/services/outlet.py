@@ -142,10 +142,16 @@ def resolve_distributor(payload: dict, rep) -> str:
 
 	territory = payload.get("territory") or (rep.territory if rep else None)
 	if territory:
+		# Tier "Distributor" exactly, not any channel party: a CFA is our own depot and a super
+		# stockist bills distributors rather than shops, so neither is an answer to "who supplies
+		# this kirana". It is also what every retired FieldMate Distributor Profile became, so
+		# this asks the same question the profile's `status: Active` filter used to ask. A site
+		# that starts attaching shops to sub-stockists will want this widened, and that is a
+		# decision for whoever sets those up.
 		serving = frappe.get_all(
-			"FieldMate Distributor Profile",
-			filters={"territory": territory, "status": "Active"},
-			pluck="customer",
+			"Customer",
+			filters={"territory": territory, "fm_tier": "Distributor", "disabled": 0},
+			pluck="name",
 			limit_page_length=2,
 		)
 		if len(serving) == 1:

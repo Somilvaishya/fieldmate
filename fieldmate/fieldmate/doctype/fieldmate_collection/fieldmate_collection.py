@@ -48,10 +48,8 @@ class FieldMateCollection(Document):
 			self.currency = frappe.db.get_value("Company", self.company, "default_currency")
 
 	def distributor_behind(self, outlet) -> str | None:
-		customer = frappe.db.get_value("FieldMate Outlet", outlet, "distributor")
-		if not customer:
-			return None
-		return frappe.db.get_value("FieldMate Distributor Profile", {"customer": customer}, "name")
+		"""Whose money this is. The outlet names its billing party directly (step 2d)."""
+		return frappe.db.get_value("FieldMate Outlet", outlet, "distributor")
 
 	def allocate(self):
 		"""Spread the money across the bills the rep ticked, and name what is left over.

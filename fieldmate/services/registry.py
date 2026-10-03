@@ -264,6 +264,15 @@ register(
 # to show who the order is going to and what it can promise about delivery, and it has to do that
 # with no signal. Delivery days and the minimum order value are read out to the shopkeeper at the
 # counter, so they cannot wait for a round trip.
+#
+# **This is the last thing in the app that reads FieldMate Distributor Profile** (Phase 1, step
+# 2d-ii: every link now names a Customer and every other read is gone). It stays until the phone
+# has somewhere else to get those three counter facts, which is step 2d-iii. Registering Customer
+# in its place is not the answer: `sync.pull` is permission-scoped and no FieldMate role has read
+# on Customer, so the entry would be skipped and the phone would quietly show nothing. Granting
+# that read would hand a handset the whole customer master, credit limits included, which is the
+# opposite of why ADR-013 keeps shops out of it. The facts will travel in the bootstrap payload,
+# where FieldMate decides exactly what leaves the server.
 register(Syncable(doctype="FieldMate Distributor Profile", push=False, pull=True,
                   pull_fields=("name", "customer", "distributor_code", "status", "territory",
                                "price_list", "min_order_value", "credit_days", "delivery_days",
