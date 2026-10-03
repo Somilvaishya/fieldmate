@@ -27,6 +27,17 @@ MAX_PLAUSIBLE_KMPH = 140.0
 # wanders a few metres continuously, and summing that noise inflates every expense claim.
 MIN_SEGMENT_KM = 0.02
 
+# A fix this coarse is not a GPS fix at all. It is the network's guess from a cell tower or a
+# wifi scan, it lands a hundred metres or so from where the phone actually is, and it arrives
+# looking exactly like a real fix. The one thing that tells them apart is the accuracy the
+# device itself reported, which this file used to record and never read.
+#
+# Measured on a real day: 93 pings from a rep who never left the office summed to 2.069 km. All
+# thirteen jumps over 100 m ran good fix -> acc 100 -> good fix and back, so each excursion was
+# paid for twice. Dropping the coarse fixes took the day to 0.000 km, against a net displacement
+# of 53 m. At 3.50 a kilometre that difference is the whole of what a travel claim is for.
+MAX_ACCURACY_M = 75.0
+
 
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
 	"""Great-circle distance. Straight-line, so it under-reports road travel rather than over."""
@@ -45,8 +56,16 @@ def summarise(pings: list[dict]) -> dict:
 	]
 	clean.sort(key=lambda p: p.get("t") or "")
 
+	# Kept in the trail, left out of the distance. The row is evidence and deleting it would
+	# destroy the record of where the phone said it was; it simply cannot carry the weight of a
+	# claim. A fix with no accuracy reported at all is trusted, because older devices sent none
+	# and refusing those would silently zero their days.
+	usable = [p for p in clean
+	          if p.get("acc") in (None, "") or flt(p["acc"]) <= MAX_ACCURACY_M]
+
 	summary = {
 		"ping_count": len(clean),
+		"coarse_ping_count": len(clean) - len(usable),
 		"total_distance_km": 0.0,
 		"max_speed_kmph": 0.0,
 		"implausible_jumps": 0,
@@ -55,9 +74,17 @@ def summarise(pings: list[dict]) -> dict:
 		"last_ping_on": clean[-1].get("t") if clean else None,
 	}
 
-	for previous, current in itertools.pairwise(clean):
+	for previous, current in itertools.pairwise(usable):
 		km = haversine_km(previous["lat"], previous["lon"], current["lat"], current["lon"])
-		if km < MIN_SEGMENT_KM:
+
+		# A move smaller than the combined uncertainty of the two fixes that describe it is not
+		# evidence of a move. Two fixes 25 m apart, each good to 16 m, say nothing. The flat 20 m
+		# floor still applies underneath, for devices that report no accuracy.
+		floor = MIN_SEGMENT_KM
+		slack = flt(previous.get("acc") or 0) + flt(current.get("acc") or 0)
+		if slack:
+			floor = max(floor, slack / 1000.0)
+		if km < floor:
 			continue
 
 		seconds = 0.0

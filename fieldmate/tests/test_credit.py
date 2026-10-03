@@ -23,9 +23,8 @@ class CreditFixture(OutletFixture):
 	"""
 
 	SETTINGS = (
-		"enable_order_booking",
-		"enable_van_sales",
-		"default_sales_mode",
+		"enable_secondary_sales",
+		"enable_primary_sales",
 		"block_order_on_credit_breach",
 		"allow_credit_override",
 		"default_company",
@@ -87,16 +86,6 @@ class CreditFixture(OutletFixture):
 	def owing(self, amount):
 		"""Stand in for the ledger for the length of one call."""
 		return patch.object(credit_service.compat, "get_outstanding", return_value=flt(amount))
-
-	def van_rep(self):
-		warehouse = frappe.db.get_value("Warehouse", {"company": self.company, "is_group": 0}, "name")
-		if not warehouse:
-			self.skipTest("no warehouse on this site to stand in for a vehicle")
-		return self.make_field_user(
-			company=self.company, sales_mode="Van Sales", vehicle_warehouse=warehouse
-		)
-
-
 class TestBillingParty(CreditFixture):
 	def test_order_booking_bills_the_distributor(self):
 		outlet = self.make_outlet()
@@ -104,37 +93,12 @@ class TestBillingParty(CreditFixture):
 		self.assertEqual(party["party"], outlet.distributor)
 		self.assertEqual(party["mode"], settings_service.ORDER_BOOKING)
 		self.assertEqual(party["company"], self.company)
-
-	def test_van_sales_bills_the_shop(self):
-		"""The one mode where FieldMate Outlet.customer is live (ADR-016)."""
-		self.apply_settings(enable_van_sales=1)
-		shop_account = self.make_distributor()
-		outlet = self.make_outlet(customer=shop_account)
-		rep = self.van_rep()
-
-		party = credit_service.billing_party(outlet.name, rep.name)
-		self.assertEqual(party["party"], shop_account)
-		self.assertEqual(party["mode"], settings_service.VAN_SALES)
-		self.assertNotEqual(party["party"], outlet.distributor)
-
 	def test_the_outlet_document_asks_the_same_question(self):
 		"""The controller delegates, so there is one branch and not two that drift apart."""
 		outlet = self.make_outlet()
 		self.assertEqual(
 			outlet.billing_party(), credit_service.billing_party(outlet.name)["party"]
 		)
-
-	def test_a_van_shop_with_no_account_has_nobody_to_bill(self):
-		self.apply_settings(enable_van_sales=1)
-		outlet = self.make_outlet()
-		rep = self.van_rep()
-
-		result = credit_service.check(outlet.name, rep.name, 500)
-		self.assertIsNone(result["party"])
-		self.assertTrue(result["blocks"])
-		self.assertIn("billing account", result["message"])
-
-
 class TestCreditCheck(CreditFixture):
 	def setUp(self):
 		super().setUp()
@@ -200,48 +164,3 @@ class TestCreditCheck(CreditFixture):
 		self.assertIn("credit limit", message)
 		self.assertTrue(message.endswith("."))
 		self.assertNotIn("FieldMate", message)
-
-
-class TestVanSalesCredit(CreditFixture):
-	"""Two sales models means two paths through the same money, and an untested second path is
-	where the money goes missing (ADR-016)."""
-
-	def setUp(self):
-		super().setUp()
-		self.apply_settings(enable_van_sales=1)
-		self.shop_account = self.make_distributor()
-		self.outlet = self.make_outlet(customer=self.shop_account)
-		self.rep = self.van_rep()
-
-	def check(self, order_value, outstanding=0, rep=None):
-		with self.owing(outstanding):
-			return credit_service.check(self.outlet.name, (rep or self.rep).name, order_value)
-
-	def test_the_shops_own_limit_is_what_binds(self):
-		"""A van route is run on a per-shop figure set at the counter, not on the distributor."""
-		self.set_credit_limit(self.shop_account, 500000)
-		self.outlet.db_set("credit_limit", 20000, update_modified=False)
-
-		result = self.check(25000)
-		self.assertEqual(result["limit"], 20000)
-		self.assertEqual(result["status"], credit_service.BREACH)
-
-	def test_a_shop_without_its_own_limit_falls_back_to_its_customer(self):
-		self.set_credit_limit(self.shop_account, 100000)
-		self.assertEqual(self.check(100000)["status"], credit_service.WITHIN_LIMIT)
-		self.assertEqual(self.check(100001)["status"], credit_service.BREACH)
-
-	def test_the_same_cart_is_checked_against_a_different_party_in_each_mode(self):
-		self.set_credit_limit(self.shop_account, 100000)
-		self.set_credit_limit(self.outlet.distributor, 10000)
-
-		van = self.check(50000)
-		self.assertEqual(van["party"], self.shop_account)
-		self.assertEqual(van["status"], credit_service.WITHIN_LIMIT)
-
-		booking = self.check(50000, rep=self.rep_booking())
-		self.assertEqual(booking["party"], self.outlet.distributor)
-		self.assertEqual(booking["status"], credit_service.BREACH)
-
-	def rep_booking(self):
-		return self.make_field_user(company=self.company, sales_mode="Order Booking")

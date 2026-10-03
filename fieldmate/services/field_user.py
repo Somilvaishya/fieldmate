@@ -88,7 +88,6 @@ def profile(user: str | None = None) -> dict:
 		"company": doc.company,
 		"price_list": doc.default_price_list or settings_service.value("default_price_list"),
 		"sales_mode": settings_service.resolve_sales_mode(doc.name),
-		"vehicle_warehouse": doc.vehicle_warehouse,
 		"can_create_outlet": bool(doc.can_create_outlet),
 		"can_collect_payment": bool(doc.can_collect_payment),
 		"daily_target_calls": doc.daily_target_calls,
@@ -139,6 +138,40 @@ def own_row(doc, user: str | None = None) -> bool:
 	# A plan above the leaves carries no field_user at all. A rep has no business reading the
 	# region's number, so an unowned row is refused rather than shared.
 	return getattr(doc, "field_user", None) == mine
+
+
+def managers_of(field_user: str) -> list[str]:
+	"""Everyone above this rep in the reporting line, nearest first.
+
+	Walked rather than assumed to be one level: an order a rep's own area manager is away from
+	should still be decidable by the regional manager above them, without anybody re-pointing
+	`reports_to` for an afternoon.
+
+	Loop-safe. The DocType refuses a cycle on save, but a chain that hangs the approval of an
+	order is a worse failure than one that stops early.
+	"""
+	chain, current, seen = [], field_user, {field_user}
+	while True:
+		current = frappe.db.get_value("FieldMate Field User", current, "reports_to")
+		if not current or current in seen:
+			return chain
+		seen.add(current)
+		chain.append(current)
+
+
+def location_trail_query(user: str | None = None) -> str:
+	"""A rep's own trail, and nobody else's.
+
+	This is the only one of these that is about a person rather than a number. A GPS trail is
+	where somebody was all day, minute by minute - the most personal thing the app records, and
+	the thing the DPDP consent was taken for. The Field Rep role held a plain `read` on the
+	DocType with no `if_owner` and no query condition, so any rep could list any colleague's
+	movements by name.
+
+	Managers are not scoped here, for the same reason they are not scoped on targets or KPIs:
+	seeing their reps' work is the job. What is refused is rep reading rep.
+	"""
+	return own_rows_query("FieldMate Location Trail", user)
 
 
 def target_plan_query(user: str | None = None) -> str:

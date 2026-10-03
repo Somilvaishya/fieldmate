@@ -3,7 +3,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
-import OfflineStrip from '../components/OfflineStrip.vue'
 
 const TYPES = [
   { key: 'Travel', label: 'Travel' },
@@ -142,7 +141,6 @@ onMounted(async () => {
 
 <template>
   <div class="wrap">
-    <OfflineStrip />
 
     <header class="head">
       <h1>Claim expenses</h1>

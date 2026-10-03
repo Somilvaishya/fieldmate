@@ -7,10 +7,10 @@ to that distributor's queue and stops — no Sales Order, no Sales Invoice, no G
 movement (ADR-023). The company's own revenue event happens one step later, when the distributor
 places a *primary* order on us, and that is a different document entirely.
 
-Two cases put us on the other side of the counter — van sales, and an outlet we genuinely invoice
-direct — and in those an ERPNext document is correct. That question is asked once, of
-`credit.we_are_the_seller()`, and branched on once, in `route()`. There is deliberately no
-`if van_sales:` anywhere else in this module.
+One case puts us on the other side of the counter — an outlet we genuinely invoice direct — and
+there an ERPNext document is correct. That question is asked once, of
+`credit.we_are_the_seller()`, and branched on once, in `route()`. There is deliberately no second
+place in this module that decides who sells.
 
 The second thing to understand is **who computes the money**. The phone does, at the counter, with
 no signal, because the rep has to say a number out loud before there is anything to ask. The server
@@ -421,7 +421,10 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		"delivery_date": doc.expected_delivery_date or getdate(doc.order_date),
 		"currency": doc.currency,
 		"selling_price_list": doc.price_list,
-		"fm_source_key": doc.name,
+		# `compat.make_sales_order` reads this as `key` and refuses without it. Sending it under
+		# the name of the column it eventually lands in meant every directly-billed order threw
+		# "A Sales Order cannot be posted without an idempotency key" and none ever posted.
+		"key": doc.name,
 		"items": [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate}
 			for row in (doc.items or [])
@@ -474,9 +477,31 @@ def accrue(doc) -> None:
 
 
 def _consume_budget(scheme: str, amount) -> None:
-	consumed = flt(frappe.db.get_value("FieldMate Scheme", scheme, "consumed_amount") or 0)
-	frappe.db.set_value("FieldMate Scheme", scheme, "consumed_amount",
-	                    consumed + flt(amount), update_modified=False)
+	"""Charge the scheme's budget, in the database rather than in Python.
+
+	Read-modify-write loses a write the moment two reps submit against one scheme at the same
+	second: both read 33, both write 66, and the scheme has paid out 66 while reporting 33. Two
+	orders at one moment is not an exotic case for a field force of any size - it is a Monday
+	morning. `UPDATE ... SET consumed = consumed + x` leaves the arithmetic to the row lock that
+	is already there.
+
+	The floor at zero belongs here too: a refund for a row whose scheme was reset underneath it
+	must not leave a negative budget, which would then read as headroom nobody granted.
+	"""
+	frappe.db.sql(
+		"""
+		update `tabFieldMate Scheme`
+		   set consumed_amount = greatest(0, ifnull(consumed_amount, 0) + %(amount)s)
+		 where name = %(scheme)s
+		""",
+		{"amount": flt(amount), "scheme": scheme},
+	)
+
+	# Raw SQL goes round the document cache, and the scheme is read back through it: the compiled
+	# spec the engine prices against carries `consumed_paise` straight off the cached document.
+	# Without this the second order of the morning is priced against the first one's stale figure
+	# and the budget is spent twice. Gate 4 criterion 4 caught exactly that.
+	frappe.clear_document_cache("FieldMate Scheme", scheme)
 
 
 def reverse(doc) -> None:
@@ -489,22 +514,31 @@ def reverse(doc) -> None:
 
 	Called before the order's own cancel, never only from `on_cancel` - by then the back-link
 	check has already refused.
+
+	The refund itself is not done here. It lives on the ledger row's own `on_cancel`, so that a
+	row cancelled by Desk's linked-document cascade - which is what actually happens when
+	somebody cancels an order from the desk - gives the budget back too. Doing it in both places
+	would hand it back twice.
 	"""
 	for entry in frappe.get_all(
 		"FieldMate Scheme Ledger",
 		filters={"order": doc.name, "docstatus": 1},
-		fields=["name", "scheme", "benefit_amount"],
+		fields=["name"],
 	):
 		row = frappe.get_doc("FieldMate Scheme Ledger", entry.name)
-		row.db_set("status", "Reversed", update_modified=False)
 		row.flags.ignore_permissions = True
 		row.cancel()
-		_consume_budget(entry.scheme, -flt(entry.benefit_amount))
 
 
 # --------------------------------------------------------------------------------------
 # cancel and approve
 # --------------------------------------------------------------------------------------
+
+
+# Once the depot has billed or delivered, the goods and the paperwork have moved and this is no
+# longer the rep's to undo. ERPNext would refuse the underlying Sales Order anyway, but it would
+# say so in its own words, about a document the rep has never seen.
+DEPOT_HAS_ACTED = ("Invoiced", "Delivered")
 
 
 def cancel(name: str, reason: str | None = None) -> dict:
@@ -514,6 +548,13 @@ def cancel(name: str, reason: str | None = None) -> dict:
 
 	if doc.docstatus == 2:
 		return summarise(doc)
+
+	if doc.order_status in DEPOT_HAS_ACTED:
+		frappe.throw(
+			frappe._("The depot has already {0} this order. Ask them to raise a return - "
+			         "cancelling it here would leave their paperwork with nothing behind it.")
+			.format("billed" if doc.order_status == "Invoiced" else "delivered")
+		)
 
 	# Before the cancel, not after: a submitted ledger row links to this order and
 	# Frappe checks for back-links before `on_cancel` ever runs.
@@ -536,6 +577,54 @@ def withdraw(doc) -> None:
 		compat.cancel_sales_order(doc.sales_order)
 
 
+# The only people who may decide a breached order, over and above the rule that it is never the
+# rep who booked it. Anyone holding one of these is trusted with any order in the company.
+APPROVER_ROLES = ("FieldMate Admin", "FieldMate Sales Head", "System Manager")
+
+
+def assert_may_approve(doc, approver: str) -> None:
+	"""Who may decide an order that breached: the rep's own manager, their depot, or an admin.
+
+	Until this existed, `approve` checked one thing - that the approver was not the rep who booked
+	the order - and let any other signed-in session through. A rep could release a colleague's
+	breached order, which is the whole of what the credit hold is for.
+
+	Deliberately **their own** manager and not any manager: somebody three territories away has no
+	business deciding whether this shop is good for the money. The chain is walked rather than
+	taking one step, so a regional manager can act when the area manager is away.
+	"""
+	roles = set(frappe.get_roles(approver))
+	if roles & set(APPROVER_ROLES):
+		return
+
+	mine = field_user_service.for_user(approver)
+	if mine and mine in field_user_service.managers_of(doc.field_user):
+		return
+
+	# The depot the order was routed to. They carry the stock and the receivable, so they are
+	# entitled to say yes to a shop they know and no to one they do not.
+	from fieldmate.services import portal as portal_service
+
+	if doc.distributor and portal_service.distributor_of(approver) == doc.distributor:
+		return
+
+	# The message names the likeliest cause. A site that has never filled in `reports_to` - which
+	# is most of them on day one - would otherwise see nothing but a refusal and no way to act.
+	if not field_user_service.managers_of(doc.field_user):
+		frappe.throw(
+			frappe._("Nobody is recorded as {0}'s manager, so there is nobody to approve this. "
+			         "Set Reports To on their FieldMate Field User, or ask the distributor or an "
+			         "administrator to decide.").format(doc.field_user),
+			frappe.PermissionError,
+		)
+
+	frappe.throw(
+		frappe._("Only {0}'s own manager, their distributor or an administrator can decide this "
+		         "order.").format(doc.field_user),
+		frappe.PermissionError,
+	)
+
+
 def approve(name: str, decision: str, remarks: str | None = None,
             approver: str | None = None) -> dict:
 	"""A manager's answer on an order that breached. Never the rep's own."""
@@ -546,6 +635,8 @@ def approve(name: str, decision: str, remarks: str | None = None,
 	approver = approver or frappe.session.user
 	if doc.field_user == field_user_service.for_user(approver):
 		frappe.throw("An order cannot be approved by the person who booked it.")
+
+	assert_may_approve(doc, approver)
 
 	doc.db_set("approval_status", decision, update_modified=False)
 	doc.db_set("approved_by", approver, update_modified=False)
@@ -624,8 +715,8 @@ def summarise(doc) -> dict:
 		"approval_status": doc.approval_status,
 		"distributor": doc.distributor,
 		"sent_to_distributor_on": str(doc.sent_to_distributor_on) if doc.sent_to_distributor_on else None,
-		# Empty in order booking, and that is the point. Only van sales and a directly-billed
-		# outlet ever put a name here.
+		# Empty on an ordinary retailer order, and that is the point. Only a directly-billed
+		# outlet ever puts a name here.
 		"sales_order": doc.sales_order,
 		"lines": len(doc.items or []),
 		"free_goods": [{"item": r.item_code, "qty": flt(r.qty)} for r in (doc.free_goods or [])],
@@ -644,8 +735,12 @@ def assert_owner(doc) -> None:
 
 
 def _distributor_for(outlet) -> str | None:
-	customer = frappe.db.get_value("FieldMate Outlet", outlet, "distributor")
-	if not customer:
-		return None
-	return frappe.db.get_value("FieldMate Distributor Profile", {"customer": customer}, "name") \
-		or frappe.db.get_value("FieldMate Distributor Profile", customer, "name")
+	"""Who bills this shop. One read now that a distributor is a Customer (Phase 1, step 2d).
+
+	This used to read the outlet's Customer and then look up the FieldMate Distributor Profile
+	behind it, twice, because the two documents could in principle be named differently. They
+	never were - the profile was named after its Customer - so the second read was the identity
+	function wearing a lookup, and the fallback beside it was the same lookup spelled the other
+	way round.
+	"""
+	return frappe.db.get_value("FieldMate Outlet", outlet, "distributor")

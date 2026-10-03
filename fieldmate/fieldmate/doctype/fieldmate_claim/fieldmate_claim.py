@@ -32,13 +32,21 @@ class FieldMateClaim(Document):
 		self.reconcile()
 
 	def resolve_party(self):
+		# The distributor IS the Customer since step 2d, so `customer` is the same name under a
+		# second field. It is kept filled rather than removed because the credit note posting and
+		# the portal both read it, and because a claim already settled should go on saying which
+		# party it credited even if that stops being derivable later.
+		if not self.distributor:
+			# `distributor` is not mandatory on the DocType, so this is reachable. Said plainly
+			# rather than falling through to the message below, which would otherwise name an
+			# empty string as the party that is not a billing account.
+			frappe.throw(frappe._("A claim has to say which distributor it is for."))
 		if not self.customer:
-			self.customer = frappe.db.get_value(
-				"FieldMate Distributor Profile", self.distributor, "customer")
-		if not self.customer:
+			self.customer = self.distributor
+		if not frappe.db.exists("Customer", self.customer):
 			frappe.throw(
-				frappe._("{0} has no Customer on its profile, so a credit note has nowhere to "
-				         "go. Set one before claiming.").format(self.distributor))
+				frappe._("{0} is not a billing account we know, so a credit note has nowhere to "
+				         "go.").format(self.customer))
 		if not self.currency:
 			self.currency = frappe.db.get_value("Company", self.company, "default_currency")
 

@@ -28,6 +28,11 @@ const note = ref('')
 // Checked before the rep touches anything, not after they tap. The old screen let them take a
 // fix, type a note and press a live button that silently refused - the one reading of a dead
 // control is that the app is broken.
+//
+// `dayKnown` is the other half, and it was missing. This screen read `openDay` without ever
+// asking for it, so a rep arriving from Beats - where nothing loads the day - was told their
+// day had not started when it had. Now it says nothing until it knows.
+const dayKnown = computed(() => dayStore.loaded.value)
 const dayOpen = computed(() => !!dayStore.openDay.value)
 
 const distance = computed(() => {
@@ -57,6 +62,9 @@ onMounted(async () => {
   // Read from the mirror, not the network: a rep standing at the counter with no bars must
   // still be able to check in.
   outlet.value = await outletStore.localOutlet(route.params.name)
+  // Ask for the day as well as the shop. Locating takes a second or two anyway, so this costs
+  // the rep nothing and removes the window in which the screen could be confidently wrong.
+  dayStore.ensure().catch(() => {})
   await locate()
 })
 
@@ -137,7 +145,9 @@ async function begin() {
         </button>
       </div>
 
-      <p v-if="!dayOpen" class="notice">
+      <!-- Only once the day is actually known. Saying "not started" while still finding out
+           is the same mistake as saying it when it has. -->
+      <p v-if="dayKnown && !dayOpen" class="notice">
         <Icon name="alert" />
         <span>Your day has not started yet. Start it and this shop will be waiting.</span>
       </p>
@@ -145,8 +155,9 @@ async function begin() {
     </div>
 
     <div class="bottom">
-      <button class="btn-primary" :disabled="busy" @click="begin">
+      <button class="btn-primary" :disabled="busy || !dayKnown" @click="begin">
         {{ busy ? 'Checking in…'
+           : !dayKnown ? 'One moment…'
            : !dayOpen ? 'Start my day'
            : outsideFence ? 'Check in with the distance logged'
            : 'Check in' }}

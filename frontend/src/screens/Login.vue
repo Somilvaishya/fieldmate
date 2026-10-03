@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { deviceUuid, setMeta } from '../db'
@@ -13,6 +13,27 @@ const error = ref('')
 const busy = ref(false)
 
 const logo = import.meta.env.BASE_URL + 'icon-192.png'
+
+// The installed app and the browser are one session, not two.
+//
+// A PWA installed from Chrome runs on Chrome's own cookie jar, so a rep who signs in on either
+// one is already signed in on the other. This screen never asked, though - it painted the form
+// off local state alone, so signing in on the browser left the app still showing a password box
+// for an account it was already signed into. Signing out of one does end both, and always did;
+// that half was only ever visible because it is the half that looks like something happening.
+const checking = ref(true)
+
+onMounted(async () => {
+  try {
+    const data = await api.bootstrap()
+    await setMeta('profile', data)
+    router.replace('/today')
+  } catch {
+    // Not signed in, or no signal to ask. Either way the form is the right answer.
+  } finally {
+    checking.value = false
+  }
+})
 
 async function submit() {
   error.value = ''
@@ -50,7 +71,12 @@ async function submit() {
         <p class="tagline">Field force automation</p>
       </div>
 
-      <form id="signin" class="card" @submit.prevent="submit">
+      <!-- While the server is being asked whether this session is already signed in. Without it
+           the form flashes up for a moment on every open, which reads as having been signed
+           out. -->
+      <p v-if="checking" class="card checking">One moment…</p>
+
+      <form v-else id="signin" class="card" @submit.prevent="submit">
         <div class="field">
           <label for="usr"><Icon name="person" /> Mobile number or email</label>
           <!-- Focused on arrival so the keyboard is already up, and enterkeyhint puts
@@ -101,7 +127,7 @@ async function submit() {
       </form>
     </div>
 
-    <div class="bottom">
+    <div v-if="!checking" class="bottom">
       <button form="signin" class="btn-primary" :disabled="busy">
         {{ busy ? 'Signing in…' : 'Sign in' }}
       </button>
@@ -142,4 +168,5 @@ label :deep(.icon) { color: var(--primary); }
 .bottom { padding-top: 24px; }
 .assurance { display: flex; align-items: center; justify-content: center; gap: 8px;
              margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.checking { text-align: center; color: var(--muted); }
 </style>

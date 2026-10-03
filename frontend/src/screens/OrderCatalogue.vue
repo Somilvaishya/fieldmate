@@ -372,6 +372,16 @@ async function addUnits(item, displayQty) {
 async function bump(item, delta) {
   notice.value = null
   try {
+    // Minus at the floor takes the line out rather than doing nothing. The button used to be
+    // disabled there, so a rep who had added a shop's one wrong item could not undo it from this
+    // screen at all - the only way back was to select the typed quantity and clear it by hand.
+    //
+    // Removing is right even where the floor is above one: a minimum order of five means five or
+    // none, and four was never on offer.
+    if (delta < 0 && heldQty(item.item_code).display_qty <= floorFor(item)) {
+      await cart.removeItem(item.item_code)
+      return
+    }
     await cart.bumpQty(item.item_code, delta, { unit: 'display' })
   } catch (e) {
     say(e.message || 'That quantity could not be set.', 'crit')
@@ -716,8 +726,8 @@ const emptyReason = computed(() => {
             <button
               type="button"
               class="step"
-              :disabled="heldQty(item.item_code).display_qty <= floorFor(item)"
-              :aria-label="`One ${item.order_uom} less`"
+              :aria-label="heldQty(item.item_code).display_qty <= floorFor(item)
+                ? `Remove ${item.item_name}` : `One ${item.order_uom} less`"
               @click="bump(item, -1)"
             ><Icon name="minus" size="22" /></button>
 

@@ -27,17 +27,18 @@ NO_LIMIT_SET = "No Limit Set"
 
 
 def billing_party(outlet, field_user: str | None = None) -> dict:
-	"""Who the money is owed by for a sale at this shop.
+	"""Who the money is owed by for a sale at this shop: the distributor.
 
-	Order booking: the distributor. A retailer is not a Customer and never becomes one
-	(ADR-013), so the shop's own `customer` field stays empty and unread in this mode.
+	A retailer is not a Customer and never becomes one (ADR-013), so the shop's own `customer`
+	field stays empty and unread - it is the escape hatch for a shop the company genuinely
+	invoices direct, and `we_are_the_seller` is the only thing that reads it.
 
-	Van sales: the shop itself. That is the single mode where `FieldMate Outlet.customer` is
-	live, because the stock leaves the vehicle and the bill is raised at the counter.
+	Van sales used to branch here and bill `doc.customer`, which is empty for every ordinary
+	kirana, so every van order was refused for having no party. The mode is gone.
 	"""
 	doc = _outlet(outlet)
 	mode = settings_service.resolve_sales_mode(field_user)
-	party = (doc.customer if mode == settings_service.VAN_SALES else doc.distributor) or None
+	party = doc.distributor or None
 
 	return {
 		"outlet": doc.name,
@@ -82,9 +83,6 @@ def we_are_the_seller(outlet, field_user: str | None = None) -> dict:
 		# distributor's queue is the whole downstream, and until the Phase 9 portal ships it is a
 		# Desk list view filtered on this party.
 		"routes_to_distributor": not direct,
-		# Kept because Phase 5 and Phase 6 still need it: van sales moves stock at the counter and
-		# takes money at the door. What it no longer decides is who sells.
-		"delivers_now": party["mode"] == settings_service.VAN_SALES,
 	}
 
 
@@ -188,15 +186,10 @@ def check(outlet, field_user: str | None = None, order_value=0) -> dict:
 def _limit(outlet_doc, party: str, company: str, mode: str) -> float:
 	"""The ceiling this sale is measured against. 0.0 means nobody has set one.
 
-	Van sales asks the shop first: a van route is normally run on a per-shop figure a manager
-	set against the outlet, which is a tighter control than anything in the Customer master and
-	is the only place a one-shop limit can live. Order booking has no such figure to read - the
-	shop is not a party to that sale at all.
+	The distributor's limit with us, because the distributor is who we bill. The shop's own
+	`credit_limit` is not read: the shop owes the distributor, not us, and the two-level credit
+	check that measures that properly is Phase 3 of the channel design.
 	"""
-	if mode == settings_service.VAN_SALES:
-		own = flt(outlet_doc.credit_limit)
-		if own:
-			return own
 	return flt(compat.get_credit_limit(party, company))
 
 
@@ -228,11 +221,6 @@ def _money(value, currency: str | None) -> str:
 
 
 def _no_party_message(mode: str) -> str:
-	if mode == settings_service.VAN_SALES:
-		return frappe._(
-			"This shop has no billing account yet, so nothing can be sold to it off the van. "
-			"Ask your manager to set one up."
-		)
 	return frappe._(
 		"This shop has no distributor against it, so there is nobody to bill. Ask your manager "
 		"to set one before you book an order."

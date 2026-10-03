@@ -26,15 +26,21 @@ class OrderFixture(SchemeFixture):
 		super().setUp()
 		self.rep = self.make_field_user(territory=self.territory_for_orders())
 		self.outlet = self.make_outlet(territory=self.rep.territory, approval_status="Approved")
-		# An order routes to a distributor, so that distributor has to be one we hold a profile
-		# for. Building the Customer without the profile would test a shape the real system
-		# never has - which is the exact family of bug that shipped three times in Phase 3.
-		self.distributor = frappe.get_doc({
-			"doctype": "FieldMate Distributor Profile",
-			"customer": self.outlet.distributor,
-			"territory": self.rep.territory,
-		}).insert(ignore_permissions=True)
-		self.track("FieldMate Distributor Profile", self.distributor.name)
+		# An order routes to a distributor, and since step 2d a distributor IS a Customer with a
+		# channel tier - there is no second document beside it. The outlet already names the
+		# Customer, so this marks the one it names rather than building another. Marking it
+		# matters: `outlet.create` and `channel.resolve` both ask for the tier, and a Customer
+		# without one is not a party FieldMate sells through.
+		# Tier only, not territory. Nothing in the order path reads the distributor's territory,
+		# and writing it here would make this Customer an answer to "who covers the rep's
+		# territory" - so a second fixture doing the same would turn an unrelated test's shop
+		# onboarding into "more than one distributor covers your area".
+		frappe.db.set_value(
+			"Customer", self.outlet.distributor,
+			{"fm_tier": "Distributor", "fm_buys_from": "Company"},
+			update_modified=False)
+		frappe.clear_document_cache("Customer", self.outlet.distributor)
+		self.distributor = frappe.get_doc("Customer", self.outlet.distributor)
 		self.price_item(self.item, 100)
 
 	def territory_for_orders(self):
@@ -157,71 +163,6 @@ class TestOnlyADirectlyBilledOutletIsOurs(OrderFixture):
 		self.assertTrue(answer["we_bill"])
 		self.assertFalse(answer["routes_to_distributor"])
 		self.assertEqual(answer["reason"], "directly billed outlet")
-
-
-class TestVanSalesIsStillTheDistributorsSale(OrderFixture):
-	"""ADR-024, and the correction that prompted it.
-
-	Van sales looks like a company sale and is not. The stock in the vehicle belongs to the
-	distributor - the rep carries it and hands it over - so the sale is the distributor's whoever
-	is holding the box. What changes in van sales is *when* the goods move, not who sold them.
-
-	The app modelled this as a company sale until 25 Sep 2026, which would have recorded revenue
-	on a sale we did not make and put goods in our Stock Ledger that we had already sold to the
-	distributor at primary billing. That is ADR-023's mistake in a different mode, and these
-	tests exist so it cannot come back in either.
-	"""
-
-	def setUp(self):
-		super().setUp()
-		# Through the helper, not frappe.db: services/settings.get() reads a cache that a raw
-		# row write leaves stale, and the mode would still resolve to Order Booking.
-		self._was_van = self.fresh_settings().enable_van_sales
-		self.apply_settings(enable_van_sales=1)
-		frappe.db.set_value("FieldMate Field User", self.rep.name, "sales_mode", "Van Sales",
-		                    update_modified=False)
-		self.rep.reload()
-
-	def tearDown(self):
-		self.apply_settings(enable_van_sales=self._was_van)
-		super().tearDown()
-
-	def test_a_van_rep_is_still_not_the_seller(self):
-		answer = order_service.credit_service.we_are_the_seller(self.outlet.name, self.rep.name)
-
-		self.assertFalse(answer["we_bill"], "van stock is the distributor's, not ours")
-		self.assertTrue(answer["routes_to_distributor"])
-		self.assertTrue(answer["delivers_now"],
-		                "the mode still says the goods move at the counter")
-
-	def test_a_van_sale_creates_no_sales_order_and_no_gl_entry(self):
-		before_so = frappe.db.count("Sales Order")
-		before_gl = frappe.db.count("GL Entry")
-
-		result = self.book()
-
-		self.assertIsNone(result["sales_order"])
-		self.assertEqual(frappe.db.count("Sales Order"), before_so)
-		self.assertEqual(frappe.db.count("GL Entry"), before_gl,
-		                 "a van sale reaches the ledger exactly as little as a booked order")
-
-	def test_a_van_sale_routes_to_the_distributor_like_any_other(self):
-		result = self.book()
-		self.assertEqual(result["order_status"], "Sent To Distributor")
-		self.assertTrue(result["sent_to_distributor_on"])
-
-	def test_a_directly_billed_outlet_still_wins_over_the_mode(self):
-		"""The one real exception survives whichever mode the rep is in."""
-		self.outlet.db_set("customer", self.make_distributor(), update_modified=False)
-		answer = order_service.credit_service.we_are_the_seller(self.outlet.name, self.rep.name)
-		self.assertTrue(answer["we_bill"])
-
-
-# --------------------------------------------------------------------------------------
-# the two engines
-# --------------------------------------------------------------------------------------
-
-
 class TestTheServerOwnsTheTotals(OrderFixture):
 	def test_a_phone_that_got_the_total_wrong_is_overwritten_and_recorded(self):
 		"""Divergence is never blocked. The rep already said a number across a counter, so what

@@ -15,6 +15,8 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
+from _guard import require_test_site
+
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
 # Run directly rather than imported, so `scripts` is not on the path until we put it there.
@@ -42,15 +44,15 @@ def build_fixtures():
         "parent_territory": "All Territories", "is_group": 0,
     }).insert(ignore_permissions=True)
 
+    # A distributor is a Customer with a channel tier - there is no FieldMate Distributor Profile
+    # beside it any more, so `distributor` here is that same Customer.
     customer = frappe.get_doc({
         "doctype": "Customer", "customer_name": uid("G6-DIST"), "customer_type": "Company",
         "customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
+        "territory": territory.name,
+        "fm_tier": "Distributor", "fm_buys_from": "Company",
     }).insert(ignore_permissions=True)
-
-    distributor = frappe.get_doc({
-        "doctype": "FieldMate Distributor Profile",
-        "customer": customer.name, "territory": territory.name,
-    }).insert(ignore_permissions=True)
+    distributor = customer
 
     company = frappe.db.get_single_value("FieldMate Settings", "default_company") \
         or frappe.db.get_value("Company", {}, "name")
@@ -297,6 +299,7 @@ def criterion_5(fx, bills):
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 

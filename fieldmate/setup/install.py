@@ -36,6 +36,7 @@ def before_install() -> None:
 def after_install() -> None:
 	create_roles()
 	create_idempotency_fields()
+	create_customer_fields()
 	frappe.db.commit()
 
 
@@ -75,18 +76,33 @@ def check_host_versions() -> None:
 
 
 def create_roles() -> None:
-	"""Create the six FieldMate roles. Idempotent — safe to re-run on migrate."""
+	"""Create the six FieldMate roles, and keep their desk access right. Safe to re-run.
+
+	Correcting an existing role rather than skipping it is the whole of this function's job on
+	any site but a brand new one. Frappe creates a Role by itself the moment a DocType permission
+	names one, and it creates it with `desk_access = 1`; our DocTypes are installed before this
+	runs, so by the time it is called every role already exists and this used to leave them
+	exactly as Frappe had made them. A Field Rep and a Distributor would get the Desk - which is
+	the one thing the matrix below exists to prevent - and nothing said so.
+
+	Found by running the suite on a site that had never seen FieldMate before.
+	"""
 	for role_name, desk_access in ROLES:
-		if frappe.db.exists("Role", role_name):
+		wanted = 1 if desk_access else 0
+
+		if not frappe.db.exists("Role", role_name):
+			frappe.get_doc(
+				{
+					"doctype": "Role",
+					"role_name": role_name,
+					"desk_access": wanted,
+					"is_custom": 1,
+				}
+			).insert(ignore_permissions=True)
 			continue
-		frappe.get_doc(
-			{
-				"doctype": "Role",
-				"role_name": role_name,
-				"desk_access": 1 if desk_access else 0,
-				"is_custom": 1,
-			}
-		).insert(ignore_permissions=True)
+
+		if frappe.db.get_value("Role", role_name, "desk_access") != wanted:
+			frappe.db.set_value("Role", role_name, "desk_access", wanted)
 
 
 # Where a caller's idempotency key is kept on the two ERPNext documents we post. Custom Fields
@@ -128,6 +144,168 @@ def create_idempotency_fields() -> None:
 			"insert_after": "naming_series" if frappe.get_meta(doctype).has_field("naming_series")
 			                else "title",
 			"description": description,
+		}).insert(ignore_permissions=True)
+
+
+# What FieldMate needs to know about a party we bill, beyond what ERPNext Customer already
+# holds. Credit limit, payment terms, default price list, territory, GSTIN and addresses are all
+# the Customer's own and are deliberately not repeated here: a second copy of a credit limit is a
+# second number to disagree with the first.
+#
+# These live on Customer rather than on a FieldMate party record because there is only one party.
+# A super stockist, a distributor and a wholesaler are all customers we bill; what separates them
+# is a tier, not a different document. FieldMate Outlet stays separate for the opposite reason -
+# a kirana is never billed by us, and keeping thousands of shops out of the Customer master keeps
+# them out of our receivables.
+#
+# Credit days are deliberately absent, and `test_credit_is_not_duplicated_onto_customer` keeps
+# them absent. A party's credit terms are its Payment Terms Template, which has rows - "half in
+# fifteen days, half in thirty" is a real arrangement and no single integer states it. What the
+# phone needs is one number to read out, so that number is **derived** from the template by
+# `services.party.credit_days` and sent in the sync payload. Deriving costs a join; storing a
+# second copy costs somebody an afternoon the first time the two disagree.
+CUSTOMER_FIELDS = (
+	{
+		"fieldname": "fm_channel_section",
+		"fieldtype": "Section Break",
+		"label": "FieldMate Channel",
+		"insert_after": "customer_group",
+		"collapsible": 1,
+	},
+	{
+		"fieldname": "fm_distributor_code",
+		"label": "Distributor Code",
+		"fieldtype": "Data",
+		"insert_after": "fm_channel_section",
+		"description": "What this party calls itself in their own books. Shown in the distributor "
+		               "portal header so they can see they are looking at their own account.",
+	},
+	{
+		"fieldname": "fm_tier",
+		"label": "Channel Tier",
+		"fieldtype": "Select",
+		"options": "\nCFA\nSuper Stockist\nDistributor\nSub-stockist\nWholesaler\nModern Trade",
+		"insert_after": "fm_distributor_code",
+		"description": "What this party is in the chain. Blank means FieldMate does not sell "
+		               "through them.",
+	},
+	{
+		"fieldname": "fm_buys_from",
+		"label": "Buys From",
+		"fieldtype": "Select",
+		"options": "Company\nParent",
+		"default": "Company",
+		"insert_after": "fm_tier",
+		"description": "Company means we bill them, so a rep's order on them is a primary sale. "
+		               "Parent means they buy from their super stockist and our sale is to that "
+		               "super stockist instead.",
+	},
+	{
+		"fieldname": "fm_parent_customer",
+		"label": "Buys From Party",
+		"fieldtype": "Link",
+		"options": "Customer",
+		"insert_after": "fm_buys_from",
+		"depends_on": "eval:doc.fm_buys_from=='Parent'",
+		"description": "The super stockist this party buys from.",
+	},
+	{
+		"fieldname": "fm_assigned_to",
+		"label": "Assigned Rep",
+		"fieldtype": "Link",
+		"options": "FieldMate Field User",
+		"insert_after": "fm_parent_customer",
+	},
+	{
+		"fieldname": "fm_channel_column",
+		"fieldtype": "Column Break",
+		"insert_after": "fm_assigned_to",
+	},
+	{
+		"fieldname": "fm_ptr_price_list",
+		"label": "PTR Price List",
+		"fieldtype": "Link",
+		"options": "Price List",
+		"insert_after": "fm_channel_column",
+		"description": "What the shops under this party pay. The party's own Default Price List "
+		               "is what THEY pay us.",
+	},
+	{
+		"fieldname": "fm_warehouse",
+		"label": "Ships From",
+		"fieldtype": "Link",
+		"options": "Warehouse",
+		"insert_after": "fm_ptr_price_list",
+	},
+	{
+		"fieldname": "fm_min_order_value",
+		"label": "Minimum Order Value",
+		"fieldtype": "Currency",
+		"insert_after": "fm_warehouse",
+	},
+	{
+		"fieldname": "fm_max_open_invoices",
+		"label": "Max Open Invoices",
+		"fieldtype": "Int",
+		"insert_after": "fm_min_order_value",
+		"description": "A second credit control beside the limit: a party may be within its "
+		               "limit and still have too many bills running. Zero means no ceiling.",
+	},
+	{
+		"fieldname": "fm_delivery_days",
+		"label": "Delivery Lead Days",
+		"fieldtype": "Int",
+		"insert_after": "fm_max_open_invoices",
+		"description": "How many days after booking this party dispatches. The rep reads the "
+		               "dispatch date off this at the counter, so it is mirrored on the phone.",
+	},
+	{
+		"fieldname": "fm_min_cover_days",
+		"label": "Min Cover Days",
+		"fieldtype": "Int",
+		"insert_after": "fm_delivery_days",
+		"description": "Stock norms for replenishment. Below the minimum, a top-up is suggested; "
+		               "the maximum is what it is topped up to.",
+	},
+	{
+		"fieldname": "fm_max_cover_days",
+		"label": "Max Cover Days",
+		"fieldtype": "Int",
+		"insert_after": "fm_min_cover_days",
+	},
+)
+
+
+def create_customer_fields() -> None:
+	"""Put the channel fields on ERPNext Customer. Idempotent, and kept current.
+
+	Unlike `create_idempotency_fields`, an existing field is updated rather than skipped. These
+	carry descriptions and option lists that will grow - a new tier, a reworded note - and a
+	field that was created once and never revisited is how a site ends up with options the code
+	no longer understands.
+	"""
+	if not frappe.db.exists("DocType", "Customer"):
+		return
+
+	for spec in CUSTOMER_FIELDS:
+		spec = dict(spec)
+		fieldname = spec.pop("fieldname")
+		existing = frappe.db.exists("Custom Field", {"dt": "Customer", "fieldname": fieldname})
+
+		if existing:
+			doc = frappe.get_doc("Custom Field", existing)
+			changed = False
+			for key, value in spec.items():
+				if doc.get(key) != value:
+					doc.set(key, value)
+					changed = True
+			if changed:
+				doc.flags.ignore_permissions = True
+				doc.save(ignore_permissions=True)
+			continue
+
+		frappe.get_doc({
+			"doctype": "Custom Field", "dt": "Customer", "fieldname": fieldname, **spec
 		}).insert(ignore_permissions=True)
 
 

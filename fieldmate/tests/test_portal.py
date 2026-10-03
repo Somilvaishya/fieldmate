@@ -17,6 +17,7 @@ that comparison.
 import frappe
 from frappe.utils import add_days, flt, today
 
+from fieldmate.api import portal as portal_api
 from fieldmate.services import claim as claim_service
 from fieldmate.services import portal as portal_service
 from fieldmate.tests.test_order import OrderFixture
@@ -31,19 +32,7 @@ class PortalFixture(OrderFixture):
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Order Ingest Log", "FieldMate Claim"):
-			for name in frappe.get_all(dt, pluck="name"):
-				try:
-					doc = frappe.get_doc(dt, name)
-					if doc.meta.is_submittable and doc.docstatus == 1:
-						doc.flags.ignore_permissions = True
-						# Release the ledger first. A submitted ledger row links back here, and
-						# Frappe checks back-links before it runs on_cancel.
-						doc.cancel()
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
+		self.wipe_since_setup("FieldMate Order Ingest Log", "FieldMate Claim")
 		super().tearDown()
 
 	def make_portal_user(self, distributor, **extra):
@@ -71,13 +60,13 @@ class PortalFixture(OrderFixture):
 			"territory": self.rep.territory,
 		}).insert(ignore_permissions=True)
 		self.track("Customer", other_customer.name)
-		profile = frappe.get_doc({
-			"doctype": "FieldMate Distributor Profile",
-			"customer": other_customer.name,
-			"territory": self.rep.territory,
-		}).insert(ignore_permissions=True)
-		self.track("FieldMate Distributor Profile", profile.name)
-		return profile
+		# No FieldMate Distributor Profile beside it since step 2d: a distributor IS the Customer,
+		# and `FieldMate Order.distributor` links straight to one.
+		frappe.db.set_value("Customer", other_customer.name,
+		                    {"fm_tier": "Distributor", "fm_buys_from": "Company"},
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", other_customer.name)
+		return other_customer
 
 	def as_depot(self, fn, *args, **kwargs):
 		frappe.set_user(self.depot.user)
@@ -97,6 +86,47 @@ class PortalFixture(OrderFixture):
 # --------------------------------------------------------------------------------------
 # criterion 1 — a depot sees its own documents and is refused everyone else's
 # --------------------------------------------------------------------------------------
+
+
+class TestWhatADepotIsToldAboutItself(PortalFixture):
+	"""`whoami` draws the portal header. Since step 2d it reads the Customer, not a profile."""
+
+	def test_the_depot_is_named_by_its_customer(self):
+		answer = self.as_depot(portal_api.whoami)["data"]
+		self.assertEqual(answer["distributor"], self.distributor.name)
+		self.assertEqual(answer["distributor_name"], self.distributor.customer_name)
+		self.assertEqual(answer["customer"], self.distributor.name,
+		                 "the distributor and the billing account are one record now")
+
+	def test_the_counter_facts_come_off_the_customer(self):
+		frappe.db.set_value("Customer", self.distributor.name,
+		                    {"fm_distributor_code": "MLX-01", "fm_delivery_days": 3},
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", self.distributor.name)
+
+		answer = self.as_depot(portal_api.whoami)["data"]
+		self.assertEqual(answer["distributor_code"], "MLX-01")
+		self.assertEqual(answer["delivery_days"], 3)
+
+	def test_credit_days_are_derived_from_the_payment_terms(self):
+		"""There is no credit-days field on a Customer. The template is what bills this party,
+		so the template is what the header reads - see `services.party`."""
+		template = frappe.get_doc({
+			"doctype": "Payment Terms Template",
+			"template_name": self.uid("PRT-PTT"),
+			"terms": [{"invoice_portion": 100,
+			           "due_date_based_on": "Day(s) after invoice date",
+			           "credit_days": 21}],
+		}).insert(ignore_permissions=True)
+		self.track("Payment Terms Template", template.name)
+		frappe.db.set_value("Customer", self.distributor.name, "payment_terms", template.name,
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", self.distributor.name)
+
+		self.assertEqual(self.as_depot(portal_api.whoami)["data"]["credit_days"], 21)
+		# What happens when nobody has set any terms is `services.party`'s question, and
+		# `test_party` asks it there - against a Company whose own default has been blanked for
+		# the duration. Asking it here would pass or fail on how this site is configured.
 
 
 class TestADepotSeesOnlyItsOwn(PortalFixture):
@@ -540,7 +570,7 @@ class TestSettlement(ClaimFixture):
 		self.track("Sales Invoice", invoice.name)
 
 		self.assertEqual(invoice.is_return, 1)
-		self.assertEqual(invoice.customer, self.distributor.customer)
+		self.assertEqual(invoice.customer, self.distributor.name)
 		self.assertEqual(invoice.docstatus, 1)
 
 	def test_the_credit_note_carries_the_configured_account_and_cost_centre(self):

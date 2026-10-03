@@ -12,6 +12,7 @@ import frappe
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import order as order_service
+from fieldmate.services import portal as portal_service
 
 
 def _me() -> str:
@@ -76,10 +77,33 @@ def approve(order: str, decision: str, remarks: str | None = None):
 
 @frappe.whitelist()
 @endpoint()
-def queue(distributor: str, status: str | None = None):
+def queue(distributor: str | None = None, status: str | None = None):
 	"""A distributor's order queue — the other end of ADR-023.
 
 	Not a rep-facing call. It is here so the Phase 9 portal and the Desk list view read the same
 	shape, rather than each growing its own query.
+
+	**Who may ask, and for whom.** The depot named here used to come straight off the request and
+	be handed to `for_distributor`, which runs `frappe.get_all` - and that forces
+	`ignore_permissions=True`. So any signed-in session, including a rep or a rival depot, could
+	read any distributor's whole order book by typing their name. The portal's own service layer
+	has always scoped this properly; this endpoint simply went round it.
+
+	A portal session now gets its own depot whatever it asks for. A manager may name any. Anyone
+	else is refused.
 	"""
+	mine = portal_service.distributor_of()
+	if mine:
+		# Silently narrowed rather than refused on a mismatch: a depot asking for somebody else's
+		# queue learns nothing from the answer, not even that the name they guessed exists.
+		distributor = mine
+	elif not set(frappe.get_roles()) & set(field_user_service.MANAGER_ROLES):
+		raise FieldMateError(
+			Err.PERMISSION_DENIED,
+			"Only a distributor or a manager can open an order queue.",
+		)
+
+	if not distributor:
+		raise FieldMateError(Err.BAD_REQUEST, "Which distributor's queue?")
+
 	return ok({"orders": order_service.for_distributor(distributor, status)})

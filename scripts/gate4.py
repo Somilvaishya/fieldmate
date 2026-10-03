@@ -35,6 +35,8 @@ from pathlib import Path
 import frappe
 from frappe.utils import add_days, flt, today
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
     if not arg.startswith("--"):
@@ -122,29 +124,39 @@ def build_fixtures():
 
     # The credit limit goes on the DISTRIBUTOR's Customer, not on the shop.
     #
-    # In order booking the shop is not a party to the sale at all - it buys from its distributor
-    # (ADR-023), and the limit that binds is the distributor's with us. `credit._limit` reads the
-    # outlet's own figure only in van sales, where the rep is selling to the shop at the counter.
-    # Setting it on the outlet, which is what this gate did first, produced an order that sailed
-    # through "Within Limit" and a criterion that tested nothing.
+    # The shop is not a party to the sale at all - it buys from its distributor (ADR-023), and
+    # the limit that binds is the distributor's with us. Setting it on the outlet, which is what
+    # this gate did first, produced an order that sailed through "Within Limit" and a criterion
+    # that tested nothing.
     customer = frappe.get_doc({
         "doctype": "Customer", "customer_name": uid("G4-DIST"), "customer_type": "Company",
         "customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
         "territory": territory,
         "credit_limits": [{"company": company, "credit_limit": 500}],
+        # A distributor is a Customer with a channel tier. There is no FieldMate Distributor
+        # Profile beside it any more, and `distributor` below is the same document.
+        "fm_tier": "Distributor", "fm_buys_from": "Company",
     }).insert(ignore_permissions=True)
-    distributor = frappe.get_doc({
-        "doctype": "FieldMate Distributor Profile",
-        "customer": customer.name, "territory": territory,
-    }).insert(ignore_permissions=True)
+    distributor = customer
 
     rep_user = make_user("g4rep", "FieldMate Field Rep")
     manager_user = make_user("g4mgr", "FieldMate Area Manager")
 
+    # The manager is a field user too, and the rep reports to them. Holding the Area Manager role
+    # is not enough on its own any more: an order may be decided by the rep's **own** manager,
+    # their depot or an administrator, and a manager three territories away is none of those.
+    # Before this the gate made a manager who was a stranger to the rep and proved nothing about
+    # who may approve - it would have passed with no rule at all.
+    manager = frappe.get_doc({
+        "doctype": "FieldMate Field User", "user": manager_user, "full_name": "Gate Four Manager",
+        "designation": "Area Manager", "territory": territory, "status": "Active",
+        "company": company,
+    }).insert(ignore_permissions=True)
+
     rep = frappe.get_doc({
         "doctype": "FieldMate Field User", "user": rep_user, "full_name": "Gate Four",
         "designation": "Field Rep", "territory": territory, "status": "Active",
-        "company": company,
+        "company": company, "reports_to": manager.name,
     }).insert(ignore_permissions=True)
 
     outlet = frappe.get_doc({
@@ -329,7 +341,29 @@ def criterion_3(fx):
     except Exception:
         pass
 
-    # The manager may.
+    # Nor may a manager who is not this rep's. Without this the criterion only ever proved that
+    # *somebody* could approve, and would go on passing with the rule deleted outright - the same
+    # vacuum criterion 6 was in before it was sharpened.
+    stranger_user = make_user("g4alien", "FieldMate Area Manager")
+    stranger = frappe.get_doc({
+        "doctype": "FieldMate Field User", "user": stranger_user,
+        "full_name": "Gate Four Stranger", "designation": "Area Manager",
+        "territory": fx.territory, "status": "Active", "company": fx.company,
+    }).insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    stranger_approved = False
+    frappe.set_user(stranger_user)
+    try:
+        order_service.approve(created["name"], "Approved")
+        stranger_approved = True
+    except Exception:
+        pass
+    finally:
+        frappe.set_user("Administrator")
+    _ = stranger
+
+    # The rep's own manager may.
     frappe.set_user(fx.manager)
     try:
         decided = order_service.approve(created["name"], "Approved", remarks="checked by hand")
@@ -350,16 +384,18 @@ def criterion_3(fx):
     # matched by the G4- prefix and goes with everything else in the purge.
     _ = rule
 
-    check(3, "A credit breach is held for the right approver, and posts nothing either way",
-          held and breached and not posted_while_held and not self_approved
+    check(3, "A credit breach is held, and only the right person can release it",
+          held and breached and not posted_while_held
+          and not self_approved and not stranger_approved
           and decided["approval_status"] == "Approved"
           and released.approved_by == fx.manager
           and released.sales_order is None and not posted_after,
           f"order was {submitted['order_status']} with credit {submitted['credit_status']} · "
-          f"the rep could approve it themselves: {self_approved} · "
-          f"{fx.manager.split('@')[0]} released it to {released.order_status} · "
-          f"sales_order {released.sales_order} · GL Entries unchanged throughout: "
-          f"{not posted_while_held and not posted_after}")
+          f"the rep could approve their own: {self_approved} · "
+          f"a manager who is not theirs could: {stranger_approved} · "
+          f"{fx.manager.split('@')[0]}, who they report to, released it to "
+          f"{released.order_status} · sales_order {released.sales_order} · "
+          f"GL Entries unchanged throughout: {not posted_while_held and not posted_after}")
 
 
 # --------------------------------------------------------------------------------------
@@ -460,13 +496,29 @@ def criterion_5(fx):
 def criterion_6(fx, scheme):
     from fieldmate.services import order as order_service
 
+    # Give the scheme room again before booking.
+    #
+    # Criterion 4 leaves it deliberately exhausted, and this criterion used to run straight into
+    # that: the order it books accrued NOTHING, so "the budget came back" was asked of an order
+    # that had never taken any. It passed on 0 -> 0 and would have gone on passing with the
+    # refund deleted outright - which is exactly the bug it exists to catch, and exactly what
+    # criterion 4's own comment warns about two criteria sharing one fixture.
+    frappe.db.set_value("FieldMate Scheme", scheme.name, "consumed_amount", 0,
+                        update_modified=False)
+    frappe.db.set_value("FieldMate Scheme", scheme.name, "budget_amount", 100000,
+                        update_modified=False)
+    frappe.db.commit()
+
     created = book(fx, qty=30)
     as_rep(fx, order_service.submit_order, created["name"])
 
     consumed_before = flt(frappe.db.get_value("FieldMate Scheme", scheme.name,
                                               "consumed_amount"))
-    accrued = frappe.db.count("FieldMate Scheme Ledger",
-                              {"order": created["name"], "docstatus": 1})
+    rows = frappe.get_all("FieldMate Scheme Ledger",
+                          filters={"order": created["name"], "docstatus": 1},
+                          fields=["benefit_amount"], limit_page_length=0)
+    accrued = len(rows)
+    benefit = sum(flt(r.benefit_amount) for r in rows)
 
     as_rep(fx, order_service.cancel, created["name"], "gate 4")
 
@@ -474,14 +526,24 @@ def criterion_6(fx, scheme):
                                              "consumed_amount"))
     left_standing = frappe.db.count("FieldMate Scheme Ledger",
                                     {"order": created["name"], "docstatus": 1})
+    reversed_rows = frappe.db.count("FieldMate Scheme Ledger",
+                                    {"order": created["name"], "status": "Reversed"})
     state = frappe.db.get_value("FieldMate Order", created["name"],
                                 ["docstatus", "order_status", "sales_order"], as_dict=True)
 
     check(6, "Cancelling an order returns the budget and leaves no orphan of any kind",
-          state.docstatus == 2 and left_standing == 0 and state.sales_order is None
-          and consumed_after <= consumed_before + 0.005,
-          f"{accrued} ledger row(s) accrued, {left_standing} still standing · "
-          f"consumed {consumed_before:g} -> {consumed_after:g} · order is docstatus "
+          # An accrual that never happened cannot be returned, so the criterion refuses to
+          # answer at all unless there was one.
+          accrued > 0
+          and state.docstatus == 2 and left_standing == 0 and state.sales_order is None
+          # The exact amount back, not merely "no higher than before".
+          and abs(consumed_after - (consumed_before - benefit)) < 0.005
+          # And the row says what it is. A cancelled row still labelled Accrued is what a
+          # claim would later pay out against.
+          and reversed_rows == accrued,
+          f"{accrued} ledger row(s) accrued worth {benefit:g}, {left_standing} still standing, "
+          f"{reversed_rows} marked Reversed · consumed {consumed_before:g} -> "
+          f"{consumed_after:g} (expected {consumed_before - benefit:g}) · order is docstatus "
           f"{state.docstatus} ({state.order_status}) · sales_order {state.sales_order}")
 
 
@@ -491,6 +553,7 @@ def criterion_6(fx, scheme):
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 

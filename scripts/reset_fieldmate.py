@@ -32,6 +32,8 @@ import sys
 
 import frappe
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
     if not arg.startswith("--"):
@@ -76,7 +78,6 @@ TRANSACTIONAL = [
     "FieldMate Location Trail",
     "FieldMate Day End",
     "FieldMate Day Start",
-    "FieldMate Journey Plan",
     # Phase 0 - the sync spine
     "FieldMate Sync Conflict",
     "FieldMate Sync Batch",
@@ -93,9 +94,21 @@ MASTERS = [
     "FieldMate Must Sell List",
     "FieldMate Product Catalogue",
     "FieldMate Checklist Template",
+    # Setup, not work, despite reading like a diary. A journey plan is the calendar a beat
+    # produces - nothing in the app ever writes back to it, not even `actual_visits`, which is
+    # counted on the KPI snapshot instead. Wiping it with the work meant `--keep-masters` kept
+    # the beats and threw away the schedule made from them, so every re-run of a day's flow
+    # began with the phone saying "No route planned". The manual builds it in Part 2 with the
+    # rest of the setup; this list now agrees with the manual.
+    #
+    # Above Beat and Field User because its day rows link to both.
+    "FieldMate Journey Plan",
     "FieldMate Beat",
     "FieldMate Outlet",
-    "FieldMate Distributor Profile",
+    # FieldMate Distributor Profile used to sit here. A distributor is now an ERPNext Customer,
+    # which this script deliberately never touches: it is somebody's billing account, with
+    # invoices and a ledger behind it, and wiping FieldMate's own records is not a licence to
+    # delete parties out of ERPNext.
     "FieldMate Field User",
     "FieldMate No Order Reason",
     "FieldMate Deviation Reason",
@@ -143,8 +156,9 @@ def _has_stamp(doctype: str) -> bool:
                                  {"dt": doctype, "fieldname": "fm_source_key"}))
 
 
-def _wipe(doctype: str, filters=None) -> tuple[int, int]:
+def _wipe(doctype: str, filters=None) -> tuple[int, int, str | None]:
     removed = failed = 0
+    reason = None
     names = frappe.get_all(doctype, filters=filters or {}, pluck="name")
     for name in names:
         try:
@@ -155,17 +169,45 @@ def _wipe(doctype: str, filters=None) -> tuple[int, int]:
             frappe.delete_doc(doctype, name, force=True, ignore_permissions=True,
                               delete_permanently=True)
             removed += 1
-        except Exception:
+        except Exception as e:
             failed += 1
+            # Keep the first reason. This used to swallow it and report a bare count, which sent
+            # two Payment Entries that would not delete past a reader who then had no way to ask
+            # why - the number said something was wrong and nothing said what.
+            if reason is None:
+                reason = f"{name}: {frappe.utils.strip_html(str(e))[:140]}"
     frappe.db.commit()
-    return removed, failed
+    return removed, failed, reason
+
+
+def _reset_scheme_budgets() -> int:
+    """Put every scheme's consumed budget back to nothing.
+
+    `consumed_amount` is a roll-up of the Scheme Ledger kept on the scheme itself, so that the
+    phone can carry a budget figure offline. The ledger is work and gets wiped; the scheme is
+    setup and survives `--keep-masters`. Left alone the two disagree, and the scheme goes on
+    claiming a budget was spent with not one ledger row behind it - which is how a wipe that
+    reports success hands back a site that is not actually at zero.
+    """
+    fixed = 0
+    for name, consumed in frappe.get_all(
+        "FieldMate Scheme", filters={"consumed_amount": [">", 0]},
+        fields=["name", "consumed_amount"], as_list=True,
+    ):
+        frappe.db.set_value("FieldMate Scheme", name, "consumed_amount", 0,
+                            update_modified=False)
+        print(f"  reset   {consumed:>6}  consumed budget on {name}")
+        fixed += 1
+    frappe.db.commit()
+    return fixed
 
 
 def run() -> None:
     print("\nRemoving FieldMate data")
     print("-" * 72)
 
-    total = left = 0
+    total = 0
+    reasons: dict[str, str] = {}
 
     # Passes, because two of these are trees - a cascaded Target Plan points at the plan above
     # it, and a parent whose children still stand refuses to be cancelled whatever order this
@@ -175,11 +217,14 @@ def run() -> None:
         for doctype in TRANSACTIONAL + ([] if KEEP_MASTERS else MASTERS):
             if not frappe.db.exists("DocType", doctype):
                 continue
-            removed, failed = _wipe(doctype)
+            removed, failed, reason = _wipe(doctype)
             if removed:
                 print(f"  removed {removed:6}  {doctype}")
+            if reason:
+                # Overwritten each pass on purpose: a later pass often clears what an earlier
+                # one could not, and only what is still standing at the end is a real failure.
+                reasons[doctype] = reason
             moved += removed
-            left = failed
         total += moved
         if not moved:
             break
@@ -189,17 +234,51 @@ def run() -> None:
     for doctype, why in POSTED:
         if not frappe.db.exists("DocType", doctype) or not _has_stamp(doctype):
             continue
-        removed, failed = _wipe(doctype, {"fm_source_key": ["is", "set"]})
+        removed, failed, reason = _wipe(doctype, {"fm_source_key": ["is", "set"]})
         if removed:
             print(f"  removed {removed:6}  {doctype}   ({why})")
+        if reason:
+            reasons[doctype] = reason
         total += removed
+
+    # After the documents, never before: this reads the schemes that survived the wipe.
+    _reset_scheme_budgets()
 
     if not KEEP_MASTERS:
         _clear_settings()
 
     print("-" * 72)
-    print(f"removed {total} documents"
-          + (f", {left} could not be removed" if left else ""))
+    print(f"removed {total} documents")
+    _report_leftovers(reasons)
+
+
+def _report_leftovers(reasons: dict[str, str]) -> None:
+    """Count what is still standing, and say why.
+
+    Counted fresh rather than tallied from the loops above, because a document that failed on
+    one pass and went on the next is not a failure - and the old tally could not tell the two
+    apart. Silence here means the site really is empty.
+    """
+    left = []
+    for doctype in TRANSACTIONAL + ([] if KEEP_MASTERS else MASTERS):
+        if frappe.db.exists("DocType", doctype):
+            n = frappe.db.count(doctype)
+            if n:
+                left.append((doctype, n))
+    for doctype, _why in POSTED:
+        if frappe.db.exists("DocType", doctype) and _has_stamp(doctype):
+            n = frappe.db.count(doctype, {"fm_source_key": ["is", "set"]})
+            if n:
+                left.append((doctype, n))
+
+    if not left:
+        return
+
+    print("\n  These would not go:")
+    for doctype, n in left:
+        print(f"    {n:6}  {doctype}")
+        if reasons.get(doctype):
+            print(f"            {reasons[doctype]}")
 
 
 def _clear_settings() -> None:
@@ -223,6 +302,7 @@ def _clear_settings() -> None:
 def main() -> None:
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
 
     mode = "work only, setup kept" if KEEP_MASTERS else "everything"

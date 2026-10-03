@@ -9,14 +9,26 @@ from __future__ import annotations
 import frappe
 from frappe.utils import cint
 
-ORDER_BOOKING = "Order Booking"
-VAN_SALES = "Van Sales"
+# The two kinds of sale, and the whole of what distinguishes them: who we bill.
+#
+# SECONDARY - the rep books at a kirana, the distributor delivers and bills it, and our books
+#             never see that sale. This is what the app has always done.
+# PRIMARY   - the rep books on a super stockist, distributor or wholesaler and WE bill them. The
+#             order becomes a real Sales Order, so credit, GST and the ledger all apply.
+#
+# Which one an order is follows from the party it is booked on, never from a setting. The
+# settings below say which kinds this site is allowed to make at all.
+SECONDARY = "Secondary"
+PRIMARY = "Primary"
+
+# Kept for the one caller that still reads it. `resolve_sales_mode` goes when `channel.resolve`
+# lands and every caller asks about a party instead of about the company.
+ORDER_BOOKING = SECONDARY
 
 # Mirrors the DocType defaults so a site that has never opened the form still behaves sanely.
 DEFAULTS = {
-	"enable_order_booking": 1,
-	"enable_van_sales": 0,
-	"default_sales_mode": ORDER_BOOKING,
+	"enable_secondary_sales": 1,
+	"enable_primary_sales": 0,
 	"enforce_geo_fence": 1,
 	"default_geo_fence_radius_m": 100,
 	"allow_geo_fence_exception": 1,
@@ -71,39 +83,33 @@ def value(key: str, default=None):
 
 
 def enabled_modes() -> list[str]:
+	"""The kinds of sale this site is allowed to make."""
 	settings = get()
 	modes = []
-	if cint(settings.get("enable_order_booking")):
-		modes.append(ORDER_BOOKING)
-	if cint(settings.get("enable_van_sales")):
-		modes.append(VAN_SALES)
+	if cint(settings.get("enable_secondary_sales")):
+		modes.append(SECONDARY)
+	if cint(settings.get("enable_primary_sales")):
+		modes.append(PRIMARY)
 	return modes
 
 
-def resolve_sales_mode(field_user: str | None = None) -> str:
-	"""A rep's own mode wins; otherwise the company default.
+def allows(kind: str) -> bool:
+	"""Is this kind of sale switched on here?
 
-	Falls back to whatever is actually enabled rather than trusting a stale rep setting — a rep
-	still marked Van Sales after the company switched it off must not be left unable to sell.
+	Asked before an order is priced, not after it is built. A rep who cannot book a primary order
+	should be told at the party, not at the till.
 	"""
-	modes = enabled_modes()
-	if not modes:
-		return ORDER_BOOKING
-
-	chosen = None
-	if field_user and frappe.db.exists("DocType", "FieldMate Field User"):
-		chosen = frappe.db.get_value("FieldMate Field User", field_user, "sales_mode")
-		if chosen == "Company Default":
-			chosen = None
-
-	if not chosen:
-		chosen = get().get("default_sales_mode")
-
-	return chosen if chosen in modes else modes[0]
+	return kind in enabled_modes()
 
 
-def is_van_sales(field_user: str | None = None) -> bool:
-	return resolve_sales_mode(field_user) == VAN_SALES
+def resolve_sales_mode(field_user: str | None = None) -> str:
+	"""How this rep sells.
+
+	A placeholder with one answer. The kind of a sale follows from the party it is booked on, and
+	`channel.resolve` is what will answer that; this stays only until its callers have been moved
+	across, so that the switch is one change rather than five.
+	"""
+	return SECONDARY
 
 
 def client_settings() -> dict:

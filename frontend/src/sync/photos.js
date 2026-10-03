@@ -1,4 +1,4 @@
-import { db, serverNameFor } from '../db'
+import { db, deviceUuid, serverNameFor } from '../db'
 import { api, ApiError } from '../api/client'
 
 // Photos travel on their own queue, one at a time.
@@ -18,12 +18,16 @@ function backoffMs(attempts) {
  * The visit may not have synced yet - it may not even have a server name - and the rep should
  * not have to wait to take the next picture.
  */
-export async function queue(visitClientUuid, { dataUrl, purpose, caption, kb, fix = {} }) {
+export async function queue(visitClientUuid, { dataUrl, thumb, purpose, caption, kb, fix = {} }) {
   const clientUuid = crypto.randomUUID()
   await db.photos.add({
     clientUuid,
     visitClientUuid,
     dataUrl,
+    // A few kilobytes kept back when the full image is dropped, so the rep can still see what
+    // they photographed. Without it the visit showed a count that fell to zero the moment the
+    // upload succeeded, which reads as "the photo is gone" rather than "the photo arrived".
+    thumb: thumb || null,
     purpose: purpose || 'Other',
     caption: caption || null,
     kb: kb || 0,
@@ -44,6 +48,28 @@ export async function pendingCount(visitClientUuid = null) {
     : rows.length
 }
 
+/** Every photo of one visit, sent or not, newest last. What the visit screen shows. */
+export async function forVisit(visitClientUuid) {
+  const rows = await db.photos.where('visitClientUuid').equals(visitClientUuid).sortBy('id')
+  return rows.map(({ id, clientUuid, purpose, thumb, state, takenAt, lastError }) => ({
+    id, clientUuid, purpose, thumb, state, takenAt, lastError,
+  }))
+}
+
+/** Drop the thumbnails of visits closed a while ago. Called on day end.
+ *
+ * The thumbnails exist so a rep can see this morning's work, not to become a gallery. A day of
+ * them is perhaps 60 KB; a season of them is not something to leave on a phone nobody clears.
+ */
+export async function forgetSentBefore(ms) {
+  const old = await db.photos
+    .where('state').equals('sent')
+    .filter((p) => (p.sentAt || 0) < ms)
+    .toArray()
+  await db.photos.bulkDelete(old.map((p) => p.id))
+  return old.length
+}
+
 /** Send what is ready, oldest first, one request each. */
 export async function drain() {
   if (!navigator.onLine) return { sent: 0, skipped: 'offline' }
@@ -53,6 +79,8 @@ export async function drain() {
     .filter((p) => p.nextAttemptAt <= now)
 
   let sent = 0
+  // Once for the whole drain, not once per photo: it is the same id for every one of them.
+  const device = await deviceUuid()
   for (const photo of ready) {
     const visit = await serverNameFor(photo.visitClientUuid)
     if (!visit) {
@@ -62,7 +90,7 @@ export async function drain() {
     }
 
     try {
-      await api.uploadPhoto(visit, {
+      await api.uploadPhoto(device, visit, {
         photo: photo.dataUrl,
         purpose: photo.purpose,
         caption: photo.caption,
@@ -72,8 +100,14 @@ export async function drain() {
         size_kb: photo.kb,
         client_uuid: photo.clientUuid,
       })
-      // The image is the heaviest thing on this device. Once the server has it, drop it.
-      await db.photos.delete(photo.id)
+      // The full image is the heaviest thing on this device. Once the server has it, drop that
+      // and keep only the thumbnail, so the visit can still show what was taken.
+      await db.photos.update(photo.id, {
+        state: 'sent',
+        dataUrl: null,
+        sentAt: Date.now(),
+        lastError: null,
+      })
       sent += 1
     } catch (e) {
       const attempts = photo.attempts + 1

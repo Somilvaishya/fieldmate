@@ -143,14 +143,22 @@ class TestOutletService(OutletFixture):
 			self.mine.distributor,
 		)
 
+	def serves(self, customer: str, territory: str) -> str:
+		"""Make this Customer the distributor for a territory.
+
+		What `outlet.create` looks for since step 2d: a Customer with tier Distributor covering
+		the territory, in place of an Active FieldMate Distributor Profile. No undo needed -
+		`make_distributor` builds a fresh Customer per call and setUp a fresh territory per test,
+		so nothing here outlives the case that set it.
+		"""
+		frappe.db.set_value("Customer", customer,
+		                    {"fm_tier": "Distributor", "territory": territory, "disabled": 0},
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", customer)
+		return customer
+
 	def test_a_single_distributor_serving_the_territory_is_inferred(self):
-		profile = frappe.get_doc({
-			"doctype": "FieldMate Distributor Profile",
-			"customer": self.mine.distributor,
-			"territory": self.delhi,
-			"status": "Active",
-		}).insert(ignore_permissions=True)
-		self.track("FieldMate Distributor Profile", profile.name)
+		self.serves(self.mine.distributor, self.delhi)
 		frappe.db.commit()
 
 		result = self.as_user(self.rep.user, outlet_service.create, self.bare_payload())
@@ -163,13 +171,7 @@ class TestOutletService(OutletFixture):
 	def test_two_distributors_on_one_territory_is_not_guessed_at(self):
 		"""Picking one at random would put the shop's orders on the wrong ledger."""
 		for _ in range(2):
-			profile = frappe.get_doc({
-				"doctype": "FieldMate Distributor Profile",
-				"customer": self.make_distributor(),
-				"territory": self.delhi,
-				"status": "Active",
-			}).insert(ignore_permissions=True)
-			self.track("FieldMate Distributor Profile", profile.name)
+			self.serves(self.make_distributor(), self.delhi)
 		frappe.db.commit()
 
 		with self.assertRaises(frappe.ValidationError) as ctx:

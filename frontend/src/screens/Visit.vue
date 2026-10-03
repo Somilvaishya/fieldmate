@@ -135,7 +135,9 @@ function clock() {
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
   if (!visit.value) return router.replace('/today')
-  photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
+  await loadShots()
+  // A photo left waiting from earlier in this visit, or from before the app was reopened.
+  if (shots.value.some((s) => s.state === 'queued' || s.state === 'failed')) watchShots()
   // Read from the phone, never fetched: the hub has to paint while the rep is mid-sentence.
   cart.value = await orderStore.peek(visit.value.outlet)
   // Counted during THIS visit, not ever. A count from last month says nothing about whether
@@ -156,7 +158,10 @@ onMounted(async () => {
   ticker = setInterval(clock, 20000)
 })
 
-onUnmounted(() => clearInterval(ticker))
+onUnmounted(() => {
+  clearInterval(ticker)
+  clearInterval(watcher)
+})
 
 function addNote(text) {
   const current = (visit.value.remarks || '').trim()
@@ -165,23 +170,76 @@ function addNote(text) {
   visitStore.saveProgress()
 }
 
+// What the server's `purpose` column accepts, in the order a rep meets them. Every photo used to
+// go up as "Shelf" whatever it showed, so a damaged-stock picture and a planogram check were the
+// same word on the desk and nobody could tell them apart afterwards.
+const PURPOSES = [
+  { key: 'Shelf', label: 'Shelf' },
+  { key: 'Shop Front', label: 'Shop front' },
+  { key: 'Planogram', label: 'Planogram' },
+  { key: 'Competitor', label: 'Competitor' },
+  { key: 'Damage', label: 'Damage' },
+  { key: 'Expiry', label: 'Expiry' },
+  { key: 'Other', label: 'Other' },
+]
+const purpose = ref('Shelf')
+const shots = ref([])
+
+async function loadShots() {
+  shots.value = await photoQueue.forVisit(visit.value.clientUuid)
+  photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
+}
+
+// A photo cannot go up until the visit it belongs to has itself reached the server, so one taken
+// at check-in often waits a minute for the record ahead of it. The background sync sends it when
+// that happens - but nothing told this screen, so the strip said "Waiting" until the app was
+// reloaded and the rep had no way to know the photo was safe.
+//
+// Only while something is actually waiting, and it stops itself the moment nothing is.
+let watcher = null
+
+function watchShots() {
+  if (watcher) return
+  watcher = setInterval(async () => {
+    if (!visit.value) return
+    await loadShots()
+    if (!shots.value.some((s) => s.state === 'queued' || s.state === 'failed')) {
+      clearInterval(watcher)
+      watcher = null
+    }
+  }, 3000)
+}
+
 async function onPhoto(event) {
-  const file = event.target.files?.[0]
-  if (!file) return
+  // Every file, not just the first. The input allows several, and taking only `files[0]` meant a
+  // rep who picked four pictures silently sent one.
+  const files = Array.from(event.target.files || [])
+  if (!files.length) return
   error.value = ''
   busy.value = true
+  const chosen = purpose.value
   try {
     const settings = (await getMeta('profile'))?.settings || {}
-    const out = await compress(file, {
-      maxKb: settings.photo_max_kb || 120,
-      maxPx: settings.photo_max_dimension_px || 1280,
-    })
     const fix = await getPosition().catch(() => ({}))
-    await visitStore.addPhoto({ dataUrl: out.dataUrl, purpose: 'Shelf', kb: out.kb, fix })
-    photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
-    photoQueue.drain().catch(() => {})
+    for (const file of files) {
+      const out = await compress(file, {
+        maxKb: settings.photo_max_kb || 120,
+        maxPx: settings.photo_max_dimension_px || 1280,
+      })
+      // A second, tiny pass. This one stays on the phone after the full image has gone up, so
+      // the rep can see what they took rather than a count that drops to zero on success.
+      const small = await compress(file, { maxKb: 12, maxPx: 160, quality: 0.6 })
+      await visitStore.addPhoto({
+        dataUrl: out.dataUrl, thumb: small.dataUrl, purpose: chosen, kb: out.kb, fix,
+      })
+    }
+    await loadShots()
+    photoQueue.drain().then(loadShots).catch(() => {})
+    watchShots()
   } catch {
-    error.value = 'Could not read that photo. Try taking it again.'
+    error.value = files.length > 1
+      ? 'Could not read one of those photos. Try again.'
+      : 'Could not read that photo. Try taking it again.'
   } finally {
     busy.value = false
     event.target.value = ''
@@ -234,9 +292,33 @@ async function onPhoto(event) {
             <span class="track"><span class="fill" :style="{ width: job.pct + '%' }"></span></span>
           </span>
           <Icon v-if="!job.photo" name="chevron" size="20" class="go" />
-          <input v-else type="file" accept="image/*" capture="environment" hidden
+          <input v-else type="file" accept="image/*" capture="environment" multiple hidden
                  @change="onPhoto" />
         </component>
+      </div>
+
+      <!-- What the next photo will be filed as. Chosen before the camera opens, because after it
+           closes the rep is already looking at the next thing. -->
+      <div class="purposes" role="group" aria-label="What the next photo shows">
+        <button v-for="p in PURPOSES" :key="p.key" type="button"
+                class="chip" :class="{ on: purpose === p.key }" @click="purpose = p.key">
+          {{ p.label }}
+        </button>
+      </div>
+
+      <!-- Taken so far. A count alone dropped to zero the moment an upload succeeded, which
+           reads as the photo having been lost. -->
+      <div v-if="shots.length" class="shots">
+        <figure v-for="s in shots" :key="s.clientUuid" class="shot" :class="s.state">
+          <img v-if="s.thumb" :src="s.thumb" :alt="s.purpose" loading="lazy" />
+          <span v-else class="noimg"><Icon name="camera" size="20" /></span>
+          <figcaption>
+            <b>{{ s.purpose }}</b>
+            <em v-if="s.state === 'sent'">Sent</em>
+            <em v-else-if="s.state === 'blocked'" class="bad">Stuck</em>
+            <em v-else>Waiting</em>
+          </figcaption>
+        </figure>
       </div>
 
       <div class="card">
@@ -313,6 +395,24 @@ textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .chip { min-height: 48px; padding: 0 12px; border-radius: 6px; font-size: 14px;
         font-weight: 600; background: var(--primary-soft); border: 0; color: var(--primary); }
+/* The chosen one is filled, not merely tinted: in sunlight a tint against a tint is no
+   difference at all, and this decides what the photo is filed as. */
+.chip.on { background: var(--primary); color: var(--on-primary); }
+
+.purposes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px;
+         margin-top: 12px; }
+.shot { margin: 0; display: grid; gap: 4px; }
+.shot img, .shot .noimg { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px;
+                          border: 1px solid var(--line); background: var(--surface); }
+.shot .noimg { display: grid; place-items: center; color: var(--muted); }
+.shot figcaption { display: grid; gap: 1px; font-size: 12px; line-height: 1.25; }
+.shot figcaption em { font-style: normal; color: var(--muted); }
+.shot figcaption em.bad { color: var(--crit); font-weight: 600; }
+/* A sent photo steps back; one still waiting keeps its edge. */
+.shot.sent img { opacity: .85; }
+.shot.blocked img { border-color: var(--crit); }
 
 .err { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 14px;
        background: var(--crit-soft); color: var(--crit); border-radius: 6px; padding: 10px 12px; }

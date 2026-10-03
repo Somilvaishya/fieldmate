@@ -95,6 +95,7 @@ export const api = {
   login: (usr, pwd, deviceUuid, extra = {}) =>
     call('auth.login', { usr, pwd, device_uuid: deviceUuid, ...extra }, { post: true }),
   bootstrap: () => call('auth.bootstrap'),
+  logout: () => call('auth.logout', {}, { post: true }),
   registerDevice: (deviceUuid, extra = {}) =>
     call('sync.register_device', { device_uuid: deviceUuid, ...extra }, { post: true }),
   pull: (deviceUuid, since) => call('sync.pull', { device_uuid: deviceUuid, since }),
@@ -126,8 +127,11 @@ export const api = {
   currentVisit: () => call('visit.current'),
   saveVisitTasks: (visit, payload) =>
     call('visit.save_tasks', { visit, payload }, { post: true }),
-  uploadPhoto: (visit, payload) =>
-    call('visit.upload_photo', { visit, payload }, { post: true }),
+  // The device id is not optional: `visit.upload_photo` is declared `require_device=True`, so
+  // without it the endpoint refuses before it reads the photo. It was missing here, which meant
+  // every shelf photo ever taken failed and then retried until the queue gave up on it.
+  uploadPhoto: (deviceUuid, visit, payload) =>
+    call('visit.upload_photo', { device_uuid: deviceUuid, visit, payload }, { post: true }),
   checkOut: (deviceUuid, visit, payload) =>
     call('visit.check_out', { device_uuid: deviceUuid, visit, payload }, { post: true }),
   visitHistory: (date) => call('visit.history', { date }),
@@ -182,25 +186,17 @@ export const api = {
   orderEstimate: (payload) => call('order.estimate', { payload }, { post: true }),
   orderSubmit: (deviceUuid, payload) =>
     call('order.submit', { device_uuid: deviceUuid, payload }, { post: true }),
-  orderList: (filters = {}) => call('order.list', { limit: 50, ...filters }),
+  orderList: (filters = {}) => call('order.list_mine', { limit: 50, ...filters }),
   orderDetail: (name) => call('order.detail', { order: name }),
   orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
 
-  // fieldmate.api.stock.* — the shop count and the van day.
+  // fieldmate.api.stock.* — the shop count.
   //
   // The count sheet carries the previous count with it rather than offering it on a second call.
   // A rep standing at a shelf with no signal would otherwise either wait for a round trip or
   // count blind, and counting blind makes "same as last time" impossible to offer.
   stockSheet: (outlet) => call('stock.sheet', { outlet }),
   stockSave: (payload) => call('stock.save', { payload }, { post: true }),
-
-  // The van is the distributor's stock, not ours (ADR-024), so none of these post anything.
-  vanLoad: (on) => call('stock.van_load', { on }),
-  vanLoadSave: (payload) => call('stock.save_van_load', { payload }, { post: true }),
-  // Computed and not saved: the rep opens this to see where he stands before entering the one
-  // number that is his to enter.
-  vanSettlement: (on) => call('stock.settlement', { on }),
-  vanSettlementSave: (payload) => call('stock.save_settlement', { payload }, { post: true }),
 
   // fieldmate.api.collection.* — money taken at a counter.
   //
@@ -209,8 +205,9 @@ export const api = {
   // (ADR-025). There is deliberately no endpoint here that a rep can call to post a payment.
   outstanding: (outlet) => call('collection.outstanding', { outlet }),
   collectionCreate: (payload) => call('collection.create', { payload }, { post: true }),
-  collectionsMine: (status) => call('collection.list', { status, limit: 50 }),
+  collectionsMine: (status) => call('collection.list_mine', { status, limit: 50 }),
   cashInHand: () => call('collection.in_hand'),
+  distributors: () => call('collection.distributors'),
   depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
 
   // ------------------------------------------------------- Phase 7: targets and expenses

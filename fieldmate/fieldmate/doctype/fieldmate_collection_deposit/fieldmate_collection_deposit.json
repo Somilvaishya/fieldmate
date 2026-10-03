@@ -127,7 +127,7 @@
    "fieldname": "distributor",
    "fieldtype": "Link",
    "label": "Handed To",
-   "options": "FieldMate Distributor Profile",
+   "options": "Customer",
    "depends_on": "eval:doc.channel=='Distributor Counter'"
   },
   {

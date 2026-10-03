@@ -112,7 +112,7 @@
    "fieldname": "distributor",
    "fieldtype": "Link",
    "label": "Distributor",
-   "options": "FieldMate Distributor Profile",
+   "options": "Customer",
    "search_index": 1,
    "description": "The party the money is owed to in both cases - either because they sold to the shop, or because they are the one paying us."
   },

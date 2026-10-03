@@ -24,6 +24,8 @@ import sys
 import frappe
 from frappe.utils import add_days, getdate, today
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
     if not arg.startswith("--"):
@@ -188,8 +190,8 @@ def build():
     # ---- a distributor, or "Add a shop" cannot save -----------------------
     #
     # `distributor` is mandatory on FieldMate Outlet and the app deliberately never asks a rep
-    # to choose one. With nothing on the rep's record and no profile covering their territory,
-    # every attempt to onboard a shop failed. Found on a real phone, not by a test.
+    # to choose one. With nothing on the rep's record and nobody covering their territory, every
+    # attempt to onboard a shop failed. Found on a real phone, not by a test.
     distributor = frappe.db.get_value("Customer", {"disabled": 0}, "name")
     if not distributor:
         note("skipped", "no Customer exists to act as a distributor")
@@ -204,19 +206,21 @@ def build():
             rep.save(ignore_permissions=True)
             note("created", f"{rep.name} -> {distributor}", "can now add shops")
 
-        profile = frappe.db.get_value("FieldMate Distributor Profile",
-                                      {"customer": distributor}, "name")
-        if profile:
-            note("exists", f"Distributor Profile {profile}")
+        # A distributor is a Customer with a channel tier (Phase 1, step 2d), not a separate
+        # FieldMate Distributor Profile. The tier is what `outlet.create` looks for when it has
+        # to work out who supplies a territory, and what `channel.resolve` will ask for once its
+        # callers are moved over - a Customer without one is not a party FieldMate sells through.
+        if frappe.db.get_value("Customer", distributor, "fm_tier"):
+            note("exists", f"{distributor} is a channel party")
         else:
-            doc = frappe.get_doc({
-                "doctype": "FieldMate Distributor Profile",
-                "customer": distributor,
+            frappe.db.set_value("Customer", distributor, {
+                "fm_tier": "Distributor",
+                "fm_buys_from": "Company",
                 "territory": frappe.db.get_value("FieldMate Outlet", {}, "territory")
-                or "All Territories",
-                "status": "Active",
-            }).insert(ignore_permissions=True)
-            note("created", f"Distributor Profile {doc.name}", f"for {distributor}")
+                or frappe.db.get_value("Customer", distributor, "territory"),
+            }, update_modified=False)
+            frappe.clear_document_cache("Customer", distributor)
+            note("created", f"{distributor} is now a Distributor", "shops can bill it")
 
     # ---- a journey plan, or the Today screen has no beat ------------------
     from fieldmate.services import journey as journey_service
@@ -315,6 +319,7 @@ def undo():
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
 
     print(f"\nPhase 3 manual-test setup on {SITE}")

@@ -4,6 +4,7 @@
  "field_order": ["field_user", "trail_date", "column_head", "day_start", "device_id",
    "section_summary", "ping_count", "first_ping_on", "last_ping_on", "column_summary",
    "total_distance_km", "max_speed_kmph", "implausible_jumps", "mock_ping_count",
+   "coarse_ping_count",
    "section_trail", "trail"],
  "fields": [
   {"fieldname": "field_user", "fieldtype": "Link", "label": "Field User", "options": "FieldMate Field User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
@@ -21,6 +22,8 @@
   {"fieldname": "implausible_jumps", "fieldtype": "Int", "label": "Implausible Jumps", "read_only": 1,
    "description": "Segments faster than a vehicle could travel. A count above zero is worth a look, not an accusation - GPS drifts indoors."},
   {"fieldname": "mock_ping_count", "fieldtype": "Int", "label": "Mock Pings", "read_only": 1},
+  {"fieldname": "coarse_ping_count", "fieldtype": "Int", "label": "Fixes Too Coarse To Use", "read_only": 1,
+   "description": "Pings the device reported with an accuracy worse than 75 m. Kept in the trail as a record of what the phone said, and left out of the distance: a network fix from a cell tower lands a hundred metres from the phone and would be paid for twice, once out and once back."},
   {"fieldname": "section_trail", "fieldtype": "Section Break", "label": "Trail"},
   {"fieldname": "trail", "fieldtype": "Long Text", "label": "Trail (JSON)",
    "description": "The whole day's path on one row. At 250 reps pinging every 90 seconds, a row per ping would add roughly 30 million rows a year; this adds 65 thousand."}

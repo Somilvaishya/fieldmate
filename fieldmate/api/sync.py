@@ -33,8 +33,22 @@ def _register(device_uuid: str, **kwargs):
 		if device.user != frappe.session.user:
 			# A handset changing hands is a real event; re-point it rather than refuse.
 			device.user = frappe.session.user
-		if device.status == "Deregistered":
-			device.status = "Active"
+
+		# Deregistering is what somebody does to a handset that has been lost or handed back.
+		# This used to set it straight back to Active on the next login, which meant the control
+		# did nothing at all: whoever had the phone signed in and the device woke up with them.
+		# Only a person can undo it, from Desk.
+		#
+		# `DEVICE_INACTIVE` and not a PermissionError, which the client reads as AUTH_REQUIRED.
+		# The session is perfectly good - it is the handset that is barred - so bouncing to the
+		# sign-in screen would let the rep sign straight back in, land on Today, be refused here
+		# again, and bounce for ever.
+		if device.status != "Active":
+			raise FieldMateError(
+				Err.DEVICE_INACTIVE,
+				frappe._("This phone has been {0} and cannot be used until somebody at the "
+				         "office turns it back on.").format(device.status.lower()),
+			)
 	else:
 		device = frappe.new_doc("FieldMate Device Registry")
 		device.device_uuid = device_uuid

@@ -93,17 +93,18 @@ class CatalogueFixture(MasterFixture):
 		self.track("FieldMate Must Sell List", doc.name)
 		return doc
 
-	def make_distributor_profile(self, customer: str) -> str:
-		# Named after the Customer, so a shop's second order would collide on the primary key.
-		if frappe.db.exists("FieldMate Distributor Profile", customer):
-			return customer
-		doc = frappe.get_doc({
-			"doctype": "FieldMate Distributor Profile",
-			"customer": customer,
-			"territory": self.delhi,
-		}).insert(ignore_permissions=True)
-		self.track("FieldMate Distributor Profile", doc.name)
-		return doc.name
+	def mark_distributor(self, customer: str) -> str:
+		"""Mark the outlet's Customer as the distributor it already is.
+
+		There is no second document to build: a distributor is a Customer with a channel tier
+		(step 2d). This used to insert a FieldMate Distributor Profile named after the Customer,
+		and had to check for one first because a shop's second order would collide on the key.
+		"""
+		frappe.db.set_value("Customer", customer,
+		                    {"fm_tier": "Distributor", "fm_buys_from": "Company"},
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", customer)
+		return customer
 
 	def make_order(self, outlet, lines, **kwargs):
 		"""A submitted FieldMate Order, which is where the repeat-order prefill comes from.
@@ -116,7 +117,7 @@ class CatalogueFixture(MasterFixture):
 			"order_date": kwargs.pop("order_date", None) or today(),
 			"outlet": outlet.name,
 			"field_user": self.rep.name,
-			"distributor": self.make_distributor_profile(outlet.distributor),
+			"distributor": self.mark_distributor(outlet.distributor),
 			"company": self.company,
 			"price_list": self.price_list,
 			"currency": frappe.db.get_value("Price List", self.price_list, "currency"),

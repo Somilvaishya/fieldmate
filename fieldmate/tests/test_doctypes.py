@@ -87,7 +87,7 @@ class TestEveryControllerImports(FieldMateTestCase):
 	DocType and deletes the ones that raise ImportError. Despite the name it checks nothing about
 	whether a child table is referenced anywhere - the only thing it tests is the import.
 
-	So a controller class named `FieldmateVanLoadItem` instead of `FieldMateVanLoadItem` is enough
+	So a controller class named `FieldmateVisitTask` instead of `FieldMateVisitTask` is enough
 	to have the DocType removed. That happened here: five Phase 5 child tables were deleted on
 	their first migrate, the log said "Orphaned DocType(s) found" and named no cause, and the
 	migration otherwise succeeded. Data is left behind but the DocType is gone.

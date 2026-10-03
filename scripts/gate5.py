@@ -1,4 +1,4 @@
-"""Gate 5 — verify all four criteria on a real site.
+"""Gate 5 — verify its criteria on a real site.
 
 Run:  cd sites && ../env/bin/python ../apps/fieldmate/scripts/gate5.py [site]
 
@@ -6,15 +6,18 @@ Everything it creates is rolled back at the end, so it is safe to run against te
 proves the criteria against the real database rather than against mocks, which is the whole point
 of a gate.
 
-Criterion 3 is read as ADR-024 rewrote it: a van day reconciles to what was loaded, and the Stock
-Ledger is **not touched at all**. The stock in the vehicle is the distributor's — we sold it to
-them at primary billing — so anything of ours moving would be recording a sale we did not make.
+Criterion 3 was the van day: a load reconciled to a settle-in, with the Stock Ledger untouched.
+Van sales has been removed from the app, so the criterion has nothing left to answer and has gone
+with it. What it was really guarding — that nothing in the field moves our stock — is still held
+by criterion 2 and by Gate 4 criterion 2.
 """
 
 import sys
 
 import frappe
 from frappe.utils import add_days, flt, today
+
+from _guard import require_test_site
 
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
@@ -48,15 +51,15 @@ def build_fixtures():
     }).insert(ignore_permissions=True)
 
     group = frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+    # A distributor is a Customer with a channel tier - there is no FieldMate Distributor Profile
+    # beside it any more, so `distributor` here is that same Customer.
     customer = frappe.get_doc({
         "doctype": "Customer", "customer_name": uid("G5-DIST"),
         "customer_type": "Company", "customer_group": group,
+        "territory": territory.name,
+        "fm_tier": "Distributor", "fm_buys_from": "Company",
     }).insert(ignore_permissions=True)
-
-    distributor = frappe.get_doc({
-        "doctype": "FieldMate Distributor Profile",
-        "customer": customer.name, "territory": territory.name,
-    }).insert(ignore_permissions=True)
+    distributor = customer
 
     user = frappe.get_doc({
         "doctype": "User", "email": f"{uid('g5')}@fieldmate.test",
@@ -195,78 +198,10 @@ def criterion_2(fx):
           f"month 2 opening carried = {flt(row.opening_qty):g}, "
           f"60+500-90 = {flt(row.secondary_qty):g}, "
           f"against a reported 500 the gap is {flt(row.variance_qty):g}")
-
-
-def criterion_3(fx):
-    """Van load -> 3 cash sales -> settle-in returns the van to zero, and the Stock Ledger is
-    never touched."""
-    from fieldmate.services import order as order_service
-    from fieldmate.services import stock as stock_service
-
-    item = fx.skus[0]
-    before_sle = frappe.db.count("Stock Ledger Entry")
-    before_se = frappe.db.count("Stock Entry")
-    before_gl = frappe.db.count("GL Entry")
-
-    frappe.set_user(fx.rep.user)
-    try:
-        load = stock_service.save_load({
-            "load_date": today(), "distributor": fx.distributor.name,
-            "vehicle_no": "MH-12-AQ 4471", "client_uuid": uid("VLD"),
-            "items": [{"item_code": item, "godown_qty": 120, "counted_qty": 120}],
-        }, fx.rep.name)
-
-        # Three cash sales off the van, 10 units each.
-        for _ in range(3):
-            created = order_service.create({
-                "outlet": fx.outlet.name, "payment_term": "Cash on Delivery",
-                "client_uuid": uid("ORD"),
-                "lines": [{"item_code": item, "qty": 10}],
-            }, fx.rep.name)
-            order_service.submit_order(created["name"])
-
-        settled = stock_service.save_settlement({
-            "van_load": load["name"], "client_uuid": uid("VST"),
-            "items": [{"item_code": item, "returned_good": 90}],
-        }, fx.rep.name)
-    finally:
-        frappe.set_user("Administrator")
-
-    check(3, "Van load, 3 cash sales, settle-in leaves nothing unaccounted and no stock moves",
-          settled["loaded_qty"] == 120
-          and settled["sold_qty"] == 30
-          and settled["returned_qty"] == 90
-          and settled["short_qty"] == 0
-          and frappe.db.count("Stock Ledger Entry") == before_sle
-          and frappe.db.count("Stock Entry") == before_se,
-          f"120 loaded - 30 sold - 90 returned = {flt(settled['short_qty']):g} short · "
-          f"cash to hand over {flt(settled['cash_to_hand_over']):g} · "
-          f"Stock Ledger Entries {before_sle} -> {frappe.db.count('Stock Ledger Entry')}")
-
-    check("4b", "A van day produces no GL Entry either",
-          frappe.db.count("GL Entry") == before_gl,
-          f"GL Entries {before_gl} -> {frappe.db.count('GL Entry')}")
-
-    # The shortfall guard is the point of the screen, so prove it refuses rather than rounds.
-    frappe.set_user(fx.rep.user)
-    refused = False
-    try:
-        stock_service.save_settlement({
-            "van_load": load["name"], "client_uuid": uid("VST"),
-            "items": [{"item_code": item, "returned_good": 85}],
-        }, fx.rep.name)
-    except frappe.ValidationError:
-        refused = True
-    finally:
-        frappe.set_user("Administrator")
-
-    check("3b", "A shortfall cannot be settled without an explanation", refused,
-          "5 units short was refused until somebody says what happened to them")
-
-
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 
@@ -275,7 +210,6 @@ def main():
         fx = build_fixtures()
         criterion_1(fx)
         criterion_2(fx)
-        criterion_3(fx)
     finally:
         # A rollback is not enough on its own. This script commits its fixtures, and several of
         # the services it exercises commit internally anyway, so a transaction lasting to the end

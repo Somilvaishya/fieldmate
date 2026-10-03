@@ -17,6 +17,8 @@ import sys
 
 import frappe
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
     if not arg.startswith("--"):
@@ -78,7 +80,7 @@ def targets(prefix: str = "G_"):
         # `purge` is what gets the upper nodes on the second time round.
         ("Sales Person", {"sales_person_name": ["like", f"{prefix}-%"]}),
         ("Holiday List", {"name": ["like", f"{prefix}-HOL-%"]}),
-        ("FieldMate Distributor Profile", {"customer": ["like", f"{prefix}-DIST-%"]}),
+        # No FieldMate Distributor Profile above this any more - the Customer IS the distributor.
         ("Customer", {"customer_name": ["like", f"{prefix}-DIST-%"]}),
         ("Item Price", {"item_code": ["like", f"{prefix}-ITEM-%"]}),
         ("FieldMate Product Catalogue", {"catalogue_name": ["like", f"{prefix}-CAT-%"]}),
@@ -135,6 +137,7 @@ def purge(prefix: str = "G_", quiet: bool = False, passes: int = 3) -> int:
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
 
     print(f"\nGate fixtures on {SITE}{'' if GO else '   (dry run — nothing will be deleted)'}")

@@ -25,20 +25,10 @@ class FieldMateSettings(Document):
 		self.validate_bounds()
 
 	def validate_sales_model(self):
-		if not (self.enable_order_booking or self.enable_van_sales):
+		if not (self.enable_secondary_sales or self.enable_primary_sales):
 			frappe.throw(
-				frappe._("Enable at least one sales model. With neither, no rep can sell anything.")
-			)
-
-		enabled = {
-			"Order Booking": bool(self.enable_order_booking),
-			"Van Sales": bool(self.enable_van_sales),
-		}
-		if not enabled.get(self.default_sales_mode):
-			frappe.throw(
-				frappe._("Default Sales Mode is set to {0}, which is not enabled.").format(
-					self.default_sales_mode
-				)
+				frappe._("Enable at least one kind of sale. With neither, a rep cannot book "
+				         "anything at all.")
 			)
 
 	def validate_bounds(self):

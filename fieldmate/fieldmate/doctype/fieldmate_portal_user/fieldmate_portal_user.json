@@ -14,7 +14,7 @@
    "in_list_view": 1, "search_index": 1,
    "description": "The login. One row per person, not per distributor: a depot has a storekeeper taking orders and an accountant chasing claims, and a shared login makes every audit trail useless."},
   {"fieldname": "full_name", "fieldtype": "Data", "label": "Name", "fetch_from": "user.full_name", "read_only": 1, "in_list_view": 1},
-  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "FieldMate Distributor Profile",
+  {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "Customer",
    "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1,
    "description": "The one thing the whole portal is scoped by. Every query a portal session makes is narrowed to this profile, and a document belonging to anyone else is refused rather than hidden."},
   {"fieldname": "column_head", "fieldtype": "Column Break"},

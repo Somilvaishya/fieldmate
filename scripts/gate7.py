@@ -27,6 +27,8 @@ import time
 import frappe
 from frappe.utils import add_days, flt, today
 
+from _guard import require_test_site
+
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
     # A positional argument is the site; a flag is a flag. Reading argv[1] blindly made
@@ -191,12 +193,11 @@ def build_fixtures():
     company = frappe.db.get_single_value("FieldMate Settings", "default_company") \
         or frappe.db.get_value("Company", {}, "name")
 
+    # A distributor is a Customer with a channel tier, not a FieldMate Distributor Profile.
     customer = frappe.get_doc({
         "doctype": "Customer", "customer_name": uid("G7-DIST"), "customer_type": "Company",
         "customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
-    }).insert(ignore_permissions=True)
-    frappe.get_doc({
-        "doctype": "FieldMate Distributor Profile", "customer": customer.name,
+        "fm_tier": "Distributor", "fm_buys_from": "Company",
     }).insert(ignore_permissions=True)
 
     national = make_sales_person("NAT")
@@ -487,6 +488,7 @@ def criterion_5(fx):
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 

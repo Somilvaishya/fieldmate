@@ -86,12 +86,6 @@ class TestFieldUserValidation(FieldUserFixture):
 				"territory": self.make_territory(),
 				"designation": "Field Rep",
 			}).insert(ignore_permissions=True)
-
-	def test_van_sales_without_a_vehicle_is_refused(self):
-		with self.assertRaises(frappe.ValidationError) as ctx:
-			self.make_field_user(sales_mode="Van Sales")
-		self.assertIn("Vehicle Warehouse", str(ctx.exception))
-
 	def test_cannot_report_to_self(self):
 		doc = self.make_field_user()
 		doc.reports_to = doc.name
@@ -184,40 +178,6 @@ class TestFieldUserService(FieldUserFixture):
 		self.assertEqual(payload["field_user"], doc.name)
 		self.assertNotIn("doctype", payload)
 		self.assertNotIn("owner", payload)
-
-	def test_per_rep_sales_mode_overrides_the_company_default(self):
-		from fieldmate.services import settings as settings_service
-
-		warehouse = frappe.db.get_value("Warehouse", {}, "name")
-		if not warehouse:
-			self.skipTest("no warehouse on this site")
-
-		doc = self.fresh_settings_with_van_sales()
-		rep = self.make_field_user(sales_mode="Van Sales", vehicle_warehouse=warehouse)
-		self.assertEqual(settings_service.resolve_sales_mode(rep.name), "Van Sales")
-		self.assertEqual(settings_service.resolve_sales_mode(), "Order Booking")
-		doc()
-
-	def fresh_settings_with_van_sales(self):
-		"""Turn van sales on for the duration of one test, then put it back."""
-		frappe.clear_document_cache("FieldMate Settings", "FieldMate Settings")
-		s = frappe.get_single("FieldMate Settings")
-		before = s.enable_van_sales
-		s.enable_van_sales = 1
-		s.flags.ignore_permissions = True
-		s.save()
-		frappe.cache().delete_value("fieldmate_settings")
-
-		def restore():
-			frappe.clear_document_cache("FieldMate Settings", "FieldMate Settings")
-			d = frappe.get_single("FieldMate Settings")
-			d.enable_van_sales = before
-			d.flags.ignore_permissions = True
-			d.save()
-			frappe.cache().delete_value("fieldmate_settings")
-
-		return restore
-
 	def test_touch_records_activity_without_a_full_save(self):
 		doc = self.make_field_user()
 		before = frappe.db.get_value("FieldMate Field User", doc.name, "modified")

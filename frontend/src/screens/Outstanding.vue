@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
-import OfflineStrip from '../components/OfflineStrip.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,7 +70,6 @@ function collect() {
 
 <template>
   <div class="wrap screen">
-    <OfflineStrip />
 
     <div v-if="loading" class="muted pad">Loading what this shop owes…</div>
     <p v-else-if="error" class="err" role="alert"><Icon name="alert" size="18" /> {{ error }}</p>

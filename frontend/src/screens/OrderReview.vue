@@ -123,7 +123,7 @@ const dispatchDate = computed(() =>
 const dispatchIso = computed(() => (dispatchDate.value ? iso(dispatchDate.value) : null))
 const distributorName = computed(
   () =>
-    (distributor.value && (distributor.value.customer || distributor.value.name)) ||
+    (distributor.value && distributor.value.distributor_name) ||
     (shop.value && shop.value.distributor) ||
     null
 )
@@ -284,15 +284,15 @@ async function loadShop() {
   }
   confirmedWith.value = (shop.value && shop.value.owner_name) || ''
 
-  // The distributor's own terms - delivery days and credit days - are mirrored on the phone
-  // precisely so they can be read out at a counter with no signal.
+  // The distributor's own terms - delivery days and credit days - are read out at a counter with
+  // no signal, so they travel in the bootstrap payload that Today.vue stores. They used to come
+  // from a synced FieldMate Distributor Profile table, which no longer exists: a distributor is
+  // an ERPNext Customer, and a handset is not given read access to the customer master.
   const code = shop.value && shop.value.distributor
   if (code) {
-    const profiles = await db.records
-      .where('doctype')
-      .equals('FieldMate Distributor Profile')
-      .toArray()
-    distributor.value = profiles.find((p) => p.customer === code) || null
+    const boot = (await getMeta('profile')) || {}
+    distributor.value =
+      (boot.distributors || []).find((d) => d.distributor === code) || null
   }
 
   try {

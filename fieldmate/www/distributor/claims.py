@@ -15,13 +15,10 @@ def get_context(context):
 	row = portal_service.me()
 	portal_service.touch(row)
 
-	customer = frappe.db.get_value(
-		"FieldMate Distributor Profile", row.distributor, "customer")
-
 	context.no_cache = 1
 	context.page = "claims"
 	context.distributor = row.distributor
-	context.depot_name = frappe.db.get_value("Customer", customer, "customer_name") \
+	context.depot_name = frappe.db.get_value("Customer", row.distributor, "customer_name") \
 		or row.distributor
 	context.full_name = frappe.db.get_value("User", row.user, "full_name") or row.user
 	context.designation = row.designation

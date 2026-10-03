@@ -20,6 +20,7 @@ from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 
 from fieldmate import compat
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import party as party_service
 from fieldmate.services import settings as settings_service
 
 # Ageing buckets, in days. The last one is separate rather than folded into a total because it is
@@ -180,17 +181,24 @@ def last_payment_for(outlet) -> dict | None:
 
 
 def distributor_outstanding(distributor: str) -> dict:
-	"""What a distributor owes us. Real, and read from ERPNext rather than held here."""
-	customer = frappe.db.get_value("FieldMate Distributor Profile", distributor, "customer")
+	"""What a distributor owes us. Real, and read from ERPNext rather than held here.
+
+	The distributor is the Customer since step 2d, so `customer` in the answer is the same name.
+	It stays in the payload because the portal and the phone both read that key, and because
+	saying which billing account a figure came from is worth one repeated string.
+	"""
 	company = settings_service.value("default_company")
-	if not customer:
+	if not frappe.db.exists("Customer", distributor):
+		# A name with no billing account behind it. Answering zero rather than raising: this is
+		# read to draw a screen, and a rep looking at a list of depots should see the ones that
+		# do work rather than an error for the one that does not.
 		return {"distributor": distributor, "outstanding": 0.0, "source": "ERPNext"}
 
 	return {
 		"distributor": distributor,
-		"customer": customer,
-		"outstanding": flt(compat.get_outstanding(customer, company)),
-		"credit_limit": flt(compat.get_credit_limit(customer, company)),
+		"customer": distributor,
+		"outstanding": flt(compat.get_outstanding(distributor, company)),
+		"credit_limit": flt(compat.get_credit_limit(distributor, company)),
 		"source": "ERPNext",
 	}
 
@@ -198,6 +206,40 @@ def distributor_outstanding(distributor: str) -> dict:
 # --------------------------------------------------------------------------------------
 # taking the money
 # --------------------------------------------------------------------------------------
+
+
+def distributors_for(field_user: str | None = None) -> list[dict]:
+	"""The depots this rep can take money from, with what each one owes.
+
+	Which depots those are is `party.distributors_of`, so that this list and the one the phone
+	carries for the counter cannot disagree about who a rep works with.
+
+	Names are Customers, which is what a collection links to and what the outlet carries. Until
+	step 2d those were two documents that happened to share a name, and this function existed
+	largely to translate between them.
+	"""
+	field_user = field_user or field_user_service.for_user()
+	customers = party_service.distributors_of(field_user)
+	if not customers:
+		return []
+
+	out = []
+	# No filter on `disabled`, which the profile-based version did not have either. A party you
+	# have stopped selling to is exactly one you may still be collecting overdue money from, and
+	# dropping them from this list would hide the debt rather than the party.
+	for row in frappe.get_all(
+		"Customer",
+		filters={"name": ["in", list(customers)]},
+		fields=["name", "customer_name"],
+	):
+		owed = distributor_outstanding(row.name)
+		out.append({
+			"distributor": row.name,
+			"distributor_name": row.customer_name or row.name,
+			"outstanding": flt(owed.get("outstanding")),
+		})
+	out.sort(key=lambda d: d["distributor_name"] or "")
+	return out
 
 
 def create(payload: dict, field_user: str | None = None) -> dict:
@@ -445,10 +487,10 @@ def post_payment(collection: str, deposit) -> str | None:
 	if doc.payment_entry:
 		return doc.payment_entry
 
-	customer = frappe.db.get_value("FieldMate Distributor Profile", doc.distributor, "customer")
-	if not customer:
+	customer = doc.distributor
+	if not frappe.db.exists("Customer", customer):
 		frappe.throw(
-			frappe._("{0} has no billing account, so there is nothing to credit the payment to.")
+			frappe._("{0} is not a billing account, so there is nothing to credit the payment to.")
 			.format(doc.distributor)
 		)
 

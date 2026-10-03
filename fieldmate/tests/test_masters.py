@@ -26,36 +26,11 @@ class MasterFixture(OutletFixture):
 		return doc.name
 
 
-class TestDistributorProfile(MasterFixture):
-	def make_profile(self, **kwargs):
-		data = {
-			"doctype": "FieldMate Distributor Profile",
-			"customer": kwargs.pop("customer", None) or self.make_distributor(),
-			"territory": kwargs.pop("territory", None) or self.make_territory(),
-		}
-		data.update(kwargs)
-		doc = frappe.get_doc(data).insert(ignore_permissions=True)
-		self.track("FieldMate Distributor Profile", doc.name)
-		return doc
-
-	def test_profile_is_named_after_the_customer(self):
-		profile = self.make_profile()
-		self.assertEqual(profile.name, profile.customer)
-		self.assertEqual(profile.onboarding_date, today())
-
-	def test_one_profile_per_customer(self):
-		"""The profile adds to the Customer rather than duplicating it, so two would diverge."""
-		profile = self.make_profile()
-		with self.assertRaises((frappe.DuplicateEntryError, frappe.UniqueValidationError)):
-			frappe.get_doc({
-				"doctype": "FieldMate Distributor Profile",
-				"customer": profile.customer,
-				"territory": self.make_territory(),
-			}).insert(ignore_permissions=True)
-
-	def test_outstanding_is_read_from_the_ledger(self):
-		profile = self.make_profile()
-		self.assertEqual(profile.refresh_outstanding(), 0)
+# TestDistributorProfile stood here. It asserted that a FieldMate Distributor Profile was named
+# after its Customer, that there could only be one per Customer, and that its outstanding figure
+# came from the ledger rather than being stored. All three have become true by construction: a
+# distributor IS the Customer (step 2d), so there is no second record to name, to duplicate or to
+# keep a stale number on. `test_party` covers what replaced it.
 
 
 class TestProductCatalogue(MasterFixture):

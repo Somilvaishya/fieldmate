@@ -89,3 +89,18 @@ class FieldMateCollectionDeposit(Document):
 			frappe.db.set_value("FieldMate Collection", row.collection,
 			                    {"status": "Collected", "deposit": None},
 			                    update_modified=False)
+
+
+@frappe.whitelist()
+def confirm(deposit: str) -> dict:
+	"""Somebody at our end says the money arrived. The desk path to `collection.confirm_deposit`.
+
+	There was no path at all before this: the service has existed since Phase 6 and the only way
+	in was the PWA endpoint, which the phone never calls either - and it must not, because the
+	whole point is that the confirmer is not the rep who declared it. So a declared deposit sat
+	there with a Cancel button and nothing else, and the money never reached the ledger.
+	"""
+	from fieldmate.services import collection as collection_service
+
+	frappe.has_permission("FieldMate Collection Deposit", "submit", doc=deposit, throw=True)
+	return collection_service.confirm_deposit(deposit)

@@ -1,7 +1,7 @@
-"""Stock endpoints: the shop count, and the van day.
+"""Stock endpoints: what a shop holds, and what a distributor reports selling.
 
 Every one of these resolves the rep from the session. A device that could name its own
-`field_user` could settle a colleague's van.
+`field_user` could file a count against a colleague.
 """
 
 from __future__ import annotations
@@ -33,31 +33,6 @@ def sheet(outlet: str):
 @endpoint()
 def save(payload=None):
 	return ok(stock_service.save_count(parse_json(payload, "payload") or {}, _me()))
-
-
-@frappe.whitelist()
-@endpoint()
-def van_load(on: str | None = None):
-	return ok(stock_service.load_sheet_for(_me(), on))
-
-
-@frappe.whitelist(methods=["POST"])
-@endpoint()
-def save_van_load(payload=None):
-	return ok(stock_service.save_load(parse_json(payload, "payload") or {}, _me()))
-
-
-@frappe.whitelist()
-@endpoint()
-def settlement(on: str | None = None):
-	"""Tonight's figures, computed and not saved, so the rep sees where he stands first."""
-	return ok(stock_service.settlement_for(_me(), on))
-
-
-@frappe.whitelist(methods=["POST"])
-@endpoint()
-def save_settlement(payload=None):
-	return ok(stock_service.save_settlement(parse_json(payload, "payload") or {}, _me()))
 
 
 @frappe.whitelist(methods=["POST"])

@@ -20,6 +20,8 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
+from _guard import require_test_site
+
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
@@ -47,16 +49,16 @@ def uid(prefix):
 
 
 def make_distributor(territory):
+    # A distributor is a Customer with a channel tier - there is no FieldMate Distributor Profile
+    # beside it any more. Both halves of the pair are returned as the same document, so that the
+    # call sites below can go on naming the depot and its billing account separately.
     customer = frappe.get_doc({
         "doctype": "Customer", "customer_name": uid("G9-DIST"), "customer_type": "Company",
         "customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
         "territory": territory,
+        "fm_tier": "Distributor", "fm_buys_from": "Company",
     }).insert(ignore_permissions=True)
-    profile = frappe.get_doc({
-        "doctype": "FieldMate Distributor Profile",
-        "customer": customer.name, "territory": territory,
-    }).insert(ignore_permissions=True)
-    return customer, profile
+    return customer, customer
 
 
 def make_portal_user(distributor, prefix="g9depot"):
@@ -377,6 +379,7 @@ def criterion_4(fx, mine_order):
 def main():
     frappe.init(site=SITE)
     frappe.connect()
+    require_test_site(SITE)
     frappe.set_user("Administrator")
     frappe.flags.in_test = True
 

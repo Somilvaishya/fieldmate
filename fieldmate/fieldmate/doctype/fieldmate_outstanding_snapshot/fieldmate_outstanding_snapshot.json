@@ -116,7 +116,7 @@
    "fieldname": "distributor",
    "fieldtype": "Link",
    "label": "Distributor",
-   "options": "FieldMate Distributor Profile"
+   "options": "Customer"
   },
   {
    "fieldname": "company",

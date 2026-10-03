@@ -6,8 +6,8 @@ from fieldmate.services import settings as svc
 from fieldmate.tests.base import FieldMateTestCase
 
 TRACKED = (
-	"enable_order_booking",
-	"enable_van_sales",
+	"enable_secondary_sales",
+	"enable_primary_sales",
 	"default_sales_mode",
 	"gps_ping_interval_seconds",
 	"sync_batch_size",
@@ -53,31 +53,28 @@ class TestSettings(FieldMateTestCase):
 
 	# ---------------------------------------------------------------- sales model
 
-	def test_default_is_order_booking(self):
-		self.assertEqual(svc.resolve_sales_mode(), svc.ORDER_BOOKING)
-		self.assertFalse(svc.is_van_sales())
+	def test_a_fresh_site_sells_secondary_only(self):
+		"""Secondary on, primary off. A site that upgrades into primary sales turns it on; one
+		that never does keeps behaving exactly as it did."""
+		self.apply(enable_secondary_sales=1, enable_primary_sales=0)
+		self.assertEqual(svc.enabled_modes(), [svc.SECONDARY])
+		self.assertTrue(svc.allows(svc.SECONDARY))
+		self.assertFalse(svc.allows(svc.PRIMARY))
 
-	def test_both_models_off_is_refused(self):
+	def test_primary_only_is_a_valid_site(self):
+		"""A company that sells nothing through retailers - pure wholesale or sell-in."""
+		self.apply(enable_secondary_sales=0, enable_primary_sales=1)
+		self.assertEqual(svc.enabled_modes(), [svc.PRIMARY])
+		self.assertFalse(svc.allows(svc.SECONDARY))
+
+	def test_both_together(self):
+		self.apply(enable_secondary_sales=1, enable_primary_sales=1)
+		self.assertEqual(set(svc.enabled_modes()), {svc.SECONDARY, svc.PRIMARY})
+
+	def test_neither_is_refused(self):
 		with self.assertRaises(frappe.ValidationError) as ctx:
-			self.apply(enable_order_booking=0, enable_van_sales=0)
-		self.assertIn("at least one sales model", str(ctx.exception))
-
-	def test_default_mode_must_be_an_enabled_mode(self):
-		with self.assertRaises(frappe.ValidationError) as ctx:
-			self.apply(enable_order_booking=1, enable_van_sales=0, default_sales_mode="Van Sales")
-		self.assertIn("not enabled", str(ctx.exception))
-
-	def test_van_sales_can_be_turned_on(self):
-		self.apply(enable_order_booking=1, enable_van_sales=1, default_sales_mode="Van Sales")
-		self.assertEqual(svc.resolve_sales_mode(), svc.VAN_SALES)
-		self.assertTrue(svc.is_van_sales())
-		self.assertEqual(set(svc.enabled_modes()), {svc.ORDER_BOOKING, svc.VAN_SALES})
-
-	def test_resolve_falls_back_to_an_enabled_mode(self):
-		"""A rep left on a mode the company later switched off must still be able to sell."""
-		self.apply(enable_order_booking=1, enable_van_sales=1, default_sales_mode="Van Sales")
-		self.apply(enable_van_sales=0, default_sales_mode="Order Booking")
-		self.assertEqual(svc.resolve_sales_mode(), svc.ORDER_BOOKING)
+			self.apply(enable_secondary_sales=0, enable_primary_sales=0)
+		self.assertIn("at least one kind of sale", str(ctx.exception))
 
 	# ---------------------------------------------------------------- bounds
 

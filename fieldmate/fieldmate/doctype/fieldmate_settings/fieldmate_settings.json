@@ -7,10 +7,9 @@
  "issingle": 1,
  "field_order": [
   "section_sales_model",
-  "enable_order_booking",
-  "enable_van_sales",
+  "enable_secondary_sales",
   "column_sales_model",
-  "default_sales_mode",
+  "enable_primary_sales",
   "section_general",
   "default_company",
   "default_price_list",
@@ -61,31 +60,22 @@
    "fieldname": "section_sales_model",
    "fieldtype": "Section Break",
    "label": "Sales Model",
-   "description": "Which selling model this company runs. Both may be enabled; a rep's own setting on FieldMate Field User wins over the default."
+   "description": "Which kinds of sale this company makes. Both ship in every site; what is enabled here is what that site can do. A rep booking on a shop makes a secondary order, and on a customer we bill, a primary one - so these decide which of those is allowed at all, not which one a given order is."
   },
   {
-   "fieldname": "enable_order_booking",
+   "fieldname": "enable_secondary_sales",
    "fieldtype": "Check",
-   "label": "Enable Order Booking",
+   "label": "Enable Secondary Sales",
    "default": "1",
-   "description": "The rep books an order and the distributor delivers later. The shop is never billed directly."
-  },
-  {
-   "fieldname": "enable_van_sales",
-   "fieldtype": "Check",
-   "label": "Enable Van Sales",
-   "default": "0",
-   "description": "The rep sells and delivers from a vehicle, billing the shop on the spot. Activates outlet-level billing and credit."
+   "description": "The rep books at a shop and the distributor delivers and bills it. Our books never see that sale. Turn this off only for a company that sells nothing through retailers."
   },
   {"fieldname": "column_sales_model", "fieldtype": "Column Break"},
   {
-   "fieldname": "default_sales_mode",
-   "fieldtype": "Select",
-   "label": "Default Sales Mode",
-   "options": "Order Booking\nVan Sales",
-   "default": "Order Booking",
-   "reqd": 1,
-   "description": "Used for any rep who has not been given a mode of their own."
+   "fieldname": "enable_primary_sales",
+   "fieldtype": "Check",
+   "label": "Enable Primary Sales",
+   "default": "0",
+   "description": "The rep books on a super stockist, distributor or wholesaler and we bill them. The order becomes a real Sales Order, so credit, GST and the ledger all apply."
   },
 
   {"fieldname": "section_general", "fieldtype": "Section Break", "label": "General"},
@@ -162,7 +152,7 @@
    "fieldtype": "Check",
    "label": "Block Order On Credit Breach",
    "default": "1",
-   "description": "Checked against the distributor in order booking, and against the outlet in van sales."
+   "description": "Checked against the distributor, who is the party we bill."
   },
   {"fieldname": "allow_credit_override", "fieldtype": "Check", "label": "Allow Manager Override", "default": "1"},
 

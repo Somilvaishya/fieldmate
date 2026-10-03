@@ -7,6 +7,7 @@ import frappe
 from fieldmate import compat
 from fieldmate.api._base import API_VERSION, Err, FieldMateError, endpoint, ok
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import party as party_service
 from fieldmate.services import settings as settings_service
 
 FIELDMATE_ROLES = (
@@ -60,6 +61,40 @@ def login(usr: str | None = None, pwd: str | None = None, device_uuid: str | Non
 	)
 
 
+@frappe.whitelist(methods=["POST"])
+@endpoint()
+def logout():
+	"""End this session on the server, properly.
+
+	Signing out used to be a route change and nothing else: the session cookie stayed valid for
+	its full three days, and every byte the phone had pulled - the territory's whole outlet list,
+	the catalogue, the day's visits - stayed in IndexedDB for whoever picked the handset up next.
+	A rep handing a phone back, or losing one, had not actually signed out of anything.
+
+	The device is deliberately **not** deregistered here. A rep signing out at the end of a day
+	and back in tomorrow on the same handset is the ordinary case; deregistering is what somebody
+	does to a phone that is gone, and it is theirs to do, not this endpoint's.
+
+	Only **this** session goes. A rep signed in on a second handset, or a manager looking at Desk
+	under the same login, is not signed out by somebody tapping this on a phone.
+	"""
+	from frappe.sessions import delete_session
+
+	user, sid = frappe.session.user, frappe.session.sid
+
+	# `login_manager` only exists inside an HTTP request. It is the better path when it is there,
+	# because it clears the cookie as well - but the session row is what actually ends the
+	# session, and that has to happen either way.
+	manager = getattr(frappe.local, "login_manager", None)
+	if manager:
+		manager.logout()
+	else:
+		delete_session(sid, user=user, reason="User Manually Logged Out")
+
+	frappe.db.commit()
+	return ok({"signed_out": True})
+
+
 @frappe.whitelist()
 @endpoint()
 def bootstrap(**kwargs):
@@ -75,6 +110,12 @@ def bootstrap(**kwargs):
 			"capabilities": compat.capabilities(),
 			"settings": settings_service.client_settings(),
 			"field_user": field_user_service.profile(),
+			# What a rep reads out at a counter about their depots: who the order goes to, when
+			# they dispatch, how long the shop has to pay. It rides here rather than in the sync
+			# registry because a FieldMate endpoint can choose which Customer fields leave the
+			# server, where a sync entry over Customer could not (step 2d-iii). Small - a rep has
+			# a handful of depots, and the client stores this payload for offline reads.
+			"distributors": party_service.counter_facts(field_user_service.for_user()),
 			"sales_mode": settings_service.resolve_sales_mode(
 				field_user_service.for_user()
 			),

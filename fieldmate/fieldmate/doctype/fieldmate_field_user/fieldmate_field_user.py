@@ -17,7 +17,6 @@ class FieldMateFieldUser(Document):
 	def validate(self):
 		self.validate_user_is_usable()
 		self.validate_reporting_line()
-		self.validate_van_sales()
 
 	def validate_user_is_usable(self):
 		if not frappe.db.get_value("User", self.user, "enabled"):
@@ -43,13 +42,6 @@ class FieldMateFieldUser(Document):
 				frappe.throw(frappe._("Reporting line loops back on itself at {0}.").format(current))
 			seen.add(current)
 			current = frappe.db.get_value("FieldMate Field User", current, "reports_to")
-
-	def validate_van_sales(self):
-		if self.sales_mode == "Van Sales" and not self.vehicle_warehouse:
-			frappe.throw(
-				frappe._("A van sales rep needs a Vehicle Warehouse. Stock has to come out of "
-				         "somewhere and be settled back at day end.")
-			)
 
 	def on_update(self):
 		svc.sync_territory_permission(self)

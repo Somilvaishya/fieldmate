@@ -73,8 +73,9 @@ def clear() -> None:
 #               FieldMate Outlet Channel / Class, catalogues (pull only).
 # Phase 2 adds: FieldMate Journey Plan, Day Start, Day End, Location Trail.
 # Phase 3 adds: FieldMate Visit and its children.
-# Phase 4 adds: FieldMate Order (push), FieldMate Distributor Profile (pull) and the
-#               compiled scheme specs (pull) - not the scheme masters, see ADR-021.
+# Phase 4 adds: FieldMate Order (push) and the compiled scheme specs (pull) - not the scheme
+#               masters, see ADR-021. It also pulled FieldMate Distributor Profile, until the
+#               profile was retired in Phase 1 of the redesign; see the note further down.
 # Phase 6 adds: FieldMate Collection.
 #
 register(
@@ -260,14 +261,19 @@ register(
 	)
 )
 
-# The rep picks nothing here - the outlet already names its distributor - but the phone still has
-# to show who the order is going to and what it can promise about delivery, and it has to do that
-# with no signal. Delivery days and the minimum order value are read out to the shopkeeper at the
-# counter, so they cannot wait for a round trip.
-register(Syncable(doctype="FieldMate Distributor Profile", push=False, pull=True,
-                  pull_fields=("name", "customer", "distributor_code", "status", "territory",
-                               "price_list", "min_order_value", "credit_days", "delivery_days",
-                               "mobile_no", "modified")))
+# Nothing is registered for the distributor, and that is deliberate (Phase 1, step 2d-iii).
+#
+# FieldMate Distributor Profile used to be pulled here so the phone could name who an order is
+# going to and promise a dispatch date with no signal. The profile is gone - a distributor is an
+# ERPNext Customer - and Customer is not registered in its place. `sync.pull` is permission-scoped
+# and no FieldMate role has read on Customer, so the entry would be skipped and the phone would
+# quietly show nothing; granting that read would hand a handset the whole customer master, credit
+# limits included, which is the opposite of why ADR-013 keeps shops out of it.
+#
+# Instead `party.counter_facts` puts the three facts the phone actually reads - the depot's name,
+# its dispatch lead days and its credit days - into the bootstrap payload, which the client
+# already stores for offline use. That pull also carried a price list, a status, a mobile number
+# and a minimum order value, none of which the app has ever read.
 
 # TODO (Phase 4, blocked): the compiled scheme specs the cart re-prices against offline.
 # ADR-021 is explicit that the phone caches *compiled specs* and never the scheme masters, so
@@ -277,7 +283,7 @@ register(Syncable(doctype="FieldMate Distributor Profile", push=False, pull=True
 # two engines would be fed different input, and Gate 4 parity would be measuring the wrong thing.
 
 # ---------------------------------------------------------------------------- Phase 5
-# A stock count and a van day are captured in the field like everything else, and just as often
+# A stock count is captured in the field like everything else, and just as often
 # with no signal - a godown at 6am and a kirana shelf at noon are both places the network is not.
 register(
 	Syncable(
@@ -291,36 +297,6 @@ register(
 		# A phone that proposed its own coverage figure could flatter it.
 		server_owned=("counted_lines", "total_lines", "coverage_pct", "is_partial",
 		              "previous_stock", "days_since_previous", "sync_status", "synced_at"),
-	)
-)
-
-register(
-	Syncable(
-		doctype="FieldMate Van Load",
-		uuid_field="client_uuid",
-		push=True,
-		pull=False,
-		submit_on_push=True,
-		depends_on=("day_start",),
-		server_owned=("total_skus", "total_qty", "stock_value", "has_variance", "variance_skus",
-		              "load_status", "sync_status", "synced_at"),
-	)
-)
-
-register(
-	Syncable(
-		doctype="FieldMate Van Settlement",
-		uuid_field="client_uuid",
-		push=True,
-		pull=False,
-		submit_on_push=True,
-		depends_on=("van_load", "day_start"),
-		# Everything in the equation except what the rep counted back in. Loaded comes from the
-		# morning, sold from their own orders, and short falls out of the two - a settlement a
-		# phone could state would be a settlement that always balances.
-		server_owned=("loaded_qty", "sold_qty", "short_qty", "short_value", "cash_collected",
-		              "cash_to_hand_over", "settlement_status", "settled_on", "distributor",
-		              "vehicle_no", "sync_status", "synced_at"),
 	)
 )
 

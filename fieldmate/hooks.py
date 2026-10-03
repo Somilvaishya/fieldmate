@@ -91,6 +91,9 @@ after_install = "fieldmate.setup.install.after_install"
 after_migrate = [
 	"fieldmate.setup.install.create_roles",
 	"fieldmate.setup.install.create_idempotency_fields",
+	# The channel fields on ERPNext Customer. A party we bill is a Customer with a tier, not a
+	# record of our own (Phase 1).
+	"fieldmate.setup.install.create_customer_fields",
 	# The five exception rules, created once and never edited again - a site that has tuned a
 	# threshold keeps its own (Phase 8).
 	"fieldmate.services.alerts.install_starter_rules",
@@ -150,6 +153,9 @@ permission_query_conditions = {
 	"FieldMate Expense Claim": "fieldmate.services.field_user.expense_claim_query",
 	# Phase 8. A rep's own numbers, for the same reason as the four above.
 	"FieldMate KPI Snapshot": "fieldmate.services.field_user.kpi_snapshot_query",
+	# Where a person was all day. The most personal row the app keeps, and the one the Field Rep
+	# role could read for every colleague until this line existed.
+	"FieldMate Location Trail": "fieldmate.services.field_user.location_trail_query",
 }
 
 has_permission = {
@@ -160,6 +166,8 @@ has_permission = {
 	"FieldMate Incentive Payout": "fieldmate.services.field_user.own_row_permission",
 	"FieldMate Expense Claim": "fieldmate.services.field_user.own_row_permission",
 	"FieldMate KPI Snapshot": "fieldmate.services.field_user.own_row_permission",
+	# The query condition scopes a list; this one refuses a trail opened by name directly.
+	"FieldMate Location Trail": "fieldmate.services.field_user.own_row_permission",
 }
 
 # DocType Class

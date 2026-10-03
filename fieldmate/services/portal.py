@@ -120,7 +120,22 @@ def may(row, action: str) -> None:
 
 
 def order_query(user: str | None = None) -> str:
-	return _scope_query("FieldMate Order", user)
+	"""Narrow an order list to whoever is asking.
+
+	Two scopes, because two kinds of session read orders. A depot sees its own queue. A **rep
+	sees their own orders and nobody else's** - which this did not do at all: `_scope_query`
+	returns an empty string for anyone who is not a portal user, and an empty string is no
+	condition, so one rep could list every other rep's book.
+
+	A manager matches neither and sees everything, which is the job.
+	"""
+	depot = _scope_query("FieldMate Order", user)
+	if depot:
+		return depot
+
+	from fieldmate.services import field_user as field_user_service
+
+	return field_user_service.own_rows_query("FieldMate Order", user)
 
 
 def claim_query(user: str | None = None) -> str:
@@ -142,7 +157,13 @@ def _scope_query(doctype: str, user: str | None) -> str:
 
 
 def order_permission(doc, user: str | None = None, permission_type: str | None = None) -> bool:
-	return _scope_doc(doc, user)
+	"""The same two scopes as `order_query`, for an order opened by name rather than listed."""
+	if distributor_of(user):
+		return _scope_doc(doc, user)
+
+	from fieldmate.services import field_user as field_user_service
+
+	return field_user_service.own_row(doc, user)
 
 
 def claim_permission(doc, user: str | None = None, permission_type: str | None = None) -> bool:
