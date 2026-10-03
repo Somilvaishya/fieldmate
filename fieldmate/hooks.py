@@ -91,6 +91,9 @@ after_install = "fieldmate.setup.install.after_install"
 after_migrate = [
 	"fieldmate.setup.install.create_roles",
 	"fieldmate.setup.install.create_idempotency_fields",
+	# The channel fields on ERPNext Customer. A party we bill is a Customer with a tier, not a
+	# record of our own (Phase 1).
+	"fieldmate.setup.install.create_customer_fields",
 	# The five exception rules, created once and never edited again - a site that has tuned a
 	# threshold keeps its own (Phase 8).
 	"fieldmate.services.alerts.install_starter_rules",
