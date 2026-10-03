@@ -577,6 +577,54 @@ def withdraw(doc) -> None:
 		compat.cancel_sales_order(doc.sales_order)
 
 
+# The only people who may decide a breached order, over and above the rule that it is never the
+# rep who booked it. Anyone holding one of these is trusted with any order in the company.
+APPROVER_ROLES = ("FieldMate Admin", "FieldMate Sales Head", "System Manager")
+
+
+def assert_may_approve(doc, approver: str) -> None:
+	"""Who may decide an order that breached: the rep's own manager, their depot, or an admin.
+
+	Until this existed, `approve` checked one thing - that the approver was not the rep who booked
+	the order - and let any other signed-in session through. A rep could release a colleague's
+	breached order, which is the whole of what the credit hold is for.
+
+	Deliberately **their own** manager and not any manager: somebody three territories away has no
+	business deciding whether this shop is good for the money. The chain is walked rather than
+	taking one step, so a regional manager can act when the area manager is away.
+	"""
+	roles = set(frappe.get_roles(approver))
+	if roles & set(APPROVER_ROLES):
+		return
+
+	mine = field_user_service.for_user(approver)
+	if mine and mine in field_user_service.managers_of(doc.field_user):
+		return
+
+	# The depot the order was routed to. They carry the stock and the receivable, so they are
+	# entitled to say yes to a shop they know and no to one they do not.
+	from fieldmate.services import portal as portal_service
+
+	if doc.distributor and portal_service.distributor_of(approver) == doc.distributor:
+		return
+
+	# The message names the likeliest cause. A site that has never filled in `reports_to` - which
+	# is most of them on day one - would otherwise see nothing but a refusal and no way to act.
+	if not field_user_service.managers_of(doc.field_user):
+		frappe.throw(
+			frappe._("Nobody is recorded as {0}'s manager, so there is nobody to approve this. "
+			         "Set Reports To on their FieldMate Field User, or ask the distributor or an "
+			         "administrator to decide.").format(doc.field_user),
+			frappe.PermissionError,
+		)
+
+	frappe.throw(
+		frappe._("Only {0}'s own manager, their distributor or an administrator can decide this "
+		         "order.").format(doc.field_user),
+		frappe.PermissionError,
+	)
+
+
 def approve(name: str, decision: str, remarks: str | None = None,
             approver: str | None = None) -> dict:
 	"""A manager's answer on an order that breached. Never the rep's own."""
@@ -587,6 +635,8 @@ def approve(name: str, decision: str, remarks: str | None = None,
 	approver = approver or frappe.session.user
 	if doc.field_user == field_user_service.for_user(approver):
 		frappe.throw("An order cannot be approved by the person who booked it.")
+
+	assert_may_approve(doc, approver)
 
 	doc.db_set("approval_status", decision, update_modified=False)
 	doc.db_set("approved_by", approver, update_modified=False)

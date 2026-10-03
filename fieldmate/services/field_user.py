@@ -141,6 +141,25 @@ def own_row(doc, user: str | None = None) -> bool:
 	return getattr(doc, "field_user", None) == mine
 
 
+def managers_of(field_user: str) -> list[str]:
+	"""Everyone above this rep in the reporting line, nearest first.
+
+	Walked rather than assumed to be one level: an order a rep's own area manager is away from
+	should still be decidable by the regional manager above them, without anybody re-pointing
+	`reports_to` for an afternoon.
+
+	Loop-safe. The DocType refuses a cycle on save, but a chain that hangs the approval of an
+	order is a worse failure than one that stops early.
+	"""
+	chain, current, seen = [], field_user, {field_user}
+	while True:
+		current = frappe.db.get_value("FieldMate Field User", current, "reports_to")
+		if not current or current in seen:
+			return chain
+		seen.add(current)
+		chain.append(current)
+
+
 def location_trail_query(user: str | None = None) -> str:
 	"""A rep's own trail, and nobody else's.
 

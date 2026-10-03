@@ -142,10 +142,21 @@ def build_fixtures():
     rep_user = make_user("g4rep", "FieldMate Field Rep")
     manager_user = make_user("g4mgr", "FieldMate Area Manager")
 
+    # The manager is a field user too, and the rep reports to them. Holding the Area Manager role
+    # is not enough on its own any more: an order may be decided by the rep's **own** manager,
+    # their depot or an administrator, and a manager three territories away is none of those.
+    # Before this the gate made a manager who was a stranger to the rep and proved nothing about
+    # who may approve - it would have passed with no rule at all.
+    manager = frappe.get_doc({
+        "doctype": "FieldMate Field User", "user": manager_user, "full_name": "Gate Four Manager",
+        "designation": "Area Manager", "territory": territory, "status": "Active",
+        "company": company,
+    }).insert(ignore_permissions=True)
+
     rep = frappe.get_doc({
         "doctype": "FieldMate Field User", "user": rep_user, "full_name": "Gate Four",
         "designation": "Field Rep", "territory": territory, "status": "Active",
-        "company": company,
+        "company": company, "reports_to": manager.name,
     }).insert(ignore_permissions=True)
 
     outlet = frappe.get_doc({
@@ -330,7 +341,29 @@ def criterion_3(fx):
     except Exception:
         pass
 
-    # The manager may.
+    # Nor may a manager who is not this rep's. Without this the criterion only ever proved that
+    # *somebody* could approve, and would go on passing with the rule deleted outright - the same
+    # vacuum criterion 6 was in before it was sharpened.
+    stranger_user = make_user("g4alien", "FieldMate Area Manager")
+    stranger = frappe.get_doc({
+        "doctype": "FieldMate Field User", "user": stranger_user,
+        "full_name": "Gate Four Stranger", "designation": "Area Manager",
+        "territory": fx.territory, "status": "Active", "company": fx.company,
+    }).insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    stranger_approved = False
+    frappe.set_user(stranger_user)
+    try:
+        order_service.approve(created["name"], "Approved")
+        stranger_approved = True
+    except Exception:
+        pass
+    finally:
+        frappe.set_user("Administrator")
+    _ = stranger
+
+    # The rep's own manager may.
     frappe.set_user(fx.manager)
     try:
         decided = order_service.approve(created["name"], "Approved", remarks="checked by hand")
@@ -351,16 +384,18 @@ def criterion_3(fx):
     # matched by the G4- prefix and goes with everything else in the purge.
     _ = rule
 
-    check(3, "A credit breach is held for the right approver, and posts nothing either way",
-          held and breached and not posted_while_held and not self_approved
+    check(3, "A credit breach is held, and only the right person can release it",
+          held and breached and not posted_while_held
+          and not self_approved and not stranger_approved
           and decided["approval_status"] == "Approved"
           and released.approved_by == fx.manager
           and released.sales_order is None and not posted_after,
           f"order was {submitted['order_status']} with credit {submitted['credit_status']} · "
-          f"the rep could approve it themselves: {self_approved} · "
-          f"{fx.manager.split('@')[0]} released it to {released.order_status} · "
-          f"sales_order {released.sales_order} · GL Entries unchanged throughout: "
-          f"{not posted_while_held and not posted_after}")
+          f"the rep could approve their own: {self_approved} · "
+          f"a manager who is not theirs could: {stranger_approved} · "
+          f"{fx.manager.split('@')[0]}, who they report to, released it to "
+          f"{released.order_status} · sales_order {released.sales_order} · "
+          f"GL Entries unchanged throughout: {not posted_while_held and not posted_after}")
 
 
 # --------------------------------------------------------------------------------------
