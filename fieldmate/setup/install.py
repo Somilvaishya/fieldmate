@@ -157,6 +157,13 @@ def create_idempotency_fields() -> None:
 # is a tier, not a different document. FieldMate Outlet stays separate for the opposite reason -
 # a kirana is never billed by us, and keeping thousands of shops out of the Customer master keeps
 # them out of our receivables.
+#
+# Credit days are deliberately absent, and `test_credit_is_not_duplicated_onto_customer` keeps
+# them absent. A party's credit terms are its Payment Terms Template, which has rows - "half in
+# fifteen days, half in thirty" is a real arrangement and no single integer states it. What the
+# phone needs is one number to read out, so that number is **derived** from the template by
+# `services.party.credit_days` and sent in the sync payload. Deriving costs a join; storing a
+# second copy costs somebody an afternoon the first time the two disagree.
 CUSTOMER_FIELDS = (
 	{
 		"fieldname": "fm_channel_section",
@@ -166,11 +173,19 @@ CUSTOMER_FIELDS = (
 		"collapsible": 1,
 	},
 	{
+		"fieldname": "fm_distributor_code",
+		"label": "Distributor Code",
+		"fieldtype": "Data",
+		"insert_after": "fm_channel_section",
+		"description": "What this party calls itself in their own books. Shown in the distributor "
+		               "portal header so they can see they are looking at their own account.",
+	},
+	{
 		"fieldname": "fm_tier",
 		"label": "Channel Tier",
 		"fieldtype": "Select",
 		"options": "\nCFA\nSuper Stockist\nDistributor\nSub-stockist\nWholesaler\nModern Trade",
-		"insert_after": "fm_channel_section",
+		"insert_after": "fm_distributor_code",
 		"description": "What this party is in the chain. Blank means FieldMate does not sell "
 		               "through them.",
 	},
@@ -237,10 +252,18 @@ CUSTOMER_FIELDS = (
 		               "limit and still have too many bills running. Zero means no ceiling.",
 	},
 	{
+		"fieldname": "fm_delivery_days",
+		"label": "Delivery Lead Days",
+		"fieldtype": "Int",
+		"insert_after": "fm_max_open_invoices",
+		"description": "How many days after booking this party dispatches. The rep reads the "
+		               "dispatch date off this at the counter, so it is mirrored on the phone.",
+	},
+	{
 		"fieldname": "fm_min_cover_days",
 		"label": "Min Cover Days",
 		"fieldtype": "Int",
-		"insert_after": "fm_max_open_invoices",
+		"insert_after": "fm_delivery_days",
 		"description": "Stock norms for replenishment. Below the minimum, a top-up is suggested; "
 		               "the maximum is what it is topped up to.",
 	},
