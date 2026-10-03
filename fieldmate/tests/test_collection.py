@@ -21,18 +21,8 @@ from fieldmate.tests.test_order import OrderFixture
 class CollectionFixture(OrderFixture):
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Collection Deposit", "FieldMate Collection",
-		           "FieldMate Outstanding Snapshot"):
-			for name in frappe.get_all(dt, pluck="name"):
-				try:
-					doc = frappe.get_doc(dt, name)
-					if doc.meta.is_submittable and doc.docstatus == 1:
-						doc.flags.ignore_permissions = True
-						doc.cancel()
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
+		self.wipe_since_setup("FieldMate Collection Deposit", "FieldMate Collection",
+		                      "FieldMate Outstanding Snapshot")
 		super().tearDown()
 
 	def collect(self, amount=1000, party_type="Outlet", **extra):

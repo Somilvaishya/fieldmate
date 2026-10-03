@@ -29,18 +29,8 @@ class TargetFixture(OrderFixture):
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Incentive Payout", "FieldMate Achievement",
-		           "FieldMate Target Plan", "FieldMate Incentive Scheme"):
-			for name in frappe.get_all(dt, pluck="name"):
-				try:
-					doc = frappe.get_doc(dt, name)
-					if doc.meta.is_submittable and doc.docstatus == 1:
-						doc.flags.ignore_permissions = True
-						doc.cancel()
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
+		self.wipe_since_setup("FieldMate Incentive Payout", "FieldMate Achievement",
+		                      "FieldMate Target Plan", "FieldMate Incentive Scheme")
 		super().tearDown()
 
 	def make_sales_person(self, label, parent=None, is_group=1):

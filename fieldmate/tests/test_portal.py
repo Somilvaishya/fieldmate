@@ -31,19 +31,7 @@ class PortalFixture(OrderFixture):
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Order Ingest Log", "FieldMate Claim"):
-			for name in frappe.get_all(dt, pluck="name"):
-				try:
-					doc = frappe.get_doc(dt, name)
-					if doc.meta.is_submittable and doc.docstatus == 1:
-						doc.flags.ignore_permissions = True
-						# Release the ledger first. A submitted ledger row links back here, and
-						# Frappe checks back-links before it runs on_cancel.
-						doc.cancel()
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
+		self.wipe_since_setup("FieldMate Order Ingest Log", "FieldMate Claim")
 		super().tearDown()
 
 	def make_portal_user(self, distributor, **extra):

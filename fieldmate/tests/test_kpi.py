@@ -22,13 +22,7 @@ from fieldmate.tests.test_order import OrderFixture
 class KpiFixture(OrderFixture):
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Alert Log", "FieldMate KPI Snapshot"):
-			for name in frappe.get_all(dt, pluck="name"):
-				try:
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
+		self.wipe_since_setup("FieldMate Alert Log", "FieldMate KPI Snapshot")
 		super().tearDown()
 
 	def another_shop(self):

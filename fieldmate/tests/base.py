@@ -43,6 +43,43 @@ class FieldMateTestCase(FrappeTestCase):
 	def setUp(self):
 		super().setUp()
 		self._created = []
+		# A watermark for `wipe_since_setup`. Documents a test makes through a service - an
+		# order, a collection, a snapshot - never pass through `track`, so there is no list of
+		# their names to delete.
+		self._began = frappe.utils.now_datetime()
+
+	def wipe_since_setup(self, *doctypes):
+		"""Delete rows of these doctypes that this test created, and nothing older.
+
+		The five files that clean up after service-made documents used to do this instead:
+
+		    for name in frappe.get_all(dt, pluck="name"):
+
+		which is every row of that doctype on the site, not the test's own. On a disposable
+		site that is merely wrong; run once against a site somebody is working on - which is
+		what happened - and it destroys their records. `creation` is the one thing every
+		document has and no service forgets to set.
+
+		No commit. Committing inside a test defeats FrappeTestCase's per-class rollback, which
+		is how a committed Payment Entry ended up pointing at a Customer that had been rolled
+		back out from under it.
+		"""
+		for doctype in doctypes:
+			if not frappe.db.exists("DocType", doctype):
+				continue
+			for name in frappe.get_all(doctype, filters={"creation": [">=", self._began]},
+			                           pluck="name"):
+				try:
+					if frappe.get_meta(doctype).is_submittable:
+						if frappe.db.get_value(doctype, name, "docstatus") == 1:
+							doc = frappe.get_doc(doctype, name)
+							doc.flags.ignore_permissions = True
+							doc.cancel()
+					frappe.delete_doc(doctype, name, force=True, ignore_permissions=True)
+				except Exception:
+					# A row another test still holds a link to comes round again on its own
+					# teardown. Refusing here would strand the rest of this list.
+					pass
 
 	def tearDown(self):
 		for doctype, name in reversed(self._created):

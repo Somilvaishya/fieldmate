@@ -20,18 +20,8 @@ from fieldmate.tests.test_order import OrderFixture
 class StockFixture(OrderFixture):
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Retailer Stock", "FieldMate Distributor Stock",
-		           "FieldMate Secondary Sales"):
-			for name in frappe.get_all(dt, pluck="name"):
-				try:
-					doc = frappe.get_doc(dt, name)
-					if doc.docstatus == 1:
-						doc.flags.ignore_permissions = True
-						doc.cancel()
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
+		self.wipe_since_setup("FieldMate Retailer Stock", "FieldMate Distributor Stock",
+		                      "FieldMate Secondary Sales")
 		super().tearDown()
 
 	def count(self, lines, on=None, **extra):
