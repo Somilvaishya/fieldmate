@@ -95,6 +95,7 @@ export const api = {
   login: (usr, pwd, deviceUuid, extra = {}) =>
     call('auth.login', { usr, pwd, device_uuid: deviceUuid, ...extra }, { post: true }),
   bootstrap: () => call('auth.bootstrap'),
+  logout: () => call('auth.logout', {}, { post: true }),
   registerDevice: (deviceUuid, extra = {}) =>
     call('sync.register_device', { device_uuid: deviceUuid, ...extra }, { post: true }),
   pull: (deviceUuid, since) => call('sync.pull', { device_uuid: deviceUuid, since }),

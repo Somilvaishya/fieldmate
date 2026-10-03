@@ -2,7 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
-import { getMeta, setMeta } from '../db'
+import { getMeta, setMeta, wipe } from '../db'
+import * as outbox from '../sync/outbox'
+import * as photoQueue from '../sync/photos'
+import { pendingPings, flush as flushPings } from '../sync/pinger'
 import Icon from '../components/Icon.vue'
 
 const router = useRouter()
@@ -35,9 +38,50 @@ async function load() {
   }
 }
 
+// ------------------------------------------------------------------------------ signing out
+
+// Signing out has to do three things, and used to do none of them: end the session on the
+// server, empty this phone, and not strand work that never reached anybody.
+//
+// The third is the one that decides the shape. A rep taps this at the end of a day in a village
+// with a morning of visits still queued. Wiping without asking loses that morning; refusing
+// outright strands a rep who is handing the handset back. So: send what can be sent, then say
+// plainly what is left and let them choose.
+const waiting = ref(0)
+const signingOut = ref(false)
+const confirmWipe = ref(false)
+const signOutError = ref('')
+
+async function countWaiting() {
+  return (await outbox.pendingCount()) + (await photoQueue.pendingCount()) + (await pendingPings())
+}
+
 async function signOut() {
-  // Deliberately blunt and deliberately warned about: anything still queued on this phone has
-  // not reached the server, and signing out is how a rep loses a morning.
+  signOutError.value = ''
+  signingOut.value = true
+  try {
+    // One last push. Nothing is lost that could have been saved.
+    if (navigator.onLine) {
+      await outbox.drain().catch(() => {})
+      await photoQueue.drain().catch(() => {})
+      await flushPings().catch(() => {})
+    }
+    waiting.value = await countWaiting()
+    if (waiting.value && !confirmWipe.value) {
+      confirmWipe.value = true
+      return
+    }
+    await finishSignOut()
+  } finally {
+    signingOut.value = false
+  }
+}
+
+async function finishSignOut() {
+  // The session dies first. If the wipe fails half way, a phone with data on it is at least a
+  // phone nobody can use to reach the server.
+  await api.logout().catch(() => {})
+  await wipe().catch(() => {})
   router.push('/login')
 }
 
@@ -81,10 +125,34 @@ onMounted(load)
       <p class="dim fine" v-if="profile?.support_contact">
         Stuck? {{ profile.support_contact }}
       </p>
-      <button class="out" @click="signOut">Sign out</button>
-      <p class="dim fine">
-        Anything still waiting to send is saved on this phone. Sync before you sign out.
-      </p>
+      <template v-if="!confirmWipe">
+        <button class="out" :disabled="signingOut" @click="signOut">
+          {{ signingOut ? 'Sending what is left…' : 'Sign out' }}
+        </button>
+        <p class="dim fine">
+          Signing out sends anything still waiting, then clears this phone.
+        </p>
+      </template>
+
+      <!-- Only when something genuinely could not be sent. The number is named, because "some
+           data may be lost" is a sentence nobody can act on. -->
+      <div v-else class="sure">
+        <p class="warn">
+          <b class="tnum">{{ waiting }} {{ waiting === 1 ? 'thing' : 'things' }} never reached
+          the office.</b>
+          Signing out now clears this phone and they are gone for good. If you can get signal,
+          stay signed in until they go.
+        </p>
+        <p v-if="signOutError" class="note crit">{{ signOutError }}</p>
+        <div class="pair">
+          <button class="keep" :disabled="signingOut" @click="confirmWipe = false">
+            Stay signed in
+          </button>
+          <button class="go" :disabled="signingOut" @click="finishSignOut">
+            {{ signingOut ? 'Signing out…' : 'Sign out anyway' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -113,5 +181,17 @@ onMounted(load)
 .foot { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .out { min-height: 48px; border: 1px solid var(--line); background: var(--surface);
        border-radius: 8px; color: var(--crit); font-weight: 600; }
+
+.sure { display: flex; flex-direction: column; gap: 10px; background: var(--warn-soft);
+        border: 1px solid var(--warn); border-radius: 10px; padding: 14px; }
+.sure .warn { margin: 0; font-size: 14px; color: var(--warn); }
+.sure .warn b { display: block; margin-bottom: 2px; }
+.pair { display: flex; gap: 8px; }
+.pair button { flex: 1; min-height: 48px; border-radius: 8px; font-weight: 600; }
+/* Staying signed in is the safe answer, so it is the plain one. */
+.keep { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.go { border: 0; background: var(--crit); color: #fff; }
+.note.crit { color: var(--crit); background: var(--crit-soft); border-radius: 8px;
+             padding: 10px 12px; margin: 0; font-size: 14px; }
 .tnum { font-variant-numeric: tabular-nums; }
 </style>

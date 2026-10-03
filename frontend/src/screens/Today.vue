@@ -90,6 +90,14 @@ function handle(e) {
     router.replace('/login')
     return true
   }
+  // A barred handset is not a signed-out rep. The session is good, so bouncing to sign-in would
+  // let them straight back in, land here, be refused again, and bounce for ever. Said once, on
+  // the screen, and the rep takes the phone to somebody.
+  if (e instanceof ApiError && ['DEVICE_INACTIVE', 'DEVICE_UNKNOWN', 'DEVICE_MISMATCH']
+      .includes(e.code)) {
+    error.value = e.message
+    return true
+  }
   if (!(e instanceof ApiError && e.code === 'OFFLINE')) error.value = e.message
   return false
 }

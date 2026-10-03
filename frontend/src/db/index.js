@@ -122,5 +122,13 @@ export async function deviceUuid() {
 
 export async function wipe() {
   // Called on logout or deregistration. A lost handset carries a territory's outlet data.
+  //
+  // The device id is put back deliberately. It names the **handset**, not the session, and
+  // deregistering a lost phone only means something if the phone cannot earn a fresh identity by
+  // signing out and in again - which is exactly what wiping the lot used to hand it. The rest
+  // goes: the outlet list, the catalogue, the day's visits, the cached profile.
+  const device = await getMeta('deviceUuid')
   await db.delete()
+  await db.open()
+  if (device) await setMeta('deviceUuid', device)
 }
