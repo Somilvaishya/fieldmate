@@ -73,8 +73,9 @@ def clear() -> None:
 #               FieldMate Outlet Channel / Class, catalogues (pull only).
 # Phase 2 adds: FieldMate Journey Plan, Day Start, Day End, Location Trail.
 # Phase 3 adds: FieldMate Visit and its children.
-# Phase 4 adds: FieldMate Order (push), FieldMate Distributor Profile (pull) and the
-#               compiled scheme specs (pull) - not the scheme masters, see ADR-021.
+# Phase 4 adds: FieldMate Order (push) and the compiled scheme specs (pull) - not the scheme
+#               masters, see ADR-021. It also pulled FieldMate Distributor Profile, until the
+#               profile was retired in Phase 1 of the redesign; see the note further down.
 # Phase 6 adds: FieldMate Collection.
 #
 register(
@@ -260,23 +261,19 @@ register(
 	)
 )
 
-# The rep picks nothing here - the outlet already names its distributor - but the phone still has
-# to show who the order is going to and what it can promise about delivery, and it has to do that
-# with no signal. Delivery days and the minimum order value are read out to the shopkeeper at the
-# counter, so they cannot wait for a round trip.
+# Nothing is registered for the distributor, and that is deliberate (Phase 1, step 2d-iii).
 #
-# **This is the last thing in the app that reads FieldMate Distributor Profile** (Phase 1, step
-# 2d-ii: every link now names a Customer and every other read is gone). It stays until the phone
-# has somewhere else to get those three counter facts, which is step 2d-iii. Registering Customer
-# in its place is not the answer: `sync.pull` is permission-scoped and no FieldMate role has read
-# on Customer, so the entry would be skipped and the phone would quietly show nothing. Granting
-# that read would hand a handset the whole customer master, credit limits included, which is the
-# opposite of why ADR-013 keeps shops out of it. The facts will travel in the bootstrap payload,
-# where FieldMate decides exactly what leaves the server.
-register(Syncable(doctype="FieldMate Distributor Profile", push=False, pull=True,
-                  pull_fields=("name", "customer", "distributor_code", "status", "territory",
-                               "price_list", "min_order_value", "credit_days", "delivery_days",
-                               "mobile_no", "modified")))
+# FieldMate Distributor Profile used to be pulled here so the phone could name who an order is
+# going to and promise a dispatch date with no signal. The profile is gone - a distributor is an
+# ERPNext Customer - and Customer is not registered in its place. `sync.pull` is permission-scoped
+# and no FieldMate role has read on Customer, so the entry would be skipped and the phone would
+# quietly show nothing; granting that read would hand a handset the whole customer master, credit
+# limits included, which is the opposite of why ADR-013 keeps shops out of it.
+#
+# Instead `party.counter_facts` puts the three facts the phone actually reads - the depot's name,
+# its dispatch lead days and its credit days - into the bootstrap payload, which the client
+# already stores for offline use. That pull also carried a price list, a status, a mobile number
+# and a minimum order value, none of which the app has ever read.
 
 # TODO (Phase 4, blocked): the compiled scheme specs the cart re-prices against offline.
 # ADR-021 is explicit that the phone caches *compiled specs* and never the scheme masters, so

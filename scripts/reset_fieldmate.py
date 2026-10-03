@@ -105,7 +105,10 @@ MASTERS = [
     "FieldMate Journey Plan",
     "FieldMate Beat",
     "FieldMate Outlet",
-    "FieldMate Distributor Profile",
+    # FieldMate Distributor Profile used to sit here. A distributor is now an ERPNext Customer,
+    # which this script deliberately never touches: it is somebody's billing account, with
+    # invoices and a ledger behind it, and wiping FieldMate's own records is not a licence to
+    # delete parties out of ERPNext.
     "FieldMate Field User",
     "FieldMate No Order Reason",
     "FieldMate Deviation Reason",

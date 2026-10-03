@@ -98,17 +98,19 @@ def configure_settings(item: str) -> None:
 
 
 def distributors() -> list[str]:
-	"""The profiles already on the site, newest first, with a Customer behind them.
+	"""The channel parties already on the site, newest first.
 
-	A profile with no Customer cannot be claimed against, so offering one as a depot login would
-	hand the tester a screen that fails at the last step for a reason nothing on it explains.
+	A distributor is a Customer with a channel tier, so there is nothing left to screen out here:
+	what used to be checked - that a FieldMate Distributor Profile had a Customer behind it, or a
+	depot login would fail at the claim with nothing on the screen to explain it - is now the same
+	record as the tier.
 	"""
-	rows = frappe.get_all("FieldMate Distributor Profile",
-	                      fields=["name", "customer"], order_by="creation desc")
-	usable = [r.name for r in rows if r.customer]
-	if len(usable) < len(rows):
-		note("skipped", f"{len(rows) - len(usable)} distributor profile(s)", "no Customer on them")
-	return usable
+	return frappe.get_all(
+		"Customer",
+		filters={"fm_tier": ("is", "set"), "disabled": 0},
+		pluck="name",
+		order_by="creation desc",
+	)
 
 
 def portal_login(email: str, distributor: str, designation: str) -> None:
@@ -156,15 +158,15 @@ def build() -> None:
 
 	profiles = distributors()
 	if not profiles:
-		print("\n  !! No distributor profile with a Customer on it. Run setup_phase4.py first,")
-		print("     or set a Customer on a FieldMate Distributor Profile, then re-run this.\n")
+		print("\n  !! No Customer on this site carries a FieldMate channel tier. Run")
+		print("     setup_phase4.py first, or set Channel Tier on a Customer, then re-run.\n")
 		return
 
 	portal_login(EMAILS[0], profiles[0], "Storekeeper")
 	if len(profiles) > 1:
 		portal_login(EMAILS[1], profiles[1], "Accountant")
 	else:
-		print("\n  !! Only one distributor profile on this site, so only one depot login was")
+		print("\n  !! Only one channel party on this site, so only one depot login was")
 		print("     made. Gate 9 criterion 1 - one depot cannot read another's orders - cannot")
 		print("     be tested by hand until there is a second one.\n")
 
@@ -205,9 +207,8 @@ def show_state() -> None:
 	                      fields=["name", "distributor", "designation", "is_active"])
 	print(f"  portal logins         {len(rows)}")
 	for row in rows:
-		customer = frappe.db.get_value(
-			"FieldMate Distributor Profile", row.distributor, "customer")
-		name = frappe.db.get_value("Customer", customer, "customer_name") or row.distributor
+		name = frappe.db.get_value("Customer", row.distributor, "customer_name") \
+			or row.distributor
 		state = "active" if row.is_active else "INACTIVE"
 		print(f"      {row.name:32} {name}  ({row.designation}, {state})")
 

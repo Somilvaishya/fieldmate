@@ -80,7 +80,7 @@ def targets(prefix: str = "G_"):
         # `purge` is what gets the upper nodes on the second time round.
         ("Sales Person", {"sales_person_name": ["like", f"{prefix}-%"]}),
         ("Holiday List", {"name": ["like", f"{prefix}-HOL-%"]}),
-        ("FieldMate Distributor Profile", {"customer": ["like", f"{prefix}-DIST-%"]}),
+        # No FieldMate Distributor Profile above this any more - the Customer IS the distributor.
         ("Customer", {"customer_name": ["like", f"{prefix}-DIST-%"]}),
         ("Item Price", {"item_code": ["like", f"{prefix}-ITEM-%"]}),
         ("FieldMate Product Catalogue", {"catalogue_name": ["like", f"{prefix}-CAT-%"]}),

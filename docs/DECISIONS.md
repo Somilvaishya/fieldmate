@@ -820,3 +820,71 @@ site used.
   really guarding is still held by criterion 2 and by Gate 4 criterion 2.
 - The four DocTypes carried **no rows** on any site when they were removed, so nothing was lost.
   A site that had used them would have needed an export first.
+
+## ADR-033 — A distributor is an ERPNext Customer, and nothing else
+
+**Supersedes** the distributor half of ADR-013. The retailer half stands: a kirana is still never
+a Customer.
+
+**Decision.** `FieldMate Distributor Profile` is deleted. Every party FieldMate bills is an
+ERPNext Customer, and what FieldMate needs to know about it that ERPNext does not hold lives in
+`fm_` Custom Fields beside the rest: `fm_tier`, `fm_buys_from`, `fm_parent_customer`,
+`fm_ptr_price_list`, `fm_warehouse`, `fm_min_order_value`, `fm_max_open_invoices`,
+`fm_delivery_days`, `fm_distributor_code`, `fm_assigned_to` and the two cover-day norms. The
+eleven Link fields that named a profile now name a Customer. A party's **credit days are not
+stored at all** — `services.party.credit_days` derives them from the Payment Terms Template.
+
+**Reason.**
+
+The two records were already the same thing. The profile's `autoname` was `field:customer`, so
+every profile had its Customer's name and every link held a string that was valid as both. Half
+the code between them was `get_value("FieldMate Distributor Profile", d, "customer")`, which on
+that naming rule is the identity function wearing a lookup. `FieldMate Outlet.distributor` had
+pointed at `Customer` all along; `FieldMate Order.distributor` pointed at the profile. Nothing
+chose that split — it accumulated.
+
+The duplication was starting to cost real money-shaped decisions. A profile carried its own
+`price_list`, which nothing read, while `catalogue.resolve_price_list` consulted the outlet, the
+rep and Selling Settings and never the profile. It carried `credit_days`, which the phone read,
+while ERPNext billed the party from a Payment Terms Template that nobody had set. Two records
+holding the same fact is how a site ends up quoting one number and invoicing another.
+
+The channel design needs tiers, and a tier is not a second document. A super stockist, a
+distributor, a sub-stockist and a wholesaler are all parties we bill; what separates them is a
+field, not a doctype. Building four profile variants, or one profile with a type on it, would be
+rebuilding Customer badly.
+
+**Consequences.**
+
+- **Credit days are derived, never stored.** The template can have rows — "half in fifteen days,
+  half in thirty" — and no single integer states that, so `party.credit_days` answers the latest
+  day any part of the bill is due, following ERPNext's own fallback order of Customer, Customer
+  Group, Company. A party whose template nobody has set answers `None`, and the counter shows no
+  terms. That is correct and it looks like a bug, so the manual says to set one.
+- **`fm_delivery_days` is a lead time in days, an Int.** The profile declared it as Data and
+  described it as "which days this distributor delivers, e.g. Mon, Wed, Fri", but the phone read
+  it with `Number()` and the live value was a bare `"2"`. The data and the reader agreed; only
+  the label did not.
+- **The phone is not given the Customer master.** `sync.pull` is permission-scoped and no
+  FieldMate role has read on Customer; registering Customer there would have been silently
+  skipped, and granting the read would hand a handset every party and credit limit on the site.
+  So `party.counter_facts` puts the three facts a rep reads out at a counter into the bootstrap
+  payload instead, where this app decides exactly what leaves the server. The retired pull also
+  carried a price list, a status, a mobile number and a minimum order value, none of which the
+  app has ever read.
+- **A distributor serving a territory is now `fm_tier = "Distributor"`**, which is what every
+  retired profile became. Tier exactly, not any channel party: a CFA is our own depot and a super
+  stockist bills distributors rather than shops, so neither answers "who supplies this kirana". A
+  site that attaches shops to sub-stockists will want `outlet.create` widened.
+- **`FieldMate Claim.customer` is kept** although it now equals `distributor`. The credit-note
+  posting and the portal read it, and a claim already settled should go on saying which party it
+  credited even if that stops being derivable later.
+- **Nothing was migrated, because nothing had to be.** The link values were already Customer
+  names; `patches/carry_distributor_profile_to_customer` moved the profile's own fields onto the
+  Customer and **reported** what had nowhere to go rather than dropping it — credit days with no
+  template behind them, a non-Active status, the contact fields. It ships on, guarded, for sites
+  upgrading across this change, and `remove_orphan_doctypes` runs after both patch passes so the
+  data carry always happens before the table goes.
+- **`reset_fieldmate.py` no longer wipes distributors.** It wiped the profile; it will not wipe a
+  Customer. That is somebody's billing account with a ledger behind it, and clearing FieldMate's
+  own records is not a licence to delete parties out of ERPNext.

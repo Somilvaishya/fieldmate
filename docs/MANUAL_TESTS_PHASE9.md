@@ -269,7 +269,8 @@ Run through this list at the end. Each one is a bug if it happens.
 | What you see | Where to look |
 |---|---|
 | Depot login says *not attached to a distributor* | FieldMate Portal User row missing or inactive |
-| *has no Customer on its profile* | FieldMate Distributor Profile → Customer |
+| *is not a billing account we know* | FieldMate Portal User → Distributor names a Customer that has been deleted or renamed |
+| Depot header shows no credit terms | Customer → Payment Terms is blank; credit days are derived from the template, never stored |
 | *No settlement item is set* | FieldMate Settings → Scheme Claim Settlement |
 | Claim reconciles to zero | The orders granted no scheme benefits — check the scheme is active and in date |
 | Rep's phone never updates | `registry.py`, `pull=True` on FieldMate Order; then re-sync |

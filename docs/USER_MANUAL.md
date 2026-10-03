@@ -204,11 +204,22 @@ Parent: `All Territories`. **Is Group: off.**
 
 > That limit is what Part 6 will breach. Put it here, not on the outlet.
 
-## 2.3 FieldMate Distributor Profile
+## 2.3 Make that Customer a distributor
 
-**Desk → FieldMate Distributor Profile → New.**
-- Customer: the one above · Territory: yours
-- Credit Days: 15 · Delivery Days: 2 · Min Order Value: 500
+**Desk → Customer → the one above → the FieldMate Channel section.**
+- Channel Tier: **Distributor** · Buys From: **Company**
+- Delivery Lead Days: 2 · Minimum Order Value: 500
+
+> There is no separate distributor record to create. A party you bill is a Customer with a tier
+> on it. A Customer with no tier is one FieldMate does not sell through, and a shop pointed at
+> one cannot be onboarded — the rep gets "your area has no distributor" on the phone.
+
+> **Credit days are deliberately not on this form.** They come from the Customer's **Payment
+> Terms**, because "half in fifteen days, half in thirty" is a real arrangement that no single
+> number states. Set one up: **Desk → Payment Terms Template → New**, one row, Invoice Portion
+> 100, Due Date Based On *Day(s) after invoice date*, Credit Days 15 — then put that template in
+> the Customer's **Payment Terms** field. Leave it blank and the counter shows no terms at all,
+> which is correct but looks like a bug.
 
 ## 2.4 Items and prices
 

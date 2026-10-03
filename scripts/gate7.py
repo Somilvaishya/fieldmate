@@ -193,12 +193,11 @@ def build_fixtures():
     company = frappe.db.get_single_value("FieldMate Settings", "default_company") \
         or frappe.db.get_value("Company", {}, "name")
 
+    # A distributor is a Customer with a channel tier, not a FieldMate Distributor Profile.
     customer = frappe.get_doc({
         "doctype": "Customer", "customer_name": uid("G7-DIST"), "customer_type": "Company",
         "customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
-    }).insert(ignore_permissions=True)
-    frappe.get_doc({
-        "doctype": "FieldMate Distributor Profile", "customer": customer.name,
+        "fm_tier": "Distributor", "fm_buys_from": "Company",
     }).insert(ignore_permissions=True)
 
     national = make_sales_person("NAT")

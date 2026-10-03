@@ -20,6 +20,7 @@ from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 
 from fieldmate import compat
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import party as party_service
 from fieldmate.services import settings as settings_service
 
 # Ageing buckets, in days. The last one is separate rather than folded into a total because it is
@@ -210,28 +211,15 @@ def distributor_outstanding(distributor: str) -> dict:
 def distributors_for(field_user: str | None = None) -> list[dict]:
 	"""The depots this rep can take money from, with what each one owes.
 
-	Derived from the shops they actually serve rather than from a field on the rep: a rep works
-	whoever supplies their beat, and the `distributor` column on FieldMate Field User is empty on
-	most sites - it was on the one this was written against. The rep's own is folded in when it
-	is set, so a rep with no outlets yet is not left with an empty list.
+	Which depots those are is `party.distributors_of`, so that this list and the one the phone
+	carries for the counter cannot disagree about who a rep works with.
 
 	Names are Customers, which is what a collection links to and what the outlet carries. Until
 	step 2d those were two documents that happened to share a name, and this function existed
 	largely to translate between them.
 	"""
 	field_user = field_user or field_user_service.for_user()
-	if not field_user:
-		return []
-
-	customers = set(frappe.get_all(
-		"FieldMate Outlet",
-		filters={"territory": frappe.db.get_value("FieldMate Field User", field_user, "territory")},
-		pluck="distributor",
-	))
-	own = frappe.db.get_value("FieldMate Field User", field_user, "distributor")
-	if own:
-		customers.add(own)
-	customers.discard(None)
+	customers = party_service.distributors_of(field_user)
 	if not customers:
 		return []
 

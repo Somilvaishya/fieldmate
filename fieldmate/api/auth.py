@@ -7,6 +7,7 @@ import frappe
 from fieldmate import compat
 from fieldmate.api._base import API_VERSION, Err, FieldMateError, endpoint, ok
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import party as party_service
 from fieldmate.services import settings as settings_service
 
 FIELDMATE_ROLES = (
@@ -109,6 +110,12 @@ def bootstrap(**kwargs):
 			"capabilities": compat.capabilities(),
 			"settings": settings_service.client_settings(),
 			"field_user": field_user_service.profile(),
+			# What a rep reads out at a counter about their depots: who the order goes to, when
+			# they dispatch, how long the shop has to pay. It rides here rather than in the sync
+			# registry because a FieldMate endpoint can choose which Customer fields leave the
+			# server, where a sync entry over Customer could not (step 2d-iii). Small - a rep has
+			# a handful of depots, and the client stores this payload for offline reads.
+			"distributors": party_service.counter_facts(field_user_service.for_user()),
 			"sales_mode": settings_service.resolve_sales_mode(
 				field_user_service.for_user()
 			),

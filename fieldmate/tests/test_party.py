@@ -167,7 +167,20 @@ class TestCreditDaysComeFromPaymentTerms(PartyFixture):
 
 
 class TestRetiringTheDistributorProfile(PartyFixture):
-	"""The patch carries the profile's data onto its Customer. 2d-i: data only, no rewiring."""
+	"""The patch carries the profile's data onto its Customer. 2d-i: data only, no rewiring.
+
+	Skipped once the DocType is gone, which it is on any site installed after step 2d-iii. The
+	class stays rather than being deleted: the patch it exercises still ships, because a site
+	upgrading across this change has profiles to carry, and this is the only record of what that
+	patch is supposed to do. `remove_orphan_doctypes` runs after both patch passes, so on such a
+	site the patch does its work first and these tests can still run against it.
+	"""
+
+	def setUp(self):
+		if not frappe.db.exists("DocType", "FieldMate Distributor Profile"):
+			self.skipTest("FieldMate Distributor Profile has been dropped; the patch it tests "
+			              "only runs on a site upgrading across step 2d")
+		super().setUp()
 
 	def carried(self, customer: str, *fields):
 		carry.execute()

@@ -133,11 +133,11 @@ def build_fixtures():
         "customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
         "territory": territory,
         "credit_limits": [{"company": company, "credit_limit": 500}],
+        # A distributor is a Customer with a channel tier. There is no FieldMate Distributor
+        # Profile beside it any more, and `distributor` below is the same document.
+        "fm_tier": "Distributor", "fm_buys_from": "Company",
     }).insert(ignore_permissions=True)
-    distributor = frappe.get_doc({
-        "doctype": "FieldMate Distributor Profile",
-        "customer": customer.name, "territory": territory,
-    }).insert(ignore_permissions=True)
+    distributor = customer
 
     rep_user = make_user("g4rep", "FieldMate Field Rep")
     manager_user = make_user("g4mgr", "FieldMate Area Manager")

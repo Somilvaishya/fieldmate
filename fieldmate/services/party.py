@@ -56,6 +56,69 @@ def payment_terms_template(customer: str | None) -> str | None:
 
 
 # --------------------------------------------------------------------------------------
+# what a rep carries about their depots
+# --------------------------------------------------------------------------------------
+
+
+def distributors_of(field_user: str | None) -> list[str]:
+	"""The parties this rep sells through.
+
+	Derived from the shops they actually serve rather than from a field on the rep: a rep works
+	whoever supplies their beat, and the `distributor` column on FieldMate Field User is empty on
+	most sites. The rep's own is folded in when it is set, so a rep with no outlets yet is not
+	left with an empty list.
+	"""
+	if not field_user:
+		return []
+
+	territory = frappe.db.get_value("FieldMate Field User", field_user, "territory")
+	names = set(frappe.get_all("FieldMate Outlet", filters={"territory": territory},
+	                           pluck="distributor"))
+	own = frappe.db.get_value("FieldMate Field User", field_user, "distributor")
+	if own:
+		names.add(own)
+	names.discard(None)
+	names.discard("")
+	return sorted(names)
+
+
+def counter_facts(field_user: str | None) -> list[dict]:
+	"""What a rep reads out at a counter about whoever supplies the shop they are standing in.
+
+	Three things, and only three: who the order is going to, when they dispatch, and how long the
+	shop has to pay. The phone has to answer all of them with no signal, so they travel in the
+	bootstrap payload, which the client stores and reads back offline.
+
+	This replaces syncing FieldMate Distributor Profile wholesale (step 2d-iii). That pull also
+	carried a price list, a status, a mobile number and a minimum order value, none of which the
+	app has ever read - the registry comment beside it claimed the minimum was read out at the
+	counter, and it never was. Sending what is used is also what makes this safe to answer here:
+	a FieldMate endpoint decides exactly which Customer fields leave the server, where registering
+	Customer for sync would have had to hand a handset read access to the whole master.
+	"""
+	names = distributors_of(field_user)
+	if not names:
+		return []
+
+	rows = frappe.get_all(
+		"Customer",
+		filters={"name": ["in", names]},
+		fields=["name", "customer_name", "fm_delivery_days"],
+		limit_page_length=0,
+	)
+	return [
+		{
+			"distributor": row.name,
+			"distributor_name": row.customer_name or row.name,
+			# A lead time in days, not a list of weekdays - see `fm_delivery_days`.
+			"delivery_days": cint(row.fm_delivery_days) or None,
+			"credit_days": credit_days(row.name),
+		}
+		for row in rows
+	]
+
+
+# --------------------------------------------------------------------------------------
 # the reads
 # --------------------------------------------------------------------------------------
 
