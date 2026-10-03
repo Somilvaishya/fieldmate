@@ -141,6 +141,21 @@ def own_row(doc, user: str | None = None) -> bool:
 	return getattr(doc, "field_user", None) == mine
 
 
+def location_trail_query(user: str | None = None) -> str:
+	"""A rep's own trail, and nobody else's.
+
+	This is the only one of these that is about a person rather than a number. A GPS trail is
+	where somebody was all day, minute by minute - the most personal thing the app records, and
+	the thing the DPDP consent was taken for. The Field Rep role held a plain `read` on the
+	DocType with no `if_owner` and no query condition, so any rep could list any colleague's
+	movements by name.
+
+	Managers are not scoped here, for the same reason they are not scoped on targets or KPIs:
+	seeing their reps' work is the job. What is refused is rep reading rep.
+	"""
+	return own_rows_query("FieldMate Location Trail", user)
+
+
 def target_plan_query(user: str | None = None) -> str:
 	return own_rows_query("FieldMate Target Plan", user)
 
