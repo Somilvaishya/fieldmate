@@ -277,7 +277,7 @@ register(Syncable(doctype="FieldMate Distributor Profile", push=False, pull=True
 # two engines would be fed different input, and Gate 4 parity would be measuring the wrong thing.
 
 # ---------------------------------------------------------------------------- Phase 5
-# A stock count and a van day are captured in the field like everything else, and just as often
+# A stock count is captured in the field like everything else, and just as often
 # with no signal - a godown at 6am and a kirana shelf at noon are both places the network is not.
 register(
 	Syncable(
@@ -291,36 +291,6 @@ register(
 		# A phone that proposed its own coverage figure could flatter it.
 		server_owned=("counted_lines", "total_lines", "coverage_pct", "is_partial",
 		              "previous_stock", "days_since_previous", "sync_status", "synced_at"),
-	)
-)
-
-register(
-	Syncable(
-		doctype="FieldMate Van Load",
-		uuid_field="client_uuid",
-		push=True,
-		pull=False,
-		submit_on_push=True,
-		depends_on=("day_start",),
-		server_owned=("total_skus", "total_qty", "stock_value", "has_variance", "variance_skus",
-		              "load_status", "sync_status", "synced_at"),
-	)
-)
-
-register(
-	Syncable(
-		doctype="FieldMate Van Settlement",
-		uuid_field="client_uuid",
-		push=True,
-		pull=False,
-		submit_on_push=True,
-		depends_on=("van_load", "day_start"),
-		# Everything in the equation except what the rep counted back in. Loaded comes from the
-		# morning, sold from their own orders, and short falls out of the two - a settlement a
-		# phone could state would be a settlement that always balances.
-		server_owned=("loaded_qty", "sold_qty", "short_qty", "short_value", "cash_collected",
-		              "cash_to_hand_over", "settlement_status", "settled_on", "distributor",
-		              "vehicle_no", "sync_status", "synced_at"),
 	)
 )
 

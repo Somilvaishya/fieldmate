@@ -124,11 +124,10 @@ def build_fixtures():
 
     # The credit limit goes on the DISTRIBUTOR's Customer, not on the shop.
     #
-    # In order booking the shop is not a party to the sale at all - it buys from its distributor
-    # (ADR-023), and the limit that binds is the distributor's with us. `credit._limit` reads the
-    # outlet's own figure only in van sales, where the rep is selling to the shop at the counter.
-    # Setting it on the outlet, which is what this gate did first, produced an order that sailed
-    # through "Within Limit" and a criterion that tested nothing.
+    # The shop is not a party to the sale at all - it buys from its distributor (ADR-023), and
+    # the limit that binds is the distributor's with us. Setting it on the outlet, which is what
+    # this gate did first, produced an order that sailed through "Within Limit" and a criterion
+    # that tested nothing.
     customer = frappe.get_doc({
         "doctype": "Customer", "customer_name": uid("G4-DIST"), "customer_type": "Company",
         "customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),

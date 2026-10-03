@@ -7,10 +7,10 @@ to that distributor's queue and stops — no Sales Order, no Sales Invoice, no G
 movement (ADR-023). The company's own revenue event happens one step later, when the distributor
 places a *primary* order on us, and that is a different document entirely.
 
-Two cases put us on the other side of the counter — van sales, and an outlet we genuinely invoice
-direct — and in those an ERPNext document is correct. That question is asked once, of
-`credit.we_are_the_seller()`, and branched on once, in `route()`. There is deliberately no
-`if van_sales:` anywhere else in this module.
+One case puts us on the other side of the counter — an outlet we genuinely invoice direct — and
+there an ERPNext document is correct. That question is asked once, of
+`credit.we_are_the_seller()`, and branched on once, in `route()`. There is deliberately no second
+place in this module that decides who sells.
 
 The second thing to understand is **who computes the money**. The phone does, at the counter, with
 no signal, because the rep has to say a number out loud before there is anything to ask. The server
@@ -665,8 +665,8 @@ def summarise(doc) -> dict:
 		"approval_status": doc.approval_status,
 		"distributor": doc.distributor,
 		"sent_to_distributor_on": str(doc.sent_to_distributor_on) if doc.sent_to_distributor_on else None,
-		# Empty in order booking, and that is the point. Only van sales and a directly-billed
-		# outlet ever put a name here.
+		# Empty on an ordinary retailer order, and that is the point. Only a directly-billed
+		# outlet ever puts a name here.
 		"sales_order": doc.sales_order,
 		"lines": len(doc.items or []),
 		"free_goods": [{"item": r.item_code, "qty": flt(r.qty)} for r in (doc.free_goods or [])],

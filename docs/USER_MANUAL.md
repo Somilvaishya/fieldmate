@@ -78,19 +78,15 @@ Nothing else in this manual works until section 1.1 and 1.2 are filled in. The r
 | Setting | Default | What it decides |
 |---|---|---|
 | **Enable Order Booking** | on | The rep books an order; the **distributor** delivers and bills the shop |
-| **Enable Van Sales** | off | The rep carries stock and sells at the counter |
-| **Default Sales Mode** | Order Booking | Which one a rep gets when their own profile says nothing |
 
-**Set for this manual: Order Booking on, Van Sales off.** Part 9 turns van sales on separately.
+One model today. Van sales was the second and has been removed: it was never finished, and the
+channel design replaces it with primary and secondary modes.
 
 > **The one idea the whole app is built on.** In order booking, the shop is **not our customer**.
 > It buys from its distributor. We never invoice it, so a rep's order creates **no** Sales Order,
 > **no** invoice, **no** GL Entry and **no** stock movement. It goes into the distributor's queue
 > and stops there. The company's own sale happens later, when the distributor orders from us —
 > and that is a different document entirely.
->
-> Van sales is the same: the stock in the van is the distributor's, not ours. It posts nothing
-> either.
 >
 > If you see a Sales Order appear when a rep books an order at a kirana shop, **that is a bug**,
 > and it is the most important bug this manual can find.
@@ -135,17 +131,17 @@ Nothing else in this manual works until section 1.1 and 1.2 are filled in. The r
 | **Block Order On Credit Breach** | on | A breaching order is **held for a manager**, not sent to the depot |
 | **Allow Manager Override** | on | Whether a manager may release it |
 
-> **Which limit is checked depends on the mode**, and this catches people out:
+> **The limit is the distributor's, not the shop's**, and this catches people out. The shop is
+> not a party to the sale at all — it buys from its distributor — so the ceiling that binds is
+> the distributor's Customer credit limit with us.
 >
-> | Mode | Limit read from | Because |
-> |---|---|---|
-> | Order booking | the **distributor's** Customer credit limit | the shop is not a party to that sale |
-> | Van sales | the **outlet's** own `credit_limit`, then the Customer's | the rep is selling to the shop at the counter |
+> Setting a credit limit on the outlet will show you **nothing** — the order sails through. Set
+> it on the Customer.
 >
-> Setting a credit limit on the outlet and testing in order booking will show you **nothing** —
-> the order sails through. Set it on the Customer.
+> A shop's own limit with its distributor is a real thing and a real control, and the two-level
+> credit check that measures it is Phase 3 of the channel design.
 
-## 1.6 Scheme Claim Settlement — *needed for Part 10*
+## 1.6 Scheme Claim Settlement — *needed for Part 9*
 
 | Setting | What it decides |
 |---|---|
@@ -567,23 +563,7 @@ the check-in count, and rate × distance worked out.
 
 ---
 
-# Part 9 — Van sales *(optional — only if you sell off a vehicle)*
-
-Turn **Enable Van Sales** on and set the rep's Sales Mode to Van Sales.
-
-1. **Today → Load the van** — record what is on board
-2. Sell at a counter — the shop is billed **by the distributor**, and cash is taken at the door
-3. **Today → Settle the van** — what went out, what sold, what came back
-
-**Expected:** loaded − sold − returned = **0**. A shortfall cannot be settled without an
-explanation.
-
-**The checks:** **no Stock Ledger Entry, no GL Entry.** The van holds the distributor's stock.
-A shortfall is a conversation, not a journal entry.
-
----
-
-# Part 10 — The depot, and claims
+# Part 9 — The depot, and claims
 
 ## 10.1 A depot login
 
@@ -667,7 +647,7 @@ back to **Accrued** so the depot can fix and re-claim.
 
 ---
 
-# Part 11 — End of day
+# Part 10 — End of day
 
 Phone → **Finish day**.
 
@@ -679,7 +659,7 @@ orders count and value, collection amount — **all filled in, none zero** if yo
 
 ---
 
-# Part 12 — Targets and incentive
+# Part 11 — Targets and incentive
 
 ```
 ../env/bin/python ../apps/fieldmate/scripts/setup_phase7.py
@@ -713,7 +693,7 @@ Phone → **Today → My performance.**
 
 ---
 
-# Part 13 — Analytics and alerts
+# Part 12 — Analytics and alerts
 
 ```
 ../env/bin/python ../apps/fieldmate/scripts/setup_phase8.py
@@ -754,12 +734,12 @@ order and refresh: the tiles move **immediately**, because today is counted live
 
 ---
 
-# Part 14 — The list of things that must never happen
+# Part 13 — The list of things that must never happen
 
 Run through this at the end. **Each one is a bug if it happens.**
 
 - [ ] A **Sales Order** created by a retailer order
-- [ ] A **GL Entry** from an order, a van sale, a collection, or a deposit *declaration*
+- [ ] A **GL Entry** from an order, a collection, or a deposit *declaration*
 - [ ] A **Stock Ledger Entry** from anything in FieldMate
 - [ ] A **Payment Entry** for money collected at a **shop**
 - [ ] A **Payment Entry** before a deposit is **confirmed**

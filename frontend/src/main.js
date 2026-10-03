@@ -54,12 +54,8 @@ const router = createRouter({
     { path: '/order/:outlet/schemes', component: () => import('./screens/OrderSchemes.vue'), name: 'order-schemes' },
     { path: '/order/:outlet/review', component: () => import('./screens/OrderReview.vue'), name: 'order-review' },
 
-    // Phase 5. The stock check belongs to a shop; the van belongs to the day, so it carries no
-    // id at all - a rep has one vehicle and one load, and naming either in the URL would invite
-    // a stale deep link to open somebody else's morning.
+    // Phase 5. The stock check belongs to a shop, so it carries the shop in the path.
     { path: '/stock/:outlet', component: () => import('./screens/StockCheck.vue'), name: 'stock-check' },
-    { path: '/van/load', component: () => import('./screens/VanLoad.vue'), name: 'van-load' },
-    { path: '/van/settle', component: () => import('./screens/VanSettle.vue'), name: 'van-settle' },
 
     // Phase 6. Outstanding belongs to a shop; the deposit belongs to the rep's own satchel and
     // so carries no id - there is one of those, and naming it in a URL would only invite a

@@ -137,11 +137,11 @@ class TestOutletValidation(OutletFixture):
 		self.assertEqual(self.make_outlet(geo_fence_radius_m=250).effective_geo_fence_radius(), 250)
 
 	def test_a_directly_billed_outlet_needs_no_mode_switched_on(self):
-		"""ADR-024. A Customer here is ADR-001's escape hatch, not a van-sales setting.
+		"""ADR-024. A Customer here is ADR-001's escape hatch for a shop we bill direct.
 
-		The old rule refused it unless van sales was enabled, on ADR-016's claim that the shop
-		was billed on the spot in that mode. That claim was wrong - a van sale is the
-		distributor's sale too - so the mode never had anything to say about this.
+		An older rule tied this to a sales mode being enabled. It was wrong then and there is no
+		second mode now: whether we bill a shop direct is a fact about that shop, and nothing
+		else in the app gets a say.
 		"""
 		outlet = self.make_outlet(customer=self.make_distributor())
 		self.assertTrue(outlet.customer)

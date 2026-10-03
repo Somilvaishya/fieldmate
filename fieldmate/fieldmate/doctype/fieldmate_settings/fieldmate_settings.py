@@ -25,20 +25,12 @@ class FieldMateSettings(Document):
 		self.validate_bounds()
 
 	def validate_sales_model(self):
-		if not (self.enable_order_booking or self.enable_van_sales):
+		# One model today. The check is kept rather than deleted because it is the thing that
+		# stops a site being saved with nothing a rep can sell in, and Phase 1 adds the modes
+		# back beside this line.
+		if not self.enable_order_booking:
 			frappe.throw(
-				frappe._("Enable at least one sales model. With neither, no rep can sell anything.")
-			)
-
-		enabled = {
-			"Order Booking": bool(self.enable_order_booking),
-			"Van Sales": bool(self.enable_van_sales),
-		}
-		if not enabled.get(self.default_sales_mode):
-			frappe.throw(
-				frappe._("Default Sales Mode is set to {0}, which is not enabled.").format(
-					self.default_sales_mode
-				)
+				frappe._("Enable at least one sales model. With none, no rep can sell anything.")
 			)
 
 	def validate_bounds(self):

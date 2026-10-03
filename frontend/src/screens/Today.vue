@@ -94,10 +94,6 @@ function handle(e) {
   return false
 }
 
-// Only a van rep sees the van. The bootstrap already carries the mode, so the phone does not
-// have to guess and an order-booking rep is not shown two cards that will always be empty.
-const vanRep = computed(() => boot.value?.sales_mode === 'Van Sales')
-
 // Shown only when the rep is actually carrying something. A permanent card saying "nothing to
 // deposit" is a card nobody reads, and then they miss the day it matters.
 const inHand = ref(null)
@@ -128,11 +124,6 @@ const tiles = computed(() => {
     to: '/money', icon: 'tag', title: 'Collections',
     note: inHand.value?.count ? `${rupees(inHand.value.total_amount)} with you` : 'What you took',
   })
-  if (vanRep.value) {
-    out.push(openDay.value
-      ? { to: '/van/settle', icon: 'truck', title: 'Settle the van', note: 'Sold, returned, cash' }
-      : { to: '/van/load', icon: 'truck', title: 'Load the van', note: 'What you carry today' })
-  }
   out.push({ to: '/performance', icon: 'target', title: 'My performance',
              note: 'Targets and the month' })
   out.push({ to: '/expense', icon: 'receipt', title: 'Claim expenses',

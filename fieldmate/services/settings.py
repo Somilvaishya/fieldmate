@@ -9,14 +9,17 @@ from __future__ import annotations
 import frappe
 from frappe.utils import cint
 
+# The only mode the app sells in. Van sales was the second one and has been taken out whole:
+# it was never finished - a van rep could not book at an ordinary shop at all, because the party
+# it billed was `FieldMate Outlet.customer`, which ADR-013 says is empty for every retailer - and
+# the design it belongs in treats a van as a way of delivering a secondary sale rather than as a
+# mode of its own. The constant and `resolve_sales_mode` stay because the channel modes coming in
+# Phase 1 (Secondary, Sell-in, Booking, Wholesale) plug in exactly here.
 ORDER_BOOKING = "Order Booking"
-VAN_SALES = "Van Sales"
 
 # Mirrors the DocType defaults so a site that has never opened the form still behaves sanely.
 DEFAULTS = {
 	"enable_order_booking": 1,
-	"enable_van_sales": 0,
-	"default_sales_mode": ORDER_BOOKING,
 	"enforce_geo_fence": 1,
 	"default_geo_fence_radius_m": 100,
 	"allow_geo_fence_exception": 1,
@@ -71,39 +74,17 @@ def value(key: str, default=None):
 
 
 def enabled_modes() -> list[str]:
-	settings = get()
-	modes = []
-	if cint(settings.get("enable_order_booking")):
-		modes.append(ORDER_BOOKING)
-	if cint(settings.get("enable_van_sales")):
-		modes.append(VAN_SALES)
-	return modes
+	"""Every mode this company sells in. One, for now - see the note on ORDER_BOOKING."""
+	return [ORDER_BOOKING]
 
 
 def resolve_sales_mode(field_user: str | None = None) -> str:
-	"""A rep's own mode wins; otherwise the company default.
+	"""How this rep sells.
 
-	Falls back to whatever is actually enabled rather than trusting a stale rep setting — a rep
-	still marked Van Sales after the company switched it off must not be left unable to sell.
+	One answer today, and the argument is kept rather than dropped: every caller already passes a
+	rep, and Phase 1 gives different reps different modes without any of them having to change.
 	"""
-	modes = enabled_modes()
-	if not modes:
-		return ORDER_BOOKING
-
-	chosen = None
-	if field_user and frappe.db.exists("DocType", "FieldMate Field User"):
-		chosen = frappe.db.get_value("FieldMate Field User", field_user, "sales_mode")
-		if chosen == "Company Default":
-			chosen = None
-
-	if not chosen:
-		chosen = get().get("default_sales_mode")
-
-	return chosen if chosen in modes else modes[0]
-
-
-def is_van_sales(field_user: str | None = None) -> bool:
-	return resolve_sales_mode(field_user) == VAN_SALES
+	return ORDER_BOOKING
 
 
 def client_settings() -> dict:

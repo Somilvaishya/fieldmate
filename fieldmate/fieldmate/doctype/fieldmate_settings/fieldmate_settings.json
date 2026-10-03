@@ -8,9 +8,6 @@
  "field_order": [
   "section_sales_model",
   "enable_order_booking",
-  "enable_van_sales",
-  "column_sales_model",
-  "default_sales_mode",
   "section_general",
   "default_company",
   "default_price_list",
@@ -69,23 +66,6 @@
    "label": "Enable Order Booking",
    "default": "1",
    "description": "The rep books an order and the distributor delivers later. The shop is never billed directly."
-  },
-  {
-   "fieldname": "enable_van_sales",
-   "fieldtype": "Check",
-   "label": "Enable Van Sales",
-   "default": "0",
-   "description": "The rep sells and delivers from a vehicle, billing the shop on the spot. Activates outlet-level billing and credit."
-  },
-  {"fieldname": "column_sales_model", "fieldtype": "Column Break"},
-  {
-   "fieldname": "default_sales_mode",
-   "fieldtype": "Select",
-   "label": "Default Sales Mode",
-   "options": "Order Booking\nVan Sales",
-   "default": "Order Booking",
-   "reqd": 1,
-   "description": "Used for any rep who has not been given a mode of their own."
   },
 
   {"fieldname": "section_general", "fieldtype": "Section Break", "label": "General"},
@@ -162,7 +142,7 @@
    "fieldtype": "Check",
    "label": "Block Order On Credit Breach",
    "default": "1",
-   "description": "Checked against the distributor in order booking, and against the outlet in van sales."
+   "description": "Checked against the distributor, who is the party we bill."
   },
   {"fieldname": "allow_credit_override", "fieldtype": "Check", "label": "Allow Manager Override", "default": "1"},
 

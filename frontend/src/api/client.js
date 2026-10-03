@@ -189,21 +189,13 @@ export const api = {
   orderDetail: (name) => call('order.detail', { order: name }),
   orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
 
-  // fieldmate.api.stock.* — the shop count and the van day.
+  // fieldmate.api.stock.* — the shop count.
   //
   // The count sheet carries the previous count with it rather than offering it on a second call.
   // A rep standing at a shelf with no signal would otherwise either wait for a round trip or
   // count blind, and counting blind makes "same as last time" impossible to offer.
   stockSheet: (outlet) => call('stock.sheet', { outlet }),
   stockSave: (payload) => call('stock.save', { payload }, { post: true }),
-
-  // The van is the distributor's stock, not ours (ADR-024), so none of these post anything.
-  vanLoad: (on) => call('stock.van_load', { on }),
-  vanLoadSave: (payload) => call('stock.save_van_load', { payload }, { post: true }),
-  // Computed and not saved: the rep opens this to see where he stands before entering the one
-  // number that is his to enter.
-  vanSettlement: (on) => call('stock.settlement', { on }),
-  vanSettlementSave: (payload) => call('stock.save_settlement', { payload }, { post: true }),
 
   // fieldmate.api.collection.* — money taken at a counter.
   //

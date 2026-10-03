@@ -21,11 +21,9 @@
   "reports_to",
   "company",
   "section_sales",
-  "sales_mode",
   "distributor",
   "column_sales",
   "default_price_list",
-  "vehicle_warehouse",
   "section_permissions",
   "can_create_outlet",
   "can_collect_payment",
@@ -96,26 +94,10 @@
   {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company"},
 
   {"fieldname": "section_sales", "fieldtype": "Section Break", "label": "Sales Model"},
-  {
-   "fieldname": "sales_mode",
-   "fieldtype": "Select",
-   "label": "Sales Mode",
-   "options": "Company Default\nOrder Booking\nVan Sales",
-   "default": "Company Default",
-   "description": "Overrides FieldMate Settings for this rep. The two models coexist: a van route in a town, order-booking reps around it."
-  },
   {"fieldname": "distributor", "fieldtype": "Link", "label": "Distributor", "options": "Customer",
-   "description": "The billing party this rep sells through in order booking."},
+   "description": "The billing party this rep sells through."},
   {"fieldname": "column_sales", "fieldtype": "Column Break"},
   {"fieldname": "default_price_list", "fieldtype": "Link", "label": "Default Price List", "options": "Price List"},
-  {
-   "fieldname": "vehicle_warehouse",
-   "fieldtype": "Link",
-   "label": "Vehicle Warehouse",
-   "options": "Warehouse",
-   "depends_on": "eval:doc.sales_mode=='Van Sales'",
-   "description": "The van, modelled as a warehouse. Stock leaves it on sale and is settled at day end."
-  },
 
   {"fieldname": "section_permissions", "fieldtype": "Section Break", "label": "What This Rep May Do"},
   {"fieldname": "can_create_outlet", "fieldtype": "Check", "label": "Can Onboard Outlets", "default": "1",
