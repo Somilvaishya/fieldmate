@@ -75,18 +75,33 @@ def check_host_versions() -> None:
 
 
 def create_roles() -> None:
-	"""Create the six FieldMate roles. Idempotent — safe to re-run on migrate."""
+	"""Create the six FieldMate roles, and keep their desk access right. Safe to re-run.
+
+	Correcting an existing role rather than skipping it is the whole of this function's job on
+	any site but a brand new one. Frappe creates a Role by itself the moment a DocType permission
+	names one, and it creates it with `desk_access = 1`; our DocTypes are installed before this
+	runs, so by the time it is called every role already exists and this used to leave them
+	exactly as Frappe had made them. A Field Rep and a Distributor would get the Desk - which is
+	the one thing the matrix below exists to prevent - and nothing said so.
+
+	Found by running the suite on a site that had never seen FieldMate before.
+	"""
 	for role_name, desk_access in ROLES:
-		if frappe.db.exists("Role", role_name):
+		wanted = 1 if desk_access else 0
+
+		if not frappe.db.exists("Role", role_name):
+			frappe.get_doc(
+				{
+					"doctype": "Role",
+					"role_name": role_name,
+					"desk_access": wanted,
+					"is_custom": 1,
+				}
+			).insert(ignore_permissions=True)
 			continue
-		frappe.get_doc(
-			{
-				"doctype": "Role",
-				"role_name": role_name,
-				"desk_access": 1 if desk_access else 0,
-				"is_custom": 1,
-			}
-		).insert(ignore_permissions=True)
+
+		if frappe.db.get_value("Role", role_name, "desk_access") != wanted:
+			frappe.db.set_value("Role", role_name, "desk_access", wanted)
 
 
 # Where a caller's idempotency key is kept on the two ERPNext documents we post. Custom Fields

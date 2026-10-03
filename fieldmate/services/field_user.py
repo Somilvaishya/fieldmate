@@ -88,7 +88,6 @@ def profile(user: str | None = None) -> dict:
 		"company": doc.company,
 		"price_list": doc.default_price_list or settings_service.value("default_price_list"),
 		"sales_mode": settings_service.resolve_sales_mode(doc.name),
-		"vehicle_warehouse": doc.vehicle_warehouse,
 		"can_create_outlet": bool(doc.can_create_outlet),
 		"can_collect_payment": bool(doc.can_collect_payment),
 		"daily_target_calls": doc.daily_target_calls,

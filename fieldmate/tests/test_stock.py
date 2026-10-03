@@ -20,8 +20,8 @@ from fieldmate.tests.test_order import OrderFixture
 class StockFixture(OrderFixture):
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Van Settlement", "FieldMate Van Load", "FieldMate Retailer Stock",
-		           "FieldMate Distributor Stock", "FieldMate Secondary Sales"):
+		for dt in ("FieldMate Retailer Stock", "FieldMate Distributor Stock",
+		           "FieldMate Secondary Sales"):
 			for name in frappe.get_all(dt, pluck="name"):
 				try:
 					doc = frappe.get_doc(dt, name)
