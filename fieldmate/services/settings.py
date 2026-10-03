@@ -9,17 +9,26 @@ from __future__ import annotations
 import frappe
 from frappe.utils import cint
 
-# The only mode the app sells in. Van sales was the second one and has been taken out whole:
-# it was never finished - a van rep could not book at an ordinary shop at all, because the party
-# it billed was `FieldMate Outlet.customer`, which ADR-013 says is empty for every retailer - and
-# the design it belongs in treats a van as a way of delivering a secondary sale rather than as a
-# mode of its own. The constant and `resolve_sales_mode` stay because the channel modes coming in
-# Phase 1 (Secondary, Sell-in, Booking, Wholesale) plug in exactly here.
-ORDER_BOOKING = "Order Booking"
+# The two kinds of sale, and the whole of what distinguishes them: who we bill.
+#
+# SECONDARY - the rep books at a kirana, the distributor delivers and bills it, and our books
+#             never see that sale. This is what the app has always done.
+# PRIMARY   - the rep books on a super stockist, distributor or wholesaler and WE bill them. The
+#             order becomes a real Sales Order, so credit, GST and the ledger all apply.
+#
+# Which one an order is follows from the party it is booked on, never from a setting. The
+# settings below say which kinds this site is allowed to make at all.
+SECONDARY = "Secondary"
+PRIMARY = "Primary"
+
+# Kept for the one caller that still reads it. `resolve_sales_mode` goes when `channel.resolve`
+# lands and every caller asks about a party instead of about the company.
+ORDER_BOOKING = SECONDARY
 
 # Mirrors the DocType defaults so a site that has never opened the form still behaves sanely.
 DEFAULTS = {
-	"enable_order_booking": 1,
+	"enable_secondary_sales": 1,
+	"enable_primary_sales": 0,
 	"enforce_geo_fence": 1,
 	"default_geo_fence_radius_m": 100,
 	"allow_geo_fence_exception": 1,
@@ -74,17 +83,33 @@ def value(key: str, default=None):
 
 
 def enabled_modes() -> list[str]:
-	"""Every mode this company sells in. One, for now - see the note on ORDER_BOOKING."""
-	return [ORDER_BOOKING]
+	"""The kinds of sale this site is allowed to make."""
+	settings = get()
+	modes = []
+	if cint(settings.get("enable_secondary_sales")):
+		modes.append(SECONDARY)
+	if cint(settings.get("enable_primary_sales")):
+		modes.append(PRIMARY)
+	return modes
+
+
+def allows(kind: str) -> bool:
+	"""Is this kind of sale switched on here?
+
+	Asked before an order is priced, not after it is built. A rep who cannot book a primary order
+	should be told at the party, not at the till.
+	"""
+	return kind in enabled_modes()
 
 
 def resolve_sales_mode(field_user: str | None = None) -> str:
 	"""How this rep sells.
 
-	One answer today, and the argument is kept rather than dropped: every caller already passes a
-	rep, and Phase 1 gives different reps different modes without any of them having to change.
+	A placeholder with one answer. The kind of a sale follows from the party it is booked on, and
+	`channel.resolve` is what will answer that; this stays only until its callers have been moved
+	across, so that the switch is one change rather than five.
 	"""
-	return ORDER_BOOKING
+	return SECONDARY
 
 
 def client_settings() -> dict:

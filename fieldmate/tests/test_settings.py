@@ -6,7 +6,8 @@ from fieldmate.services import settings as svc
 from fieldmate.tests.base import FieldMateTestCase
 
 TRACKED = (
-	"enable_order_booking",
+	"enable_secondary_sales",
+	"enable_primary_sales",
 	"default_sales_mode",
 	"gps_ping_interval_seconds",
 	"sync_batch_size",
@@ -52,16 +53,28 @@ class TestSettings(FieldMateTestCase):
 
 	# ---------------------------------------------------------------- sales model
 
-	def test_the_only_mode_is_order_booking(self):
-		self.assertEqual(svc.resolve_sales_mode(), svc.ORDER_BOOKING)
-		self.assertEqual(svc.enabled_modes(), [svc.ORDER_BOOKING])
+	def test_a_fresh_site_sells_secondary_only(self):
+		"""Secondary on, primary off. A site that upgrades into primary sales turns it on; one
+		that never does keeps behaving exactly as it did."""
+		self.apply(enable_secondary_sales=1, enable_primary_sales=0)
+		self.assertEqual(svc.enabled_modes(), [svc.SECONDARY])
+		self.assertTrue(svc.allows(svc.SECONDARY))
+		self.assertFalse(svc.allows(svc.PRIMARY))
 
-	def test_no_sales_model_at_all_is_refused(self):
-		"""Kept with one model, because it is the check that will matter again when Phase 1
-		adds the rest back beside it."""
+	def test_primary_only_is_a_valid_site(self):
+		"""A company that sells nothing through retailers - pure wholesale or sell-in."""
+		self.apply(enable_secondary_sales=0, enable_primary_sales=1)
+		self.assertEqual(svc.enabled_modes(), [svc.PRIMARY])
+		self.assertFalse(svc.allows(svc.SECONDARY))
+
+	def test_both_together(self):
+		self.apply(enable_secondary_sales=1, enable_primary_sales=1)
+		self.assertEqual(set(svc.enabled_modes()), {svc.SECONDARY, svc.PRIMARY})
+
+	def test_neither_is_refused(self):
 		with self.assertRaises(frappe.ValidationError) as ctx:
-			self.apply(enable_order_booking=0)
-		self.assertIn("at least one sales model", str(ctx.exception))
+			self.apply(enable_secondary_sales=0, enable_primary_sales=0)
+		self.assertIn("at least one kind of sale", str(ctx.exception))
 
 	# ---------------------------------------------------------------- bounds
 

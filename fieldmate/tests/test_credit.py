@@ -23,7 +23,8 @@ class CreditFixture(OutletFixture):
 	"""
 
 	SETTINGS = (
-		"enable_order_booking",
+		"enable_secondary_sales",
+		"enable_primary_sales",
 		"block_order_on_credit_breach",
 		"allow_credit_override",
 		"default_company",

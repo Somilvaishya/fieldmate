@@ -7,7 +7,9 @@
  "issingle": 1,
  "field_order": [
   "section_sales_model",
-  "enable_order_booking",
+  "enable_secondary_sales",
+  "column_sales_model",
+  "enable_primary_sales",
   "section_general",
   "default_company",
   "default_price_list",
@@ -58,14 +60,22 @@
    "fieldname": "section_sales_model",
    "fieldtype": "Section Break",
    "label": "Sales Model",
-   "description": "Which selling model this company runs. Both may be enabled; a rep's own setting on FieldMate Field User wins over the default."
+   "description": "Which kinds of sale this company makes. Both ship in every site; what is enabled here is what that site can do. A rep booking on a shop makes a secondary order, and on a customer we bill, a primary one - so these decide which of those is allowed at all, not which one a given order is."
   },
   {
-   "fieldname": "enable_order_booking",
+   "fieldname": "enable_secondary_sales",
    "fieldtype": "Check",
-   "label": "Enable Order Booking",
+   "label": "Enable Secondary Sales",
    "default": "1",
-   "description": "The rep books an order and the distributor delivers later. The shop is never billed directly."
+   "description": "The rep books at a shop and the distributor delivers and bills it. Our books never see that sale. Turn this off only for a company that sells nothing through retailers."
+  },
+  {"fieldname": "column_sales_model", "fieldtype": "Column Break"},
+  {
+   "fieldname": "enable_primary_sales",
+   "fieldtype": "Check",
+   "label": "Enable Primary Sales",
+   "default": "0",
+   "description": "The rep books on a super stockist, distributor or wholesaler and we bill them. The order becomes a real Sales Order, so credit, GST and the ledger all apply."
   },
 
   {"fieldname": "section_general", "fieldtype": "Section Break", "label": "General"},
