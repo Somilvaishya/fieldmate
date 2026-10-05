@@ -181,6 +181,9 @@ function newLine(item) {
     unpriceable: !!item.unpriceable,
     currency: item.currency || null,
     mrp: item.mrp ?? null,
+    // The price list quotes above the price printed on the pack. The server refuses an order
+    // holding one, so the cart says so here rather than letting the rep find out at submit.
+    above_mrp: !!item.above_mrp,
 
     // In display units, as the catalogue master was written.
     min_order_qty: item.min_order_qty ?? null,
@@ -346,6 +349,19 @@ export const blockers = computed(() => {
         'These have no price yet, so the order cannot be totalled. Take them off, or ask your ' +
         'manager to have them priced.',
       items: unpriced.map((l) => l.item_code),
+    })
+  }
+
+  // A line can reach this state without ever being added through addLine: a re-price against a
+  // list somebody changed mid-day turns a good line into this one.
+  const overMrp = rawLines.value.filter((l) => l.above_mrp)
+  if (overMrp.length) {
+    out.push({
+      code: 'ABOVE_MRP',
+      message:
+        'These are priced above the MRP printed on the pack, so the order cannot be sent. ' +
+        'Ask your manager to correct the price list.',
+      items: overMrp.map((l) => l.item_code),
     })
   }
 
@@ -547,6 +563,10 @@ function reconcileWithCatalogue() {
     line.off_catalogue = false
     line.unpriceable = !!item.unpriceable
     line.rate_paise = item.unpriceable ? null : toPaise(item.rate)
+    // Re-read, not carried over: a price list corrected during the day clears this, and one
+    // changed the wrong way sets it on a line that was fine when the rep added it.
+    line.above_mrp = !!item.above_mrp
+    line.mrp = item.mrp ?? null
     line.item_name = item.item_name || line.item_name
     line.min_order_qty = item.min_order_qty ?? null
     line.max_order_qty = item.max_order_qty ?? null
@@ -686,6 +706,15 @@ export async function addItem(itemCode, { qty = null, unit = 'display' } = {}) {
     throw new CartError(
       'UNPRICEABLE',
       `${item.item_name || itemCode} has no price yet, so it cannot be ordered. Ask your manager to have it priced.`
+    )
+  }
+  if (item.above_mrp) {
+    // Refused at the tap, not at submit. The shopkeeper is standing there, and this is not
+    // something the rep can fix or decide to accept - the printed price is on the pack in his
+    // hand, and selling over it is an offence.
+    throw new CartError(
+      'ABOVE_MRP',
+      `${item.item_name || itemCode} is priced above its MRP, so it cannot be ordered. Ask your manager to correct the price list.`
     )
   }
 

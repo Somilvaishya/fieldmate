@@ -405,8 +405,10 @@ def evaluate_for(outlet, field_user: str | None, lines) -> dict:
 	result["lines"] = cart["lines"]
 	result["skipped_schemes"] = compiled["skipped"]
 	# Carried through rather than swallowed: the screen has to name the SKU whose price
-	# is missing, and the order service has to refuse to commit one.
+	# is missing, and the order service has to refuse to commit one. Same for a SKU priced above
+	# its MRP, which is a price nobody may legally sell at.
 	result["unpriced_items"] = cart.get("unpriced_items") or []
+	result["above_mrp_items"] = cart.get("above_mrp_items") or []
 	result["totals"] = {
 		"gross": in_rupees(result["cart_gross_paise"]),
 		"discount": in_rupees(result["discount_paise"]),

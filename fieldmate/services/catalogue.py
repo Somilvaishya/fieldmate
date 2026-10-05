@@ -33,6 +33,7 @@ from frappe.utils import cint, flt, getdate, today
 
 from fieldmate import compat
 from fieldmate.services import credit as credit_service
+from fieldmate.services import pricing
 from fieldmate.services import scope
 from fieldmate.services import settings as settings_service
 
@@ -123,6 +124,11 @@ def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell) -
 		"currency": detail["currency"],
 		"mrp": detail["mrp"],
 		"unpriceable": rate is None,
+		# A price list that quotes above the printed price on the pack. Flagged on the catalogue
+		# screen so a rep sees it before building a cart, and refused at the order. Both figures
+		# are per stock UOM - see `pricing.is_above_mrp` for why `order_uom_rate` is not the one
+		# to compare.
+		"above_mrp": pricing.is_above_mrp(rate, detail["mrp"]),
 
 		"is_focus": bool(cint(row.is_focus)),
 		"is_must_sell": bool(must_sell),
@@ -316,7 +322,10 @@ def prices_for(outlet, lines, field_user: str | None = None) -> dict:
 			"conversion_factor": conversion_factor,
 			"order_uom_rate": None if rate is None else flt(rate * conversion_factor, 2),
 			"currency": detail["currency"],
+			"mrp": detail["mrp"],
 			"unpriceable": rate is None,
+			# Per stock UOM on both sides, never `order_uom_rate` - see `pricing.is_above_mrp`.
+			"above_mrp": pricing.is_above_mrp(rate, detail["mrp"]),
 		}
 
 	return {
@@ -326,6 +335,7 @@ def prices_for(outlet, lines, field_user: str | None = None) -> dict:
 		"currency": next((p["currency"] for p in priced.values() if p["currency"]), None),
 		"items": priced,
 		"unpriceable": sorted(code for code, p in priced.items() if p["unpriceable"]),
+		"above_mrp": sorted(code for code, p in priced.items() if p["above_mrp"]),
 		# Named rather than dropped in silence. A cart holding a line this shop may not be sold
 		# is a bug somewhere upstream, and the rep is the last person who should discover it.
 		"not_in_catalogue": off_catalogue,
@@ -366,6 +376,7 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 
 	cart_lines = []
 	unpriceable = []
+	over_mrp = []
 	unknown = []
 	unconvertible = []
 	for code, entry in wanted.items():
@@ -384,6 +395,12 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 		if rate is None:
 			unpriceable.append(code)
 			continue
+
+		# Collected here because this is where the base-unit rate and the item's MRP are both in
+		# hand. Named rather than thrown, like `unpriceable`, and not carried on the line below:
+		# those lines are the scheme engine's input and ADR-021 keeps that to units and paise.
+		if pricing.is_above_mrp(rate, detail["mrp"]):
+			over_mrp.append(code)
 
 		cart_lines.append({
 			"item": code,
@@ -416,6 +433,7 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 		"company": company,
 		"billing_party": party,
 		"unpriced_items": sorted(unpriceable),
+		"above_mrp_items": sorted(over_mrp),
 		"lines": cart_lines,
 	}
 
@@ -531,33 +549,11 @@ def must_sell_rows(lists: list) -> dict:
 def resolve_price_list(outlet_doc, field_user: str | None = None) -> str | None:
 	"""Which list this shop is quoted from.
 
-	The shop's own list first, because a modern-trade account is the whole reason that field
-	exists; then the rep's, for a van route selling off a different list to the same shops; then
-	the company default. Never `frappe.defaults`, which would answer with whatever price list
-	the last Desk session touched and would be silently wrong for every rep who has never
-	opened Desk (ADR-020).
+	The chain itself is `pricing.price_list_for`, which is also what `channel.resolve` reads, so
+	the catalogue, the cart and the channel answer cannot drift apart. The name is kept because
+	it is what every caller in this module and the scheme compiler already say.
 	"""
-	if field_user is not None and not isinstance(field_user, str):
-		raise TypeError(
-			f"field_user must be a FieldMate Field User name, got {type(field_user).__name__}. "
-			"Check the argument order at the call site."
-		)
-	if outlet_doc.price_list:
-		return outlet_doc.price_list
-	if field_user:
-		own = frappe.db.get_value("FieldMate Field User", field_user, "default_price_list")
-		if own:
-			return own
-	ours = settings_service.value("default_price_list")
-	if ours:
-		return ours
-
-	# Nothing in FieldMate names one, so fall back to what the company already told ERPNext to
-	# sell at. Without this every order on a site nobody had configured failed with "no price on
-	# None" - a message that names the symptom and hides the cause, on the one screen where a rep
-	# is standing in front of a shopkeeper. Selling Settings is a deliberate configuration, not a
-	# session default, so it does not reopen the ADR-020 hole that `frappe.defaults` would.
-	return frappe.db.get_single_value("Selling Settings", "selling_price_list")
+	return pricing.price_list_for(outlet_doc, field_user)
 
 
 def resolve_company(field_user: str | None = None) -> str | None:

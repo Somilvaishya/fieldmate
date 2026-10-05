@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import frappe
 
+from fieldmate.services import pricing
 from fieldmate.services import settings as settings_service
 
 # A depot holding our own stock. Real in the chain, not a party we sell to.
@@ -88,7 +89,9 @@ def _from_outlet(outlet: str) -> dict:
 			"party_name": doc.outlet_name,
 			"bill_to": doc.customer,
 			"bill_to_name": _customer_name(doc.customer),
-			"price_list": _price_list_of(doc.customer) or doc.price_list,
+			# We are the seller here, so the fallback is the list we bill them from rather than a
+			# PTR; the shop's own still wins, for the reason `pricing.price_list_for` gives.
+			"price_list": doc.price_list or pricing.sells_to_us(doc.customer),
 			"tier": _tier_of(doc.customer),
 			"direct_billed": True,
 			"allowed": True,
@@ -108,8 +111,11 @@ def _from_outlet(outlet: str) -> dict:
 		# The distributor bills the shop. Our books never see this sale.
 		"bill_to": doc.distributor,
 		"bill_to_name": _customer_name(doc.distributor),
-		# What the shop pays: its distributor's PTR list, or whatever was set on the shop.
-		"price_list": _ptr_list_of(doc.distributor) or doc.price_list,
+		# What the shop pays. The chain is `pricing.price_list_for` - the shop's own list, then
+		# the distributor's PTR, then the rep's and the company's. This used to read the PTR
+		# first, which would have quoted the tier price at the one modern-trade account that had
+		# negotiated its own.
+		"price_list": pricing.price_list_for(doc),
 		"tier": _tier_of(doc.distributor),
 		"direct_billed": False,
 		"allowed": True,
@@ -160,7 +166,7 @@ def _from_customer(customer: str) -> dict:
 		bill_to = doc.fm_parent_customer
 
 	return {**base, "bill_to": bill_to, "bill_to_name": _customer_name(bill_to),
-	        "price_list": _price_list_of(bill_to), "allowed": True, "reason": ""}
+	        "price_list": pricing.sells_to_us(bill_to), "allowed": True, "reason": ""}
 
 
 # --------------------------------------------------------------------------------------
@@ -181,14 +187,9 @@ def _tier_of(customer: str | None) -> str | None:
 	return frappe.db.get_value("Customer", customer, "fm_tier") if customer else None
 
 
-def _price_list_of(customer: str | None) -> str | None:
-	"""What this party pays us."""
-	return frappe.db.get_value("Customer", customer, "default_price_list") if customer else None
-
-
-def _ptr_list_of(customer: str | None) -> str | None:
-	"""What the shops under this party pay."""
-	return frappe.db.get_value("Customer", customer, "fm_ptr_price_list") if customer else None
+# Which list a party buys on is `services.pricing`, not two private readers here. There were two
+# - one for what a party pays us and one for what its shops pay - and having both in this file is
+# how this module came to answer the PTR question differently from the catalogue.
 
 
 def _customer_name(customer: str | None) -> str | None:

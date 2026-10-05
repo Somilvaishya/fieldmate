@@ -156,6 +156,17 @@ def price(doc, lines=None) -> dict:
 			"have them priced."
 		)
 
+	# Above the printed price on the pack. Refused rather than warned about: a shopkeeper cannot
+	# resell at a profit above the MRP, and in India selling over it is an offence under the
+	# Legal Metrology Act. It is a price list somebody has set wrong, not a decision for the rep
+	# standing at the counter, so the message names the party who can fix it.
+	if result.get("above_mrp_items"):
+		frappe.throw(
+			"These are priced above their MRP, so they cannot go on an order: "
+			f"{', '.join(result['above_mrp_items'])}. Ask your manager to correct the price "
+			"list."
+		)
+
 	_write_items(doc, result, source)
 	_write_schemes(doc, result)
 	_write_totals(doc, result)

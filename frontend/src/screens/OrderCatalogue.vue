@@ -666,6 +666,10 @@ const emptyReason = computed(() => {
               <p v-if="item.unpriceable" class="noprice">
                 <Icon name="alert" size="18" /> No price on this shop's list yet
               </p>
+              <p v-else-if="item.above_mrp" class="noprice">
+                <Icon name="alert" size="18" />
+                Priced above its MRP of {{ money(toPaise(item.mrp)) }}
+              </p>
               <template v-else>
                 <p class="price">
                   <b class="tnum">{{ money(item.order_uom_rate_paise) }}</b>
@@ -708,6 +712,11 @@ const emptyReason = computed(() => {
           <!-- Quantity. Nothing here awaits the network: each tap re-prices the cart in memory. -->
           <div v-if="item.unpriceable" class="blocked">
             Ask your manager to have this priced. It cannot be ordered until it is.
+          </div>
+
+          <div v-else-if="item.above_mrp" class="blocked">
+            The list price is over the MRP on the pack, so this cannot be ordered. Ask your
+            manager to correct it.
           </div>
 
           <div v-else-if="!heldQty(item.item_code)" class="quick">
