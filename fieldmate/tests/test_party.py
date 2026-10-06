@@ -106,8 +106,19 @@ class TestCreditDaysComeFromPaymentTerms(PartyFixture):
 	"""No `fm_credit_days` field exists, on purpose. This is what answers instead."""
 
 	def test_nobody_has_said_answers_none_rather_than_zero(self):
-		"""Zero would read as "due today", which is a thing somebody might act on."""
+		"""No template anywhere in the chain is an absence, and says so."""
 		self.assertIsNone(party_service.credit_days(self.customer()))
+
+	def test_a_template_that_says_zero_days_answers_zero(self):
+		"""Not None. A row reading "all of it, zero days after the invoice date" is how ERPNext
+		spells payable on delivery, and it is what ERPNext will put in `due_date`.
+
+		It is also what a half-filled template looks like: testerp2 had one named "15 Days" with
+		nothing in its Credit Days field. Answering None there hid the mistake behind a screen
+		that simply showed no terms; answering zero puts "0 day terms" in front of somebody.
+		"""
+		cust = self.customer(payment_terms=self.template((100, DAYS, 0)))
+		self.assertEqual(party_service.credit_days(cust), 0)
 
 	def test_one_row_is_its_credit_days(self):
 		cust = self.customer(payment_terms=self.template((100, DAYS, 15)))
