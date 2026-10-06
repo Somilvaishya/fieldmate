@@ -320,3 +320,77 @@ class TestAPrimarySalePostsItsTax(TaxedCatalogueFixture):
 		import inspect
 		source = inspect.getsource(order_service._raise_sales_order)
 		self.assertNotIn("taxes_and_charges", source)
+
+
+class TestThePhoneIsSentTheTax(TaxedCatalogueFixture):
+	"""The order stored its tax and never sent it.
+
+	`tax_total` and `grand_total` were on the document and in neither read the phone makes, so the
+	orders list and the order detail could only quote `net_total` - a figure short by the whole of
+	the GST on the bill the party actually receives. Both reads name their columns explicitly, so
+	a field left out of the list reads as absent rather than as an error, which is the same way
+	`portal.me` lost a permission earlier in this phase.
+
+	Found on testerp2 against a real primary order: the Sales Order read 1,099.62 and the phone
+	read 981.80.
+	"""
+
+	def booked(self, percent=18, qty=10):
+		item = self.taxed_item(rate=100, percent=percent)
+		self.make_catalogue(items=[item])
+		frappe.set_user(self.rep.user)
+		try:
+			created = order_service.create(
+				{"outlet": self.outlet.name, "lines": [{"item": item, "qty": qty}],
+				 "client_uuid": self.uid("ORD")},
+				self.rep.name,
+			)
+		finally:
+			frappe.set_user("Administrator")
+		return self.track("FieldMate Order", created["name"])
+
+	def test_the_order_detail_carries_the_tax_and_the_total_it_makes(self):
+		doc = frappe.get_doc("FieldMate Order", self.booked())
+		payload = order_service.summarise(doc)
+
+		self.assertEqual(payload["tax_total"], 180)
+		self.assertEqual(payload["grand_total"], 1180)
+		self.assertEqual(payload["net_total"], 1000, "the goods, still there and still the net")
+
+	def test_the_orders_list_carries_them_too(self):
+		name = self.booked()
+		frappe.set_user(self.rep.user)
+		try:
+			rows = order_service.mine(self.rep.name)
+		finally:
+			frappe.set_user("Administrator")
+
+		row = next(r for r in rows if r["name"] == name)
+		self.assertEqual(row["tax_total"], 180)
+		self.assertEqual(row["grand_total"], 1180)
+
+	def test_an_untaxed_order_still_answers_both_keys(self):
+		"""Zero, not missing. The screen falls back to the net on a site holding no tax
+		templates, and it can only do that if the key is there to read."""
+		doc = frappe.get_doc("FieldMate Order", self.booked(percent=0))
+		payload = order_service.summarise(doc)
+		self.assertEqual(payload["tax_total"], 0)
+		self.assertEqual(payload["grand_total"], payload["net_total"])
+
+	def test_both_reads_say_which_party_the_order_is_for(self):
+		"""A primary order has no outlet - it has a customer. A list selecting only the outlet
+		drew a card with a blank name where the party should be."""
+		name = self.booked()
+		doc = frappe.get_doc("FieldMate Order", name)
+		payload = order_service.summarise(doc)
+		self.assertEqual(payload["party_type"], "Outlet")
+		self.assertEqual(payload["outlet"], self.outlet.name)
+
+		frappe.set_user(self.rep.user)
+		try:
+			rows = order_service.mine(self.rep.name)
+		finally:
+			frappe.set_user("Administrator")
+		row = next(r for r in rows if r["name"] == name)
+		self.assertIn("customer", row, "the key a primary order fills instead of the outlet")
+		self.assertEqual(row["party_type"], "Outlet")

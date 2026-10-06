@@ -1125,7 +1125,13 @@ export async function recentOrders(filters = {}) {
       client_uuid: row.clientUuid,
       outlet: row.data?.outlet || null,
       order_date: row.data?.order_date || null,
+      // The net, and only the net: `proposed_net_total` is the goods figure the rep read out and
+      // the order document carries no tax of its own. The list falls back to it until the server
+      // answers with the bill total, and the row is marked `pending` beside it.
       net_total: row.data?.proposed_net_total ?? null,
+      grand_total: null,
+      customer: row.data?.customer || null,
+      party_type: row.data?.party_type || null,
       order_status: 'Draft',
       pending: true,
       blocked: row.state === 'blocked',

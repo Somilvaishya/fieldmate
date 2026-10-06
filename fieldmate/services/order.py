@@ -715,7 +715,12 @@ def mine(field_user: str | None = None, limit: int = 50) -> list[dict]:
 	return frappe.get_list(
 		"FieldMate Order",
 		filters={"field_user": field_user},
-		fields=["name", "order_date", "outlet", "net_total", "order_status", "credit_status",
+		# `customer` and `party_type` as well as `outlet`: a primary order has no outlet at all
+		# (ADR-033), so a list selecting only the outlet drew a card with a blank name on it.
+		# `tax_total` and `grand_total` because the phone's list showed `net_total` as the order's
+		# value - a figure short by the whole of the GST on the bill the party actually receives.
+		fields=["name", "order_date", "outlet", "party_type", "customer", "net_total",
+		        "tax_total", "grand_total", "order_status", "credit_status",
 		        "docstatus", "client_uuid"],
 		order_by="order_date desc, creation desc",
 		limit_page_length=limit,
@@ -748,12 +753,20 @@ def summarise(doc) -> dict:
 		"name": doc.name,
 		"client_uuid": doc.client_uuid,
 		"outlet": doc.outlet,
+		# Which party, and which kind. An empty `outlet` is not missing data on a primary order -
+		# it is what a primary order looks like.
+		"party_type": doc.party_type,
+		"customer": doc.customer,
 		"order_date": str(doc.order_date) if doc.order_date else None,
 		"order_status": doc.order_status,
 		"docstatus": cint(doc.docstatus),
 		"gross_total": flt(doc.gross_total),
 		"discount_total": flt(doc.discount_total),
 		"net_total": flt(doc.net_total),
+		# The tax and the total it makes. Both were stored and neither was sent, so every screen
+		# downstream could only quote the net and none could show what the party is billed.
+		"tax_total": flt(doc.tax_total),
+		"grand_total": flt(doc.grand_total),
 		"incentive_amount": flt(doc.incentive_amount),
 		"totals_match": cint(doc.totals_match),
 		"proposed_net_total": flt(doc.proposed_net_total),

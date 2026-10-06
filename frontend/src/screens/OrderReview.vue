@@ -86,6 +86,23 @@ function money(paise) {
   return moneyLabel(paise, totals.value.currency)
 }
 
+/**
+ * The two bill totals, net *and* tax, for the divergence warning below.
+ *
+ * `verifyWithServer` fails the match on either figure, so the warning fires when only the tax
+ * differs - and it used to compare net to net, which printed the same number twice: "the office
+ * prices this order at Rs981.80, not Rs981.80". The difference a rep could not see was the whole
+ * of the GST, which is the half of the bill this app does not charge and cannot afford to
+ * misquote. A cart carrying a tax rate the phone has not fetched yet is exactly how that happens.
+ */
+const officeTotal = computed(() => {
+  const s = check.value && check.value.server
+  if (!s) return null
+  return (s.net_paise || 0) + (s.tax_paise || 0)
+})
+
+const myTotal = computed(() => totals.value.net_paise + totals.value.tax_paise)
+
 // --------------------------------------------------------------------------------------- date
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -569,10 +586,16 @@ function finish() {
         <p v-if="check && !check.matched" class="note warn">
           <Icon name="alert" size="18" />
           <span class="tnum">
-            The office prices this order at
-            <b>{{ money(check.server.net_paise) }}</b>, not
-            <b>{{ sym }}{{ totals.net }}</b>. The office figure is what the shop will be billed.
+            The office bills this order at
+            <b>{{ money(officeTotal) }}</b>, not
+            <b>{{ money(myTotal) }}</b>. The office figure is what the shop will be billed.
             Read that one out, and tell your manager if it looks wrong.
+          </span>
+          <span v-if="check.tax_delta_paise" class="tnum">
+            The difference is the GST: the office has
+            <b>{{ money(check.server.tax_paise || 0) }}</b> of tax on it and this phone has
+            <b>{{ money(totals.tax_paise) }}</b>. Pull this screen down to fetch today&rsquo;s
+            rates.
           </span>
         </p>
 
