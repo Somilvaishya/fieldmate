@@ -659,3 +659,124 @@ class TestSettlement(ClaimFixture):
 		doc.flags.ignore_permissions = True
 		with self.assertRaises(frappe.ValidationError):
 			doc.cancel()
+
+
+class TestADepotSendsItsOwnSalesFile(PortalFixture):
+	"""Phase 1, step 7c. The reader, the column mapping and the bad-row tolerance have existed
+	since Phase 5 and were reachable only from Desk - so a depot emailed a file and somebody at
+	this end imported it, which is a step that gets skipped in a busy week."""
+
+	def csv(self, *rows, header="Date,Item Code,Qty,Amount,Shop Name"):
+		return "\n".join([header, *rows])
+
+	def upload(self, content, **extra):
+		payload = {"from_date": "2026-09-01", "to_date": "2026-09-30",
+		           "content": content, "file_name": "sales.csv"}
+		payload.update(extra)
+		answer = self.as_depot(lambda: portal_api.upload_secondary_sales(**payload))
+		# The envelope, not just its data. `@endpoint` turns a refusal into `{ok: False, ...}`
+		# rather than raising, so indexing straight into `data` reports a KeyError and hides the
+		# message that says what actually went wrong.
+		self.assertTrue(answer.get("ok"), answer.get("message") or answer)
+		return answer["data"]
+
+	def test_a_depot_can_send_its_own_file(self):
+		result = self.upload(self.csv(f"2026-09-05,{self.item},12,1464,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual(result["imported"], 1)
+
+	def test_the_sales_land_against_the_depot_that_sent_them(self):
+		"""The distributor is taken from the session and never from the payload. A depot sending
+		a file for somebody else's sales is the one thing this endpoint must not allow, and the
+		only way to be sure is not to accept the name at all."""
+		result = self.upload(self.csv(f"2026-09-05,{self.item},12,1464,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Secondary Sales", result["name"], "distributor"),
+			self.distributor.name)
+
+	def test_the_endpoint_will_not_even_accept_another_depots_name(self):
+		"""A depot sending a file for somebody else's sales is the one thing this must not allow,
+		and the only way to be sure is not to take the name at all. Asserted on the signature
+		rather than on behaviour, because a parameter that exists is a parameter somebody will
+		eventually pass through from a form."""
+		import inspect
+		params = inspect.signature(portal_api.upload_secondary_sales).parameters
+		self.assertNotIn("distributor", params)
+		self.assertNotIn("customer", params)
+
+	def test_a_bad_row_does_not_cost_the_good_ones(self):
+		"""Gate 5 criterion 1, now reachable from the portal. A distributor who has to fix and
+		resend a whole file stops sending files."""
+		result = self.upload(self.csv(
+			f"2026-09-05,{self.item},12,1464,Sharma Kirana",
+			"2026-09-06,NOPE,3,99,Some Shop",
+			f"2026-09-07,{self.item},4,488,Raja Stores",
+		))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual(result["imported"], 2)
+		self.assertEqual(len(result["rejected"]), 1)
+		self.assertIn("NOPE", result["rejected"][0]["reason"])
+
+	def test_a_login_without_the_right_is_refused(self):
+		"""Refused as an envelope, not as a raise: `@endpoint` turns every refusal into one so a
+		depot's browser gets a message rather than a stack trace."""
+		row = frappe.get_doc("FieldMate Portal User", self.depot.name)
+		row.can_upload_sales = 0
+		row.save(ignore_permissions=True)
+
+		answer = self.as_depot(lambda: portal_api.upload_secondary_sales(
+			from_date="2026-09-01", to_date="2026-09-30",
+			content=self.csv(f"2026-09-05,{self.item},1,10,Sharma Kirana")))
+
+		self.assertFalse(answer["ok"])
+		self.assertIn("cannot send sales files", answer["message"])
+		self.assertIn("your depot", answer["message"],
+		              "the message names who can turn it on")
+
+	def test_the_template_says_which_headers_are_understood(self):
+		"""So a depot can see its own export is probably already accepted, rather than being
+		handed a format to convert to."""
+		answer = self.as_depot(portal_api.secondary_sales_template)["data"]
+		self.assertIn("invoice_no", answer["columns"])
+		self.assertIn("bill no", answer["accepted_headers"]["invoice_no"])
+		self.assertEqual(sorted(answer["required"]), ["date", "item_code", "qty"])
+
+	def test_nothing_is_posted_for_it(self):
+		"""ADR-023. These are the distributor's sales; FieldMate records them, never bills them."""
+		before = frappe.db.count("GL Entry"), frappe.db.count("Sales Invoice")
+		result = self.upload(self.csv(f"2026-09-05,{self.item},12,1464,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual((frappe.db.count("GL Entry"), frappe.db.count("Sales Invoice")), before)
+
+	def test_the_page_builds_its_own_context(self):
+		"""A smoke test, because a broken context or a bad template reference shows up only in a
+		browser - and the browser belongs to a distributor, not to us."""
+		from fieldmate.www.distributor import sales as sales_page
+
+		context = self.as_depot(lambda: sales_page.get_context(frappe._dict()))
+		self.assertEqual(context.distributor, self.distributor.name)
+		self.assertTrue(context.can_upload)
+		self.assertIn("invoice_no", context.template["accepted_headers"])
+		self.assertIsInstance(context.recent, list)
+
+	def test_the_page_lists_only_this_depots_files(self):
+		other = self.second_depot()
+		mine = self.upload(self.csv(f"2026-09-05,{self.item},3,360,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", mine["name"])
+
+		theirs = frappe.get_doc({
+			"doctype": "FieldMate Secondary Sales", "distributor": other.name,
+			"from_date": "2026-09-01", "to_date": "2026-09-30",
+			"items": [{"sale_date": "2026-09-05", "item_code": self.item, "qty": 1}],
+		})
+		theirs.flags.ignore_permissions = True
+		theirs.insert()
+		theirs.submit()
+		self.track("FieldMate Secondary Sales", theirs.name)
+
+		from fieldmate.www.distributor import sales as sales_page
+		names = {r.name for r in self.as_depot(
+			lambda: sales_page.get_context(frappe._dict())).recent}
+		self.assertIn(mine["name"], names)
+		self.assertNotIn(theirs.name, names, "one depot must not see another's book")

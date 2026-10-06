@@ -38,6 +38,31 @@ STANDARD = {
 REQUIRED = ("date", "item_code", "qty")
 
 
+def template() -> dict:
+	"""What a sales file may be headed with, and one filled row showing it.
+
+	Every spelling this reader already understands, not one canonical set: no two distributors
+	export the same headers and none of them will change their export for us, so the point is to
+	show a depot that theirs is probably already accepted rather than to hand them a format to
+	convert to. A depot that has to rewrite its export stops sending files.
+	"""
+	return {
+		"columns": list(STANDARD),
+		"required": list(REQUIRED),
+		"accepted_headers": {field: list(names) for field, names in STANDARD.items()},
+		"example": {
+			"date": "2026-10-01",
+			"item_code": "<an item code we hold>",
+			"qty": "12",
+			"uom": "Nos",
+			"amount": "1440.00",
+			"retailer_name": "Sharma Kirana Store",
+			"retailer_code": "R-1042",
+			"invoice_no": "INV-2026-00871",
+		},
+	}
+
+
 def normalise(header: str) -> str:
 	return " ".join(str(header or "").strip().lower().replace("_", " ").replace("-", " ").split())
 

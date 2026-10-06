@@ -53,8 +53,11 @@ def me(user: str | None = None) -> frappe._dict:
 
 	row = frappe.db.get_value(
 		"FieldMate Portal User", {"user": user},
+		# Every right this row carries. A field left out here reads as zero in `may()` - not as
+		# "not asked for" - so a login would be refused something it had been granted, and the
+		# only clue would be a refusal message about a permission the depot can see is ticked.
 		["name", "user", "distributor", "designation", "is_active",
-		 "can_accept_orders", "can_raise_claims"],
+		 "can_accept_orders", "can_raise_claims", "can_upload_sales"],
 		as_dict=True,
 	)
 	if not row:
@@ -112,6 +115,10 @@ def may(row, action: str) -> None:
 	if action == "claim" and not cint(row.can_raise_claims):
 		frappe.throw(
 			frappe._("Your login cannot raise claims."), frappe.PermissionError)
+	if action == "secondary_sales" and not cint(row.can_upload_sales):
+		frappe.throw(
+			frappe._("Your login cannot send sales files. Ask whoever set it up at your depot."),
+			frappe.PermissionError)
 
 
 # --------------------------------------------------------------------------------------

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sales File · {{ depot_name }}</title>
+<link rel="stylesheet" href="/assets/fieldmate/css/portal.css">
+<script>window.frappe = {csrf_token: "{{ frappe.session.csrf_token }}"};</script>
+</head>
+<body>
+
+<header class="head">
+  <div class="brand">
+    <div class="mark">FM</div>
+    <div>
+      <div class="title">Distributor Portal</div>
+      <div class="sub">{{ depot_name }}</div>
+    </div>
+  </div>
+  <div class="who">
+    <b>{{ full_name }}</b>
+    <span>{{ designation }}</span>
+  </div>
+</header>
+
+<nav class="rail">
+  <div class="eyebrow">Depot</div>
+  <a href="/distributor/orders">Orders</a>
+  <a href="/distributor/sales" aria-current="page">Sales File</a>
+  <a href="/distributor/claims">Scheme Claims</a>
+  <div class="foot">
+    Your sales to the shops. We do not bill them and never will &mdash; this is so the rep
+    standing in those shops knows what they already have.
+  </div>
+</nav>
+
+<main>
+  <div class="page-head">
+    <div>
+      <h1>Send your sales file</h1>
+      <p>Whatever your system exports. We read the columns we recognise, import every row we can,
+         and tell you about the ones we could not.</p>
+    </div>
+  </div>
+
+  <div id="toast" class="notice" hidden></div>
+
+  {% if can_upload %}
+  <div class="card">
+    <div class="pad">
+      <div class="row">
+        <label>From <input type="date" id="from"></label>
+        <label>To <input type="date" id="to"></label>
+      </div>
+      <p class="muted">The period this file covers. It is what tells us the file is the whole
+         story for those dates rather than an extra on top of it.</p>
+
+      <input type="file" id="file" accept=".csv,text/csv,text/plain">
+      <button id="send" class="primary" data-busy>Send the file</button>
+    </div>
+  </div>
+  {% else %}
+  <div class="notice">
+    This login can see what has been sent but cannot send a file. Ask whoever set it up at your
+    depot.
+  </div>
+  {% endif %}
+
+  <!-- Shown, not downloaded. A depot looking at its own export wants to know whether it is
+       already accepted; handing them a format to convert to is how a file stops being sent. -->
+  <div class="card">
+    <div class="pad">
+      <h2>Column names we already understand</h2>
+      <p class="muted">Any one of these spellings works, in any order. Only
+         <b>{{ template.required | join(', ') }}</b> are needed.</p>
+      <table>
+        <thead><tr><th>What it is</th><th>Headers we accept</th></tr></thead>
+        <tbody>
+          {% for field, names in template.accepted_headers.items() %}
+          <tr>
+            <td>{{ field }}{% if field in template.required %} <b>(needed)</b>{% endif %}</td>
+            <td class="muted">{{ names | join(' &middot; ') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pad"><h2>Files you have sent</h2></div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>File</th><th>Period</th><th class="r">Lines</th><th class="r">Value</th>
+            <th class="r">Shops matched</th><th class="r">Rows we could not read</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in recent %}
+          <tr>
+            <td>{{ row.file_name or row.name }}</td>
+            <td>{{ row.from_date }} &ndash; {{ row.to_date }}</td>
+            <td class="r">{{ row.total_lines }}</td>
+            <td class="r">{{ row.total_amount }}</td>
+            <td class="r">{{ row.matched_outlets }}</td>
+            <td class="r">{{ row.rows_rejected }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="muted">Nothing sent yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script src="/assets/fieldmate/js/portal.js"></script>
+<script>
+(function () {
+  var send = document.getElementById('send');
+  if (!send) return;
+
+  send.addEventListener('click', function () {
+    var picked = document.getElementById('file').files[0];
+    var from = document.getElementById('from').value;
+    var to = document.getElementById('to').value;
+
+    if (!picked) return FM.toast('Choose the file first.', 'crit');
+    if (!from || !to) return FM.toast('Say which dates this file covers.', 'crit');
+
+    var reader = new FileReader();
+    reader.onload = function () {
+      FM.busy(true);
+      FM.call('portal.upload_secondary_sales', {
+        from_date: from, to_date: to,
+        file_name: picked.name,
+        content: reader.result
+      }, true).then(function (r) {
+        // Both numbers, always. A file that imported 344 of 347 lines is a success with three
+        // things to fix, and showing only the 344 is how the three never get fixed.
+        var said = r.imported + ' line' + (r.imported === 1 ? '' : 's') + ' read';
+        if (r.rejected && r.rejected.length) {
+          said += ', ' + r.rejected.length + ' we could not: ' +
+                  r.rejected.slice(0, 3).map(function (x) {
+                    return 'row ' + x.row + ' ' + x.reason;
+                  }).join('; ');
+        }
+        FM.toast(said);
+        setTimeout(function () { location.reload(); }, 1500);
+      }).catch(function (e) { FM.toast(e.message, 'crit'); })
+        .then(function () { FM.busy(false); });
+    };
+    reader.readAsText(picked);
+  });
+}());
+</script>
+</body>
+</html>
