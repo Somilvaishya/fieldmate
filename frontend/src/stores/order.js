@@ -62,6 +62,11 @@ const STALE_AFTER_MS = 12 * 60 * 60 * 1000
 // --------------------------------------------------------------------------------------- state
 
 export const outlet = ref(null)
+// Which kind of party the open order is for: null or 'Outlet' for a shop, 'Customer' for a
+// party we bill ourselves. It rides beside the name rather than being inferred from it,
+// because the two namespaces can and do collide - a Customer and an outlet may share a name,
+// and guessing wrong prices the cart off the wrong list.
+export const partyType = ref(null)
 export const outletName = ref(null)
 
 /** Cart lines, base units only. Everything a screen reads goes through `lines` below. */
@@ -514,13 +519,13 @@ export async function peek(outletName) {
   }
 }
 
-export async function openOutlet(name, { refresh = true } = {}) {
+export async function openOutlet(name, { refresh = true, type = null } = {}) {
   const token = ++loadToken
 
   // Everything held for the previous shop goes before the new one is named. Leaving it in place
   // was a way for a rep with no signal to walk into the next shop, find nothing cached for it, and
   // be shown the last shop's items at the last shop's prices - which looks entirely normal.
-  if (outlet.value !== name) {
+  if (outlet.value !== name || partyType.value !== type) {
     catalogue.value = null
     catalogueFetchedAt.value = null
     specs.value = []
@@ -533,6 +538,7 @@ export async function openOutlet(name, { refresh = true } = {}) {
   }
 
   outlet.value = name
+  partyType.value = type
   loading.value = true
   error.value = null
 
@@ -541,6 +547,11 @@ export async function openOutlet(name, { refresh = true } = {}) {
     if (token !== loadToken) return null
     rawLines.value = cached?.lines || []
     outletName.value = cached?.outletName || null
+    // The cart remembers what kind of party it was for, and that wins when the caller does not
+    // say. A rep reopening an unsent cart from a link with no type on it would otherwise have a
+    // primary order re-priced as a shop order - off a different list, against a different credit
+    // limit - with nothing on the screen to show it had changed.
+    if (!type && cached?.party_type) partyType.value = cached.party_type
 
     await Promise.all([
       loadCatalogue(name, { refresh, token }),
@@ -605,11 +616,12 @@ async function loadCatalogue(name, { refresh = true, token = null } = {}) {
   if (!refresh && cached) return
 
   try {
-    const payload = await api.catalogue(name)
+    const payload = await api.catalogue(name, partyType.value)
     if (token !== null && token !== loadToken) return
     catalogue.value = payload
     catalogueFetchedAt.value = Date.now()
-    await db.catalogues.put(plain({ outlet: name, payload, fetchedAt: catalogueFetchedAt.value }))
+    await db.catalogues.put(plain({ outlet: name, party_type: partyType.value, payload,
+                                    fetchedAt: catalogueFetchedAt.value }))
   } catch (e) {
     if (!cached) {
       // Nothing cached and nothing fetched: the screen has to say why it is empty rather than draw
@@ -638,7 +650,7 @@ async function loadSchemes(name, { refresh = true, token = null } = {}) {
   if (!refresh && cached) return
 
   try {
-    const payload = await api.schemesFor(name)
+    const payload = await api.schemesFor(name, partyType.value)
     if (token !== null && token !== loadToken) return
     specs.value = payload.specs || []
     skippedSchemes.value = payload.skipped || []
@@ -682,6 +694,7 @@ async function persist() {
   await db.carts.put(
     plain({
       outlet: outlet.value,
+      party_type: partyType.value,
       outletName: outletName.value,
       lines: rawLines.value,
       updatedAt: Date.now(),
@@ -813,7 +826,7 @@ export async function prefillFromLastOrder({ replace = false } = {}) {
   let history = lastOrder.value
   if (!history) {
     try {
-      history = await api.catalogueLastOrder(outlet.value)
+      history = await api.catalogueLastOrder(outlet.value, partyType.value)
     } catch {
       history = null
     }
@@ -887,7 +900,7 @@ export async function verifyWithServer() {
     .map((l) => ({ item_code: l.item_code, qty: l.qty, uom: l.base_uom }))
 
   try {
-    const server = await api.schemeEvaluate(outlet.value, payload)
+    const server = await api.schemeEvaluate(outlet.value, payload, partyType.value)
     const local = pricing.value
     const localTotals = totals.value
     const delta = (server.net_paise ?? 0) - local.net_paise
@@ -948,7 +961,11 @@ export function buildOrderDoc({
     docstatus: 1,
     client_uuid: clientUuid,
     order_date: todayStamp(),
-    outlet: outlet.value,
+    // A shop or a party we bill. The server infers the type when it is absent, so an older
+    // build of this app that sends only an outlet goes on working.
+    party_type: partyType.value || 'Outlet',
+    outlet: partyType.value === 'Customer' ? null : outlet.value,
+    customer: partyType.value === 'Customer' ? outlet.value : null,
     visit: visit || null,
 
     price_list: cat.price_list || null,

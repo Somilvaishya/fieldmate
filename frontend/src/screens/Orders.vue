@@ -125,6 +125,10 @@ onMounted(load)
       <div>
         <h1>My orders</h1>
         <p class="dim">What you booked, and where each one has reached</p>
+        <!-- The way into a primary order. It lives here rather than on the tab bar because a
+             rep books one a week of these and twenty shop orders a day, and a sixth tab would
+             cost the twenty to serve the one. -->
+        <RouterLink to="/parties" class="ghost small">Order on a distributor</RouterLink>
       </div>
       <button class="quiet" :disabled="loading" @click="load" aria-label="Refresh">
         <Icon name="refresh" size="18" />

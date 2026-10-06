@@ -27,7 +27,7 @@ def _me() -> str:
 
 @frappe.whitelist()
 @endpoint()
-def items(outlet: str | None = None, **kwargs):
+def items(outlet: str | None = None, party_type: str | None = None, **kwargs):
 	"""Everything this shop may be sold, priced, plus what it ordered last time.
 
 	The repeat-order prefill rides along rather than taking a call of its own. The cart screen
@@ -38,21 +38,26 @@ def items(outlet: str | None = None, **kwargs):
 	quote the whole cart off whichever one is cheapest.
 	"""
 	if not outlet:
-		raise FieldMateError(Err.BAD_REQUEST, "Which outlet?")
+		raise FieldMateError(Err.BAD_REQUEST, "Which party?")
 
 	me = _me()
 	try:
-		payload = catalogue_service.for_outlet(outlet, me)
-		payload["last_order"] = catalogue_service.last_order_for(outlet, me)
+		payload = catalogue_service.for_outlet(outlet, me, party_type=party_type)
+		# The repeat-order prefill is a shop habit: the quantities this shopkeeper took last
+		# month. A party we bill orders to a plan, not to a pattern, so there is nothing to
+		# prefill and asking would query orders by an outlet this one does not have.
+		payload["last_order"] = ({} if (party_type or "Outlet") == "Customer"
+		                         else catalogue_service.last_order_for(outlet, me))
 	except frappe.DoesNotExistError as e:
-		raise FieldMateError(Err.BAD_REQUEST, "That shop no longer exists.") from e
+		raise FieldMateError(Err.BAD_REQUEST, "That party no longer exists.") from e
 
 	return ok(payload)
 
 
 @frappe.whitelist()
 @endpoint()
-def prices(outlet: str | None = None, items: str | None = None, **kwargs):
+def prices(outlet: str | None = None, items: str | None = None,
+           party_type: str | None = None, **kwargs):
 	"""Fresh rates for a cart that already exists, and nothing else.
 
 	`items` is a list of `{"item_code": ..., "qty": ...}`, the quantity in base units - the
@@ -66,6 +71,6 @@ def prices(outlet: str | None = None, items: str | None = None, **kwargs):
 		raise FieldMateError(Err.BAD_REQUEST, "items must be a list.")
 
 	try:
-		return ok(catalogue_service.prices_for(outlet, lines, _me()))
+		return ok(catalogue_service.prices_for(outlet, lines, _me(), party_type=party_type))
 	except frappe.DoesNotExistError as e:
 		raise FieldMateError(Err.BAD_REQUEST, "That shop no longer exists.") from e

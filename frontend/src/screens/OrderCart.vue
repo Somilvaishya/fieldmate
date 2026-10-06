@@ -65,6 +65,13 @@ const confirming = ref(null)
 const prefilled = ref(null)
 
 const outlet = computed(() => route.params.outlet)
+// The kind of party, from the query string. Absent means a shop, which is every link this
+// app wrote before primary orders existed.
+const partyType = computed(() => route.query.party || null)
+// What to put back on the next link. An empty object for a shop, so every URL this app already
+// writes stays exactly as it was.
+const keepParty = computed(() => (partyType.value ? { party: partyType.value } : {}))
+
 const currency = computed(() => catalogue.value?.currency || null)
 const symbol = computed(() => symbolFor(currency.value))
 
@@ -90,7 +97,7 @@ function todayStamp() {
 
 async function open(name) {
   const held = cart.outlet.value === name && !!cart.catalogue.value
-  await Promise.all([cart.openOutlet(name, { refresh: !held }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
   await maybePrefill(name)
 }
 
@@ -341,7 +348,7 @@ function blockerLines(blocker) {
   <div class="wrap screen">
     <div class="top">
       <header class="head">
-        <RouterLink class="back" :to="{ name: 'order-catalogue', params: { outlet } }"
+        <RouterLink class="back" :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }"
                     aria-label="Back to the item list">
           <Icon name="back" size="24" />
         </RouterLink>
@@ -476,7 +483,7 @@ function blockerLines(blocker) {
           Open the item list and add what the shopkeeper wants. Everything is saved on this phone
           as you go, signal or not.
         </p>
-        <RouterLink class="ghost" :to="{ name: 'order-catalogue', params: { outlet } }">
+        <RouterLink class="ghost" :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }">
           <Icon name="store" size="20" /> Open the item list
         </RouterLink>
       </div>
@@ -664,11 +671,11 @@ function blockerLines(blocker) {
            next to it. -->
       <div class="acts">
         <RouterLink :class="isEmpty ? 'btn-primary' : 'ghost'"
-                    :to="{ name: 'order-catalogue', params: { outlet } }">
+                    :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }">
           <Icon name="plus" size="20" /> Add products
         </RouterLink>
         <RouterLink v-if="!isEmpty" class="btn-primary"
-                    :to="{ name: 'order-schemes', params: { outlet } }">
+                    :to="{ name: 'order-schemes', params: { outlet }, query: keepParty }">
           <Icon name="tag" size="20" /> See what this earns
         </RouterLink>
       </div>

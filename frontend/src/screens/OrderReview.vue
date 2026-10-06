@@ -32,6 +32,12 @@ import Icon from '../components/Icon.vue'
 const route = useRoute()
 const router = useRouter()
 const outlet = computed(() => String(route.params.outlet || ''))
+// The kind of party, from the query string. Absent means a shop, which is every link this app
+// wrote before primary orders existed.
+const partyType = computed(() => route.query.party || null)
+// What to put back on the next link. An empty object for a shop, so every URL this app
+// already writes stays exactly as it was.
+const keepParty = computed(() => (partyType.value ? { party: partyType.value } : {}))
 
 // Top-level bindings: a module namespace is not ref-unwrapped by the template compiler.
 const loading = cart.loading
@@ -64,12 +70,12 @@ const error = ref('')
 const done = ref(null)
 const queued = ref(0)
 
-const cartRoute = computed(() => ({ name: 'order-cart', params: { outlet: outlet.value } }))
+const cartRoute = computed(() => ({ name: 'order-cart', params: { outlet: outlet.value }, query: keepParty.value }))
 const catalogueRoute = computed(() => ({
   name: 'order-catalogue',
   params: { outlet: outlet.value },
 }))
-const schemesRoute = computed(() => ({ name: 'order-schemes', params: { outlet: outlet.value } }))
+const schemesRoute = computed(() => ({ name: 'order-schemes', params: { outlet: outlet.value }, query: keepParty.value }))
 
 // -------------------------------------------------------------------------------------- money
 
@@ -347,7 +353,7 @@ onMounted(async () => {
   window.addEventListener('offline', setOffline)
 
   if (cart.outlet.value !== outlet.value || !catalogue.value) {
-    await cart.openOutlet(outlet.value)
+    await cart.openOutlet(outlet.value, { type: partyType.value })
   }
   await loadShop()
   if (creditDays.value === null) paymentTerm.value = 'Cash on Delivery'

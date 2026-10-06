@@ -284,7 +284,8 @@ def last_order_for(outlet, field_user: str | None = None) -> dict:
 # --------------------------------------------------------------------------------------
 
 
-def prices_for(outlet, lines, field_user: str | None = None) -> dict:
+def prices_for(outlet, lines, field_user: str | None = None,
+               party_type: str | None = None) -> dict:
 	"""Fresh rates for a cart the rep already built, and nothing else.
 
 	The phone holds prices from whenever it last synced, which may have been yesterday morning
@@ -297,7 +298,7 @@ def prices_for(outlet, lines, field_user: str | None = None) -> dict:
 	Only items this shop's own catalogue holds are priced. An endpoint that priced anything on
 	the site would be a way to read the whole price book one item at a time from a phone.
 	"""
-	doc = readable_outlet(outlet)
+	doc = readable_party(outlet, party_type)
 	on = getdate(today())
 	price_list = resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)

@@ -49,6 +49,9 @@ const router = createRouter({
     // catalogue of several hundred SKUs, and a rep opening Today on a four-year-old Android should
     // not be paying for the order screens to get there - the cold-open budget is 2 seconds. It also
     // means a missing screen is a broken route rather than a broken app while these are being built.
+    // The way into a primary order. A retailer order starts from a shop on a planned beat; this
+    // one starts from the handful of parties a rep sells through.
+    { path: '/parties', component: () => import('./screens/Parties.vue'), name: 'parties' },
     { path: '/order/:outlet', component: () => import('./screens/OrderCatalogue.vue'), name: 'order-catalogue' },
     { path: '/order/:outlet/cart', component: () => import('./screens/OrderCart.vue'), name: 'order-cart' },
     { path: '/order/:outlet/schemes', component: () => import('./screens/OrderSchemes.vue'), name: 'order-schemes' },

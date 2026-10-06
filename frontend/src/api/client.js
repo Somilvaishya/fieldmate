@@ -149,31 +149,36 @@ export const api = {
   // Everything this shop may be sold, priced, plus the last order's quantities. One call, because
   // the cart screen needs both before it can draw anything and a second round trip on a market
   // uplink is a second chance for the rep to give up on it.
-  catalogue: (outlet) => call('catalogue.items', { outlet }),
+  // `partyType` is 'Customer' on a primary order and left out on a retailer one, which is what
+  // every build of this client before primary orders sent. The server reads a missing one as a
+  // shop, so an old phone goes on working.
+  catalogue: (outlet, partyType) => call('catalogue.items', { outlet, party_type: partyType }),
 
   // The repeat-order prefill. There is no endpoint of its own for it - `catalogue.items` carries
   // `last_order` deliberately, for the reason above - so this is the same call reading one key out
   // of the payload. Callers that already hold a cached catalogue should read `last_order` off that
   // instead of pulling four hundred priced SKUs down to fill in eight quantities.
-  catalogueLastOrder: (outlet) =>
-    call('catalogue.items', { outlet }).then((data) => data.last_order),
+  catalogueLastOrder: (outlet, partyType) =>
+    call('catalogue.items', { outlet, party_type: partyType }).then((data) => data.last_order),
 
   // Fresh rates for a cart that already exists. POSTed rather than sent as a query string: a
   // forty-line cart of long SKU codes runs past what some proxies will carry in a URL, and a
   // truncated cart re-prices as a different cart. `items` is [{item_code, qty}] in BASE units,
   // because that is what a quantity break on Item Price is measured in.
-  cataloguePrices: (outlet, items) => call('catalogue.prices', { outlet, items }, { post: true }),
+  cataloguePrices: (outlet, items, partyType) =>
+    call('catalogue.prices', { outlet, items, party_type: partyType }, { post: true }),
 
   // The compiled specs for this shop, for the phone to cache and evaluate against with no signal.
   // `skipped` comes back beside them: a scheme a manager has to fix must not look live in Desk and
   // absent in the field for as long as nobody happens to notice.
-  schemesFor: (outlet) => call('scheme.applicable', { outlet }),
+  schemesFor: (outlet, partyType) => call('scheme.applicable', { outlet, party_type: partyType }),
 
   // The same specs run on the server against server prices - the figure of record. The phone's own
   // answer is what the rep said out loud; docs/SCHEME_SPEC.md allows the two no divergence, so
   // where they differ one of the two engines is wrong and we would like to know which.
   // `lines` is [{item_code, qty, uom}].
-  schemeEvaluate: (outlet, lines) => call('scheme.evaluate', { outlet, lines }, { post: true }),
+  schemeEvaluate: (outlet, lines, partyType) =>
+    call('scheme.evaluate', { outlet, lines, party_type: partyType }, { post: true }),
 
   // fieldmate.api.order.* — written by another workstream and not on disk at the time these were
   // added, so the parameter names below are this client's half of the contract rather than

@@ -25,13 +25,15 @@ def _me() -> str:
 
 @frappe.whitelist()
 @endpoint()
-def estimate(outlet: str, lines=None, payment_term: str | None = None):
+def estimate(outlet: str, lines=None, payment_term: str | None = None,
+             party_type: str | None = None):
 	"""Price a cart without recording anything.
 
 	The phone calls this only when it has a signal. With none it runs the same arithmetic locally
 	through its own copy of the engine, and the two are required to agree to the paise.
 	"""
-	return ok(order_service.estimate(outlet, parse_json(lines, "lines") or [], _me(), payment_term))
+	return ok(order_service.estimate(outlet, parse_json(lines, "lines") or [], _me(),
+	                                 payment_term, party_type=party_type))
 
 
 @frappe.whitelist(methods=["POST"])

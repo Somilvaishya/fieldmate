@@ -63,6 +63,13 @@ const notice = ref(null)
 const busy = ref(false)
 
 const outlet = computed(() => route.params.outlet)
+// The kind of party, from the query string. Absent means a shop, which is every link this
+// app wrote before primary orders existed.
+const partyType = computed(() => route.query.party || null)
+// What to put back on the next link. An empty object for a shop, so every URL this app
+// already writes stays exactly as it was.
+const keepParty = computed(() => (partyType.value ? { party: partyType.value } : {}))
+
 const currency = computed(() => catalogue.value?.currency || null)
 const symbol = computed(() => symbolFor(currency.value))
 
@@ -76,7 +83,7 @@ async function open(name) {
   // three round trips on a market uplink.
   const held = cart.outlet.value === name && !!cart.catalogue.value
   shownCount.value = PAGE
-  await Promise.all([cart.openOutlet(name, { refresh: !held }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
 }
 
 onMounted(() => open(outlet.value))
@@ -435,7 +442,7 @@ async function repeatLastOrder() {
       )
       return
     }
-    router.push({ name: 'order-cart', params: { outlet: outlet.value } })
+    router.push({ name: 'order-cart', params: { outlet: outlet.value }, query: keepParty.value })
   } catch (e) {
     say(e.message || 'The last order could not be loaded.', 'crit')
   } finally {
@@ -815,7 +822,7 @@ const emptyReason = computed(() => {
             No offer has fired on this order yet.
           </span>
         </div>
-        <RouterLink class="btn-primary" :to="{ name: 'order-cart', params: { outlet } }">
+        <RouterLink class="btn-primary" :to="{ name: 'order-cart', params: { outlet }, query: keepParty }">
           <Icon name="cart" size="22" /> Review order
         </RouterLink>
       </template>

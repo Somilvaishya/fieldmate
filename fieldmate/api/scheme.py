@@ -30,7 +30,7 @@ def _me() -> str:
 
 @frappe.whitelist()
 @endpoint()
-def applicable(outlet: str | None = None, **kwargs):
+def applicable(outlet: str | None = None, party_type: str | None = None, **kwargs):
 	"""The compiled specs for this shop, for the phone to cache and evaluate offline.
 
 	`skipped` comes back alongside them. A scheme that could not be compiled is one a manager
@@ -41,14 +41,15 @@ def applicable(outlet: str | None = None, **kwargs):
 		raise FieldMateError(Err.BAD_REQUEST, "Which outlet?")
 
 	try:
-		return ok(scheme_service.for_outlet(outlet, _me()))
+		return ok(scheme_service.for_outlet(outlet, _me(), party_type=party_type))
 	except frappe.DoesNotExistError as e:
 		raise FieldMateError(Err.BAD_REQUEST, "That shop no longer exists.") from e
 
 
 @frappe.whitelist(methods=["POST"])
 @endpoint()
-def evaluate(outlet: str | None = None, lines: str | None = None, **kwargs):
+def evaluate(outlet: str | None = None, lines: str | None = None,
+             party_type: str | None = None, **kwargs):
 	"""What this cart comes to, worked out on the server. Reads only; nothing is booked.
 
 	A POST because the cart travels in the body rather than because anything is written. No
@@ -66,6 +67,6 @@ def evaluate(outlet: str | None = None, lines: str | None = None, **kwargs):
 		raise FieldMateError(Err.BAD_REQUEST, "lines must be a list.")
 
 	try:
-		return ok(scheme_service.evaluate_for(outlet, _me(), cart))
+		return ok(scheme_service.evaluate_for(outlet, _me(), cart, party_type=party_type))
 	except frappe.DoesNotExistError as e:
 		raise FieldMateError(Err.BAD_REQUEST, "That shop no longer exists.") from e
