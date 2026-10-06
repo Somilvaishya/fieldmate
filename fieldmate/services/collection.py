@@ -100,12 +100,29 @@ def outstanding_for(outlet, field_user: str | None = None) -> dict:
 
 
 def open_bills_for(outlet) -> list[dict]:
-	"""Orders this shop has not finished paying for, oldest first.
+	"""What this shop has not finished paying for, oldest first.
 
 	FIFO, because that is how a shopkeeper and a rep both think about it: the oldest bill is the
-	one being argued about. Allocations are read per order rather than netted against a running
-	balance, so a payment made against one bill cannot silently settle another.
+	one being argued about.
+
+	**Two sources, and the distributor's file wins where it exists.** For any period a submitted
+	FieldMate Secondary Sales covers, the bills are the invoices the distributor actually raised;
+	everywhere else they are the orders this app booked. They are never added together - an order
+	we took and the invoice raised for it are one sale, and counting both would show a shopkeeper
+	twice what they owe.
+
+	That rule is the honest one in both directions. Our orders were only ever a proxy: the gap
+	this function's own docstring admits - a distributor who invoiced the shop something we never
+	saw - is exactly what a file closes. And where no file has arrived, the proxy is all there is.
 	"""
+	covered = _covered_periods(outlet)
+	bills = _order_bills(outlet, covered) + _invoiced_bills(outlet, covered)
+	bills.sort(key=lambda b: (b["bill_date"] or "", b["bill_no"] or ""))
+	return bills
+
+
+def _order_bills(outlet, covered: list[tuple]) -> list[dict]:
+	"""Orders this shop has not finished paying for, outside any period a file covers."""
 	orders = frappe.get_all(
 		"FieldMate Order",
 		filters={"outlet": outlet, "docstatus": 1,
@@ -113,6 +130,7 @@ def open_bills_for(outlet) -> list[dict]:
 		fields=["name", "order_date", "net_total", "credit_days", "payment_term"],
 		order_by="order_date asc, creation asc",
 	)
+	orders = [o for o in orders if not _within(o.order_date, covered)]
 	if not orders:
 		return []
 
@@ -136,6 +154,115 @@ def open_bills_for(outlet) -> list[dict]:
 			"pending": round(pending, 2),
 		})
 	return bills
+
+
+def _covered_periods(outlet) -> list[tuple]:
+	"""The date ranges a distributor has sent us a sales file for.
+
+	Read from the files rather than from a flag on the shop, because a distributor sends files
+	for months, not for shops: a period is covered for every shop under them, including the ones
+	that bought nothing in it.
+	"""
+	distributor = frappe.db.get_value("FieldMate Outlet", outlet, "distributor")
+	if not distributor:
+		return []
+	return [
+		(getdate(row.from_date), getdate(row.to_date))
+		for row in frappe.get_all(
+			"FieldMate Secondary Sales",
+			filters={"distributor": distributor, "docstatus": 1},
+			fields=["from_date", "to_date"], limit_page_length=0)
+		if row.from_date and row.to_date
+	]
+
+
+def _within(date, periods: list[tuple]) -> bool:
+	if not date or not periods:
+		return False
+	day = getdate(date)
+	return any(start <= day <= end for start, end in periods)
+
+
+def _invoiced_bills(outlet, covered: list[tuple]) -> list[dict]:
+	"""What the distributor actually invoiced this shop, for the periods they have sent.
+
+	One bill per invoice number, because that is the document a shopkeeper is holding. Lines with
+	no invoice number on them are grouped by their date instead - some exports carry none, and a
+	day's sales to one shop is the nearest thing to a bill that file can offer.
+
+	**Collections are re-applied FIFO.** The money was allocated against the orders this app
+	booked, and those orders have just been superseded by the invoices that billed the same
+	goods, so the allocations are spread over the invoices oldest-first. The total is exact; which
+	invoice a given rupee settled is an estimate, and so is everything else on this screen - the
+	figure has never been a ledger and says so.
+	"""
+	if not covered:
+		return []
+
+	parents = frappe.get_all(
+		"FieldMate Secondary Sales",
+		filters={"distributor": frappe.db.get_value("FieldMate Outlet", outlet, "distributor"),
+		         "docstatus": 1},
+		pluck="name")
+	if not parents:
+		return []
+
+	lines = frappe.get_all(
+		"FieldMate Secondary Sales Item",
+		filters={"parent": ["in", parents], "outlet": outlet},
+		fields=["invoice_no", "sale_date", "amount"],
+		limit_page_length=0)
+	if not lines:
+		return []
+
+	# One row per invoice, in date order, so the oldest is the one argued about first.
+	grouped: dict = {}
+	for line in lines:
+		key = line.invoice_no or f"{line.sale_date}"
+		entry = grouped.setdefault(key, {"bill_no": key, "bill_date": line.sale_date,
+		                                 "amount": 0.0})
+		entry["amount"] += flt(line.amount)
+		if line.sale_date and (not entry["bill_date"] or line.sale_date < entry["bill_date"]):
+			entry["bill_date"] = line.sale_date
+
+	credit_days = cint(frappe.db.get_value("FieldMate Outlet", outlet, "credit_days"))
+	left = _collected_against_superseded(outlet, covered)
+
+	bills = []
+	for entry in sorted(grouped.values(), key=lambda e: (e["bill_date"] or "", e["bill_no"])):
+		amount = round(flt(entry["amount"]), 2)
+		applied = min(left, amount)
+		left = round(left - applied, 2)
+		pending = round(amount - applied, 2)
+		if pending <= 0.005:
+			continue
+		bills.append({
+			"reference_type": "FieldMate Secondary Sales",
+			"reference_name": entry["bill_no"],
+			"bill_no": entry["bill_no"],
+			"bill_date": str(entry["bill_date"]) if entry["bill_date"] else None,
+			# The shop's own terms, because the distributor's are not on the file. The nearest
+			# thing we hold, and named as such rather than left blank.
+			"due_date": str(add_days(entry["bill_date"], credit_days)) if entry["bill_date"]
+			            else None,
+			"amount": amount,
+			"paid": applied,
+			"pending": pending,
+		})
+	return bills
+
+
+def _collected_against_superseded(outlet, covered: list[tuple]) -> float:
+	"""Money this shop paid against orders that a file has since superseded."""
+	orders = frappe.get_all(
+		"FieldMate Order",
+		filters={"outlet": outlet, "docstatus": 1,
+		         "order_status": ["not in", ["Cancelled", "Rejected"]]},
+		fields=["name", "order_date"], limit_page_length=0)
+	superseded = [o.name for o in orders if _within(o.order_date, covered)]
+	if not superseded:
+		return 0.0
+	return round(sum(flt(v) for v in paid_by_order(superseded).values()), 2)
 
 
 def paid_by_order(orders: list[str]) -> dict:
