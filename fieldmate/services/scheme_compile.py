@@ -46,15 +46,19 @@ COLLAPSED_SLABS = "COLLAPSED_SLABS"
 # --------------------------------------------------------------------------------------
 
 
-def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: str | None = None) -> dict:
-	"""Every live scheme that reaches this shop today, compiled.
+def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: str | None = None,
+               party_type: str | None = None, kind: str | None = None) -> dict:
+	"""Every live scheme that reaches this party today, compiled.
 
 	This is what the phone caches and evaluates against offline. A scheme edited in Desk does not
 	reach a rep until the next pull, which is correct - the rep quoted what they were holding -
 	but it means the payload has to say when it was compiled, so the app can show its own age
 	rather than imply it is current.
+
+	`kind` is the kind of sale, from `channel.resolve`, and a scheme has to be written for it.
+	Not the party type: a shop the company invoices direct is an Outlet and a primary sale.
 	"""
-	doc = catalogue_service.readable_outlet(outlet)
+	doc = catalogue_service.readable_party(outlet, party_type)
 	on = getdate(on_date or today())
 	price_list = price_list or catalogue_service.resolve_price_list(doc, field_user)
 	company = catalogue_service.resolve_company(field_user)
@@ -65,6 +69,8 @@ def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: 
 	):
 		scheme = frappe.get_cached_doc("FieldMate Scheme", name)
 		if not scheme.is_live_on(on):
+			continue
+		if not scheme.covers_sale(kind):
 			continue
 		if not scheme.covers_outlet(doc):
 			continue
@@ -395,12 +401,15 @@ def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None =
 	four places is how three of them end up rounding differently.
 	"""
 	cart = catalogue_service.cart_for(outlet, lines, field_user, party_type=party_type)
-	# Schemes are compiled against a shop. A primary order on a Customer gets none for now: the
-	# scopes that would pick a scheme for one are channel and outlet class, which a Customer does
-	# not have, and primary schemes are their own piece of work (step 8). Compiling against the
-	# party anyway would silently apply whichever scheme happened to be scoped to everywhere.
-	compiled = ({"specs": [], "skipped": []} if (party_type or "Outlet") == "Customer"
-	            else for_outlet(cart["outlet"], field_user, price_list=cart["price_list"]))
+	# Schemes for the kind of sale this is. Step 5c compiled none at all for a primary order,
+	# because a scheme scoped to everywhere would have fired on one silently; `applies_to` is
+	# what makes it safe to compile them now.
+	# The kind comes from `channel.resolve`, not from the party type: a shop the company invoices
+	# direct is an Outlet and a *primary* sale, and reading the type would put a retailer scheme
+	# on it.
+	compiled = for_outlet(cart["outlet"], field_user, price_list=cart["price_list"],
+	                      party_type=party_type,
+	                      kind=(cart.get("channel") or {}).get("mode"))
 
 	result = scheme_engine.evaluate({"outlet": cart["outlet"], "lines": cart["lines"]},
 	                                compiled["specs"])

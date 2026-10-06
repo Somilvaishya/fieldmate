@@ -529,8 +529,14 @@ def readable_party(party, party_type: str | None = None, user: str | None = None
 		# What we bill them from. `pricing.price_list_for` reads this first, which is right: a
 		# party's own list is the most specific thing anybody has said about what they pay.
 		price_list=row.default_price_list,
-		distributor=None,
+		# Itself. A scheme scope row naming a distributor means "shops under this party" on a
+		# retailer order and "this party" on a primary one, and the two cannot be confused
+		# because `applies_to` has already decided which kind of scheme is being asked about.
+		distributor=row.name,
 		customer=row.name,
+		# A beat is a walking route between shops, which a party we bill is not on. Named rather
+		# than left missing, so `scope_row_matches` reads a blank instead of raising.
+		primary_beat=None,
 	)
 
 

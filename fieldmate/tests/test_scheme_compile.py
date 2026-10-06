@@ -484,3 +484,84 @@ class TestEvaluateFor(SchemeFixture):
 
 		self.assertEqual(result["cart_gross_paise"], 0)
 		self.assertEqual(result["unpriced_items"], [unpriced])
+
+
+class TestWhichKindOfSaleASchemeIsFor(SchemeFixture):
+	"""Phase 1, step 8. A scheme written for a shop must not fire on a distributor's own
+	purchase: a retailer offer landing on a primary order is trade spend nobody budgeted, and it
+	would land silently - the engine would simply find a scheme scoped to everywhere.
+
+	This is why step 5c compiled no schemes at all for a primary order. `applies_to` is what
+	makes it safe to compile them."""
+
+	def party(self):
+		"""A Customer we sell to, priced off the same list the cart uses."""
+		name = self.make_distributor()
+		frappe.db.set_value("Customer", name, {
+			"fm_tier": "Super Stockist", "fm_buys_from": "Company",
+			"default_price_list": frappe.db.get_value(
+				"Price List", {"selling": 1, "enabled": 1}, "name"),
+		}, update_modified=False)
+		frappe.clear_document_cache("Customer", name)
+		return name
+
+	def names_for_party(self, party, kind="Primary") -> list[str]:
+		return [spec["scheme"] for spec in scheme_compile.for_outlet(
+			party, None, party_type="Customer", kind=kind)["specs"]]
+
+	def test_a_scheme_says_nothing_and_is_a_retailer_scheme(self):
+		"""Every scheme written before this field existed, and the one a manager creates without
+		thinking about it. The default is the safe direction."""
+		scheme = self.make_scheme()
+		self.assertEqual(scheme.applies_to, "Secondary")
+		self.assertIn(scheme.name, self.compiled_names(self.make_outlet().name))
+
+	def test_a_retailer_scheme_does_not_reach_a_primary_order(self):
+		scheme = self.make_scheme()
+		self.assertNotIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_a_primary_scheme_does_not_reach_a_shop(self):
+		scheme = self.make_scheme(applies_to="Primary")
+		self.assertNotIn(scheme.name, self.compiled_names(self.make_outlet().name))
+
+	def test_a_primary_scheme_reaches_a_party_we_bill(self):
+		scheme = self.make_scheme(applies_to="Primary")
+		self.assertIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_both_reaches_either(self):
+		scheme = self.make_scheme(applies_to="Both")
+		self.assertIn(scheme.name, self.compiled_names(self.make_outlet().name))
+		self.assertIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_a_primary_scheme_can_be_scoped_to_one_party(self):
+		"""On a primary order the scope row's `distributor` means the party itself, not the shops
+		under it - and the two cannot be confused, because `applies_to` has already decided which
+		kind of scheme is being asked about."""
+		mine, theirs = self.party(), self.party()
+		scheme = self.make_scheme(applies_to="Primary", scopes=[{"distributor": mine}])
+
+		self.assertIn(scheme.name, self.names_for_party(mine))
+		self.assertNotIn(scheme.name, self.names_for_party(theirs))
+
+	def test_a_channel_scoped_scheme_never_reaches_a_party(self):
+		"""A channel is a kind of shop. A party we bill is not one, so a scheme that names a
+		channel is a shop scheme whatever else it says."""
+		channel = frappe.get_doc({
+			"doctype": "FieldMate Outlet Channel", "channel_name": self.uid("CH"),
+		}).insert(ignore_permissions=True)
+		self.track("FieldMate Outlet Channel", channel.name)
+
+		scheme = self.make_scheme(applies_to="Both", scopes=[{"channel": channel.name}])
+		self.assertNotIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_a_directly_billed_shop_is_a_primary_sale_not_an_outlet_one(self):
+		"""The case that makes the party type the wrong thing to read. This shop is a
+		FieldMate Outlet and the sale is ours, so it gets primary schemes."""
+		shop = self.make_outlet()
+		retailer = self.make_scheme()
+		primary = self.make_scheme(applies_to="Primary")
+
+		names = [spec["scheme"] for spec in scheme_compile.for_outlet(
+			shop.name, None, kind="Primary")["specs"]]
+		self.assertIn(primary.name, names)
+		self.assertNotIn(retailer.name, names)

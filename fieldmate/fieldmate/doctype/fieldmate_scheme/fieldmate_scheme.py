@@ -326,6 +326,20 @@ class FieldMateScheme(Document):
 	def is_live_on(self, date) -> bool:
 		return bool(cint(self.is_active)) and scope.is_effective_on(self, date)
 
+	def covers_sale(self, kind: str | None) -> bool:
+		"""Whether this scheme is for this kind of sale at all.
+
+		Asked before the scope rows, because it is a different question from *where*: a scheme
+		can be scoped to the whole of North and still be the wrong scheme for a distributor's own
+		purchase. A retailer offer firing on a primary order is trade spend nobody budgeted, and
+		it would do so silently - the engine would simply find a scheme that matched everywhere.
+
+		`None` means the caller did not say, which is every caller that predates primary orders,
+		so it reads as a retailer order.
+		"""
+		mine = self.applies_to or "Secondary"
+		return mine == "Both" or mine == (kind or "Secondary")
+
 	def covers_outlet(self, outlet) -> bool:
 		"""Whether this scheme's scope reaches a particular shop.
 

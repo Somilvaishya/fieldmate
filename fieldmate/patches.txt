@@ -10,3 +10,5 @@ fieldmate.patches.carry_order_booking_to_secondary_sales
 fieldmate.patches.carry_distributor_profile_to_customer
 # Phase 1, step 5c. Every order written before `party_type` existed is an order on a shop.
 fieldmate.patches.stamp_order_party_type
+# Phase 1, step 8. Every scheme written before `applies_to` existed is a retailer scheme.
+fieldmate.patches.stamp_scheme_applies_to
