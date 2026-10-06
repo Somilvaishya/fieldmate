@@ -106,12 +106,47 @@ def we_are_the_seller(outlet, field_user: str | None = None,
 
 def check(outlet, field_user: str | None = None, order_value=0,
           party_type: str | None = None) -> dict:
-	"""What this order does to the party's credit, and whether it may go through.
+	"""What this order does to the credit on both sides of it, and whether it may go through.
 
 	Returned whole rather than raised. A rep sees this at the door as well as at the till, and
 	knowing there is room for ten thousand rupees before the cart is built is worth a great deal
 	more than being refused after it.
+
+	**Two levels, because a secondary sale has two debts behind it.** The shop owes its
+	distributor; the distributor owes us. Until now only the second was measured, which meant a
+	kirana ten thousand rupees overdue with its distributor looked perfectly clear as long as the
+	distributor was square with us - and the distributor, who is the one who would refuse, found
+	out when the order reached their queue.
+
+	The top-level figures stay the distributor's, because that is what the order document records
+	and what ERPNext can actually prove. The shop's own position arrives under `shop`, and
+	`status` is the worse of the two so that a caller reading one field is not told "within limit"
+	while one of the two parties is over.
+
+	**The shop's figure is FieldMate's own count, not a ledger.** We are not a party to that sale,
+	so there is no receivable to read: it accrues from the orders we booked and falls as
+	collections come in, and a distributor who invoiced the shop something we never saw is a gap
+	it cannot close. The message says so, because a rep arguing it across a counter needs to know
+	which of the two numbers is which.
 	"""
+	result = _party_level(outlet, field_user, order_value, party_type)
+	result["shop"] = _shop_level(outlet, field_user, order_value, party_type)
+
+	shop = result["shop"]
+	if shop and shop["status"] == BREACH and result["status"] != BREACH:
+		# The distributor is square with us and the shop is not with them. The order is still
+		# worth taking - the distributor decides whether to serve it - but the rep must not read
+		# "within limit" off a screen and say so out loud.
+		result["status"] = BREACH
+		result["blocks"] = shop["blocks"]
+		result["can_override"] = shop["can_override"]
+		result["message"] = shop["message"]
+	return result
+
+
+def _party_level(outlet, field_user: str | None = None, order_value=0,
+                 party_type: str | None = None) -> dict:
+	"""What the party we bill owes us, read from ERPNext's own receivable."""
 	# A primary order is on a Customer and has no shop to load. `billing_party` takes the name
 	# either way; only the outlet path needs the document, for its own credit fields.
 	doc = None if (party_type or "Outlet") == "Customer" else _outlet(outlet)
@@ -197,6 +232,79 @@ def check(outlet, field_user: str | None = None, order_value=0,
 		name, _money(over, currency), _money(limit, currency), result["blocks"], result["can_override"]
 	)
 	return result
+
+
+def _shop_position(outlet: str, field_user: str | None) -> dict:
+	"""What this shop owes its distributor, from the soft ledger.
+
+	A named seam rather than an inline import, so that a test about *the credit verdict* can
+	stand this in without reaching into `services.collection` - what that function counts is its
+	own business and `test_collection` is where it is proved.
+	"""
+	from fieldmate.services import collection as collection_service
+
+	return collection_service.outstanding_for(outlet, field_user)
+
+
+def _shop_level(outlet, field_user: str | None, order_value, party_type: str | None) -> dict | None:
+	"""What this shop owes its distributor, and whether this order puts it over its limit.
+
+	None for a primary sale: there is no second level there, because the party we bill is the
+	party being sold to and `_party_level` has already measured it.
+
+	The figure is `collection.outstanding_for`, which counts the orders this app booked at this
+	shop and subtracts the collections allocated against them. It is the only count of this debt
+	anywhere - we are not a party to that sale and ERPNext holds no receivable for it - and it is
+	honest about being an estimate.
+
+	A shop with no limit set is not measured. A Currency column is NOT NULL DEFAULT 0, so a zero
+	cannot be told from a blank, and treating the default as a ceiling would put every shop in
+	the country over its limit on the day it was onboarded.
+	"""
+	if (party_type or "Outlet") == "Customer":
+		return None
+
+	doc = _outlet(outlet)
+	# One source for all of it, including the limit: `outstanding_for` already reads the shop's
+	# `credit_limit`, and two readings of one field are two chances to disagree.
+	position = _shop_position(doc.name, field_user)
+	limit = flt(position.get("credit_limit"))
+	outstanding = flt(position.get("outstanding"))
+	exposure = flt(outstanding + flt(order_value), 2)
+	settings = settings_service.get()
+	company = _company(field_user)
+	currency = frappe.get_cached_value("Company", company, "default_currency") if company else None
+
+	answer = {
+		"outlet": doc.name,
+		"outlet_name": position.get("outlet_name"),
+		"limit": limit,
+		"outstanding": outstanding,
+		"overdue": flt(position.get("overdue")),
+		"exposure": exposure,
+		"headroom": position.get("headroom"),
+		"status": NO_LIMIT_SET if not limit else WITHIN_LIMIT,
+		"blocks": False,
+		"can_override": False,
+		"message": "",
+		# Said plainly wherever this is shown. The distributor's figure comes out of a ledger;
+		# this one is our own arithmetic over orders and collections.
+		"is_our_own_count": True,
+	}
+	if not limit or exposure <= flt(limit, 2):
+		return answer
+
+	over = flt(exposure - limit, 2)
+	answer["status"] = BREACH
+	answer["blocks"] = bool(cint(settings.get("block_order_on_credit_breach")))
+	answer["can_override"] = answer["blocks"] and bool(
+		cint(settings.get("allow_credit_override")))
+	answer["message"] = frappe._(
+		"{0} is {1} over the limit their distributor allows them, counting this order. That is "
+		"our own count of what they owe, from the orders booked here and the money collected "
+		"against them - collect what is due, or ask your manager."
+	).format(answer["outlet_name"] or doc.name, _money(over, currency))
+	return answer
 
 
 # --------------------------------------------------------------------------------------

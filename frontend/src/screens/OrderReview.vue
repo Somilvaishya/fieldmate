@@ -175,6 +175,27 @@ const credit = computed(() => {
   }
 })
 
+/**
+ * What this shop owes its distributor, as paise, or null where nobody has given it a limit.
+ *
+ * A different debt from the card above it: that one is the distributor's balance with us, read
+ * from ERPNext's receivable. This one is FieldMate's own count over the orders booked here and
+ * the money collected against them, and the label says so - a rep arguing a figure across a
+ * counter has to know which of the two it is.
+ */
+const shopCredit = computed(() => {
+  const row = creditRow.value && creditRow.value.shop
+  if (!row || !row.limit) return null
+  const limit = toPaise(row.limit) || 0
+  const outstanding = toPaise(row.outstanding) || 0
+  return {
+    limit,
+    outstanding,
+    overdue: toPaise(row.overdue) || 0,
+    breach: outstanding + totals.value.net_paise > limit,
+  }
+})
+
 function ago(ms) {
   if (ms === null || ms === undefined) return null
   const min = Math.floor(ms / 60000)
@@ -558,9 +579,15 @@ function finish() {
             </span>
           </div>
 
+          <!-- This card is the **distributor's** position with us, not the shop's. It always was
+               - `api.outlet` reads the billing party's credit - but it said "this shop", which
+               is the one party the figures are not about. The shop's own position with its
+               distributor is a different number and `credit.check` now returns it; wiring this
+               card to both is its own piece of work. -->
           <template v-if="credit.unlimited">
             <p class="foot">
-              No credit limit is set for this shop, so nothing is holding this order. They owe
+              No credit limit is set for {{ distributorName || 'this distributor' }}, so nothing
+              is holding this order. They owe
               <b class="tnum">{{ money(credit.outstanding) }}</b> today.
             </p>
           </template>
@@ -580,6 +607,18 @@ function finish() {
 
             <div class="srow tnum">
               <span>Sanctioned limit</span><b>{{ money(credit.limit) }}</b>
+            </div>
+
+            <!-- The shop's own debt to its distributor, which is a different number from
+                 everything above and was invisible until now. Shown only where somebody has set
+                 the shop a limit: a zero limit cannot be told from no limit at all, and a shop
+                 nobody has given one is not a shop with no room. -->
+            <div v-if="shopCredit" class="srow tnum" :class="{ bad: shopCredit.breach }">
+              <span>
+                This shop owes its distributor
+                <em class="muted">our own count</em>
+              </span>
+              <b>{{ money(shopCredit.outstanding) }} of {{ money(shopCredit.limit) }}</b>
             </div>
             <div class="srow tnum">
               <span>{{ credit.breach ? 'Past the limit by' : 'Headroom left after this' }}</span>
