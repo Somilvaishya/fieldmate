@@ -37,6 +37,7 @@ def after_install() -> None:
 	create_roles()
 	create_idempotency_fields()
 	create_customer_fields()
+	create_item_mrp_field()
 	frappe.db.commit()
 
 
@@ -307,6 +308,43 @@ def create_customer_fields() -> None:
 		frappe.get_doc({
 			"doctype": "Custom Field", "dt": "Customer", "fieldname": fieldname, **spec
 		}).insert(ignore_permissions=True)
+
+
+def create_item_mrp_field() -> None:
+	"""Give Item somewhere to record the price printed on the pack. Idempotent.
+
+	ERPNext has no MRP of its own - it is a legal marking on the consumer pack rather than an
+	accounting figure - so every company that tracks one has added a field for it. `compat` has
+	always *probed* for that field and answered None where there is none, and it still does: this
+	creates the field and never a value. An MRP FieldMate invented would be a number printed on a
+	phone that nobody in the company ever agreed to, read out to a shopkeeper who can check the
+	pack in his own hand.
+
+	**Refused where the site already has an `mrp` column.** That is the other name in the wild,
+	and `compat.MRP_FIELDS` prefers `fm_mrp` - so creating an empty `fm_mrp` beside a populated
+	`mrp` would hide every real MRP on the site behind a blank one, and `pricing.is_above_mrp`
+	would stop checking anything. Doing nothing is the correct outcome there: the site already
+	has what this field is for, and `compat` finds it.
+	"""
+	if not frappe.db.exists("DocType", "Item"):
+		return
+	if frappe.db.has_column("Item", "mrp"):
+		return
+	if frappe.db.exists("Custom Field", {"dt": "Item", "fieldname": "fm_mrp"}):
+		return
+
+	meta = frappe.get_meta("Item")
+	frappe.get_doc({
+		"doctype": "Custom Field",
+		"dt": "Item",
+		"fieldname": "fm_mrp",
+		"label": "MRP",
+		"fieldtype": "Currency",
+		"insert_after": "standard_rate" if meta.has_field("standard_rate") else "item_name",
+		"description": "The price printed on the consumer pack, per stock UOM. FieldMate refuses "
+		               "an order line priced above it. Blank means this company does not record "
+		               "an MRP for the item, and nothing is checked.",
+	}).insert(ignore_permissions=True)
 
 
 def _fmt(version: tuple[int, ...]) -> str:
