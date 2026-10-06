@@ -54,6 +54,8 @@ def targets(prefix: str = "G_"):
         # apart from the top or Frappe refuses at the first back-link it meets.
         ("Sales Invoice", {"fm_source_key": ["like", "CLAIM:%"],
                            "customer": ["like", f"{prefix}-DIST-%"]}),
+        # A primary order posts one of these, so a gate that books one leaves it behind.
+        ("Sales Order", {"customer": ["like", f"{prefix}-DIST-%"]}),
         ("FieldMate Order Ingest Log", {"acted_by": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
         ("FieldMate Claim", {"customer": ["like", f"{prefix}-DIST-%"]}),
         ("FieldMate Portal User", {"name": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
@@ -61,8 +63,10 @@ def targets(prefix: str = "G_"):
         ("FieldMate Scheme", {"scheme_name": ["like", f"{prefix}-SCH-%"]}),
         ("FieldMate Order Approval Rule", {"rule_name": ["like", f"{prefix}-RULE-%"]}),
 
-        ("FieldMate Van Settlement", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
-        ("FieldMate Van Load", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
+        # FieldMate Van Settlement and Van Load used to sit here. Both doctypes went with van
+        # sales (ADR-032); `purge` skipped the names in silence, which is how a cleanup list
+        # comes to claim coverage it does not have.
+        ("FieldMate Secondary Sales", {"distributor": ["like", f"{prefix}-DIST-%"]}),
         ("FieldMate Retailer Stock", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
         ("FieldMate Collection Deposit", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
         ("FieldMate Collection", {"field_user": ["like", f"{prefix.lower()}%@fieldmate.test"]}),

@@ -336,8 +336,14 @@ class FieldMateScheme(Document):
 
 		`None` means the caller did not say, which is every caller that predates primary orders,
 		so it reads as a retailer order.
+
+		Read with `.get`, not as an attribute. On a site where the code has landed and the
+		migration has not yet run, the field does not exist and `self.applies_to` raises
+		`AttributeError` - from inside the pricing path, so *every* order on that site fails
+		until somebody runs `bench migrate`. Found by the Phase 1 gate on a site one migration
+		behind, which is precisely the window a deploy opens.
 		"""
-		mine = self.applies_to or "Secondary"
+		mine = self.get("applies_to") or "Secondary"
 		return mine == "Both" or mine == (kind or "Secondary")
 
 	def covers_outlet(self, outlet) -> bool:

@@ -131,6 +131,12 @@ def check(outlet, field_user: str | None = None, order_value=0,
 	"""
 	result = _party_level(outlet, field_user, order_value, party_type)
 	result["shop"] = _shop_level(outlet, field_user, order_value, party_type)
+	# The party's own verdict, kept before the merge below can overwrite it. Without this a
+	# caller can see that *something* breached and not which, because `status` becomes the worse
+	# of the two - and "the distributor is over" and "the shop is over" are different problems
+	# with different remedies.
+	result["party_status"] = result["status"]
+	result["party_message"] = result["message"]
 
 	shop = result["shop"]
 	if shop and shop["status"] == BREACH and result["status"] != BREACH:

@@ -565,3 +565,16 @@ class TestWhichKindOfSaleASchemeIsFor(SchemeFixture):
 			shop.name, None, kind="Primary")["specs"]]
 		self.assertIn(primary.name, names)
 		self.assertNotIn(retailer.name, names)
+
+	def test_a_scheme_whose_site_has_not_migrated_yet_is_a_retailer_scheme(self):
+		"""Not an exception. Between a deploy landing and `bench migrate` running, the column
+		does not exist - and `self.applies_to` raises `AttributeError` from inside the pricing
+		path, which fails *every* order on that site until somebody notices.
+
+		Found by the Phase 1 gate against a site one migration behind, which is exactly the
+		window a deploy opens. The unit suite could not find it: its own site was migrated.
+		"""
+		scheme = self.make_scheme()
+		del scheme.applies_to
+		self.assertTrue(scheme.covers_sale("Secondary"))
+		self.assertFalse(scheme.covers_sale("Primary"))

@@ -296,3 +296,39 @@ class TestOneCreditAnswerForTheWholeApp(CreditFixture):
 		self.assertEqual(credit["shop"]["outlet"], self.outlet.name)
 		self.assertTrue(credit["shop"]["is_our_own_count"],
 		                "said plainly wherever it is shown")
+
+
+class TestWhichSideBreached(CreditFixture):
+	"""`status` is the worse of the two levels, so on its own it cannot say which party is over -
+	and "the distributor is over" and "the shop is over" are different problems with different
+	remedies. The party's own verdict is kept beside it."""
+
+	def setUp(self):
+		super().setUp()
+		self.outlet = self.make_outlet()
+		self.set_credit_limit(self.outlet.distributor, 1_000_000)
+		frappe.db.set_value("FieldMate Outlet", self.outlet.name, "credit_limit", 5_000,
+		                    update_modified=False)
+		frappe.clear_document_cache("FieldMate Outlet", self.outlet.name)
+
+	def shop_owes(self, amount):
+		return patch.object(credit_service, "_shop_position", return_value={
+			"outlet": self.outlet.name, "outlet_name": self.outlet.outlet_name,
+			"outstanding": flt(amount), "overdue": 0.0, "credit_limit": 5_000.0,
+			"headroom": None})
+
+	def test_the_distributors_own_verdict_survives_the_merge(self):
+		with self.owing(0), self.shop_owes(9_000):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+
+		self.assertEqual(answer["status"], credit_service.BREACH, "the verdict is the worse one")
+		self.assertNotEqual(answer["party_status"], credit_service.BREACH,
+		                    "but the distributor is not the one over")
+		self.assertEqual(answer["shop"]["status"], credit_service.BREACH)
+
+	def test_the_partys_own_message_survives_too(self):
+		"""A screen that wants to name the distributor's position still can."""
+		with self.owing(0), self.shop_owes(9_000):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+		self.assertNotIn("our own count", answer["party_message"])
+		self.assertIn("our own count", answer["message"])
