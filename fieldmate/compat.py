@@ -742,6 +742,16 @@ def make_sales_order(payload: dict) -> str:
 		if payload.get(field):
 			doc.set(field, payload[field])
 
+	# Naming a tax template does not fill the tax rows. The Desk form fetches them when somebody
+	# picks one in the field; a document inserted from the server gets the name written, no rows,
+	# and a grand total equal to the net - a Sales Order that says it is taxed and is not, which
+	# is worse than one that refuses. ERPNext's own expander is called rather than a copy of it.
+	if doc.get("taxes_and_charges") and not doc.get("taxes"):
+		from erpnext.controllers.accounts_controller import get_taxes_and_charges
+		for row in get_taxes_and_charges(
+			"Sales Taxes and Charges Template", doc.taxes_and_charges) or []:
+			doc.append("taxes", row)
+
 	# Every rupee in this cart was already settled by the scheme engine, from a spec the rep
 	# saw on the phone (SCHEME_SPEC). Letting ERPNext's Pricing Rules run again would discount
 	# the same cart a second time, and the invoice would not be the number that was promised.

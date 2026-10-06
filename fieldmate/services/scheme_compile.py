@@ -403,6 +403,7 @@ def evaluate_for(outlet, field_user: str | None, lines) -> dict:
 	result["outlet"] = cart["outlet"]
 	result["price_list"] = cart["price_list"]
 	result["billing_party"] = cart["billing_party"]
+	result["channel"] = cart.get("channel") or {}
 	result["lines"] = cart["lines"]
 	result["skipped_schemes"] = compiled["skipped"]
 	# Carried through rather than swallowed: the screen has to name the SKU whose price

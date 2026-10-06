@@ -19,6 +19,7 @@ import frappe
 from frappe.utils import cint, flt, fmt_money
 
 from fieldmate import compat
+from fieldmate.services import channel as channel_service
 from fieldmate.services import settings as settings_service
 
 WITHIN_LIMIT = "Within Limit"
@@ -27,25 +28,33 @@ NO_LIMIT_SET = "No Limit Set"
 
 
 def billing_party(outlet, field_user: str | None = None) -> dict:
-	"""Who the money is owed by for a sale at this shop: the distributor.
+	"""Who the money is owed by for a sale at this shop.
 
-	A retailer is not a Customer and never becomes one (ADR-013), so the shop's own `customer`
-	field stays empty and unread - it is the escape hatch for a shop the company genuinely
-	invoices direct, and `we_are_the_seller` is the only thing that reads it.
+	Delegates to `channel.resolve`, which is the one function that decides what kind of sale this
+	is and who gets the bill (Phase 1, step 5). The shape is kept because several callers read it.
 
-	Van sales used to branch here and bill `doc.customer`, which is empty for every ordinary
-	kirana, so every van order was refused for having no party. The mode is gone.
+	**This fixes a live defect.** The old version answered `doc.distributor` unconditionally and
+	never read `FieldMate Outlet.customer` at all - that field was described as read by
+	`we_are_the_seller` "and absolutely nowhere else", and `we_are_the_seller` used it only to set
+	a boolean. So for a shop the company genuinely invoices direct, which is the whole point of
+	ADR-024's escape hatch, every caller still got the distributor: the catalogue priced against
+	the wrong party, the credit check measured the wrong limit, and `_raise_sales_order` raised
+	the Sales Order in the wrong company's name.
 	"""
-	doc = _outlet(outlet)
-	mode = settings_service.resolve_sales_mode(field_user)
-	party = doc.distributor or None
-
+	answer = channel_service.resolve(_outlet(outlet).name, "Outlet", field_user)
 	return {
-		"outlet": doc.name,
-		"mode": mode,
-		"party": party,
-		"party_name": frappe.db.get_value("Customer", party, "customer_name") if party else None,
-		"company": _company(field_user),
+		"outlet": answer["party"],
+		# What kind of sale this is, which is what `mode` was always reaching for. Secondary at a
+		# kirana, Primary at a shop we invoice ourselves.
+		"mode": answer["kind"],
+		"party": answer["bill_to"],
+		"party_name": answer["bill_to_name"],
+		"company": answer["company"],
+		# Whether this site makes this kind of sale at all, and why not. Carried rather than acted
+		# on here: this function draws screens as well as gating orders, and a rep looking at a
+		# catalogue should see prices even on a day somebody has switched the mode off.
+		"allowed": answer["allowed"],
+		"reason": answer["reason"],
 	}
 
 
@@ -71,14 +80,18 @@ def we_are_the_seller(outlet, field_user: str | None = None) -> dict:
 	`order.py` asks this and branches once on the answer. That is the whole point: an
 	`if van_sales:` in the order code, and another in the collection code, and another in the
 	scheme code, is how one app quietly becomes two that share a name.
+
+	Since step 5 the answer comes from `channel.resolve` rather than from a second reading of
+	`FieldMate Outlet.customer` here - one function decides the kind of sale, and this states what
+	the order path does about it.
 	"""
 	party = billing_party(outlet, field_user)
-	direct = bool(_outlet(outlet).customer)
+	direct = party["mode"] == settings_service.PRIMARY
 
 	return {
 		**party,
 		"we_bill": direct,
-		"reason": "directly billed outlet" if direct else "the distributor sells to this shop",
+		"why": "directly billed outlet" if direct else "the distributor sells to this shop",
 		# What the order routes to when we are NOT the seller - which is nearly always. The
 		# distributor's queue is the whole downstream, and until the Phase 9 portal ships it is a
 		# Desk list view filtered on this party.
@@ -116,7 +129,7 @@ def check(outlet, field_user: str | None = None, order_value=0) -> dict:
 		# distributor was never filled in; in van sales it is a shop nobody has set up for
 		# direct billing, and selling off the van to it would leave goods gone and no invoice.
 		result["blocks"] = True
-		result["message"] = _no_party_message(result["mode"])
+		result["message"] = _no_party_message()
 		return result
 
 	if not company:
@@ -130,7 +143,7 @@ def check(outlet, field_user: str | None = None, order_value=0) -> dict:
 		)
 		return result
 
-	limit = _limit(doc, party, company, result["mode"])
+	limit = _limit(doc, party, company)
 	# The check counts what is booked and not yet billed as well as what is invoiced. A rep can
 	# book a month of business in a morning and none of it is an invoice yet, so a limit measured
 	# on invoices alone would not bite until the goods had already gone.
@@ -183,7 +196,7 @@ def check(outlet, field_user: str | None = None, order_value=0) -> dict:
 # --------------------------------------------------------------------------------------
 
 
-def _limit(outlet_doc, party: str, company: str, mode: str) -> float:
+def _limit(outlet_doc, party: str, company: str) -> float:
 	"""The ceiling this sale is measured against. 0.0 means nobody has set one.
 
 	The distributor's limit with us, because the distributor is who we bill. The shop's own
@@ -220,7 +233,7 @@ def _money(value, currency: str | None) -> str:
 # --------------------------------------------------------------------------------------
 
 
-def _no_party_message(mode: str) -> str:
+def _no_party_message() -> str:
 	return frappe._(
 		"This shop has no distributor against it, so there is nobody to bill. Ask your manager "
 		"to set one before you book an order."

@@ -268,3 +268,55 @@ class TestAnOrderCarriesTheTaxItDoesNotPost(TaxedCatalogueFixture):
 		created = self.book(item, qty=10)
 		self.track("FieldMate Order", created["name"])
 		self.assertEqual((frappe.db.count("GL Entry"), frappe.db.count("Sales Invoice")), before)
+
+
+class TestAPrimarySalePostsItsTax(TaxedCatalogueFixture):
+	"""The other half of GST. A secondary order shows the distributor's tax and posts nothing; a
+	primary sale is ours, so the Sales Order carries real tax rows and ERPNext computes them -
+	including any CGST/SGST split, which is why FieldMate does not do that arithmetic itself.
+	"""
+
+	def sales_tax_template(self, percent) -> str:
+		doc = frappe.get_doc({
+			"doctype": "Sales Taxes and Charges Template",
+			"title": self.uid("STC"),
+			"company": self.company,
+			"taxes": [{
+				"charge_type": "On Net Total",
+				"account_head": self.tax_account,
+				"description": "GST",
+				"rate": percent,
+			}],
+		}).insert(ignore_permissions=True)
+		return self.track("Sales Taxes and Charges Template", doc.name)
+
+	def test_the_adapter_carries_a_tax_template_onto_the_sales_order(self):
+		"""What FieldMate owns: handing ERPNext the template and letting it do the rest."""
+		item = self.priced_item()
+		template = self.sales_tax_template(18)
+		name = compat.make_sales_order({
+			"key": self.uid("SO"),
+			"customer": self.outlet.distributor,
+			"company": self.company,
+			"taxes_and_charges": template,
+			"items": [{"item_code": item, "qty": 10, "rate": 100}],
+		})
+		self.track("Sales Order", name)
+
+		doc = frappe.get_doc("Sales Order", name)
+		self.assertEqual(doc.taxes_and_charges, template)
+		self.assertEqual(doc.net_total, 1000)
+		self.assertEqual(doc.total_taxes_and_charges, 180)
+		self.assertEqual(doc.grand_total, 1180)
+
+	def test_fieldmate_names_no_template_and_lets_erpnext_choose(self):
+		"""`_raise_sales_order` passes no `taxes_and_charges`, deliberately. Which taxes apply to
+		a company's own sales is that company's ERPNext setup - its Tax Rules and its default
+		template - and a template named here would quietly override all of it.
+
+		This asserts the absence, because an absence is exactly the kind of thing somebody adds
+		'helpfully' later without realising whose decision they are taking.
+		"""
+		import inspect
+		source = inspect.getsource(order_service._raise_sales_order)
+		self.assertNotIn("taxes_and_charges", source)

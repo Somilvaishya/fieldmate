@@ -157,12 +157,27 @@ class TestOnlyADirectlyBilledOutletIsOurs(OrderFixture):
 
 	def test_a_directly_billed_outlet_is_not_routed_to_a_distributor(self):
 		"""ADR-001's escape hatch: an outlet the company genuinely invoices itself."""
-		self.outlet.db_set("customer", self.make_distributor(), update_modified=False)
+		billed = self.make_distributor()
+		self.outlet.db_set("customer", billed, update_modified=False)
 		answer = order_service.credit_service.we_are_the_seller(self.outlet.name, self.rep.name)
 
 		self.assertTrue(answer["we_bill"])
 		self.assertFalse(answer["routes_to_distributor"])
-		self.assertEqual(answer["reason"], "directly billed outlet")
+		# `why` rather than `reason` since step 5: `reason` now carries the refusal from
+		# `channel.resolve` - why this sale cannot be made - and two meanings of the same key in
+		# one dict is how a caller ends up showing "directly billed outlet" to a rep as an error.
+		self.assertEqual(answer["why"], "directly billed outlet")
+
+	def test_the_bill_goes_to_the_shop_we_invoice_and_not_its_distributor(self):
+		"""The defect this wiring fixes. `billing_party` answered `doc.distributor` whatever the
+		shop's own `customer` said, so a directly-billed outlet priced, credit-checked and raised
+		its Sales Order against the distributor - the one party ADR-024 says is not involved."""
+		billed = self.make_distributor()
+		self.outlet.db_set("customer", billed, update_modified=False)
+
+		answer = order_service.credit_service.billing_party(self.outlet.name, self.rep.name)
+		self.assertEqual(answer["party"], billed)
+		self.assertNotEqual(answer["party"], self.outlet.distributor)
 class TestTheServerOwnsTheTotals(OrderFixture):
 	def test_a_phone_that_got_the_total_wrong_is_overwritten_and_recorded(self):
 		"""Divergence is never blocked. The rep already said a number across a counter, so what
@@ -330,3 +345,54 @@ class TestAnOfflineOrderLandsTheSameWay(OrderFixture):
 		self.assertEqual(doc.net_total, 2000.0, "priced on the controller, not taken from the phone")
 		self.assertEqual(doc.order_status, "Sent To Distributor", "routed on the controller too")
 		self.assertIsNone(doc.sales_order, "and still no accounting document")
+
+
+class TestTheSiteSwitchActuallyGates(OrderFixture):
+	"""`enable_primary_sales` and `enable_secondary_sales` were written, were read by
+	`channel.resolve` and gated nothing, because nothing called it. Step 5 wires it in, and this
+	is what "whichever is enabled on a site is what that site does" actually means."""
+
+	SETTINGS = ("enable_secondary_sales", "enable_primary_sales")
+
+	def setUp(self):
+		super().setUp()
+		self._before = {k: self.fresh_settings().get(k) for k in self.SETTINGS}
+
+	def tearDown(self):
+		self.apply_settings(**self._before)
+		super().tearDown()
+
+	def test_a_shop_cannot_be_booked_with_secondary_sales_switched_off(self):
+		self.apply_settings(enable_secondary_sales=0, enable_primary_sales=1)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book()
+		self.assertIn("switched off", frappe.utils.strip_html(str(ctx.exception)))
+
+	def test_the_message_says_who_can_turn_it_on(self):
+		"""A rep standing at a counter cannot act on "not allowed"."""
+		self.apply_settings(enable_secondary_sales=0, enable_primary_sales=1)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book()
+		self.assertIn("manager", frappe.utils.strip_html(str(ctx.exception)).lower())
+
+	def test_nothing_is_left_half_written_when_it_refuses(self):
+		self.apply_settings(enable_secondary_sales=0, enable_primary_sales=1)
+		before = frappe.db.count("FieldMate Order")
+		with self.assertRaises(frappe.ValidationError):
+			self.book()
+		self.assertEqual(frappe.db.count("FieldMate Order"), before)
+
+	def test_a_shop_books_normally_with_secondary_sales_on(self):
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=0)
+		result = self.book()
+		self.assertEqual(result["order_status"], "Sent To Distributor")
+
+	def test_a_directly_billed_shop_is_refused_when_primary_is_off(self):
+		"""The other half of the switch. That shop is a primary sale - we invoice it - so a site
+		that does not make primary sales cannot book it, however ordinary the shop looks."""
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=0)
+		self.outlet.db_set("customer", self.make_distributor(), update_modified=False)
+
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book()
+		self.assertIn("switched off", frappe.utils.strip_html(str(ctx.exception)))

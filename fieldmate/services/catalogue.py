@@ -54,7 +54,8 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 	on = getdate(today())
 	price_list = price_list or resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	party = credit_service.billing_party(doc, field_user)["party"]
+	channel = credit_service.billing_party(doc, field_user)
+	party = channel["party"]
 
 	catalogues = matching_masters("FieldMate Product Catalogue", doc, on)
 	rows = catalogue_rows(catalogues)
@@ -374,7 +375,8 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 	doc = readable_outlet(outlet)
 	price_list = price_list or resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	party = credit_service.billing_party(doc, field_user)["party"]
+	channel = credit_service.billing_party(doc, field_user)
+	party = channel["party"]
 
 	wanted = {}
 	for line in lines or []:
@@ -448,7 +450,12 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 		"outlet": doc.name,
 		"price_list": price_list,
 		"company": company,
+		# The party as a name, which is what every caller has always read, and the whole answer
+		# beside it. `channel` carries the kind of sale and whether this company makes that kind
+		# at all - `order.create` refuses on it, and reading `.get()` off the bare string was a
+		# crash waiting for the first order whose company was not already set.
 		"billing_party": party,
+		"channel": channel,
 		"unpriced_items": sorted(unpriceable),
 		"above_mrp_items": sorted(over_mrp),
 		# The rate per item, not the tax. What is taxable depends on the cart's discount, which

@@ -144,9 +144,20 @@ def price(doc, lines=None) -> dict:
 	result = scheme_compile.evaluate_for(doc.outlet, doc.field_user, source)
 
 	doc.price_list = result.get("price_list")
-	party = result.get("billing_party") or {}
+	channel = result.get("channel") or {}
+
+	# What kind of sale this is, and whether this company makes that kind at all. Until now the
+	# `enable_primary_sales` and `enable_secondary_sales` settings were written, were read by
+	# `channel.resolve` and gated nothing, because nothing called it. This is where they bite.
+	#
+	# Refused at the commit rather than earlier, like every other refusal here: a rep should see a
+	# catalogue and prices at a shop they cannot currently book for, and be told why when they
+	# try - not handed an empty screen with nothing on it to explain itself.
+	if channel and not channel.get("allowed", True):
+		frappe.throw(channel.get("reason") or frappe._("This order cannot be booked here."))
+
 	doc.distributor = doc.distributor or _distributor_for(doc.outlet)
-	doc.company = doc.company or party.get("company")
+	doc.company = doc.company or channel.get("company")
 	doc.currency = doc.currency or frappe.db.get_value("Company", doc.company, "default_currency")
 
 	if result.get("unpriced_items"):
