@@ -36,6 +36,7 @@ from fieldmate.services import credit as credit_service
 from fieldmate.services import pricing
 from fieldmate.services import scope
 from fieldmate.services import settings as settings_service
+from fieldmate.services import tax as tax_service
 
 # --------------------------------------------------------------------------------------
 # the sellable list
@@ -68,6 +69,15 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 		)
 	}
 
+	# The rate per item, not the tax amount. The phone computes the amount itself as quantities
+	# change - it has the same `round_half_up_div` the server uses - so what travels is one
+	# number per item rather than a figure that goes stale on the next tap.
+	tax_rates = tax_service.rates_for(
+		list(details), company=company, party=party,
+		net_rates={code: d["price_list_rate"] for code, d in details.items()},
+		item_groups={code: d["item_group"] for code, d in details.items()},
+	)
+
 	items = []
 	for item_code, (row, catalogue) in rows.items():
 		detail = details.get(item_code)
@@ -75,7 +85,8 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 			# A catalogue naming an item that has since been deleted or disabled is a master
 			# nobody tidied, not something to put in front of a shopkeeper.
 			continue
-		items.append(item_payload(item_code, row, catalogue, detail, must_sell.get(item_code)))
+		items.append(item_payload(item_code, row, catalogue, detail, must_sell.get(item_code),
+		                          tax_bps=tax_rates.get(item_code, 0)))
 
 	items.sort(key=lambda row: (row["sort_order"], row["item_name"] or row["item_code"]))
 
@@ -97,7 +108,8 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 	}
 
 
-def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell) -> dict:
+def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell,
+                 tax_bps: int = 0) -> dict:
 	"""One catalogue line as the phone receives it."""
 	order_uom, conversion_factor, fell_back = order_unit(row, detail)
 	rate = detail["price_list_rate"]
@@ -129,6 +141,11 @@ def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell) -
 		# are per stock UOM - see `pricing.is_above_mrp` for why `order_uom_rate` is not the one
 		# to compare.
 		"above_mrp": pricing.is_above_mrp(rate, detail["mrp"]),
+
+		# The distributor's tax rate on this item, in basis points - 1800 is 18%. Zero means no
+		# tax template covers it, which is most items on most ERPNext sites. The phone applies it
+		# to the line's share of the net; `services/tax` holds the rule and the reason.
+		"tax_bps": int(tax_bps or 0),
 
 		"is_focus": bool(cint(row.is_focus)),
 		"is_must_sell": bool(must_sell),
@@ -434,6 +451,16 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 		"billing_party": party,
 		"unpriced_items": sorted(unpriceable),
 		"above_mrp_items": sorted(over_mrp),
+		# The rate per item, not the tax. What is taxable depends on the cart's discount, which
+		# the scheme engine has not run yet - so `scheme_compile.evaluate_for` does the
+		# arithmetic once it has a discount to apportion.
+		"tax_rates": tax_service.rates_for(
+			[l["item"] for l in cart_lines],
+			company=company,
+			party=party,
+			net_rates={code: details[code]["price_list_rate"] for code in details},
+			item_groups={code: details[code]["item_group"] for code in details},
+		),
 		"lines": cart_lines,
 	}
 

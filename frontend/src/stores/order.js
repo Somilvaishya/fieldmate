@@ -42,6 +42,7 @@ import { db, deviceUuid, getMeta, rememberName, setMeta } from '../db'
 import { enqueue } from '../sync/outbox'
 import { evaluate } from '../scheme/engine'
 import { formatPaise, fromPaise, toPaise } from '../lib/money'
+import { forLines as taxFor } from '../lib/tax'
 import * as visitStore from './visit'
 
 /** Anything the rep did that the cart will not accept, with a sentence they can act on. */
@@ -184,6 +185,9 @@ function newLine(item) {
     // The price list quotes above the price printed on the pack. The server refuses an order
     // holding one, so the cart says so here rather than letting the rep find out at submit.
     above_mrp: !!item.above_mrp,
+    // The distributor's tax rate on this item, in basis points. Zero means no tax template
+    // covers it, which is most items on most sites.
+    tax_bps: Math.trunc(item.tax_bps || 0),
 
     // In display units, as the catalogue master was written.
     min_order_qty: item.min_order_qty ?? null,
@@ -221,15 +225,27 @@ export const isEmpty = computed(() => rawLines.value.length === 0)
  */
 export const totals = computed(() => {
   const p = pricing.value
+  // The distributor's tax on the distributor's sale, so that the figure the rep reads out is the
+  // one the shop will be billed. FieldMate posts none of it - see `lib/tax.js`, which is this
+  // rule's other copy and the server's.
+  const rates = {}
+  for (const line of rawLines.value) if (line.tax_bps) rates[line.item_code] = line.tax_bps
+  const taxed = taxFor(p.lines || rawLines.value, rates, p.discount_paise)
+  const grand = p.net_paise + taxed.tax_paise
+
   return {
     gross_paise: p.cart_gross_paise,
     discount_paise: p.discount_paise,
     net_paise: p.net_paise,
     incentive_paise: p.incentive_paise,
+    tax_paise: taxed.tax_paise,
+    grand_paise: grand,
     gross: formatPaise(p.cart_gross_paise),
     discount: formatPaise(p.discount_paise),
     net: formatPaise(p.net_paise),
     incentive: formatPaise(p.incentive_paise),
+    tax: formatPaise(taxed.tax_paise),
+    grand: formatPaise(grand),
     currency: catalogue.value?.currency || null,
     // The engine's own complaints, e.g. a discount larger than the cart. Never hidden.
     errors: p.errors || [],
@@ -567,6 +583,7 @@ function reconcileWithCatalogue() {
     // changed the wrong way sets it on a line that was fine when the rep added it.
     line.above_mrp = !!item.above_mrp
     line.mrp = item.mrp ?? null
+    line.tax_bps = Math.trunc(item.tax_bps || 0)
     line.item_name = item.item_name || line.item_name
     line.min_order_qty = item.min_order_qty ?? null
     line.max_order_qty = item.max_order_qty ?? null
@@ -872,17 +889,24 @@ export async function verifyWithServer() {
   try {
     const server = await api.schemeEvaluate(outlet.value, payload)
     const local = pricing.value
+    const localTotals = totals.value
     const delta = (server.net_paise ?? 0) - local.net_paise
+    // Tax as well as net. The two sides run the same arithmetic, so a difference here is a
+    // difference in the *rates* - a tax template changed today against a catalogue cached
+    // yesterday - and it lands on the bill the shop receives just as surely as a wrong price.
+    const taxDelta = (server.tax_paise ?? 0) - localTotals.tax_paise
     return {
       checked: true,
-      matched: delta === 0,
+      matched: delta === 0 && taxDelta === 0,
       delta_paise: delta,
+      tax_delta_paise: taxDelta,
       server,
       local: {
         cart_gross_paise: local.cart_gross_paise,
         discount_paise: local.discount_paise,
         net_paise: local.net_paise,
         incentive_paise: local.incentive_paise,
+        tax_paise: localTotals.tax_paise,
       },
     }
   } catch (e) {

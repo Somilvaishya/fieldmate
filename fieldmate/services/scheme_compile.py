@@ -29,6 +29,7 @@ from frappe.utils import cint, flt, getdate, today
 from fieldmate import compat
 from fieldmate.services import catalogue as catalogue_service
 from fieldmate.services import scheme_engine
+from fieldmate.services import tax as tax_service
 from fieldmate.services.scheme_engine import round_half_up_div
 
 # Why a scheme did not make it into the payload. Stable strings, because the distributor portal
@@ -409,11 +410,24 @@ def evaluate_for(outlet, field_user: str | None, lines) -> dict:
 	# its MRP, which is a price nobody may legally sell at.
 	result["unpriced_items"] = cart.get("unpriced_items") or []
 	result["above_mrp_items"] = cart.get("above_mrp_items") or []
+
+	# Tax last, because what is taxable is the net and the net is what the engine just decided.
+	# This is the distributor's tax on the distributor's sale and FieldMate posts none of it -
+	# see `services/tax`. It is here so the rep quotes the figure the shop will actually be
+	# billed rather than one short by the whole of the GST.
+	taxed = tax_service.for_lines(
+		result["lines"], cart.get("tax_rates") or {}, discount_paise=result["discount_paise"])
+	result["tax_paise"] = taxed["tax_paise"]
+	result["tax_lines"] = taxed["lines"]
+	result["grand_paise"] = result["net_paise"] + taxed["tax_paise"]
+
 	result["totals"] = {
 		"gross": in_rupees(result["cart_gross_paise"]),
 		"discount": in_rupees(result["discount_paise"]),
 		"net": in_rupees(result["net_paise"]),
 		"incentive": in_rupees(result["incentive_paise"]),
+		"tax": in_rupees(result["tax_paise"]),
+		"grand": in_rupees(result["grand_paise"]),
 	}
 	return result
 

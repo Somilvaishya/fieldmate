@@ -19,6 +19,7 @@ from __future__ import annotations
 import frappe
 from frappe.utils import cint, flt, getdate, nowdate
 from frappe.utils.caching import request_cache
+from frappe.utils.nestedset import get_ancestors_of
 
 # Minimum host versions, enforced at install time by fieldmate.setup.install.
 #
@@ -501,6 +502,125 @@ def get_item_details(
 			"currency": currency,
 		})
 	return details
+
+
+# --------------------------------------------------------------------------------------
+# tax — ERPNext's own templates, resolved in bulk because this feeds a 400-SKU screen
+# --------------------------------------------------------------------------------------
+#
+# GST comes from `Item Tax Template`, which is ERPNext core and present whether or not
+# india_compliance is installed. That matters: neither bench this was built against has
+# india_compliance, and a FieldMate that could only compute tax with it would be a FieldMate that
+# computes no tax on most sites.
+#
+# **One effective rate per item, as basis points.** The templates hold account-and-rate pairs -
+# CGST 9 and SGST 9, or IGST 18 - and what a rep reads out at a counter is their sum. FieldMate
+# deliberately does not split them: the split depends on the supplier's state and the buyer's,
+# the supplier on a secondary sale is the distributor rather than us, and the document that has
+# to carry the split is the distributor's own invoice. Basis points rather than a float because
+# the phone has to reach the same figure offline, and ADR-022 keeps money arithmetic integral.
+
+
+def item_tax_rates(
+	item_codes: list[str],
+	company: str | None,
+	tax_category: str | None = None,
+	posting_date=None,
+	net_rates: dict | None = None,
+	item_groups: dict | None = None,
+) -> dict[str, int]:
+	"""Effective tax rate per item code, in basis points. Absent means nobody has set one.
+
+	Resolved the way ERPNext resolves it - the item's own `Item Tax` rows first, then its Item
+	Group's and that group's ancestors' - and by calling ERPNext's matcher rather than restating
+	its rules, which cover a tax category, a validity date and a net-rate band each.
+
+	That matcher is `_get_item_tax_template`, which is private. Calling one underscore-prefixed
+	function from this module is the lesser evil: the alternative is a second copy of three
+	selection rules that would drift from the first, and absorbing exactly this kind of coupling
+	is what `compat` is for. `test_compat` pins the dependency so a signature change fails loudly
+	here instead of quietly mispricing tax.
+
+	Reads do not grow with the item list: the tax rows come back in two queries however long it
+	is, and the matcher runs over rows already in hand.
+	"""
+	codes = [code for code in (item_codes or []) if code]
+	if not codes or not company:
+		return {}
+	if not frappe.db.exists("DocType", "Item Tax Template"):
+		return {}
+	# The ordinary case on a site nobody has set tax up on, answered without touching the item
+	# list at all.
+	if not frappe.db.count("Item Tax Template", {"company": company, "disabled": 0}):
+		return {}
+
+	try:
+		from erpnext.stock.get_item_details import _get_item_tax_template, get_item_tax_map
+	except ImportError:
+		return {}
+
+	own = _tax_rows_for("Item", codes)
+	groups = item_groups or dict(frappe.get_all(
+		"Item", filters={"name": ["in", codes]}, fields=["name", "item_group"],
+		limit_page_length=0, as_list=True))
+
+	# Every group an item might inherit from, so the rows for all of them come back together.
+	lineage: dict[str, list[str]] = {}
+	for group in {g for g in groups.values() if g}:
+		lineage[group] = [group, *get_ancestors_of("Item Group", group)]
+	group_rows = _tax_rows_for("Item Group", sorted({g for line in lineage.values() for g in line}))
+
+	net_rates = net_rates or {}
+	templates: dict[str, int] = {}
+	out: dict[str, int] = {}
+
+	for code in codes:
+		taxes = own.get(code)
+		if not taxes:
+			for group in lineage.get(groups.get(code), []):
+				if group_rows.get(group):
+					taxes = group_rows[group]
+					break
+		if not taxes:
+			continue
+
+		args = {
+			"company": company,
+			"tax_category": tax_category or "",
+			"posting_date": posting_date or nowdate(),
+			"base_net_rate": flt(net_rates.get(code)),
+		}
+		template = _get_item_tax_template(args, taxes)
+		if not template:
+			continue
+
+		if template not in templates:
+			rates = get_item_tax_map(company, template, as_json=False) or {}
+			# Summed, and rounded to the basis point. A template holding 9 and 9 answers 1800.
+			templates[template] = int(round(sum(flt(r) for r in rates.values()) * 100))
+		if templates[template]:
+			out[code] = templates[template]
+
+	return out
+
+
+def _tax_rows_for(parenttype: str, parents: list[str]) -> dict[str, list]:
+	"""`Item Tax` rows for these parents, keyed by parent, in one query.
+
+	Returned as `_dict`s because ERPNext's matcher reads them as attributes.
+	"""
+	if not parents:
+		return {}
+	rows: dict[str, list] = {}
+	for row in frappe.get_all(
+		"Item Tax",
+		filters={"parenttype": parenttype, "parent": ["in", parents]},
+		fields=["parent", "item_tax_template", "tax_category", "valid_from",
+		        "minimum_net_rate", "maximum_net_rate"],
+		limit_page_length=0,
+	):
+		rows.setdefault(row.parent, []).append(frappe._dict(row))
+	return rows
 
 
 def get_conversion_factor(item_code: str, uom: str | None) -> float | None:

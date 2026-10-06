@@ -503,8 +503,22 @@ function finish() {
         <div class="card pay">
           <div class="payhead">
             <span>Total payable</span>
-            <b class="big tnum">{{ sym }}{{ totals.net }}</b>
+            <b class="big tnum">{{ sym }}{{ totals.tax_paise ? totals.grand : totals.net }}</b>
           </div>
+          <!-- The GST the distributor will charge, so that what is read out here is what arrives
+               on the bill. FieldMate posts none of it; a net-only figure is short by all of it.
+               Hidden where no tax template covers the cart, because a zero GST row is a claim
+               about this company's tax position rather than a fact about this order. -->
+          <template v-if="totals.tax_paise">
+            <div class="srow tnum">
+              <span>Goods</span>
+              <b>{{ sym }}{{ totals.net }}</b>
+            </div>
+            <div class="srow tnum">
+              <span>GST on the distributor's bill</span>
+              <b>{{ sym }}{{ totals.tax }}</b>
+            </div>
+          </template>
           <RouterLink class="srow tnum link" :to="schemesRoute">
             <span>Scheme saving</span>
             <b class="ok">

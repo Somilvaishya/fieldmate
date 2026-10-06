@@ -273,9 +273,15 @@ def _write_totals(doc, result: dict) -> None:
 	doc.discount_total = totals["discount"]
 	doc.net_total = totals["net"]
 	doc.incentive_amount = totals["incentive"]
-	# Tax is the distributor's to compute on their own invoice in order booking, so it stays zero
-	# here rather than pretending to a number we have no authority over.
-	doc.tax_total = flt(doc.tax_total or 0)
+	# Tax is the distributor's, and FieldMate posts none of it. It is written here anyway, and
+	# this is a reversal: the line used to be pinned at zero "rather than pretending to a number
+	# we have no authority over". That was right about authority and wrong about silence. We have
+	# no authority to *charge* it; we have every reason to say it, because `stores/order.js` sets
+	# the cart one job - the number the rep says out loud has to be the number on the invoice the
+	# distributor raises that evening - and that invoice carries GST. A rep quoting the net and a
+	# shopkeeper receiving a bill eighteen per cent higher are having an argument nobody can
+	# settle, about a figure this app had and did not show. See `services/tax`.
+	doc.tax_total = totals.get("tax") or 0
 	doc.grand_total = flt(doc.net_total) + flt(doc.tax_total)
 	doc.total_lines = len(doc.items or [])
 	doc.total_qty = sum(flt(row.qty) for row in (doc.items or []))

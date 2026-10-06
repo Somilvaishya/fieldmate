@@ -596,6 +596,21 @@ function blockerLines(blocker) {
             <b class="tnum big">{{ symbol }}{{ totals.net }}</b>
           </div>
 
+          <!-- The distributor's GST on the distributor's invoice. Shown because the number the
+               rep says out loud has to be the number on the bill that arrives this evening, and
+               a net-only quote is short by all of it. Absent where no tax template covers the
+               cart, which is most sites - a zero row would read as "no GST", which is a claim. -->
+          <template v-if="totals.tax_paise">
+            <div class="brow">
+              <span>GST</span>
+              <b class="tnum">{{ symbol }}{{ totals.tax }}</b>
+            </div>
+            <div class="brow total">
+              <span>Bill total</span>
+              <b class="tnum big">{{ symbol }}{{ totals.grand }}</b>
+            </div>
+          </template>
+
           <!-- Free goods are their own lines at zero. Their value is what the shop received, and
                it is never subtracted from anything. -->
           <div v-if="freeGoods.length" class="free">
@@ -642,7 +657,7 @@ function blockerLines(blocker) {
     <div class="bottom">
       <p v-if="!isEmpty" class="sum">
         <span class="tnum">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
-        <b class="grand tnum">{{ symbol }}{{ totals.net }}</b>
+        <b class="grand tnum">{{ symbol }}{{ totals.tax_paise ? totals.grand : totals.net }}</b>
       </p>
       <!-- One primary, and it follows what the rep is actually doing: with nothing in the cart the
            only useful action is the item list, so that is the primary rather than a dead button

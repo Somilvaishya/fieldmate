@@ -888,3 +888,61 @@ rebuilding Customer badly.
 - **`reset_fieldmate.py` no longer wipes distributors.** It wiped the profile; it will not wipe a
   Customer. That is somebody's billing account with a ledger behind it, and clearing FieldMate's
   own records is not a licence to delete parties out of ERPNext.
+
+## ADR-034 — A secondary order shows the GST it does not charge
+
+**Reverses** the zero-tax rule that `services/order._write_totals` carried. **Does not touch**
+ADR-023: a retailer order still posts no Sales Order, no Sales Invoice and no GL Entry.
+
+**Decision.** `FieldMate Order.tax_total` holds a real figure, computed from the distributor's own
+ERPNext tax templates, and FieldMate posts none of it. The phone computes the same figure offline
+from a per-item rate in the catalogue payload, and the cart shows a bill total rather than a net.
+
+**Reason.** Two things the app already said were in direct contradiction, and the contradiction
+had been resolved in favour of silence.
+
+`stores/order.js` gives the cart one job: *the number the rep says out loud has to be the number
+on the invoice the distributor raises that evening.* That invoice carries GST.
+
+`order.py` pinned `tax_total` at zero with the comment *"Tax is the distributor's to compute on
+their own invoice in order booking, so it stays zero here rather than pretending to a number we
+have no authority over."* That is right about authority and wrong about silence. We have no
+authority to **charge** it. We have every reason to **say** it: a rep quoting the net and a
+shopkeeper receiving a bill eighteen per cent higher that evening are having an argument nobody
+can settle, over a figure this app had and chose not to show.
+
+**Consequences.**
+
+- **ERPNext's own tax templates, not india_compliance.** `Item Tax Template` is core and present
+  on every site; india_compliance is on neither bench this was built against. A FieldMate that
+  could only compute tax with india_compliance would compute no tax on most sites.
+- **One effective rate, in basis points, never a CGST/SGST split.** The templates hold
+  account-and-rate pairs and what a shopkeeper is told is their sum. The split depends on the
+  supplier's state and the buyer's; the supplier on a secondary sale is the distributor rather
+  than us, and the document that has to carry the split is the distributor's own invoice. On a
+  primary sale it is ERPNext that splits it, on the Sales Order this app asks it to make.
+- **The cart discount is apportioned across the lines before tax.** The scheme engine keeps one
+  cart-level discount rather than marking down each line, so taxing a line's gross would charge
+  tax on money the shop is not paying. The rule is fixed because the phone has to reach the same
+  paise: each line takes `gross x discount // cart_gross`, floored, and the paise left over by
+  flooring go to the largest line, ties broken by item code. It matters most where it is easiest
+  to get wrong - with one line at 5% and another at 18%, *which* line the discount lands on
+  changes the total.
+- **One rounding primitive, already shared.** `scheme_engine.round_half_up_div` is the app's only
+  division in the money path and is already mirrored in `frontend/src/scheme/engine.js`; its
+  docstring even names "a paise amount times basis points" as the largest term it expects. Tax
+  uses it rather than a second half-up formula, so the phone's tax and the server's are the same
+  operation on the same integers.
+- **`lib/tax.js` and `services/tax.py` are one rule written twice and change together**, like the
+  two scheme engines before them. The office-figure check compares tax as well as net: the two
+  sides run identical arithmetic, so a difference there is a difference in the *rates* - a
+  template changed today against a catalogue cached yesterday - and it reaches the shop's bill
+  just as surely as a wrong price would.
+- **An item no template covers is not taxed, and that is not an error.** Most ERPNext sites hold
+  no tax templates at all. The GST row is hidden rather than shown as zero, because a zero GST
+  row is a claim about a company's tax position rather than a fact about an order.
+- **Rate resolution is bulk.** Two queries however long the item list is, because this feeds a
+  400-SKU screen on a 2G link. It calls ERPNext's own `_get_item_tax_template`, which is private;
+  that trade and the test that pins it are argued in `compat.item_tax_rates`.
+- **Nothing happens on a site with no tax set up**, which includes testerp2 today. Creating an
+  `Item Tax Template` and attaching it to an item or its Item Group is what switches this on.
