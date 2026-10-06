@@ -27,7 +27,7 @@ BREACH = "Breach"
 NO_LIMIT_SET = "No Limit Set"
 
 
-def billing_party(outlet, field_user: str | None = None) -> dict:
+def billing_party(outlet, field_user: str | None = None, party_type: str | None = None) -> dict:
 	"""Who the money is owed by for a sale at this shop.
 
 	Delegates to `channel.resolve`, which is the one function that decides what kind of sale this
@@ -41,7 +41,11 @@ def billing_party(outlet, field_user: str | None = None) -> dict:
 	the wrong party, the credit check measured the wrong limit, and `_raise_sales_order` raised
 	the Sales Order in the wrong company's name.
 	"""
-	answer = channel_service.resolve(_outlet(outlet).name, "Outlet", field_user)
+	if (party_type or "Outlet") == "Customer":
+		name = outlet if isinstance(outlet, str) else outlet.name
+	else:
+		name = _outlet(outlet).name
+	answer = channel_service.resolve(name, party_type or "Outlet", field_user)
 	return {
 		"outlet": answer["party"],
 		# What kind of sale this is, which is what `mode` was always reaching for. Secondary at a
@@ -58,7 +62,8 @@ def billing_party(outlet, field_user: str | None = None) -> dict:
 	}
 
 
-def we_are_the_seller(outlet, field_user: str | None = None) -> dict:
+def we_are_the_seller(outlet, field_user: str | None = None,
+                      party_type: str | None = None) -> dict:
 	"""Is this company the party that bills the shop? Answered here and absolutely nowhere else.
 
 	A retailer order is a **secondary** sale: the distributor bills the shop out of their own
@@ -85,7 +90,7 @@ def we_are_the_seller(outlet, field_user: str | None = None) -> dict:
 	`FieldMate Outlet.customer` here - one function decides the kind of sale, and this states what
 	the order path does about it.
 	"""
-	party = billing_party(outlet, field_user)
+	party = billing_party(outlet, field_user, party_type)
 	direct = party["mode"] == settings_service.PRIMARY
 
 	return {
@@ -99,15 +104,18 @@ def we_are_the_seller(outlet, field_user: str | None = None) -> dict:
 	}
 
 
-def check(outlet, field_user: str | None = None, order_value=0) -> dict:
+def check(outlet, field_user: str | None = None, order_value=0,
+          party_type: str | None = None) -> dict:
 	"""What this order does to the party's credit, and whether it may go through.
 
 	Returned whole rather than raised. A rep sees this at the door as well as at the till, and
 	knowing there is room for ten thousand rupees before the cart is built is worth a great deal
 	more than being refused after it.
 	"""
-	doc = _outlet(outlet)
-	result = dict(billing_party(doc, field_user))
+	# A primary order is on a Customer and has no shop to load. `billing_party` takes the name
+	# either way; only the outlet path needs the document, for its own credit fields.
+	doc = None if (party_type or "Outlet") == "Customer" else _outlet(outlet)
+	result = dict(billing_party(doc or outlet, field_user, party_type))
 	party, company = result["party"], result["company"]
 	order_value = flt(order_value)
 	settings = settings_service.get()

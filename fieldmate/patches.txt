@@ -8,3 +8,5 @@ fieldmate.patches.carry_order_booking_to_secondary_sales
 # Phase 1, step 2d-i. Carries the data; the links and the reads move in 2d-ii, so this one is
 # safe to run on a site that is still using the profile.
 fieldmate.patches.carry_distributor_profile_to_customer
+# Phase 1, step 5c. Every order written before `party_type` existed is an order on a shop.
+fieldmate.patches.stamp_order_party_type

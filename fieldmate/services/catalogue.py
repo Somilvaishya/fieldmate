@@ -43,18 +43,19 @@ from fieldmate.services import tax as tax_service
 # --------------------------------------------------------------------------------------
 
 
-def for_outlet(outlet, field_user: str | None = None, price_list: str | None = None) -> dict:
+def for_outlet(outlet, field_user: str | None = None, price_list: str | None = None,
+                party_type: str | None = None) -> dict:
 	"""Everything this shop may be sold today, priced, in one payload.
 
 	`price_list` is for our own callers - the order estimate re-prices against the list the
 	order was written on. It is never taken from a device: a phone that could name its own
 	price list could quote the cart off whichever one is cheapest.
 	"""
-	doc = readable_outlet(outlet)
+	doc = readable_party(outlet, party_type)
 	on = getdate(today())
 	price_list = price_list or resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	channel = credit_service.billing_party(doc, field_user)
+	channel = credit_service.billing_party(doc, field_user, party_type)
 	party = channel["party"]
 
 	catalogues = matching_masters("FieldMate Product Catalogue", doc, on)
@@ -360,7 +361,8 @@ def prices_for(outlet, lines, field_user: str | None = None) -> dict:
 	}
 
 
-def cart_for(outlet, lines, field_user: str | None = None, price_list: str | None = None) -> dict:
+def cart_for(outlet, lines, field_user: str | None = None, price_list: str | None = None,
+             party_type: str | None = None) -> dict:
 	"""A rep's cart restated as the scheme engine's input: base units and integer paise.
 
 	The engine is a pure function and reads no price, no UOM and no clock (ADR-021), so this is
@@ -372,10 +374,10 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 	zero books it free and a guess is a guess, and either way the rep has already read a total
 	to a shopkeeper. Throwing here is the only outcome that ends with somebody fixing the price.
 	"""
-	doc = readable_outlet(outlet)
+	doc = readable_party(outlet, party_type)
 	price_list = price_list or resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	channel = credit_service.billing_party(doc, field_user)
+	channel = credit_service.billing_party(doc, field_user, party_type)
 	party = channel["party"]
 
 	wanted = {}
@@ -485,6 +487,51 @@ def to_paise(rupees) -> int:
 # --------------------------------------------------------------------------------------
 # masters, scope and the shop itself
 # --------------------------------------------------------------------------------------
+
+
+def readable_party(party, party_type: str | None = None, user: str | None = None):
+	"""The party this order is for, shaped so that everything downstream can read it.
+
+	A primary order is on a Customer; a retailer order is on a FieldMate Outlet. Rather than
+	teaching `scope`, `pricing`, `matching_masters` and the catalogue readers about two kinds of
+	party, a Customer is presented here in the shape they already understand - a name, a
+	territory, a price list, and the two fields it genuinely does not have.
+
+	**Blank channel and blank outlet class are the whole scoping rule.** `scope.applies_to_outlet`
+	excludes a master that names a channel the party does not match, so a Customer matches only
+	those catalogues that name no channel and no class - which reads exactly right: a catalogue
+	scoped to General Trade is a shop catalogue, and a distributor is not a shop.
+
+	`customer` is set to the party itself, so `channel.resolve` reads this as a sale we make
+	rather than one the distributor makes, which is what a primary sale is.
+	"""
+	if (party_type or "Outlet") != "Customer":
+		return readable_outlet(party, user)
+
+	name = party if isinstance(party, str) else party.name
+	row = frappe.db.get_value(
+		"Customer", name,
+		["name", "customer_name", "territory", "default_price_list", "disabled"], as_dict=True)
+	if not row:
+		raise frappe.DoesNotExistError(frappe._("That party no longer exists."))
+	if row.disabled:
+		frappe.throw(frappe._("{0} is disabled, so nothing can be ordered on them.")
+		             .format(row.customer_name or name))
+
+	return frappe._dict(
+		doctype="Customer",
+		name=row.name,
+		outlet_name=row.customer_name or row.name,
+		territory=row.territory,
+		# Not "unset" but "does not exist for this kind of party" - see the scoping note above.
+		channel=None,
+		outlet_class=None,
+		# What we bill them from. `pricing.price_list_for` reads this first, which is right: a
+		# party's own list is the most specific thing anybody has said about what they pay.
+		price_list=row.default_price_list,
+		distributor=None,
+		customer=row.name,
+	)
 
 
 def readable_outlet(outlet, user: str | None = None):

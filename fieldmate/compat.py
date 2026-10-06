@@ -773,9 +773,30 @@ def make_sales_order(payload: dict) -> str:
 			"is_free_item": cint(line.get("is_free_item")),
 		})
 
-	doc.flags.ignore_permissions = True
-	doc.insert()
-	doc.submit()
+	# Posted by the server, as the server. The docstring above has always said this happens "on
+	# the rep's behalf"; until now it happened in the rep's own session, and did not work.
+	#
+	# `doc.flags.ignore_permissions` covers the Sales Order and nothing else. ERPNext checks
+	# permissions again *inside* validation: `set_missing_item_details` calls `get_item_details`,
+	# which calls `check_permission()` on the **Item** - a different document, with flags of its
+	# own that nothing here can reach. A Field Rep holds no read on Item, so submitting an order
+	# for a directly-billed outlet raised a bare `PermissionError` out of the framework. That is
+	# the failure this codebase keeps calling out by name: a framework error on a rep's screen,
+	# with nothing on it that names a cause or a remedy.
+	#
+	# `frappe.flags.ignore_permissions` does not help either - `frappe.permissions.has_permission`
+	# never consults it. Administrator is the only short-circuit it has, so the session is swapped
+	# for the posting and put back in a `finally`. The Sales Order's `owner` is then the server
+	# rather than the rep, which is the truth: the rep proposed it and the server committed it,
+	# and `fm_source_key` names the FieldMate Order that says who proposed it.
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		doc.flags.ignore_permissions = True
+		doc.insert()
+		doc.submit()
+	finally:
+		frappe.set_user(was)
 	return doc.name
 
 

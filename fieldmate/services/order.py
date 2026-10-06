@@ -42,7 +42,8 @@ BREACH_ROUTED = ("This shop is over its credit limit, so your order needs your m
 # --------------------------------------------------------------------------------------
 
 
-def estimate(outlet, lines, field_user: str | None = None, payment_term: str | None = None) -> dict:
+def estimate(outlet, lines, field_user: str | None = None, payment_term: str | None = None,
+             party_type: str | None = None) -> dict:
 	"""What this cart comes to, and what it does to the shop's credit. Creates no document.
 
 	The cart screen calls this on every quantity change, so it stays a read. The phone runs the
@@ -50,13 +51,13 @@ def estimate(outlet, lines, field_user: str | None = None, payment_term: str | N
 	has a signal — the two agreeing to the paise is what Gate 4 measures.
 	"""
 	field_user = field_user or field_user_service.for_user()
-	result = scheme_compile.evaluate_for(outlet, field_user, lines)
+	result = scheme_compile.evaluate_for(outlet, field_user, lines, party_type=party_type)
 
 	# Cash and UPI on delivery are settled at the door, so they consume no credit. Treating them
 	# as exposure blocks orders that were never a risk in the first place.
 	on_credit = (payment_term or "Credit") == "Credit"
 	result["credit"] = credit_service.check(
-		outlet, field_user, result["totals"]["net"] if on_credit else 0
+		outlet, field_user, result["totals"]["net"] if on_credit else 0, party_type
 	)
 	result["payment_term"] = payment_term or "Credit"
 	return result
@@ -74,8 +75,15 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 		frappe.throw("You are not set up as a field user yet. Ask your manager.")
 
 	data = dict(payload or {})
-	outlet = data.get("outlet")
-	if not outlet:
+	# A shop, or a party we bill ourselves. `party_type` is inferred rather than demanded, so
+	# that every build of the phone already in a pocket goes on sending `outlet` and goes on
+	# working; the controller settles the pair either way.
+	outlet, customer = data.get("outlet"), data.get("customer")
+	party_type = data.get("party_type") or ("Customer" if customer and not outlet else "Outlet")
+	if party_type == "Customer":
+		if not customer:
+			frappe.throw("A primary order needs a party.")
+	elif not outlet:
 		frappe.throw("An order needs a shop.")
 
 	# A push that already landed comes back as itself. The phone assigns identity and the server
@@ -94,7 +102,9 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 		frappe.throw("There is nothing in this order yet.")
 
 	doc = frappe.new_doc("FieldMate Order")
+	doc.party_type = party_type
 	doc.outlet = outlet
+	doc.customer = customer
 	doc.field_user = field_user
 	doc.order_date = data.get("order_date") or nowdate()
 	doc.visit = data.get("visit")
@@ -141,7 +151,9 @@ def price(doc, lines=None) -> dict:
 		# hand it over a second time.
 		if not cint(row.is_free_item)
 	]
-	result = scheme_compile.evaluate_for(doc.outlet, doc.field_user, source)
+	party = doc.customer if doc.party_type == "Customer" else doc.outlet
+	result = scheme_compile.evaluate_for(party, doc.field_user, source,
+	                                     party_type=doc.party_type)
 
 	doc.price_list = result.get("price_list")
 	channel = result.get("channel") or {}
@@ -156,7 +168,11 @@ def price(doc, lines=None) -> dict:
 	if channel and not channel.get("allowed", True):
 		frappe.throw(channel.get("reason") or frappe._("This order cannot be booked here."))
 
-	doc.distributor = doc.distributor or _distributor_for(doc.outlet)
+	# Who gets the bill, which `channel.resolve` has already decided: the shop's distributor on a
+	# retailer order, and the party itself on a primary one. `_distributor_for` stays as the
+	# fallback for an order assembled without a channel answer - a fixture, or a push from a
+	# build that predates this.
+	doc.distributor = doc.distributor or channel.get("party") or _distributor_for(doc.outlet)
 	doc.company = doc.company or channel.get("company")
 	doc.currency = doc.currency or frappe.db.get_value("Company", doc.company, "default_currency")
 
@@ -306,7 +322,9 @@ def _write_totals(doc, result: dict) -> None:
 
 def _write_credit(doc, result: dict) -> None:
 	on_credit = (doc.payment_term or "Credit") == "Credit"
-	position = credit_service.check(doc.outlet, doc.field_user, doc.net_total if on_credit else 0)
+	party = doc.customer if doc.party_type == "Customer" else doc.outlet
+	position = credit_service.check(party, doc.field_user,
+	                                doc.net_total if on_credit else 0, doc.party_type)
 
 	doc.credit_limit_at_order = flt(position.get("limit") or 0)
 	doc.outstanding_at_order = flt(position.get("outstanding") or 0)
@@ -399,7 +417,8 @@ def route(doc) -> None:
 		doc.db_set("order_status", "Pending Approval", update_modified=False)
 		return
 
-	seller = credit_service.we_are_the_seller(doc.outlet, doc.field_user)
+	party = doc.customer if doc.party_type == "Customer" else doc.outlet
+	seller = credit_service.we_are_the_seller(party, doc.field_user, doc.party_type)
 
 	if seller["routes_to_distributor"]:
 		# ADR-023. This is the whole of fulfilment in order booking: the distributor bills the

@@ -383,7 +383,7 @@ def to_bp(percent) -> int:
 # --------------------------------------------------------------------------------------
 
 
-def evaluate_for(outlet, field_user: str | None, lines) -> dict:
+def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None = None) -> dict:
 	"""What this cart actually comes to, computed on the server against server prices.
 
 	The phone works the same schemes out at the counter because the rep has to say a number out
@@ -394,8 +394,13 @@ def evaluate_for(outlet, field_user: str | None, lines) -> dict:
 	the order document, Desk, the reports a manager reads - works in rupees, and converting in
 	four places is how three of them end up rounding differently.
 	"""
-	cart = catalogue_service.cart_for(outlet, lines, field_user)
-	compiled = for_outlet(cart["outlet"], field_user, price_list=cart["price_list"])
+	cart = catalogue_service.cart_for(outlet, lines, field_user, party_type=party_type)
+	# Schemes are compiled against a shop. A primary order on a Customer gets none for now: the
+	# scopes that would pick a scheme for one are channel and outlet class, which a Customer does
+	# not have, and primary schemes are their own piece of work (step 8). Compiling against the
+	# party anyway would silently apply whichever scheme happened to be scoped to everywhere.
+	compiled = ({"specs": [], "skipped": []} if (party_type or "Outlet") == "Customer"
+	            else for_outlet(cart["outlet"], field_user, price_list=cart["price_list"]))
 
 	result = scheme_engine.evaluate({"outlet": cart["outlet"], "lines": cart["lines"]},
 	                                compiled["specs"])
