@@ -56,15 +56,37 @@ This also closes a Phase 1 naming gap: the plan asked for `order_kind` and Phase
    quietly made every primary order secondary. `kind` is the name now; `mode` stays as an alias
    because that dict is part of the catalogue payload and an un-updated phone reads it.
 
+### Both environment blockers are now cleared
+
+`india_compliance` 15.31.3 is installed on **testerp2 and fieldmate-test.local**, and
+`Stock Settings.enable_stock_reservation` is on (with `allow_partial_reservation`). A database
+backup was taken before each install. GST Settings: e-way bill on, API on, e-invoice off.
+
+Installing it broke things, which is the point of having done it before building on top:
+
+- **HSN/SAC is mandatory on a sales Item, and the length is checked** — six or eight digits by
+  default, so most of the 18,000 seeded rows (four-digit chapter headings) are not usable. Four
+  fixtures and the gate script created Items without one. `tests/base.hsn_code` / `with_hsn` now
+  answer `340111` (toilet soap, which is what these fixtures sell, and carries no taxes of its own
+  — an HSN that did would be copied onto every item by `set_taxes_from_hsn_code` and would
+  override what a tax test asserts).
+- **An Item Tax Template needs `gst_treatment` and `gst_rate`**, and a Taxable template with a
+  zero rate is refused. The rate is not inferred from the rows unless they use recognised
+  CGST/SGST/IGST accounts, and these fixtures build a plain tax account on purpose. Zero is now a
+  Nil-Rated template, which is how a real site records it.
+
+Suite 974 green on a site that **has** india_compliance, which it never was before — and that is
+exactly why the HSN problem stayed hidden until the gate ran on testerp2.
+
 ### Still open before step 2
 
-- **Business decisions:** advance %, when the balance is due relative to Holi, whether PDCs are
-  accepted, when the price locks. And the allocation rule when stock is short — advance first,
-  first booked, or pro rata.
-- **`india_compliance` is not installed on testerp2**, so the e-way bill half of the dispatch item
-  cannot be built or verified there.
-- **Stock reservation is switched off** (`Stock Settings.enable_stock_reservation = 0`). The whole
-  allocation item rests on it.
+- **Business decisions**, though not blocking the shape of the work: the Season doctype holds
+  advance %, price list and Payment Terms Template as fields, and the allocation page will preview
+  all three rules, so these are values to fill in rather than code to write.
+- **Company `test` has no GSTIN** and reads as Unregistered. An e-way bill needs a registered
+  GSTIN, so the dispatch item cannot be verified end to end until that is set.
+- Two items on testerp2 were given a fallback HSN that is certainly wrong for them —
+  `FM-SCHEME-CLAIM` and `test`, both stamped 340111. Correct them in the item master.
 
 ## The PWA test harness
 

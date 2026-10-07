@@ -7,14 +7,14 @@ from fieldmate.tests.test_outlet import OutletFixture
 class MasterFixture(OutletFixture):
 	def make_item(self):
 		code = self.uid("ITEM")
-		doc = frappe.get_doc({
+		doc = frappe.get_doc(self.with_hsn({
 			"doctype": "Item",
 			"item_code": code,
 			"item_name": code,
 			"item_group": frappe.db.get_value("Item Group", {"is_group": 0}, "name") or "All Item Groups",
 			"stock_uom": frappe.db.get_value("UOM", {}, "name") or "Nos",
 			"is_stock_item": 0,
-		}).insert(ignore_permissions=True)
+		})).insert(ignore_permissions=True)
 		self.track("Item", doc.name)
 		return doc.name
 

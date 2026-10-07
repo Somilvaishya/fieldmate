@@ -140,12 +140,26 @@ class TaxedCatalogueFixture(CatalogueFixture):
 			self.skipTest("no tax account in this company's chart of accounts")
 
 	def template_at(self, percent) -> str:
-		doc = frappe.get_doc({
+		data = {
 			"doctype": "Item Tax Template",
 			"title": self.uid("TAX"),
 			"company": self.company,
 			"taxes": [{"tax_type": self.tax_account, "tax_rate": percent}],
-		}).insert(ignore_permissions=True)
+		}
+		# india_compliance, where the site has it, adds its own two fields to this document and
+		# will not accept it without them: `gst_treatment` defaults to Taxable, and a Taxable
+		# template with a `gst_rate` of zero is refused outright. It cannot work the rate out
+		# from the rows either - that is read from the recognised CGST/SGST/IGST accounts, and
+		# this fixture builds its own plain tax account on purpose so that a test about *our*
+		# arithmetic does not depend on which GST accounts somebody's chart happens to hold.
+		#
+		# A nil-rated template is how a real site records an item it charges nothing on, so
+		# that is what zero means here rather than a Taxable template claiming zero.
+		if frappe.get_meta("Item Tax Template").has_field("gst_treatment"):
+			data["gst_treatment"] = "Taxable" if percent else "Nil-Rated"
+			data["gst_rate"] = percent
+
+		doc = frappe.get_doc(data).insert(ignore_permissions=True)
 		return self.track("Item Tax Template", doc.name)
 
 	def taxed_item(self, rate, percent) -> str:
@@ -192,6 +206,9 @@ class TestResolvingTheRate(TaxedCatalogueFixture):
 		self.make_item_price(item, 100)
 		template = frappe.get_doc({
 			"doctype": "Item Tax Template", "title": self.uid("SPLIT"),
+			# Same two fields as `template_at`, for the same reason.
+			**({"gst_treatment": "Taxable", "gst_rate": 18}
+			   if frappe.get_meta("Item Tax Template").has_field("gst_treatment") else {}),
 			"company": self.company,
 			"taxes": [{"tax_type": accounts[0], "tax_rate": 9},
 			          {"tax_type": accounts[1], "tax_rate": 9}],

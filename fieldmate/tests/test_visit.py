@@ -876,7 +876,7 @@ class TestMerchandisingAudit(VisitFixture):
 			"is_stock_item": 0,
 		}
 		data.update(kwargs)
-		doc = frappe.get_doc(data).insert(ignore_permissions=True)
+		doc = frappe.get_doc(self.with_hsn(data)).insert(ignore_permissions=True)
 		self.track("Item", doc.name)
 		return doc.name
 

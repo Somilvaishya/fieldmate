@@ -33,6 +33,26 @@ PREFIX = "P1"
 results = []
 
 
+def with_hsn(data: dict) -> dict:
+    """An HSN code on the gate's own item, where the site wants one.
+
+    india_compliance refuses a sales Item with no HSN/SAC and refuses one of the wrong length -
+    `GST Settings` accepts six or eight digits by default, so the four-digit chapter headings
+    that make up most of the seeded table are not usable. 340111 is toilet soap, which is what
+    this gate sells, and carries no taxes of its own.
+
+    This is the fixture's problem, not FieldMate's: the app writes no GST field of its own. The
+    mirror of `tests/base.with_hsn`, kept here because the gate runs as a standalone script.
+    """
+    if not frappe.get_meta("Item").has_field("gst_hsn_code") or data.get("gst_hsn_code"):
+        return data
+    for code in ("340111", "340119", "340290"):
+        if frappe.db.exists("GST HSN Code", code):
+            data["gst_hsn_code"] = code
+            break
+    return data
+
+
 def check(number, name, passed, detail=""):
     results.append((number, name, passed, detail))
     print(f"  [{'PASS' if passed else 'FAIL'}] {number}. {name}")
@@ -90,11 +110,11 @@ def build():
         "credit_limits": [{"company": company, "credit_limit": 1_000_000}],
     }).insert(ignore_permissions=True)
 
-    item = frappe.get_doc({
+    item = frappe.get_doc(with_hsn({
         "doctype": "Item", "item_code": uid("ITEM"), "item_name": "Gate soap",
         "item_group": frappe.db.get_value("Item Group", {"is_group": 0}, "name"),
         "stock_uom": "Nos", "is_stock_item": 1, "is_sales_item": 1,
-    }).insert(ignore_permissions=True)
+    })).insert(ignore_permissions=True)
     # 100 a piece on the PTR list, and an MRP of 120 so criterion 3 has something to breach.
     frappe.get_doc({
         "doctype": "Item Price", "item_code": item.name,

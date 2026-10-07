@@ -33,6 +33,50 @@ class FieldMateTestCase(FrappeTestCase):
 		frappe.cache().delete_value("fieldmate_settings")
 		return doc
 
+	def hsn_code(self) -> str | None:
+		"""An HSN code these fixtures' items will be accepted with, or None where none is needed.
+
+		india_compliance refuses a sales Item with no HSN/SAC, and refuses one of the wrong
+		length: `GST Settings` says which lengths are valid and on a default install that is six
+		or eight digits, so the four-digit chapter headings - which are most of the 18,000 seeded
+		rows - are **not** usable. A fixture that picked any row at all passed on a site without
+		the app and failed on the site the gates run against.
+
+		340111 is toilet soap, which is what these fixtures spend their time pretending to sell,
+		and it carries no taxes of its own - an HSN that did would be copied onto every item by
+		`set_taxes_from_hsn_code` and would quietly override what a tax test is asserting.
+
+		None on a site without india_compliance: FieldMate has no opinion about GST and does not
+		write this field itself.
+		"""
+		meta = frappe.get_meta("Item")
+		if not meta.has_field("gst_hsn_code"):
+			return None
+
+		for code in ("340111", "340119", "340290"):
+			if frappe.db.exists("GST HSN Code", code):
+				return code
+
+		# Any seeded row of a length this site accepts, rather than giving up. A site whose HSN
+		# table was loaded differently is still a site these tests should run on.
+		from india_compliance.gst_india.doctype.gst_hsn_code.gst_hsn_code import get_hsn_settings
+
+		_, lengths = get_hsn_settings()
+		for length in sorted(lengths):
+			row = frappe.db.sql(
+				"select name from `tabGST HSN Code` where length(name) = %s limit 1", length)
+			if row:
+				return row[0][0]
+		return None
+
+	def with_hsn(self, data: dict) -> dict:
+		"""Put an HSN on an Item payload where this site wants one. Harmless where it does not."""
+		if not data.get("gst_hsn_code"):
+			code = self.hsn_code()
+			if code:
+				data["gst_hsn_code"] = code
+		return data
+
 	def uid(self, prefix: str = "T") -> str:
 		return f"{prefix}-{frappe.generate_hash(length=10)}"
 

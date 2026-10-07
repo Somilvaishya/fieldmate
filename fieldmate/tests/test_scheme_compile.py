@@ -60,10 +60,10 @@ class SchemeFixture(MasterFixture):
 			"is_stock_item": 1,
 		}
 		data.update(kwargs)
-		# india_compliance, where the site has it, refuses an Item with no HSN code. FieldMate has
-		# no opinion about GST; the fixture only has to produce an item this site will accept.
-		if frappe.get_meta("Item").has_field("gst_hsn_code") and not data.get("gst_hsn_code"):
-			data["gst_hsn_code"] = frappe.db.get_value("GST HSN Code", {}, "name")
+		# This used to take any row from the HSN table, and most of those are four-digit chapter
+		# headings that india_compliance rejects as the wrong length. `with_hsn` picks one the
+		# site will actually accept - see `base.hsn_code`.
+		self.with_hsn(data)
 		for fieldname, value in self.site_required_fields("Item").items():
 			data.setdefault(fieldname, value)
 
