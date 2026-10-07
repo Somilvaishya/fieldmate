@@ -29,6 +29,7 @@ from fieldmate import compat
 from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import scheme_compile
+from fieldmate.services import season as season_service
 
 # What the rep is told when their own order needs a manager. Never an exception: a rep refused in
 # front of a shopkeeper stops booking in the app at all, and then we lose the data as well as the
@@ -174,6 +175,16 @@ def price(doc, lines=None) -> dict:
 	# build that predates this.
 	doc.distributor = doc.distributor or channel.get("party") or _distributor_for(doc.outlet)
 	doc.company = doc.company or channel.get("company")
+
+	# What kind of order this is, written onto the document. Derived here and nowhere else: the
+	# party decides Secondary or Primary, and a primary order dated inside an open season is a
+	# Booking of it (Phase 2). The field is read-only on the form for the same reason the totals
+	# are - a rep does not get to say what kind of sale they made.
+	#
+	# Recomputed on every pricing pass rather than set once at insert, because an order amended
+	# across a season's opening date would otherwise keep the kind it was created with.
+	doc.order_kind, doc.season = season_service.kind_for(
+		{**channel, "company": doc.company}, doc.order_date)
 	doc.currency = doc.currency or frappe.db.get_value("Company", doc.company, "default_currency")
 
 	if result.get("unpriced_items"):

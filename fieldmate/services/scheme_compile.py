@@ -409,7 +409,7 @@ def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None =
 	# on it.
 	compiled = for_outlet(cart["outlet"], field_user, price_list=cart["price_list"],
 	                      party_type=party_type,
-	                      kind=(cart.get("channel") or {}).get("mode"))
+	                      kind=(cart.get("channel") or {}).get("kind"))
 
 	result = scheme_engine.evaluate({"outlet": cart["outlet"], "lines": cart["lines"]},
 	                                compiled["specs"])

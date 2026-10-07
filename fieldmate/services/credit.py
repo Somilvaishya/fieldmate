@@ -48,8 +48,16 @@ def billing_party(outlet, field_user: str | None = None, party_type: str | None 
 	answer = channel_service.resolve(name, party_type or "Outlet", field_user)
 	return {
 		"outlet": answer["party"],
-		# What kind of sale this is, which is what `mode` was always reaching for. Secondary at a
-		# kirana, Primary at a shop we invoice ourselves.
+		# What kind of sale this is: Secondary at a kirana, Primary at a shop we invoice
+		# ourselves.
+		#
+		# Under **both** names, and that is the point. This dict reshapes `channel.resolve`'s
+		# answer and renamed `kind` to `mode` on the way through, so one value had two names
+		# depending on which side of this function you stood on. Phase 2 walked straight into it:
+		# `season.kind_for` read `kind`, got nothing, and quietly made every primary order
+		# secondary. `kind` is the name; `mode` stays because this dict is part of the catalogue
+		# payload and a phone that has not updated still reads it.
+		"kind": answer["kind"],
 		"mode": answer["kind"],
 		"party": answer["bill_to"],
 		"party_name": answer["bill_to_name"],
@@ -91,7 +99,7 @@ def we_are_the_seller(outlet, field_user: str | None = None,
 	the order path does about it.
 	"""
 	party = billing_party(outlet, field_user, party_type)
-	direct = party["mode"] == settings_service.PRIMARY
+	direct = party["kind"] == settings_service.PRIMARY
 
 	return {
 		**party,

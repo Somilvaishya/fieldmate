@@ -22,6 +22,12 @@ def execute():
 	if not frappe.db.has_column("FieldMate Scheme", "applies_to"):
 		return
 
+	# This guard finds nothing, and has always found nothing: `applies_to` carries a Select
+	# default and Frappe backfills every existing row with it when the column is added. The
+	# patch is correct only because the value it would write is the same as that default. The
+	# equivalent patch for `FieldMate Order.order_kind` wrote a *different* value and was
+	# silently a no-op - see `stamp_order_kind`. Left as it is because it is right by outcome;
+	# do not copy the shape.
 	frappe.db.sql("""
 		update `tabFieldMate Scheme`
 		set applies_to = 'Secondary'

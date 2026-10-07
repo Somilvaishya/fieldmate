@@ -91,7 +91,9 @@ class TestBillingParty(CreditFixture):
 		outlet = self.make_outlet()
 		party = credit_service.billing_party(outlet.name, self.rep.name)
 		self.assertEqual(party["party"], outlet.distributor)
-		self.assertEqual(party["mode"], settings_service.ORDER_BOOKING)
+		self.assertEqual(party["kind"], settings_service.ORDER_BOOKING)
+		self.assertEqual(party["mode"], party["kind"],
+		                 "the old name, kept for a phone that has not updated")
 		self.assertEqual(party["company"], self.company)
 	def test_the_outlet_document_asks_the_same_question(self):
 		"""The controller delegates, so there is one branch and not two that drift apart."""

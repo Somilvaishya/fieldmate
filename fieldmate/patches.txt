@@ -12,3 +12,6 @@ fieldmate.patches.carry_distributor_profile_to_customer
 fieldmate.patches.stamp_order_party_type
 # Phase 1, step 8. Every scheme written before `applies_to` existed is a retailer scheme.
 fieldmate.patches.stamp_scheme_applies_to
+# Phase 2, step 1. Every order written before `order_kind` existed is secondary or primary by
+# its party; no season exists yet, so none of them can be a booking.
+fieldmate.patches.stamp_order_kind
