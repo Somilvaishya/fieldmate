@@ -3,6 +3,7 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt, getdate
 
 from fieldmate.services import scope
+from fieldmate.services import settings as settings_service
 from fieldmate.services.visit import is_on_beat
 
 # Each kind of benefit is granted through exactly one column, and the engine reads only that one.
@@ -344,7 +345,12 @@ class FieldMateScheme(Document):
 		behind, which is precisely the window a deploy opens.
 		"""
 		mine = self.get("applies_to") or "Secondary"
-		return mine == "Both" or mine == (kind or "Secondary")
+		# A booking is a primary sale, so a scheme written for Primary covers it. `applies_to`
+		# deliberately does NOT grow a Booking option: a scheme that should run only during a
+		# season says so with its own validity dates, which it already has, rather than with a
+		# third scope nobody can tell apart from the second.
+		asked = "Primary" if kind == settings_service.BOOKING else (kind or "Secondary")
+		return mine == "Both" or mine == asked
 
 	def covers_outlet(self, outlet) -> bool:
 		"""Whether this scheme's scope reaches a particular shop.

@@ -47,6 +47,12 @@ class FieldMateOrder(Document):
 		self.settle_the_party()
 		if self.items:
 			order_service.price(self)
+		# After the repricing, because `price` is what decides this is a booking at all. An
+		# amendment arriving after the season's change cutoff is refused here rather than in the
+		# service, for the reason the repricing is: an order amended through the offline sync
+		# push never passes through a service.
+		if not self.is_new():
+			order_service.assert_may_amend(self)
 
 	def settle_the_party(self):
 		"""Exactly one party, and `party_type` agreeing with it.
@@ -78,6 +84,11 @@ class FieldMateOrder(Document):
 		"""Hand the order to whoever actually fulfils it. See ADR-023."""
 		from fieldmate.services import order as order_service
 
+		# Before routing, so that whatever the order becomes downstream is built on rates that
+		# have stopped moving. A booking taken in November is delivered in February off a season
+		# list that will have been corrected twice by then, and the party is owed the November
+		# price it was read out.
+		order_service.lock_rates(self)
 		order_service.route(self)
 
 	def on_cancel(self):

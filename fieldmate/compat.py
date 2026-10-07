@@ -738,7 +738,10 @@ def make_sales_order(payload: dict) -> str:
 	doc.transaction_date = payload.get("transaction_date") or nowdate()
 	doc.delivery_date = payload.get("delivery_date") or doc.transaction_date
 	doc.order_type = payload.get("order_type") or "Sales"
-	for field in ("currency", "selling_price_list", "po_no", "set_warehouse", "taxes_and_charges"):
+	# `payment_terms_template` is here for a season booking: ERPNext builds the Sales Order's
+	# payment schedule from it, which is where an advance and a balance due date come from.
+	for field in ("currency", "selling_price_list", "po_no", "set_warehouse", "taxes_and_charges",
+	              "payment_terms_template"):
 		if payload.get(field):
 			doc.set(field, payload[field])
 

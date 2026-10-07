@@ -20,6 +20,26 @@ from frappe.utils import cint
 # settings below say which kinds this site is allowed to make at all.
 SECONDARY = "Secondary"
 PRIMARY = "Primary"
+# BOOKING   - a primary order dated inside an open season (Phase 2). It is a primary sale in
+#             every way that matters - we bill it, it posts a Sales Order, the same switch
+#             governs it - and it is a separate word only because the season changes the price
+#             list, the delivery dates and when the rates stop moving.
+#
+#             Defined here with the other two on purpose. It lived in `services/season` for one
+#             afternoon, and in that time `we_are_the_seller` compared `kind == PRIMARY` and
+#             quietly stopped posting a Sales Order for every booking: a string equality where
+#             the question was "is this ours to bill". Ask `is_primary`, never `== PRIMARY`.
+BOOKING = "Booking"
+
+
+def is_primary(kind: str | None) -> bool:
+	"""Is this a sale WE bill - as opposed to the distributor's own sale to a shop?
+
+	True for a plain primary order and for a season booking. Everything that follows from being
+	the seller follows for both: the credit limit measured is the party's, a Sales Order is
+	posted, and our books see the sale.
+	"""
+	return kind in (PRIMARY, BOOKING)
 
 # Kept for the one caller that still reads it. `resolve_sales_mode` goes when `channel.resolve`
 # lands and every caller asks about a party instead of about the company.
@@ -99,7 +119,10 @@ def allows(kind: str) -> bool:
 	Asked before an order is priced, not after it is built. A rep who cannot book a primary order
 	should be told at the party, not at the till.
 	"""
-	return kind in enabled_modes()
+	# A booking is a primary sale, so `enable_primary_sales` is the switch that governs it.
+	# There is no third switch and there should not be one: a company either sells to its
+	# distributors or it does not, and a season does not change that.
+	return (PRIMARY if kind == BOOKING else kind) in enabled_modes()
 
 
 def resolve_sales_mode(field_user: str | None = None) -> str:

@@ -4,7 +4,7 @@
  "field_order": ["item_code", "item_name", "item_group", "brand",
                  "qty_display", "display_uom", "uom", "conversion_factor", "qty", "stock_uom",
                  "price_list_rate", "rate", "gross_amount", "discount_percentage", "discount_amount",
-                 "amount", "net_rate", "is_free_item", "scheme", "scheme_name",
+                 "amount", "net_rate", "delivery_date", "is_free_item", "scheme", "scheme_name",
                  "has_order_history", "last_ordered_qty", "last_ordered_on", "notes"],
  "fields": [
   {"fieldname": "item_code", "fieldtype": "Link", "label": "Item", "options": "Item", "reqd": 1, "in_list_view": 1, "columns": 2},
@@ -38,6 +38,7 @@
   {"fieldname": "net_rate", "fieldtype": "Currency", "label": "Net Rate", "read_only": 1,
    "description": "What the shop effectively pays per base unit. This is the one figure a shopkeeper checks against his last bill."},
 
+  {"fieldname": "delivery_date", "fieldtype": "Date", "label": "Deliver On", "in_list_view": 1, "columns": 1, "description": "When this line is wanted. Only a booking fills it in - the whole point of booking a season is that different lines land in different weeks - and it must fall inside the season's delivery window. Carried onto the Sales Order line, so ERPNext plans and reserves against the date the party actually asked for."},
   {"fieldname": "is_free_item", "fieldtype": "Check", "label": "Free", "read_only": 1,
    "description": "Billed at zero under a scheme. A free line never re-enters a scheme basis, because a free case that helps the cart cross the next slab is a scheme funding its own escalation."},
   {"fieldname": "scheme", "fieldtype": "Link", "label": "Scheme", "options": "FieldMate Scheme", "read_only": 1,

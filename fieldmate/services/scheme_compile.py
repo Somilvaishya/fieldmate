@@ -389,7 +389,8 @@ def to_bp(percent) -> int:
 # --------------------------------------------------------------------------------------
 
 
-def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None = None) -> dict:
+def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None = None,
+                 price_list: str | None = None, on=None) -> dict:
 	"""What this cart actually comes to, computed on the server against server prices.
 
 	The phone works the same schemes out at the counter because the rep has to say a number out
@@ -400,7 +401,8 @@ def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None =
 	the order document, Desk, the reports a manager reads - works in rupees, and converting in
 	four places is how three of them end up rounding differently.
 	"""
-	cart = catalogue_service.cart_for(outlet, lines, field_user, party_type=party_type)
+	cart = catalogue_service.cart_for(outlet, lines, field_user, price_list=price_list,
+	                                  party_type=party_type, on=on)
 	# Schemes for the kind of sale this is. Step 5c compiled none at all for a primary order,
 	# because a scheme scoped to everywhere would have fired on one silently; `applies_to` is
 	# what makes it safe to compile them now.

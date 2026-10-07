@@ -14,9 +14,9 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 started — step 1 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 and 2 of 11 done.**
 
-- 974 Python tests green, ruff clean
+- 993 Python tests green, ruff clean
 - 31 PWA tests green — **new, see below**
 - Branch `fix/phase-3-field-findings`
 
@@ -27,6 +27,38 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 2 — a booking priced from its season, and the rate stops moving
+
+`delivery_date` per order line, validated against the season's delivery window and defaulting to
+its first delivery day. `rates_locked_on` on the order. A booking is priced from the season's
+price list, posts one Sales Order carrying each line's own delivery date, and names the season's
+Payment Terms Template so ERPNext builds the payment schedule from it. Amending after the change
+cutoff is refused.
+
+The order date now reaches the pricing chain — `channel.resolve`, `credit.billing_party`,
+`catalogue.cart_for`, `scheme_compile.evaluate_for` all take `on` — because which season an order
+books into, and therefore which list it is priced from, is a question about the order's date and
+not about today.
+
+**What it cost, and the two that were already there:**
+
+1. **Pinning the price list is not pinning the rate.** The first version passed the locked list
+   back into the pricing pass. The list is corrected between November and February, so the party
+   was handed February's rate for an order read out in November. A submitted booking is not
+   repriced at all now.
+2. **`we_are_the_seller` compared `kind == PRIMARY`** and a booking's kind is "Booking", so no
+   booking posted a Sales Order. The kinds live together in `settings` now and the question is
+   asked with `settings.is_primary`, never a string equality. Same shape as the `kind`/`mode`
+   trap in step 1.
+3. **`channel._from_outlet` never passed `field_user` to `pricing.price_list_for`** — so this
+   module answered a different price list from the catalogue for any rep who had one of their
+   own. Latent until `cart_for` started trusting the channel's answer, and contradicted the
+   comment on `resolve_price_list` saying the two cannot drift.
+4. **A submitted Sales Order survives a test rollback.** Submitting commits, so the Sales Order
+   outlives the FieldMate Order that keyed it, the naming counter hands the next run the same
+   order name, and it collides on the unique `fm_source_key`. One orphan was cleaned off the test
+   site by hand. This is the "test teardowns" carry-over the plan lists, meeting us in person.
 
 ## Phase 2, step 1 — a season, and what makes an order a booking
 
@@ -174,10 +206,10 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 2: a booking priced from the season's list with the rate locked at submit, a
-delivery date per line, and one Sales Order carrying both and the payment schedule from the
-season's Payment Terms Template. Blocked on the business decisions above for its defaults, not
-for its shape.
+Phase 2, step 3: the advance and the post-dated cheque. A booking is released only once the
+season's `advance_pct` has been collected against it; a PDC is a FieldMate Collection with mode
+Cheque and a future `instrument_date`, linked to the order — which means FieldMate Collection
+needs a link to the order it pays, the one field it is missing.
 
 Then, in no fixed order: the rest of the PWA harness where it is thinnest (the cart and review
 screens, and the scheme engine's JS half against the Python parity corpus), and the three

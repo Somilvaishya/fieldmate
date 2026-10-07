@@ -27,7 +27,8 @@ BREACH = "Breach"
 NO_LIMIT_SET = "No Limit Set"
 
 
-def billing_party(outlet, field_user: str | None = None, party_type: str | None = None) -> dict:
+def billing_party(outlet, field_user: str | None = None, party_type: str | None = None,
+                  on=None) -> dict:
 	"""Who the money is owed by for a sale at this shop.
 
 	Delegates to `channel.resolve`, which is the one function that decides what kind of sale this
@@ -45,7 +46,9 @@ def billing_party(outlet, field_user: str | None = None, party_type: str | None 
 		name = outlet if isinstance(outlet, str) else outlet.name
 	else:
 		name = _outlet(outlet).name
-	answer = channel_service.resolve(name, party_type or "Outlet", field_user)
+	# `on` is the order date. It only matters for a primary sale - it decides which season, if
+	# any, the order books into and therefore which list it is priced from.
+	answer = channel_service.resolve(name, party_type or "Outlet", field_user, on=on)
 	return {
 		"outlet": answer["party"],
 		# What kind of sale this is: Secondary at a kirana, Primary at a shop we invoice
@@ -59,6 +62,13 @@ def billing_party(outlet, field_user: str | None = None, party_type: str | None 
 		# payload and a phone that has not updated still reads it.
 		"kind": answer["kind"],
 		"mode": answer["kind"],
+		# Empty unless this is a booking. Carried rather than re-derived downstream: the date
+		# that decided it is here and is not necessarily today.
+		"season": answer.get("season"),
+		# The list this party buys on, which for a booking is its season's rather than its own.
+		# Carried because `cart_for` has to settle the list before it prices a single line, and
+		# re-deriving it there would be a second answer to a question already answered here.
+		"price_list": answer.get("price_list"),
 		"party": answer["bill_to"],
 		"party_name": answer["bill_to_name"],
 		"company": answer["company"],
@@ -99,7 +109,9 @@ def we_are_the_seller(outlet, field_user: str | None = None,
 	the order path does about it.
 	"""
 	party = billing_party(outlet, field_user, party_type)
-	direct = party["kind"] == settings_service.PRIMARY
+	# `is_primary`, not `== PRIMARY`: a season booking is a primary sale under a different word,
+	# and comparing the string stopped every booking from posting a Sales Order.
+	direct = settings_service.is_primary(party["kind"])
 
 	return {
 		**party,

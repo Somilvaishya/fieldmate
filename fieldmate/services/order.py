@@ -137,6 +137,19 @@ def price(doc, lines=None) -> dict:
 	inserts the document directly. Without the controller path, a day of orders captured in a
 	village would land with every total at zero. That exact bug shipped once on Day End.
 	"""
+	# A booking that has been submitted is not repriced, at all.
+	#
+	# Pinning the price *list* was not enough and is the wrong idea: the list is corrected between
+	# November and February, so re-pricing off the same list hands the party February's rate for
+	# an order they were read out in November. A commitment is a commitment - the figures on it
+	# were settled when it was submitted, and `rates_locked_on` is the record of that.
+	#
+	# This is also why the controller can go on calling `price` from `validate` without a special
+	# case: cancelling or amending a booking re-validates it, and re-validating must not quietly
+	# rewrite what the party agreed to.
+	if doc.rates_locked_on:
+		return {}
+
 	# Read what the rep actually entered - a count of cases against the UOM they chose - and let
 	# `cart_for` convert it to base units. Reading `qty` instead would be reading a column the
 	# server fills, which is empty on the way in and silently dropped the whole line.
@@ -145,6 +158,9 @@ def price(doc, lines=None) -> dict:
 			"item": row.item_code,
 			"qty": flt(row.qty_display) or flt(row.qty),
 			"uom": row.display_uom or row.uom,
+			# Carried, or a booking loses when each line was wanted every time it is repriced -
+			# and the controller reprices on every save.
+			"delivery_date": row.delivery_date,
 		}
 		for row in (doc.items or [])
 		# Free goods are the engine's to grant, never an input. A line arriving already flagged
@@ -153,8 +169,14 @@ def price(doc, lines=None) -> dict:
 		if not cint(row.is_free_item)
 	]
 	party = doc.customer if doc.party_type == "Customer" else doc.outlet
-	result = scheme_compile.evaluate_for(party, doc.field_user, source,
-	                                     party_type=doc.party_type)
+	# The order date, not today, and the list this order was locked at if it has one.
+	#
+	# A season is booked months before it is delivered, so by delivery the season's price list
+	# will have moved - and a party that booked in November is owed November's price. Once a
+	# booking is submitted its list is pinned, so a later pricing pass re-states the same cart at
+	# the same rates instead of quietly repricing a commitment.
+	result = scheme_compile.evaluate_for(
+		party, doc.field_user, source, party_type=doc.party_type, on=doc.order_date)
 
 	doc.price_list = result.get("price_list")
 	channel = result.get("channel") or {}
@@ -185,6 +207,7 @@ def price(doc, lines=None) -> dict:
 	# across a season's opening date would otherwise keep the kind it was created with.
 	doc.order_kind, doc.season = season_service.kind_for(
 		{**channel, "company": doc.company}, doc.order_date)
+
 	doc.currency = doc.currency or frappe.db.get_value("Company", doc.company, "default_currency")
 
 	if result.get("unpriced_items"):
@@ -206,6 +229,11 @@ def price(doc, lines=None) -> dict:
 		)
 
 	_write_items(doc, result, source)
+	# After the lines exist, not before: `_write_items` rebuilds them from the engine's answer,
+	# so anything written on a row ahead of it is thrown away. Only a booking carries a date,
+	# and it has to fall inside the season's delivery window - a date outside it is a promise
+	# the company has not made.
+	check_delivery_dates(doc)
 	_write_schemes(doc, result)
 	_write_totals(doc, result)
 	_write_credit(doc, result)
@@ -213,6 +241,15 @@ def price(doc, lines=None) -> dict:
 
 
 def _write_items(doc, result: dict, source: list | None = None) -> None:
+	# When each line was asked for, kept from what came in. The engine answers quantities and
+	# rates and has no opinion about dates (ADR-021), so this is the only place the rep's own
+	# answer survives the rebuild.
+	wanted = {
+		(line.get("item") or line.get("item_code")): line.get("delivery_date")
+		for line in (source or [])
+		if (line.get("item") or line.get("item_code")) and line.get("delivery_date")
+	}
+
 	doc.set("items", [])
 	for line in result.get("lines") or []:
 		row = doc.append("items", {})
@@ -230,6 +267,7 @@ def _write_items(doc, result: dict, source: list | None = None) -> None:
 		row.rate = scheme_compile.in_rupees(line["rate_paise"])
 		row.price_list_rate = scheme_compile.in_rupees(line.get("price_list_paise") or line["rate_paise"])
 		row.amount = scheme_compile.in_rupees(line["qty"] * line["rate_paise"])
+		row.delivery_date = wanted.get(line["item"])
 		row.is_free_item = 0
 
 	# A line the rep set to zero is kept, though the engine dropped it. "Asked and declined" and
@@ -468,6 +506,71 @@ def roll_up_to_visit(doc) -> None:
 	}, update_modified=False)
 
 
+def check_delivery_dates(doc) -> None:
+	"""A booking line is delivered inside its season's window, or not promised at all.
+
+	Blank is allowed and means the season's first delivery day: most lines of most bookings are
+	wanted as early as they can be had, and making a rep type the same date on forty lines is how
+	a form stops being filled in honestly.
+
+	An ordinary order has no window to be inside, so its lines are left alone.
+	"""
+	if doc.order_kind != season_service.BOOKING or not doc.season:
+		return
+
+	opens, closes = season_service.delivery_window(doc.season)
+	if not opens:
+		return
+
+	for row in doc.items or []:
+		if not row.delivery_date:
+			row.delivery_date = opens
+			continue
+		if not (getdate(opens) <= getdate(row.delivery_date) <= getdate(closes)):
+			frappe.throw(frappe._(
+				"{0} is wanted on {1}, which is outside this season's delivery window "
+				"({2} to {3})."
+			).format(row.item_code, frappe.utils.formatdate(row.delivery_date),
+			         frappe.utils.formatdate(opens), frappe.utils.formatdate(closes)))
+
+
+def lock_rates(doc) -> None:
+	"""Stop repricing this booking. Called once, when it is submitted.
+
+	The rates are already on the lines; this records that they are now final, and `price` reads
+	it to decide whether to look the list up again. Nothing is copied or recomputed here - a
+	lock that recomputed would be the thing it is meant to prevent.
+	"""
+	if doc.order_kind != season_service.BOOKING or doc.rates_locked_on:
+		return
+	doc.db_set("rates_locked_on", now_datetime(), update_modified=False)
+
+
+def assert_may_amend(doc) -> None:
+	"""A booking stops moving at its season's change cutoff.
+
+	The commercial point of a season is that the company can plan against the book, so after the
+	cutoff the book is what it is. Checked on amend rather than on every save: the order has to
+	be allowed to reach a final state on the day it is taken.
+	"""
+	if doc.order_kind != season_service.BOOKING or not doc.season:
+		return
+	allowed, why = season_service.may_amend(doc.season)
+	if not allowed:
+		frappe.throw(why)
+
+
+def _earliest_delivery(doc):
+	"""The header delivery date: the soonest any line is wanted, falling back to the order's own.
+
+	ERPNext refuses a Sales Order whose header date is later than a line's, and a booking is
+	exactly the document where the lines differ.
+	"""
+	dates = [getdate(r.delivery_date) for r in (doc.items or []) if r.delivery_date]
+	fallback = getdate(doc.expected_delivery_date or doc.order_date)
+	return min([*dates, fallback]) if dates else fallback
+
+
 def _raise_sales_order(doc, seller: dict) -> None:
 	"""The one path where an ERPNext document is correct: we are billing the shop ourselves."""
 	if doc.sales_order:
@@ -476,15 +579,25 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		"customer": seller["party"],
 		"company": doc.company,
 		"transaction_date": getdate(doc.order_date),
-		"delivery_date": doc.expected_delivery_date or getdate(doc.order_date),
+		# The order's own date is the earliest its lines ask for, so ERPNext's header date does
+		# not sit after a line that is wanted sooner.
+		"delivery_date": _earliest_delivery(doc),
 		"currency": doc.currency,
 		"selling_price_list": doc.price_list,
 		# `compat.make_sales_order` reads this as `key` and refuses without it. Sending it under
 		# the name of the column it eventually lands in meant every directly-billed order threw
 		# "A Sales Order cannot be posted without an idempotency key" and none ever posted.
 		"key": doc.name,
+		# A season's payment terms, which ERPNext turns into the Sales Order's own payment
+		# schedule. Named rather than copied: the schedule finance maintains is the one on the
+		# template, and a second copy of it here is a second thing to keep in step.
+		"payment_terms_template": season_service.payment_terms(doc.season),
 		"items": [
-			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate}
+			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate,
+			 # Per line, because that is the whole point of booking a season: a party asks for
+			 # part of its order in January and the rest in February, and ERPNext plans and
+			 # reserves against the date it was actually asked for.
+			 "delivery_date": row.delivery_date}
 			for row in (doc.items or [])
 		] + [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom,

@@ -362,7 +362,7 @@ def prices_for(outlet, lines, field_user: str | None = None,
 
 
 def cart_for(outlet, lines, field_user: str | None = None, price_list: str | None = None,
-             party_type: str | None = None) -> dict:
+             party_type: str | None = None, on=None) -> dict:
 	"""A rep's cart restated as the scheme engine's input: base units and integer paise.
 
 	The engine is a pure function and reads no price, no UOM and no clock (ADR-021), so this is
@@ -375,9 +375,12 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 	to a shopkeeper. Throwing here is the only outcome that ends with somebody fixing the price.
 	"""
 	doc = readable_party(outlet, party_type)
-	price_list = price_list or resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	channel = credit_service.billing_party(doc, field_user, party_type)
+	channel = credit_service.billing_party(doc, field_user, party_type, on=on)
+	# A booking is priced from its season's list, and that answer is already in `channel` - it
+	# has to be, because the list has to be settled before a single line is priced. A caller that
+	# named a list still wins: `order.price` passes the one a submitted booking was locked at.
+	price_list = price_list or channel.get("price_list") or resolve_price_list(doc, field_user)
 	party = channel["party"]
 
 	wanted = {}

@@ -22,7 +22,9 @@ from frappe.utils import getdate, nowdate
 
 from fieldmate.services import settings as settings_service
 
-BOOKING = "Booking"
+# Defined with the other kinds of sale, not here. Re-exported so the callers that think in
+# seasons do not have to reach past this module for it.
+BOOKING = settings_service.BOOKING
 
 
 def open_for(company: str | None, on=None) -> str | None:
@@ -61,15 +63,45 @@ def open_for(company: str | None, on=None) -> str | None:
 def kind_for(resolved: dict, on=None) -> tuple[str, str | None]:
 	"""The order kind and the season behind it, from an answer `channel.resolve` already gave.
 
-	Returns `(kind, season)`. A secondary sale is never a booking: the distributor's own sale to
-	a kirana is not something we book a season against, whatever month it falls in.
+	`resolve` composes this itself now, because the price list depends on the answer and the
+	price list has to be settled before a single line is priced. This stays for a caller holding
+	a bare resolve answer - and it is idempotent, so calling it on one `resolve` has already
+	decided changes nothing.
+
+	A secondary sale is never a booking: the distributor's own sale to a kirana is not something
+	we book a season against, whatever month it falls in.
 	"""
-	kind = (resolved or {}).get("kind")
+	resolved = resolved or {}
+	kind = resolved.get("kind")
+	if kind == BOOKING:
+		return BOOKING, resolved.get("season")
 	if kind != settings_service.PRIMARY:
 		return kind or settings_service.SECONDARY, None
 
-	season = open_for((resolved or {}).get("company"), on)
+	season = open_for(resolved.get("company"), on)
 	return (BOOKING, season) if season else (settings_service.PRIMARY, None)
+
+
+def price_list(season: str | None) -> str | None:
+	"""What a booking of `season` is priced at.
+
+	A season's list, not the party's. A party that books Holi in November is buying at the
+	season's terms, and those are the same for everyone booking it - that is what a season price
+	list is for. The party's own list goes back to governing its ordinary primary orders the day
+	the book shuts.
+	"""
+	return frappe.get_cached_value("FieldMate Season", season, "price_list") if season else None
+
+
+def payment_terms(season: str | None) -> str | None:
+	"""The Payment Terms Template a booking of `season` is sold on, if one is set.
+
+	ERPNext's own document, named on the Sales Order so ERPNext builds the payment schedule from
+	it. Blank is a real answer - a season sold on plain terms has none - and the Sales Order then
+	carries whatever the customer's own terms say, which is the right fallback.
+	"""
+	return (frappe.get_cached_value("FieldMate Season", season, "payment_terms_template")
+	        if season else None)
 
 
 def may_amend(season: str | None, on=None) -> tuple[bool, str]:
