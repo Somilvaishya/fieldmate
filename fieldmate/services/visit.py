@@ -34,6 +34,18 @@ SHOP_NOT_OPEN = ("Outlet Closed", "Owner Absent")
 # --------------------------------------------------------------------------- geo
 
 
+class OpenVisitError(frappe.ValidationError):
+	"""A check-in refused because the rep has not checked out of the last shop.
+
+	Carries the open visit so the screen can offer the one thing that fixes it - a link back to
+	that shop - rather than only naming it.
+	"""
+
+	def __init__(self, message, visit=None):
+		super().__init__(message)
+		self.visit = visit or {}
+
+
 def geo_check(outlet_doc, latitude, longitude) -> dict:
 	"""How far the check-in was from the shop, and whether that is outside its fence.
 
@@ -218,10 +230,29 @@ def check_in(field_user: str, payload: dict) -> dict:
 	if not day:
 		frappe.throw(frappe._("Start your day before visiting a shop."))
 
-	# An open visit elsewhere is closed rather than refused: a rep who walked out without
-	# checking out must not be stuck outside the next shop.
+	# An open visit elsewhere. This used to be closed, always and silently: one tap from the shop
+	# list ended the visit the rep was standing in, stamped it "No Order" and short, and told
+	# nobody. A rep could walk down a row of shops leaving a trail of empty visits that count
+	# towards coverage. Checking out is the way a visit ends.
+	#
+	# It is refused rather than closed, but only for a check-in happening now. A visit created
+	# offline already happened - the rep was in that shop - and refusing it when the queue lands
+	# would delete real work, so those still close the stale one. `close_open_visit` is the
+	# deliberate override, sent after the rep has been told on screen what it does.
 	previous = open_visit(field_user)
 	if previous:
+		# Only another shop. Checking in again at the shop they are already in is a rep
+		# re-opening the app or retrying a push, not walking off mid-visit.
+		elsewhere = previous["outlet"] != outlet_name
+		live = not cint(payload.get("created_offline"))
+		if elsewhere and live and not cint(payload.get("close_open_visit")):
+			shop = frappe.db.get_value("FieldMate Outlet", previous["outlet"],
+			                           "outlet_name") or previous["outlet"]
+			raise OpenVisitError(
+				frappe._("You are still checked in at {0}. Check out from there first.")
+				.format(shop),
+				visit={**previous, "outlet_name": shop},
+			)
 		auto_close(previous["visit"])
 
 	outlet = frappe.get_doc("FieldMate Outlet", outlet_name)
@@ -475,7 +506,13 @@ def auto_close(visit: str) -> None:
 		0, round(time_diff_in_seconds(end, get_datetime(doc.check_in_time)) / 60.0)
 	)
 	doc.is_short_visit = 1
-	doc.visit_outcome = doc.visit_outcome or "No Order"
+	# Read from what the visit produced, not from what is on the field. `visit_outcome` is a
+	# Select with options and no default, so it holds its first option - "Order Taken" - from the
+	# moment the visit is inserted. `doc.visit_outcome or "No Order"` therefore never fired, and
+	# every visit closed this way was recorded as a sale that was never made. `day_counts` counts
+	# exactly that string as a productive visit, so a rep walking a row of shops without checking
+	# out inflated their own productivity figure.
+	doc.visit_outcome = "Order Taken" if took_an_order(doc) else "No Order"
 	doc.remarks = ((doc.remarks or "") + "\n"
 	               + frappe._("Closed automatically when the next visit began.")).strip()
 	if doc.visit_outcome != "Order Taken" and not doc.no_order_reason:
@@ -484,6 +521,13 @@ def auto_close(visit: str) -> None:
 	if doc.docstatus == 0:
 		doc.flags.ignore_permissions = True
 		doc.submit()
+
+
+def took_an_order(doc) -> bool:
+	"""Did this visit actually book something? Read from the orders, not from the visit."""
+	if not frappe.db.table_exists("FieldMate Order"):
+		return False
+	return bool(frappe.db.exists("FieldMate Order", {"visit": doc.name, "docstatus": 1}))
 
 
 def default_no_order_reason() -> str | None:

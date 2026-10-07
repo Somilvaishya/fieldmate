@@ -35,6 +35,23 @@ const note = ref('')
 const dayKnown = computed(() => dayStore.loaded.value)
 const dayOpen = computed(() => !!dayStore.openDay.value)
 
+/**
+ * The shop the rep has not checked out of, if it is not this one.
+ *
+ * Checked up here with the day rather than on the tap, for the reason above: a live button that
+ * refuses reads as a broken app. Checking out is how a visit ends, so this screen leads with the
+ * way back to that shop and keeps checking in here behind a second, deliberate tap.
+ */
+const openElsewhere = computed(() => {
+  const open = visitStore.activeVisit.value
+  if (!open) return null
+  return open.outlet === route.params.name ? null : open
+})
+
+// Two taps, never one. Closing the other visit stamps it "No Order" and short, and a visit
+// ended that way is one the rep cannot go back and fill in.
+const closing = ref(false)
+
 const distance = computed(() => {
   if (!fix.value || !outlet.value?.latitude || !outlet.value?.longitude) return null
   return Math.round(haversineM(
@@ -80,18 +97,31 @@ async function locate() {
   }
 }
 
-async function begin() {
+function backToOpenVisit() {
+  router.replace({ name: 'visit', params: { uuid: openElsewhere.value.clientUuid } })
+}
+
+async function begin({ closeOpen = false } = {}) {
   error.value = ''
   if (!dayOpen.value) return router.push('/day/start')
+  if (openElsewhere.value && !closeOpen) return backToOpenVisit()
   busy.value = true
   try {
     const visit = await visitStore.checkIn(outlet.value, {
       fix: fix.value || {},
       deviationNote: note.value || null,
+      closeOpen,
     })
     router.replace({ name: 'visit', params: { uuid: visit.clientUuid } })
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not check in. Try again.'
+    // The server refuses this one too, and says which shop. Its sentence is better than ours
+    // because it read the shop master; ours is what shows when there was no signal to ask.
+    if (e instanceof visitStore.OpenVisitError || e?.code === 'VISIT_OPEN_ELSEWHERE') {
+      error.value = e.message
+      closing.value = true
+    } else {
+      error.value = e instanceof ApiError ? e.message : 'Could not check in. Try again.'
+    }
   } finally {
     busy.value = false
   }
@@ -151,17 +181,47 @@ async function begin() {
         <Icon name="alert" />
         <span>Your day has not started yet. Start it and this shop will be waiting.</span>
       </p>
+      <!-- The shop behind them. Named before they touch anything, with the way back to it. -->
+      <p v-if="openElsewhere" class="notice">
+        <Icon name="alert" />
+        <span>
+          You are still checked in at <b>{{ openElsewhere.outletName }}</b>. Check out from
+          there first - a visit ends by checking out.
+        </span>
+      </p>
       <p v-if="error" class="err">{{ error }}</p>
     </div>
 
     <div class="bottom">
-      <button class="btn-primary" :disabled="busy || !dayKnown" @click="begin">
+      <button v-if="openElsewhere" class="btn-primary" @click="backToOpenVisit">
+        Back to {{ openElsewhere.outletName }}
+      </button>
+      <button v-else class="btn-primary" :disabled="busy || !dayKnown" @click="begin()">
         {{ busy ? 'Checking in…'
            : !dayKnown ? 'One moment…'
            : !dayOpen ? 'Start my day'
            : outsideFence ? 'Check in with the distance logged'
            : 'Check in' }}
       </button>
+
+      <!-- The way out for a rep who has genuinely walked away from that shop and cannot go
+           back. Offered, spelled out, and never the first thing their thumb finds. -->
+      <template v-if="openElsewhere">
+        <button v-if="!closing" class="btn-plain" @click="closing = true">
+          I have left {{ openElsewhere.outletName }}
+        </button>
+        <template v-else>
+          <p class="muted">
+            That visit will be closed where it stands and counted as a short visit - as
+            <b>No Order</b> unless an order was already booked in it. You cannot go back and
+            fill it in.
+          </p>
+          <button class="btn-plain" :disabled="busy" @click="begin({ closeOpen: true })">
+            {{ busy ? 'Checking in…' : 'Close it and check in here' }}
+          </button>
+        </template>
+      </template>
+
       <button class="btn-plain" @click="router.back()">Cancel</button>
     </div>
   </div>

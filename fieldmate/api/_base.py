@@ -32,6 +32,10 @@ class Err:
 	DEVICE_INACTIVE = "DEVICE_INACTIVE"
 	DEVICE_MISMATCH = "DEVICE_MISMATCH"
 	VALIDATION_FAILED = "VALIDATION_FAILED"
+	# A check-in refused because the rep is still inside another shop. Its own code, not a
+	# generic validation failure: the screen has something to offer for this one - a way back to
+	# that shop - and can only offer it if it can tell this apart from every other refusal.
+	VISIT_OPEN_ELSEWHERE = "VISIT_OPEN_ELSEWHERE"
 	PERMISSION_DENIED = "PERMISSION_DENIED"
 	NOT_SYNCABLE = "NOT_SYNCABLE"
 	MISSING_PARENT = "MISSING_PARENT"

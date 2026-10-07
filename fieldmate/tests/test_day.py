@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import add_to_date, now_datetime, today
+from frappe.utils import add_days, add_to_date, get_datetime, now_datetime, today
 
 from fieldmate.services import day as day_service
 from fieldmate.services import trail as trail_service
@@ -189,3 +189,75 @@ class TestHrmsMirror(DayFixture):
 		self.assertFalse(
 			frappe.db.get_value("FieldMate Day Start", result["day_start"], "employee_checkin")
 		)
+
+
+class TestADayBelongsToItsDate(DayFixture):
+	"""A day started yesterday and never ended was still being handed back as today's day.
+
+	`start` is idempotent on `current`, so the rep got yesterday back with `created: False`, and
+	`visit.check_in` takes `visit_date` from that answer - so today's visits, orders and
+	collections all landed on yesterday's record and yesterday's date. Coverage, attendance and
+	the day counts were wrong from the first check-in and nothing on the screen said so.
+
+	`close_stale_days` is scheduled for this and could not be the guarantee: it waits out
+	`auto_close_day_after_hours`, so an evening start is still Open the next morning - and on a
+	site whose scheduler is not running it never fires at all, which is how this was found.
+	"""
+
+	def stale_day(self) -> str:
+		"""A day opened yesterday and never ended."""
+		started = self.start_day()
+		frappe.db.set_value("FieldMate Day Start", started["day_start"], {
+			"day_date": add_days(today(), -1),
+			"start_time": add_to_date(now_datetime(), days=-1),
+		}, update_modified=False)
+		frappe.clear_document_cache("FieldMate Day Start", started["day_start"])
+		return started["day_start"]
+
+	def test_yesterdays_day_is_not_todays_day(self):
+		self.stale_day()
+		self.assertIsNone(day_service.current(self.rep.name))
+
+	def test_it_is_closed_rather_than_left_open_to_be_found_again(self):
+		name = self.stale_day()
+		day_service.current(self.rep.name)
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Day Start", name, "status"), "Auto Closed",
+			"Auto Closed, not Closed: a forgotten day is not a finished one")
+
+	def test_it_gets_the_day_end_a_real_closing_gets(self):
+		"""The old auto-close flipped a status and stopped. No Day End meant no counts, no
+		distance, no attendance and no OUT in HRMS - the record of a forgotten day was a day
+		that produced nothing, which is not what happened."""
+		name = self.stale_day()
+		day_service.current(self.rep.name)
+		self.assertTrue(frappe.db.exists("FieldMate Day End", {"day_start": name}))
+
+	def test_it_is_not_closed_at_whatever_time_it_is_found(self):
+		"""Closing at `now` would book a twenty-hour day and an attendance row to match. Nobody
+		knows when the rep stopped, so the last thing the day recorded stands in for it."""
+		name = self.stale_day()
+		day_service.current(self.rep.name)
+		started_at = frappe.db.get_value("FieldMate Day Start", name, "start_time")
+		ended_at = frappe.db.get_value("FieldMate Day End", {"day_start": name}, "end_time")
+		self.assertEqual(get_datetime(ended_at), get_datetime(started_at),
+		                 "a day that recorded nothing ends when it began")
+
+	def test_starting_today_opens_a_new_day_rather_than_returning_yesterdays(self):
+		stale = self.stale_day()
+		fresh = self.start_day()
+		self.assertTrue(fresh["created"], "yesterday is not today, whatever its status says")
+		self.assertNotEqual(fresh["day_start"], stale)
+		self.assertEqual(str(fresh["day_date"]), str(today()))
+
+	def test_a_day_opened_today_is_still_the_open_day(self):
+		"""The guard is on the date, not on how long ago the day started. A rep who kills the
+		app mid-morning must come back to the same day."""
+		started = self.start_day()
+		self.assertEqual(day_service.current(self.rep.name)["day_start"], started["day_start"])
+
+	def test_ending_a_day_that_was_already_auto_closed_says_so(self):
+		"""Rather than closing it twice or reporting a success over a day that is already over."""
+		self.stale_day()
+		with self.assertRaises(frappe.ValidationError):
+			day_service.end(self.rep.name, {})
