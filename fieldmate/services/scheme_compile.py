@@ -47,7 +47,8 @@ COLLAPSED_SLABS = "COLLAPSED_SLABS"
 
 
 def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: str | None = None,
-               party_type: str | None = None, kind: str | None = None) -> dict:
+               party_type: str | None = None, kind: str | None = None,
+               season: str | None = None) -> dict:
 	"""Every live scheme that reaches this party today, compiled.
 
 	This is what the phone caches and evaluates against offline. A scheme edited in Desk does not
@@ -57,11 +58,20 @@ def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: 
 
 	`kind` is the kind of sale, from `channel.resolve`, and a scheme has to be written for it.
 	Not the party type: a shop the company invoices direct is an Outlet and a primary sale.
+
+	`season` is the season a booking belongs to, if any. It decides two things no other filter
+	can: whether the order date falls inside a scheme's early-booking window, and whether the
+	deal carries the advance a scheme asks for.
 	"""
 	doc = catalogue_service.readable_party(outlet, party_type)
 	on = getdate(on_date or today())
 	price_list = price_list or catalogue_service.resolve_price_list(doc, field_user)
 	company = catalogue_service.resolve_company(field_user)
+
+	# What the season behind this order asks for up front. Read once here rather than once per
+	# scheme: a site with forty live schemes would otherwise read the same season forty times.
+	season_advance = flt(
+		frappe.get_cached_value("FieldMate Season", season, "advance_pct")) if season else 0.0
 
 	live = []
 	for name in frappe.get_all(
@@ -71,6 +81,13 @@ def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: 
 		if not scheme.is_live_on(on):
 			continue
 		if not scheme.covers_sale(kind):
+			continue
+		# Taken inside the early-booking window, and carrying the advance the offer asks for.
+		# Both are about the *order*, not about where it was booked, so they sit beside
+		# `covers_sale` rather than inside the scope rows.
+		if not scheme.books_in(on):
+			continue
+		if not scheme.advance_met(season_advance):
 			continue
 		if not scheme.covers_outlet(doc):
 			continue
@@ -167,6 +184,11 @@ def compile_scheme(scheme, free_details: dict) -> tuple[dict | None, str | None]
 		# quoting one that ended on Sunday. Advisory: the engine never reads a clock.
 		"valid_from": str(scheme.valid_from) if scheme.valid_from else None,
 		"valid_to": str(scheme.valid_to) if scheme.valid_to else None,
+		# The early-booking window, carried for the same reason the validity dates are: a phone
+		# that has not synced for three days can retire an offer itself rather than quote one
+		# whose book shut on Sunday. Advisory on both sides - the engine never reads a clock.
+		"booking_from": str(scheme.get("booking_from")) if scheme.get("booking_from") else None,
+		"booking_to": str(scheme.get("booking_to")) if scheme.get("booking_to") else None,
 	}, None
 
 
@@ -409,9 +431,10 @@ def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None =
 	# The kind comes from `channel.resolve`, not from the party type: a shop the company invoices
 	# direct is an Outlet and a *primary* sale, and reading the type would put a retailer scheme
 	# on it.
-	compiled = for_outlet(cart["outlet"], field_user, price_list=cart["price_list"],
-	                      party_type=party_type,
-	                      kind=(cart.get("channel") or {}).get("kind"))
+	channel = cart.get("channel") or {}
+	compiled = for_outlet(cart["outlet"], field_user, on_date=on, price_list=cart["price_list"],
+	                      party_type=party_type, kind=channel.get("kind"),
+	                      season=channel.get("season"))
 
 	result = scheme_engine.evaluate({"outlet": cart["outlet"], "lines": cart["lines"]},
 	                                compiled["specs"])

@@ -455,10 +455,24 @@ export const lastOrder = computed(() => catalogue.value?.last_order || null)
  * filtering happens out here, on the way in. It matters for a phone that has not synced for three
  * days: without it the rep is quoting an offer that ended on Sunday, and the server will refuse it.
  */
-function liveSpecs(all, on = todayStamp()) {
+/**
+ * Which offers this phone still honours today.
+ *
+ * Exported for its own test. It is one half of a rule the server also enforces - `for_outlet`
+ * filters on the same four dates - and the two drifting apart is the whole class of bug this
+ * app keeps finding in the field. A rule written twice gets tested twice.
+ */
+export function liveSpecs(all, on = todayStamp()) {
   return (all || []).filter((spec) => {
     if (spec.valid_from && String(spec.valid_from) > on) return false
     if (spec.valid_to && String(spec.valid_to) < on) return false
+    // The early-booking window, which is a different question: `valid_*` is when the offer
+    // exists, these are when the order has to be taken to earn it. A season scheme is live
+    // from November to March because that is when it is billed, and rewards November's orders.
+    // The server filters on them too; this is so a phone three days behind on its sync retires
+    // the offer itself rather than quoting one whose book shut on Sunday.
+    if (spec.booking_from && String(spec.booking_from) > on) return false
+    if (spec.booking_to && String(spec.booking_to) < on) return false
     return true
   })
 }

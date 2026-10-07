@@ -12,6 +12,7 @@ from frappe.utils import add_days, getdate, today
 
 from fieldmate.services import collection as collection_service
 from fieldmate.services import order as order_service
+from fieldmate.services import scheme_compile
 from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
 from fieldmate.tests.test_order import OrderFixture
@@ -581,3 +582,148 @@ class TestAPostDatedChequeIsNotYetMoney(SeasonFixture):
 		                    update_modified=False)
 		self.assertFalse(collection_service.pdcs_for(self.order))
 		self.assertFalse(collection_service.in_hand_by_order([self.order]))
+
+
+class TestAnEarlyBookingOffer(SeasonFixture):
+	"""An offer that rewards booking early is two conditions the scheme did not have: when the
+	order was **taken**, and whether the deal carries an advance.
+
+	Both are about the order, not about where it was booked, so they sit beside `covers_sale`
+	rather than inside the scope rows.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.price_item(self.item, 100)
+
+	def offer(self, **kwargs):
+		"""A scheme that reaches everywhere, so only the new conditions decide anything.
+
+		Returns the name. `make_scheme` hands back the document, and comparing a document to a
+		list of names is a test that fails for a reason that has nothing to do with the code.
+		"""
+		data = {"applies_to": "Primary", "applies_everywhere": 1,
+		        # Live well before any order these tests take, so that `is_live_on` is never
+		        # what decides the answer - these tests are about the booking window.
+		        "valid_from": add_days(today(), -90), "valid_to": add_days(today(), 90)}
+		data.update(kwargs)
+		return self.make_scheme(**data).name
+
+	def specs_for_a_booking(self, **season):
+		season.setdefault("advance_pct", 25)
+		self.make_season(**season)
+		doc = frappe.get_doc("FieldMate Order", self.book_party())
+		compiled = scheme_compile.for_outlet(
+			self.party, self.rep.name, on_date=doc.order_date, party_type="Customer",
+			kind=doc.order_kind, season=doc.season)
+		return [spec["scheme"] for spec in compiled["specs"]]
+
+	# ------------------------------------------------------------------ the booking window
+
+	def test_an_offer_with_no_window_reaches_every_order(self):
+		"""Which is every ordinary scheme, and must stay true."""
+		name = self.offer()
+		self.assertIn(name, self.specs_for_a_booking())
+
+	def test_an_order_taken_inside_the_window_earns_it(self):
+		name = self.offer(booking_from=add_days(today(), -5), booking_to=add_days(today(), 5))
+		self.assertIn(name, self.specs_for_a_booking())
+
+	def test_an_order_taken_after_the_book_shut_does_not(self):
+		name = self.offer(booking_from=add_days(today(), -20), booking_to=add_days(today(), -1))
+		self.assertNotIn(name, self.specs_for_a_booking())
+
+	def test_an_order_taken_before_it_opened_does_not(self):
+		name = self.offer(booking_from=add_days(today(), 1))
+		self.assertNotIn(name, self.specs_for_a_booking())
+
+	def test_the_window_is_read_against_the_order_date_not_today(self):
+		"""A rep syncing in December must not have November's orders judged against December.
+		The order date is what the party was quoted on."""
+		name = self.offer(booking_from=add_days(today(), -20), booking_to=add_days(today(), -10))
+		self.make_season(advance_pct=0)
+		doc = frappe.get_doc("FieldMate Order",
+		                     self.book_party(order_date=add_days(today(), -15)))
+		compiled = scheme_compile.for_outlet(
+			self.party, self.rep.name, on_date=doc.order_date, party_type="Customer",
+			kind=doc.order_kind, season=doc.season)
+		self.assertIn(name, [spec["scheme"] for spec in compiled["specs"]])
+
+	def test_it_is_a_different_question_from_being_live(self):
+		"""Live from November to March because that is when it is billed; rewarding only the
+		orders booked in November."""
+		name = self.offer(valid_from=add_days(today(), -60), valid_to=add_days(today(), 60),
+		                  booking_from=add_days(today(), -60), booking_to=add_days(today(), -1))
+		scheme = frappe.get_doc("FieldMate Scheme", name)
+		self.assertTrue(scheme.is_live_on(today()), "the offer exists today")
+		self.assertFalse(scheme.books_in(today()), "but its book shut yesterday")
+
+	# ------------------------------------------------------------------ the advance
+
+	def test_an_offer_asking_for_an_advance_reaches_a_season_that_asks_for_as_much(self):
+		name = self.offer(requires_advance_pct=25)
+		self.assertIn(name, self.specs_for_a_booking(advance_pct=25))
+
+	def test_and_a_season_that_asks_for_more(self):
+		name = self.offer(requires_advance_pct=25)
+		self.assertIn(name, self.specs_for_a_booking(advance_pct=50))
+
+	def test_but_not_one_that_asks_for_less(self):
+		name = self.offer(requires_advance_pct=50)
+		self.assertNotIn(name, self.specs_for_a_booking(advance_pct=25))
+
+	def test_nor_an_order_that_is_not_a_booking_at_all(self):
+		"""There is no season behind it, so there is no advance for the offer to be met by."""
+		name = self.offer(requires_advance_pct=25)
+		self.make_season(booking_from=add_days(today(), 7), booking_to=add_days(today(), 40))
+		doc = frappe.get_doc("FieldMate Order", self.book_party())
+		self.assertEqual(doc.order_kind, "Primary")
+
+		compiled = scheme_compile.for_outlet(
+			self.party, self.rep.name, on_date=doc.order_date, party_type="Customer",
+			kind=doc.order_kind, season=doc.season)
+		self.assertNotIn(name, [spec["scheme"] for spec in compiled["specs"]])
+
+	def test_an_offer_asking_for_nothing_is_unaffected(self):
+		name = self.offer(requires_advance_pct=0)
+		self.assertIn(name, self.specs_for_a_booking(advance_pct=0))
+
+	# ------------------------------------------------------------------ what reaches the phone
+
+	def test_the_window_travels_in_the_spec(self):
+		"""So a phone three days behind on its sync retires the offer itself rather than
+		quoting one whose book shut on Sunday. The JS half of `liveSpecs` reads these."""
+		opens, closes = add_days(today(), -5), add_days(today(), 5)
+		name = self.offer(booking_from=opens, booking_to=closes)
+		self.make_season(advance_pct=0)
+		doc = frappe.get_doc("FieldMate Order", self.book_party())
+		compiled = scheme_compile.for_outlet(
+			self.party, self.rep.name, on_date=doc.order_date, party_type="Customer",
+			kind=doc.order_kind, season=doc.season)
+
+		spec = next(s for s in compiled["specs"] if s["scheme"] == name)
+		self.assertEqual(spec["booking_from"], str(opens))
+		self.assertEqual(spec["booking_to"], str(closes))
+
+	def test_an_offer_with_no_window_says_so_rather_than_omitting_it(self):
+		"""A key the phone can read as "no window" beats a key it has to guess about."""
+		name = self.offer()
+		self.make_season(advance_pct=0)
+		doc = frappe.get_doc("FieldMate Order", self.book_party())
+		compiled = scheme_compile.for_outlet(
+			self.party, self.rep.name, on_date=doc.order_date, party_type="Customer",
+			kind=doc.order_kind, season=doc.season)
+
+		spec = next(s for s in compiled["specs"] if s["scheme"] == name)
+		self.assertIn("booking_from", spec)
+		self.assertIsNone(spec["booking_from"])
+
+	def test_a_scheme_read_before_the_migration_has_run_does_not_crash(self):
+		"""The same deploy window `covers_sale` was found in: the code has landed, the columns
+		have not, and reading them as attributes fails every order on that site."""
+		scheme = frappe.get_doc("FieldMate Scheme", self.offer())
+		del scheme.booking_from
+		del scheme.booking_to
+		del scheme.requires_advance_pct
+		self.assertTrue(scheme.books_in(today()))
+		self.assertTrue(scheme.advance_met(0))

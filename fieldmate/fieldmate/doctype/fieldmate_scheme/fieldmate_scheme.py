@@ -327,6 +327,41 @@ class FieldMateScheme(Document):
 	def is_live_on(self, date) -> bool:
 		return bool(cint(self.is_active)) and scope.is_effective_on(self, date)
 
+	def books_in(self, date) -> bool:
+		"""Was the order taken inside this scheme's early-booking window?
+
+		A different question from `is_live_on`, which asks whether the offer exists at all. A
+		season scheme is live from November to March because that is when it is billed, and
+		rewards only the orders booked in November.
+
+		Read with `.get`, like `applies_to` - on a site where the code has landed and the
+		migration has not run, the columns do not exist and reading them as attributes fails
+		every order on that site from inside the pricing path.
+		"""
+		opens, closes = self.get("booking_from"), self.get("booking_to")
+		if not opens and not closes:
+			return True
+		on = getdate(date)
+		if opens and on < getdate(opens):
+			return False
+		return not (closes and on > getdate(closes))
+
+	def advance_met(self, season_advance_pct) -> bool:
+		"""Does the deal behind this order carry the advance this offer asks for?
+
+		Measured against the **season's** advance, not against what has been collected. The order
+		is priced the moment it is taken, when nothing has been paid - so reading what is in hand
+		would mean no early-booking offer ever fired at the counter, which is the one place it
+		has to. A booking cannot be released without its season's advance either, so by the time
+		anything is billed the two come to the same thing.
+
+		A scheme asking for an advance therefore cannot reach an order that is not a booking.
+		"""
+		asked = flt(self.get("requires_advance_pct"))
+		if not asked:
+			return True
+		return flt(season_advance_pct) >= asked
+
 	def covers_sale(self, kind: str | None) -> bool:
 		"""Whether this scheme is for this kind of sale at all.
 

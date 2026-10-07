@@ -14,10 +14,10 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 to 3 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 4 of 11 done.**
 
-- 1,006 Python tests green, ruff clean
-- 31 PWA tests green — **new, see below**
+- 1,020 Python tests green, ruff clean
+- 42 PWA tests green — see below
 - Branch `fix/phase-3-field-findings`
 
 The plan now being worked from is the **FieldMate Three-Phase Plan** of 3 Oct 2026 (Sagar), not
@@ -27,6 +27,32 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 4 — an offer that rewards booking early
+
+`booking_from`, `booking_to` and `requires_advance_pct` on FieldMate Scheme, filtered in
+`for_outlet` beside `covers_sale` because both are questions about the *order* rather than about
+where it was booked.
+
+**The booking window is not the validity window.** `valid_from`/`valid_to` say when the offer
+exists; the new pair says when the order has to have been **taken** to earn it. A season scheme is
+live from November to March, because that is when it is billed, and rewards only the orders booked
+in November. Read against the order date, not today, so a rep syncing in December does not have
+November's orders judged against December.
+
+**`requires_advance_pct` is measured against the season's advance, not against what has been
+collected.** The order is priced the moment it is taken, when nothing has been paid — reading what
+is in hand would mean no early-booking offer ever fired at the counter, which is the one place it
+has to. A booking cannot be released without its season's advance either, so by the time anything
+is billed the two come to the same thing. A scheme asking for an advance therefore cannot reach an
+order that is not a booking at all. This is written down in the field's own description because it
+is a judgement, not an obvious consequence.
+
+The window travels in the compiled spec and the phone filters on it too — `liveSpecs` is exported
+now and has a test of its own, because it is one half of a rule the server also enforces and the
+two drifting apart is the exact class of bug this app keeps finding in the field. That test also
+pins what happens to a spec from a server that predates these keys: `undefined` reads as "no
+window", not as a wall, or a phone would quote nothing at all after a server downgrade.
 
 ## Phase 2, step 3 — the advance that releases a booking, and the cheque that does not
 
@@ -170,9 +196,9 @@ phone drew wrong, and not one was catchable in Python:
 The first four tests written were reverted against the old code to prove they fail on it. They do.
 
 Covered today: `lib/tax.js` (the money rule the server copies), `lib/credit.js`, the orders list
-screen, and the check-in guard in `stores/visit.js`. **Not yet covered:** the cart and review
-screens, the scheme engine's JS half against the Python parity corpus, the sync outbox, and the
-Dexie migrations.
+screen, the check-in guard in `stores/visit.js`, and `liveSpecs` (which offers a phone still
+honours). **Not yet covered:** the cart and review screens, the scheme engine's JS half against
+the Python parity corpus, the sync outbox, and the Dexie migrations.
 
 ## Field findings fixed this week
 
@@ -234,13 +260,12 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 4: early-booking schemes — `booking_from`, `booking_to` and `requires_advance_pct`
-on FieldMate Scheme, so an offer can be made to run only for orders *taken* inside a window and
-only where an advance was paid, which is a different question from the validity dates it already
-has.
+Phase 2, step 5: allocation. A Desk page and no doctype — preview the split of short stock by
+advance first, first booked or pro rata; applying it creates ERPNext Stock Reservation Entries
+against the bookings' Sales Orders, and reverting cancels them. The reservations are the record.
 
-After that, step 5 is allocation, and it is the first step that needs the ERPNext stock
-reservation now switched on.
+This is the first step that uses the stock reservation switched on earlier today, and the first
+that has no equivalent anywhere else in the app, so expect it to find things.
 
 Then, in no fixed order: the rest of the PWA harness where it is thinnest (the cart and review
 screens, and the scheme engine's JS half against the Python parity corpus), and the three
