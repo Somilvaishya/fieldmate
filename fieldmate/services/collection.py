@@ -296,6 +296,83 @@ def paid_by_order(orders: list[str]) -> dict:
 	return paid
 
 
+def pdcs_for(order: str) -> list[dict]:
+	"""The post-dated cheques held against one order.
+
+	A PDC is a FieldMate Collection with mode Cheque and an `instrument_date` still ahead of us.
+	It needs no doctype of its own and never did - the collection already carries the instrument
+	number, its date, the bank and a Bounced status, which is the whole of what a PDC register
+	holds.
+
+	Sorted by the date they fall due, because that is the order somebody banking them works in.
+	"""
+	rows = frappe.get_all(
+		"FieldMate Collection Allocation",
+		filters={"reference_type": "FieldMate Order", "reference_name": order,
+		         "parenttype": "FieldMate Collection"},
+		fields=["parent", "allocated_amount"],
+	)
+	if not rows:
+		return []
+
+	amounts = {}
+	for row in rows:
+		amounts[row.parent] = amounts.get(row.parent, 0) + flt(row.allocated_amount)
+
+	cheques = frappe.get_all(
+		"FieldMate Collection",
+		filters={"name": ["in", list(amounts)], "docstatus": 1, "mode": "Cheque",
+		         "instrument_date": [">", nowdate()],
+		         "status": ["not in", ["Bounced", "Cancelled"]]},
+		fields=["name", "instrument_no", "instrument_date", "instrument_bank", "status"],
+		order_by="instrument_date asc",
+	)
+	return [{**row, "amount": amounts[row["name"]]} for row in cheques]
+
+
+def in_hand_by_order(orders: list[str]) -> dict:
+	"""What has actually been **received** against each order, as opposed to promised.
+
+	`paid_by_order` counts every live allocation, which is the right answer for a shop's
+	outstanding: a cheque written today is a bill the shopkeeper has settled as far as they are
+	concerned.
+
+	This is the stricter question, and it is the one an advance has to be measured against. A
+	post-dated cheque is not money until its date arrives - releasing a season booking against
+	one means reserving stock and planning a dispatch on a promise. The cheque is still recorded,
+	still allocated and still visible as a PDC; it simply does not count yet.
+	"""
+	if not orders:
+		return {}
+
+	rows = frappe.get_all(
+		"FieldMate Collection Allocation",
+		filters={"reference_type": "FieldMate Order", "reference_name": ["in", orders],
+		         "parenttype": "FieldMate Collection"},
+		fields=["reference_name", "allocated_amount", "parent"],
+	)
+	if not rows:
+		return {}
+
+	live = frappe.get_all(
+		"FieldMate Collection",
+		filters={"name": ["in", list({r.parent for r in rows})], "docstatus": 1,
+		         "status": ["not in", ["Bounced", "Cancelled"]]},
+		fields=["name", "mode", "instrument_date"],
+	)
+	arrived = {
+		row.name for row in live
+		if row.mode != "Cheque" or not row.instrument_date
+		or getdate(row.instrument_date) <= getdate(nowdate())
+	}
+
+	paid = {}
+	for row in rows:
+		if row.parent in arrived:
+			paid[row.reference_name] = paid.get(row.reference_name, 0) + flt(row.allocated_amount)
+	return paid
+
+
 def last_payment_for(outlet) -> dict | None:
 	row = frappe.db.get_value(
 		"FieldMate Collection",

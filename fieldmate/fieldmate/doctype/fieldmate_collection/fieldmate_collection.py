@@ -101,6 +101,29 @@ class FieldMateCollection(Document):
 
 	def on_submit(self):
 		self.db_set("status", "Collected", update_modified=False)
+		self.release_what_this_pays_for()
+
+	def release_what_this_pays_for(self):
+		"""A season booking held for its advance goes the moment the advance arrives.
+
+		Here rather than in a service because a collection taken with no signal arrives through
+		`sync.push`, which inserts and submits the document directly and never calls a service -
+		the same reason the order reprices on its controller. A rep who collects an advance in a
+		village and syncs that evening must not find the booking still held in the morning.
+
+		Never allowed to fail the collection. The money has been taken and recorded; a booking
+		that did not release is a thing somebody can look at, and a collection that refused to
+		save because of it is money with nowhere to go.
+		"""
+		from fieldmate.services import order as order_service
+
+		for row in self.allocations or []:
+			if row.reference_type != "FieldMate Order" or not row.reference_name:
+				continue
+			try:
+				order_service.release_if_paid(row.reference_name)
+			except Exception:
+				frappe.log_error(title="fieldmate: releasing a booking after a collection")
 
 	def on_cancel(self):
 		if self.deposit and frappe.db.get_value(

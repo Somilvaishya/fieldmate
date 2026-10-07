@@ -14,9 +14,9 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 and 2 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 3 of 11 done.**
 
-- 993 Python tests green, ruff clean
+- 1,006 Python tests green, ruff clean
 - 31 PWA tests green — **new, see below**
 - Branch `fix/phase-3-field-findings`
 
@@ -27,6 +27,34 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 3 — the advance that releases a booking, and the cheque that does not
+
+A booking is held at `Awaiting Advance` until the season's `advance_pct` has actually been
+received against it, and goes the moment it is — `release_if_paid` runs from the collection's own
+`on_submit`, so a rep who collects in a village and syncs that evening does not find it still held
+in the morning.
+
+**It is deliberately not an approval.** Nobody decides it: the money has arrived or it has not. So
+it has its own status rather than Pending Approval, no approval rule is picked, and it never
+appears in a queue of things a manager could act on but cannot.
+
+**A post-dated cheque is not money until its date.** `collection.in_hand_by_order` is the stricter
+sibling of `paid_by_order`: both exclude Bounced and Cancelled, and this one also excludes a
+cheque dated ahead. Releasing a booking against a PDC means reserving stock and planning a
+dispatch on a promise. The cheque is still recorded, still allocated, and `pdcs_for` lists it —
+and the hold message names it, because a rep who has handed in a cheque would otherwise read the
+hold as the office losing their paperwork.
+
+**Nothing new was needed to hold a PDC.** `FieldMate Collection` already carries mode Cheque, the
+instrument number, its date, the bank and a Bounced status — the whole of what a PDC register
+holds — and `FieldMate Collection Allocation.reference_type` already offers `FieldMate Order`, so
+"linked to the order" was already expressible. No field was added anywhere in this step.
+
+One thing worth knowing: a party we bill is collected from with `party_type = "Distributor"`, not
+"Customer". There is no Customer option and there should not be one — the field distinguishes who
+owes the money, not what doctype they are, and `distributor` is already a Link to Customer whose
+own description says "the one paying us".
 
 ## Phase 2, step 2 — a booking priced from its season, and the rate stops moving
 
@@ -206,10 +234,13 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 3: the advance and the post-dated cheque. A booking is released only once the
-season's `advance_pct` has been collected against it; a PDC is a FieldMate Collection with mode
-Cheque and a future `instrument_date`, linked to the order — which means FieldMate Collection
-needs a link to the order it pays, the one field it is missing.
+Phase 2, step 4: early-booking schemes — `booking_from`, `booking_to` and `requires_advance_pct`
+on FieldMate Scheme, so an offer can be made to run only for orders *taken* inside a window and
+only where an advance was paid, which is a different question from the validity dates it already
+has.
+
+After that, step 5 is allocation, and it is the first step that needs the ERPNext stock
+reservation now switched on.
 
 Then, in no fixed order: the rest of the PWA harness where it is thinnest (the cart and review
 screens, and the scheme engine's JS half against the Python parity corpus), and the three

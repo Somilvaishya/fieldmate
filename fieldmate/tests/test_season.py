@@ -10,6 +10,7 @@ The dates say what the order was, the same way the party says what kind of sale 
 import frappe
 from frappe.utils import add_days, getdate, today
 
+from fieldmate.services import collection as collection_service
 from fieldmate.services import order as order_service
 from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
@@ -243,7 +244,7 @@ class TestTheRateStopsMovingAtSubmit(SeasonFixture):
 	def booked_and_submitted(self, rate=70):
 		self.price_item(self.item, 100)
 		season_list = self.season_price_list(rate)
-		self.make_season(price_list=season_list)
+		self.make_season(price_list=season_list, advance_pct=0)
 		name = self.book_party()
 		self.as_rep(order_service.submit_order, name)
 		# Tracked, or it outlives the test: submitting a Sales Order commits, so it survives
@@ -330,6 +331,10 @@ class TestWhenEachLineIsWanted(SeasonFixture):
 
 class TestTheSalesOrderABookingPosts(SeasonFixture):
 	def submitted_booking(self, **season):
+		# Open terms unless a test says otherwise. These tests are about what the Sales Order
+		# carries; the advance gate has a class of its own below, and leaving it on here would
+		# mean every one of them was really testing the hold.
+		season.setdefault("advance_pct", 0)
 		self.make_season(**season)
 		name = self.book_party(lines=[{"item": self.item, "qty": 10,
 		                               "delivery_date": add_days(today(), 75)}])
@@ -411,3 +416,168 @@ class TestABookingStopsMovingAtTheCutoff(SeasonFixture):
 		result = self.book()
 		doc = frappe.get_doc("FieldMate Order", result["name"])
 		doc.db_set("remarks", "fine", update_modified=False)   # no exception
+
+
+class TestABookingWaitsForItsAdvance(SeasonFixture):
+	"""A season is the company planning against a book, and the advance is what makes the book
+	worth planning against. So a booking that has not been paid for goes nowhere - no Sales
+	Order, no stock set aside, no dispatch.
+
+	It is **not** an approval. Nobody decides it: the money has arrived or it has not, so no
+	manager clears it and it does not sit in anybody's approval queue.
+	"""
+
+	def book_and_submit(self, advance_pct=25, rate=100):
+		self.price_item(self.item, rate)
+		self.make_season(price_list=self.season_price_list(rate), advance_pct=advance_pct)
+		name = self.book_party()
+		self.as_rep(order_service.submit_order, name)
+		return name
+
+	def pay(self, order, amount, **extra):
+		payload = {
+			"party_type": "Distributor", "distributor": self.party,
+			"amount": amount, "mode": "Cash",
+			"client_uuid": self.uid("COL"),
+			"allocations": [{"reference_type": "FieldMate Order", "reference_name": order,
+			                 "allocated_amount": amount}],
+		}
+		payload.update(extra)
+		result = self.as_rep(collection_service.create, payload, self.rep.name)
+		return self.track("FieldMate Collection", result["name"])
+
+	def test_a_booking_with_no_advance_is_held(self):
+		name = self.book_and_submit()
+		doc = frappe.get_doc("FieldMate Order", name)
+		self.assertEqual(doc.order_status, "Awaiting Advance")
+		self.assertFalse(doc.sales_order, "nothing is committed until it is paid for")
+
+	def test_the_hold_says_what_is_owed(self):
+		name = self.book_and_submit(advance_pct=25, rate=100)
+		doc = frappe.get_doc("FieldMate Order", name)
+		position = order_service.advance_position(doc)
+
+		self.assertEqual(position["required"], doc.net_total * 0.25)
+		self.assertEqual(position["in_hand"], 0)
+		self.assertTrue(position["held"])
+		self.assertIn("held until", position["message"])
+
+	def test_it_is_not_sitting_in_an_approval_queue(self):
+		"""Nobody can act on it, so it must not look like something waiting to be acted on."""
+		name = self.book_and_submit()
+		doc = frappe.get_doc("FieldMate Order", name)
+		self.assertFalse(doc.approval_required)
+		self.assertNotEqual(doc.order_status, "Pending Approval")
+
+	def test_a_part_payment_does_not_release_it(self):
+		name = self.book_and_submit(advance_pct=25, rate=100)
+		required = order_service.advance_position(
+			frappe.get_doc("FieldMate Order", name))["required"]
+		self.pay(name, required / 2)
+
+		doc = frappe.get_doc("FieldMate Order", name)
+		self.assertEqual(doc.order_status, "Awaiting Advance")
+
+	def test_the_advance_arriving_releases_it(self):
+		name = self.book_and_submit(advance_pct=25, rate=100)
+		required = order_service.advance_position(
+			frappe.get_doc("FieldMate Order", name))["required"]
+		self.pay(name, required)
+
+		doc = frappe.get_doc("FieldMate Order", name)
+		self.assertNotEqual(doc.order_status, "Awaiting Advance")
+		self.assertTrue(doc.sales_order, "released means committed")
+		self.track("Sales Order", doc.sales_order)
+
+	def test_a_season_asking_for_nothing_releases_at_once(self):
+		"""Zero is a decision somebody made on the master, not an oversight."""
+		name = self.book_and_submit(advance_pct=0)
+		doc = frappe.get_doc("FieldMate Order", name)
+		self.assertNotEqual(doc.order_status, "Awaiting Advance")
+		self.track("Sales Order", doc.sales_order)
+
+	def test_an_ordinary_primary_order_is_never_held_for_an_advance(self):
+		self.price_item(self.item, 100)
+		# A season that is not booking today, so this is a plain primary order.
+		self.make_season(advance_pct=90, booking_from=add_days(today(), 7),
+		                 booking_to=add_days(today(), 40))
+		name = self.book_party()
+		self.as_rep(order_service.submit_order, name)
+
+		doc = frappe.get_doc("FieldMate Order", name)
+		self.assertEqual(doc.order_kind, "Primary")
+		self.assertNotEqual(doc.order_status, "Awaiting Advance")
+		self.track("Sales Order", doc.sales_order)
+
+
+class TestAPostDatedChequeIsNotYetMoney(SeasonFixture):
+	"""A PDC is recorded, allocated and visible - and it does not release a booking until it
+	falls due. Releasing against one means reserving stock and planning a dispatch on a promise.
+
+	No doctype of its own, and there never needed to be: FieldMate Collection already carries the
+	instrument number, its date, the bank and a Bounced status, which is the whole of what a PDC
+	register holds.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.price_item(self.item, 100)
+		self.make_season(price_list=self.season_price_list(100), advance_pct=25)
+		self.order = self.book_party()
+		self.as_rep(order_service.submit_order, self.order)
+		self.required = order_service.advance_position(
+			frappe.get_doc("FieldMate Order", self.order))["required"]
+
+	def cheque(self, amount, dated):
+		result = self.as_rep(collection_service.create, {
+			"party_type": "Distributor", "distributor": self.party,
+			"amount": amount, "mode": "Cheque", "instrument_no": self.uid("CHQ"),
+			"instrument_date": dated, "instrument_bank": "Test Bank",
+			"client_uuid": self.uid("COL"),
+			"allocations": [{"reference_type": "FieldMate Order",
+			                 "reference_name": self.order, "allocated_amount": amount}],
+		}, self.rep.name)
+		return self.track("FieldMate Collection", result["name"])
+
+	def test_a_future_cheque_does_not_release_the_booking(self):
+		self.cheque(self.required, add_days(today(), 30))
+		doc = frappe.get_doc("FieldMate Order", self.order)
+		self.assertEqual(doc.order_status, "Awaiting Advance")
+
+	def test_but_it_is_listed_as_a_pdc_against_the_order(self):
+		self.cheque(self.required, add_days(today(), 30))
+		pdcs = collection_service.pdcs_for(self.order)
+		self.assertEqual(len(pdcs), 1)
+		self.assertEqual(pdcs[0]["amount"], self.required)
+		self.assertEqual(str(pdcs[0]["instrument_date"]), str(add_days(today(), 30)))
+
+	def test_the_hold_message_says_the_cheque_is_there(self):
+		"""A rep who has taken a cheque would otherwise read the hold as the office losing
+		their paperwork."""
+		self.cheque(self.required, add_days(today(), 30))
+		position = order_service.advance_position(
+			frappe.get_doc("FieldMate Order", self.order))
+		self.assertEqual(position["pdc_total"], self.required)
+		self.assertIn("post-dated", position["message"])
+
+	def test_a_cheque_dated_today_is_money(self):
+		"""The line is the date, not the instrument. A cheque handed over today is an advance."""
+		self.cheque(self.required, today())
+		doc = frappe.get_doc("FieldMate Order", self.order)
+		self.assertNotEqual(doc.order_status, "Awaiting Advance")
+		self.track("Sales Order", doc.sales_order)
+
+	def test_a_cheque_that_has_fallen_due_stops_being_a_pdc(self):
+		name = self.cheque(self.required, add_days(today(), 30))
+		self.assertTrue(collection_service.pdcs_for(self.order))
+
+		frappe.db.set_value("FieldMate Collection", name, "instrument_date", today(),
+		                    update_modified=False)
+		self.assertFalse(collection_service.pdcs_for(self.order))
+
+	def test_a_bounced_cheque_is_neither_money_nor_a_pdc(self):
+		name = self.cheque(self.required, add_days(today(), 30))
+		frappe.db.set_value("FieldMate Collection", name, "status", "Bounced",
+		                    update_modified=False)
+		self.assertFalse(collection_service.pdcs_for(self.order))
+		self.assertFalse(collection_service.in_hand_by_order([self.order]))

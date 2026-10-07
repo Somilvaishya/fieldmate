@@ -31,6 +31,11 @@ from fieldmate.services import field_user as field_user_service
 from fieldmate.services import scheme_compile
 from fieldmate.services import season as season_service
 
+# A booking that has been taken and is waiting for the money that releases it. Its own status
+# rather than Pending Approval: nobody is deciding anything, and a manager looking at a queue of
+# things to approve should not find orders in it that they cannot act on.
+AWAITING_ADVANCE = "Awaiting Advance"
+
 # What the rep is told when their own order needs a manager. Never an exception: a rep refused in
 # front of a shopkeeper stops booking in the app at all, and then we lose the data as well as the
 # order.
@@ -445,6 +450,72 @@ def submit_order(name: str) -> dict:
 	return summarise(frappe.get_doc("FieldMate Order", name))
 
 
+def advance_position(doc) -> dict:
+	"""What this booking needs up front, and what has actually arrived.
+
+	Returned whole rather than raised, like every other verdict in this module: a rep is asked
+	for an advance at a counter and has to be able to say how much, not be refused after the
+	fact.
+
+	`in_hand`, not `paid`: a post-dated cheque is allocated to the order and visible as a PDC,
+	and it is not money until its date. Releasing a season booking against one means reserving
+	stock and planning a dispatch on a promise.
+	"""
+	from fieldmate.services import collection as collection_service
+
+	required = season_service.advance_required(doc.season, doc.net_total)
+	if not required:
+		return {"required": 0.0, "in_hand": 0.0, "short": 0.0, "held": False,
+		        "pdc_total": 0.0, "message": ""}
+
+	in_hand = flt(collection_service.in_hand_by_order([doc.name]).get(doc.name) or 0)
+	pdc_total = sum(flt(row["amount"]) for row in collection_service.pdcs_for(doc.name))
+	short = flt(max(0.0, required - in_hand), 2)
+
+	message = ""
+	if short:
+		message = frappe._(
+			"This booking needs {0} up front and {1} has been received. It is held until the "
+			"balance of {2} is collected."
+		).format(_money(required, doc.currency), _money(in_hand, doc.currency),
+		         _money(short, doc.currency))
+		if pdc_total:
+			# Said out loud, because a rep who has taken a cheque will otherwise read the hold
+			# as the office losing their paperwork.
+			message += " " + frappe._(
+				"{0} of post-dated cheques is held against it and does not count until it falls "
+				"due.").format(_money(pdc_total, doc.currency))
+
+	return {"required": required, "in_hand": in_hand, "short": short, "held": bool(short),
+	        "pdc_total": flt(pdc_total, 2), "message": message}
+
+
+def _money(value, currency: str | None) -> str:
+	return frappe.utils.fmt_money(flt(value), currency=currency)
+
+
+def release_if_paid(order: str) -> bool:
+	"""Try the gate again for a booking that was held. Called when money lands against it.
+
+	An advance hold is not an approval: nobody decides it, and the only thing that clears it is
+	the money arriving. So this is called from the collection path rather than from the approval
+	path, and it routes the order the moment the gate opens.
+
+	Returns whether it released, so a caller can say so. Safe to call on anything - an order that
+	is not a held booking is left exactly as it is.
+	"""
+	doc = frappe.get_doc("FieldMate Order", order)
+	if doc.docstatus != 1 or doc.order_kind != season_service.BOOKING:
+		return False
+	if doc.order_status != AWAITING_ADVANCE:
+		return False
+	if advance_position(doc)["held"]:
+		return False
+
+	route(doc)
+	return frappe.db.get_value("FieldMate Order", order, "order_status") != AWAITING_ADVANCE
+
+
 def route(doc) -> None:
 	"""Where a submitted order goes. Called from the controller's `on_submit`.
 
@@ -464,6 +535,16 @@ def route(doc) -> None:
 	# would overstate trade spend for a sale that never happened.
 	if cint(doc.approval_required) and doc.approval_status != "Approved":
 		doc.db_set("order_status", "Pending Approval", update_modified=False)
+		return
+
+	# A booking waiting on its advance goes nowhere either, and it is a different kind of waiting
+	# from the one above. An approval is a judgement somebody makes; an advance is money that has
+	# either arrived or has not, so no manager clears this - `release_if_paid` does, when the
+	# collection lands. Held before the accrual for the same reason an approval is: a booking
+	# that never gets paid for must not consume scheme budget on its way past.
+	waiting = advance_position(doc)
+	if waiting["held"]:
+		doc.db_set("order_status", AWAITING_ADVANCE, update_modified=False)
 		return
 
 	party = doc.customer if doc.party_type == "Customer" else doc.outlet

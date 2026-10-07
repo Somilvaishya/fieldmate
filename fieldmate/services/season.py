@@ -18,7 +18,7 @@ with its own path through pricing, credit and posting.
 from __future__ import annotations
 
 import frappe
-from frappe.utils import getdate, nowdate
+from frappe.utils import flt, getdate, nowdate
 
 from fieldmate.services import settings as settings_service
 
@@ -91,6 +91,21 @@ def price_list(season: str | None) -> str | None:
 	the book shuts.
 	"""
 	return frappe.get_cached_value("FieldMate Season", season, "price_list") if season else None
+
+
+def advance_required(season: str | None, value) -> float:
+	"""What has to be in hand before a booking of `season` is released, in rupees.
+
+	Zero where the season asks for none, which is a decision somebody made on the master rather
+	than an oversight - a season sold on open terms is an ordinary thing.
+
+	Rounded to the rupee. A percentage of a cart total lands on fractions of a paisa, and
+	"you are 0.004 short of your advance" is not something anybody can say to a distributor.
+	"""
+	if not season:
+		return 0.0
+	pct = flt(frappe.get_cached_value("FieldMate Season", season, "advance_pct"))
+	return flt(flt(value) * pct / 100.0, 2) if pct else 0.0
 
 
 def payment_terms(season: str | None) -> str | None:

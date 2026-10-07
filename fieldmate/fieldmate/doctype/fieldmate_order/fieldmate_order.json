@@ -48,7 +48,7 @@
    "description": "Whose queue this order lands in, and who bills the shop and delivers to it out of their own stock. We never invoice the shop, so the order is terminal in our books and this is where it ends. The limit that matters at the counter is therefore the shop's limit with this distributor - their ledger and not ours, so it can only ever be a soft figure here, one that warns and can route an order for approval while posting nothing. Which limit is actually read, this distributor's or the shop's own account where we are genuinely the seller, is settled in services/credit.py and nowhere else."},
   {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "reqd": 1},
   {"fieldname": "order_status", "fieldtype": "Select", "label": "Status",
-   "options": "Draft\nPending Approval\nApproved\nSent To Distributor\nAccepted\nInvoiced\nDelivered\nRejected\nCancelled",
+   "options": "Draft\nPending Approval\nAwaiting Advance\nApproved\nSent To Distributor\nAccepted\nInvoiced\nDelivered\nRejected\nCancelled",
    "default": "Draft", "in_list_view": 1, "in_standard_filter": 1,
    "description": "Where the order stands commercially, which docstatus cannot express. An order waiting on a manager and an order already sitting in the distributor's queue are both docstatus 1 and are not remotely the same thing. From Sent To Distributor onward this is the secondary sale running its course at the distributor's end: Invoiced and Delivered are what the distributor reports back to us about a bill they raised on the shop out of their own stock. They are not our accounting, and no state on this list produces a GL Entry."},
 
