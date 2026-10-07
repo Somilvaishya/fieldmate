@@ -518,10 +518,15 @@ const emptyReason = computed(() => {
         </div>
       </header>
 
-      <!-- Credit before the cart, never as a rejection after it. -->
+      <!-- Credit before the cart, never as a rejection after it.
+
+           Named, not anonymous. These are the **distributor's** figures with us, and this header
+           called them "Credit headroom" on a shop's own screen - so a rep standing in a kirana
+           read the distributor's limit as that kirana's. The shop's own debt to its distributor
+           is a different number and sits on the line below. -->
       <div class="credit" :class="creditView.tone">
         <div class="crow">
-          <span>Credit headroom</span>
+          <span>{{ creditView.party_name || 'The distributor' }} owes us</span>
           <b v-if="creditView.state === 'within' || creditView.state === 'breach'" class="tnum">
             {{ money(creditView.headroom_paise) }}
           </b>
@@ -538,8 +543,17 @@ const emptyReason = computed(() => {
         </p>
         <p v-else class="cnote">
           {{ creditOffline
-            ? 'This shop’s credit has not reached this phone yet. You can still take the order.'
-            : 'No credit limit is recorded for this shop.' }}
+            ? 'The distributor’s credit has not reached this phone yet. You can still take the order.'
+            : 'No credit limit is recorded for this distributor.' }}
+        </p>
+
+        <!-- This shop's own debt, where somebody has set it a limit. A zero limit cannot be told
+             from no limit at all, so a shop nobody has given one is not shown as having no room.
+             Our own count, and it says so. -->
+        <p v-if="creditView.shop_has_limit" class="cnote tnum shop">
+          This shop owes {{ money(creditView.shop_outstanding_paise) }}
+          of {{ money(creditView.shop_limit_paise) }} &middot;
+          <em>our own count</em>
         </p>
       </div>
 
@@ -873,6 +887,8 @@ h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
 .crow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
         font-size: 16px; }
 .crow b { font-size: 20px; }
+.cnote.shop { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.cnote.shop em { font-style: normal; color: var(--muted); }
 .cnote { margin: 4px 0 0; font-size: 16px; }
 .credit:not(.ok):not(.warn):not(.crit) .cnote { color: var(--muted); }
 

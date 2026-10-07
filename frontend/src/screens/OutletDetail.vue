@@ -48,6 +48,27 @@ const used = computed(() =>
     : 0
 )
 
+/**
+ * What this shop owes its distributor - a different debt from the one above.
+ *
+ * The figures at the top are the **distributor's** position with us, read out of ERPNext's
+ * receivable. They were drawn under the heading "Credit headroom" on a shop's own screen, so a
+ * rep standing in a kirana read the distributor's limit as that kirana's. The two are not the
+ * same number and are not even owed to the same party.
+ *
+ * This one is FieldMate's own count: orders we booked here, less collections allocated against
+ * them. There is no ledger to read - we are not a party to that sale - and the label says so.
+ * `No Limit Set` means nobody has given this shop a limit, which is not the same as a limit of
+ * zero and is the ordinary state of a shop on the day it is onboarded.
+ */
+const shopCredit = computed(() => credit.value.shop || null)
+const shopHasLimit = computed(() => (shopCredit.value?.limit || 0) > 0)
+const shopUsed = computed(() =>
+  shopHasLimit.value
+    ? Math.min(100, Math.round((shopCredit.value.outstanding / shopCredit.value.limit) * 100))
+    : 0
+)
+
 /** Indian grouping. ₹1,24,500 - not ₹124,500, which reads wrong to everyone using this. */
 function rupees(value) {
   if (value === null || value === undefined || value === '') return null
@@ -124,10 +145,39 @@ const mapHref = computed(() =>
         </div>
       </div>
 
-      <!-- Credit, before a cart exists rather than as a rejection after it. -->
+      <!-- This shop's own credit with its distributor. First, because this is the shop's
+           screen and this is the shop's debt. -->
+      <div v-if="detail && shopCredit" class="card">
+        <div class="row">
+          <span class="muted">This shop owes {{ credit.party_name || 'its distributor' }}</span>
+          <b class="tnum big" :class="{ tight: shopHasLimit && shopUsed >= 80 }">
+            {{ shopHasLimit ? rupees(shopCredit.headroom) : 'No limit set' }}
+          </b>
+        </div>
+        <template v-if="shopHasLimit">
+          <div class="track"><div class="fill" :style="{ width: shopUsed + '%' }"></div></div>
+          <div class="row">
+            <span class="muted tnum">Limit {{ rupees(shopCredit.limit) }}</span>
+            <span class="muted tnum">{{ shopUsed }}% used</span>
+          </div>
+        </template>
+        <p class="muted foot">
+          <template v-if="shopHasLimit">
+            Owing {{ rupees(shopCredit.outstanding) }} ·
+          </template>
+          <b>our own count</b> - orders booked here, less what has been collected. Not a ledger.
+          <template v-if="!shopHasLimit">
+            Set this shop&rsquo;s credit limit in Desk to measure it.
+          </template>
+        </p>
+      </div>
+
+      <!-- The distributor's position with us. A real receivable, and a different debt from the
+           one above - it used to be drawn under "Credit headroom" on this screen, so a rep read
+           the distributor's limit as this shop's. -->
       <div v-if="detail && (hasLimit || credit.unlimited)" class="card">
         <div class="row">
-          <span class="muted">Credit headroom</span>
+          <span class="muted">{{ credit.party_name || 'The distributor' }} owes us</span>
           <b class="tnum big" :class="{ tight: hasLimit && used >= 80 }">
             {{ credit.unlimited ? 'No limit set' : rupees(credit.headroom) }}
           </b>
@@ -177,14 +227,30 @@ const mapHref = computed(() =>
                   :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
         Carry on with this visit
       </RouterLink>
+
+      <!-- Still inside another shop. This used to be a live "Check in here" with a note under it
+           saying the other visit would be closed - one tap, and it was, stamped "No Order" and
+           short. Checking out is how a visit ends, so the way back to that shop is the primary
+           action and checking in here is behind it, on a screen that spells out what it costs. -->
+      <template v-else-if="openVisit">
+        <RouterLink class="btn-primary"
+                    :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
+          Back to {{ openVisit.outletName }}
+        </RouterLink>
+        <p class="muted foot">
+          You are still checked in at {{ openVisit.outletName }}. Check out from there, then come
+          back here.
+        </p>
+        <RouterLink class="ghost foot"
+                    :to="{ name: 'visit-start', params: { name: outlet.name } }">
+          I have left {{ openVisit.outletName }}
+        </RouterLink>
+      </template>
+
       <RouterLink v-else class="btn-primary"
                   :to="{ name: 'visit-start', params: { name: outlet.name } }">
         <Icon name="store" size="20" /> Check in here
       </RouterLink>
-      <p v-if="openVisit && openVisit.outlet !== outlet.name" class="muted foot">
-        You are still checked in at {{ openVisit.outletName }}. Checking in here will
-        close that visit.
-      </p>
     </div>
   </div>
   <!-- The failure case needs its own branch: the note explaining WHY used to live inside

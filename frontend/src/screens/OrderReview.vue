@@ -604,15 +604,19 @@ function finish() {
           <div class="crown">
             <span class="stamp" :class="credit.breach ? 'bad' : 'good'">
               <Icon :name="credit.breach ? 'alert' : 'check'" size="18" />
-              <span>{{ credit.breach ? 'Over the credit limit' : 'Within the credit limit' }}</span>
+              <span>
+                {{ distributorName || 'The distributor' }}
+                {{ credit.breach ? 'is over the credit limit' : 'is within the credit limit' }}
+              </span>
             </span>
           </div>
 
           <!-- This card is the **distributor's** position with us, not the shop's. It always was
                - `api.outlet` reads the billing party's credit - but it said "this shop", which
                is the one party the figures are not about. The shop's own position with its
-               distributor is a different number and `credit.check` now returns it; wiring this
-               card to both is its own piece of work. -->
+               distributor is a different number and `credit.check` now returns it; it is the row
+               at the bottom of this card. The distributor is named on every line now, here and
+               on the catalogue header and the cart. -->
           <template v-if="credit.unlimited">
             <p class="foot">
               No credit limit is set for {{ distributorName || 'this distributor' }}, so nothing

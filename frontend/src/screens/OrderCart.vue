@@ -360,9 +360,11 @@ function blockerLines(blocker) {
               <Icon name="check" size="18" /> Credit active
             </span>
             <span v-else-if="creditView.state === 'breach'" class="tag crit">
-              <Icon name="alert" size="18" /> Over credit limit
+              <Icon name="alert" size="18" /> Distributor over credit limit
             </span>
-            <span v-else-if="creditView.state === 'unlimited'" class="tag">No credit limit set</span>
+            <span v-else-if="creditView.state === 'unlimited'" class="tag">
+              No credit limit on {{ creditView.party_name || 'the distributor' }}
+            </span>
             <span v-if="credit?.credit_days" class="tag tnum">{{ credit.credit_days }} day terms</span>
           </div>
         </div>
@@ -371,9 +373,14 @@ function blockerLines(blocker) {
       <!-- Credit, in full, because this is the screen where the order value exists. -->
       <section class="credit" :class="creditView.tone" aria-label="Credit position">
         <div class="crow">
-          <b v-if="creditView.state === 'breach'">Over the limit</b>
+          <!-- Whose limit. This said "this shop" over the distributor's own figures. -->
+          <b v-if="creditView.state === 'breach'">
+            {{ creditView.party_name || 'The distributor' }} is over the limit
+          </b>
           <b v-else-if="creditView.state === 'within'">Safe zone &middot; under limit</b>
-          <b v-else-if="creditView.state === 'unlimited'">No limit set for this shop</b>
+          <b v-else-if="creditView.state === 'unlimited'">
+            No limit set for {{ creditView.party_name || 'this distributor' }}
+          </b>
           <b v-else>Credit not on this phone</b>
           <span v-if="creditView.state === 'breach'" class="tnum">
             {{ money(creditView.over_paise) }} over
@@ -394,6 +401,13 @@ function blockerLines(blocker) {
             <div><dt>Already owed</dt><dd class="tnum">{{ money(creditView.outstanding_paise) }}</dd></div>
             <div><dt>This order</dt><dd class="tnum">{{ money(creditView.order_paise) }}</dd></div>
           </dl>
+          <!-- The shop's own debt to its distributor. A different number from every figure
+               above, and the one a rep is most often asked about across the counter. -->
+          <p v-if="creditView.shop_has_limit" class="cnote tnum">
+            This shop owes {{ creditView.party_name || 'its distributor' }}
+            <b>{{ money(creditView.shop_outstanding_paise) }}</b>
+            of {{ money(creditView.shop_limit_paise) }} &mdash; our own count.
+          </p>
           <p class="cnote">
             <span v-if="creditView.state === 'breach'">
               This order takes the shop past its limit. You can still book it &mdash; your manager
@@ -405,8 +419,8 @@ function blockerLines(blocker) {
         </template>
         <p v-else class="cnote">
           {{ creditOffline
-            ? 'This shop’s credit has not reached this phone yet. Take the order — the office will see where it lands.'
-            : 'No credit limit is recorded for this shop, so nothing is holding this order.' }}
+            ? 'The distributor’s credit has not reached this phone yet. Take the order — the office will see where it lands.'
+            : 'No credit limit is recorded for this distributor, so nothing is holding this order.' }}
         </p>
       </section>
 
