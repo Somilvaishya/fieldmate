@@ -866,17 +866,18 @@ class TestThePortalPagesActuallyRender(PortalFixture):
 		simply looks wrong. This is the cheapest possible check for it. Only literal class
 		attributes are read - anything a script composes is its own business.
 		"""
-		import io
 		import os
 		import re
 
 		app = frappe.get_app_path("fieldmate")
-		css = io.open(os.path.join(app, "public", "css", "portal.css"), encoding="utf-8").read()
+		with open(os.path.join(app, "public", "css", "portal.css"), encoding="utf-8") as fh:
+			css = fh.read()
 		defined = set(re.findall(r"\.([A-Za-z][\w-]*)", css))
 
 		pages = os.path.join(app, "www", "distributor")
 		for page in sorted(f for f in os.listdir(pages) if f.endswith(".html")):
-			html = io.open(os.path.join(pages, page), encoding="utf-8").read()
+			with open(os.path.join(pages, page), encoding="utf-8") as fh:
+				html = fh.read()
 			used = {c for attr in re.findall(r'class="([a-z0-9 _-]+)"', html)
 			        for c in attr.split()}
 			with self.subTest(page=page):

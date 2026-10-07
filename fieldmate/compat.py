@@ -597,7 +597,7 @@ def item_tax_rates(
 		if template not in templates:
 			rates = get_item_tax_map(company, template, as_json=False) or {}
 			# Summed, and rounded to the basis point. A template holding 9 and 9 answers 1800.
-			templates[template] = int(round(sum(flt(r) for r in rates.values()) * 100))
+			templates[template] = round(sum(flt(r) for r in rates.values()) * 100)
 		if templates[template]:
 			out[code] = templates[template]
 

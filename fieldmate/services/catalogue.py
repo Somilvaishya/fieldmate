@@ -33,8 +33,7 @@ from frappe.utils import cint, flt, getdate, today
 
 from fieldmate import compat
 from fieldmate.services import credit as credit_service
-from fieldmate.services import pricing
-from fieldmate.services import scope
+from fieldmate.services import pricing, scope
 from fieldmate.services import settings as settings_service
 from fieldmate.services import tax as tax_service
 

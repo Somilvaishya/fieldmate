@@ -95,13 +95,14 @@ def detail(outlet: str, user: str | None = None) -> dict:
 	allowed, reason = doc.can_take_order()
 	party = doc.billing_party()
 
-	# Whose books, resolved the way the rest of the app resolves it: from the rep, then from
-	# settings. This used to read `doc.get("company")` first - a field FieldMate Outlet does not
-	# have - so the whole expression fell through to `default_company`, and on any site where
-	# nobody had set that, every shop came back with no credit at all. The phone read the empty
-	# block as "not on this phone" while `credit.check()`, which asks the rep, was answering
-	# "Within Limit, 50,000" for the same shop a function away.
-	company = catalogue_service.resolve_company(field_user_service.for_user(user))
+	# The company is resolved inside `credit.check` now, from the rep and then from settings,
+	# which is how the rest of the app does it. It was resolved here as well until this function
+	# stopped computing credit of its own - and the lesson is worth keeping: the version before
+	# that read `doc.get("company")` first, a field FieldMate Outlet does not have, so the whole
+	# expression fell through to `default_company`. On any site where nobody had set that, every
+	# shop came back with no credit at all, and the phone read the empty block as "not on this
+	# phone" while `credit.check()` answered "Within Limit, 50,000" for the same shop a function
+	# away.
 
 	# One credit answer for the whole app. This used to call `compat.get_credit_status`, which
 	# was a third way of asking - `credit.check` for the order path, `collection.outstanding_for`

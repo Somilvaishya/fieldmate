@@ -21,7 +21,7 @@ def execute():
 	if not frappe.db.has_column("FieldMate Order", "party_type"):
 		return
 
-	stamped = frappe.db.sql("""
+	frappe.db.sql("""
 		update `tabFieldMate Order`
 		set party_type = 'Outlet'
 		where (party_type is null or party_type = '') and outlet is not null
