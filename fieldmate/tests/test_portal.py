@@ -20,6 +20,7 @@ from frappe.utils import add_days, flt, today
 from fieldmate.api import portal as portal_api
 from fieldmate.services import claim as claim_service
 from fieldmate.services import portal as portal_service
+from fieldmate.services import secondary_sales as secondary_sales_service
 from fieldmate.tests.test_order import OrderFixture
 
 
@@ -751,14 +752,31 @@ class TestADepotSendsItsOwnSalesFile(PortalFixture):
 
 	def test_the_page_builds_its_own_context(self):
 		"""A smoke test, because a broken context or a bad template reference shows up only in a
-		browser - and the browser belongs to a distributor, not to us."""
+		browser - and the browser belongs to a distributor, not to us.
+
+		It was not enough. This called `get_context` and stopped there, so it passed for weeks
+		over a page that answered 500 on every single load - and the key it asserted,
+		`context.template`, was the cause: Frappe reads that one as the path of the Jinja file to
+		render. Building a context is not drawing a page. See
+		TestThePortalPagesActuallyRender, which draws them.
+		"""
 		from fieldmate.www.distributor import sales as sales_page
 
 		context = self.as_depot(lambda: sales_page.get_context(frappe._dict()))
 		self.assertEqual(context.distributor, self.distributor.name)
 		self.assertTrue(context.can_upload)
-		self.assertIn("invoice_no", context.template["accepted_headers"])
+		self.assertIn("invoice_no", context.file_format["accepted_headers"])
 		self.assertIsInstance(context.recent, list)
+
+	def test_the_page_leaves_frappes_own_context_keys_alone(self):
+		"""`template`, `doc`, `route` and their like belong to the renderer. A page that writes
+		one does not fail where it was written - it fails inside Jinja, in a traceback with
+		nothing of ours in it."""
+		from fieldmate.www.distributor import sales as sales_page
+
+		context = self.as_depot(lambda: sales_page.get_context(frappe._dict()))
+		for reserved in ("template", "doc", "route", "path"):
+			self.assertNotIn(reserved, context, f"{reserved} belongs to Frappe, not to this page")
 
 	def test_the_page_lists_only_this_depots_files(self):
 		other = self.second_depot()
@@ -780,3 +798,87 @@ class TestADepotSendsItsOwnSalesFile(PortalFixture):
 			lambda: sales_page.get_context(frappe._dict())).recent}
 		self.assertIn(mine["name"], names)
 		self.assertNotIn(theirs.name, names, "one depot must not see another's book")
+
+
+class TestThePortalPagesActuallyRender(PortalFixture):
+	"""Every test in this file called a service. None of them ever drew a page.
+
+	So `/distributor/sales` answered 500 on every load since the day it was written, and nothing
+	said so: `sales.py` set `context.template`, which is a key Frappe owns - `template_page`
+	reads it as the path of the Jinja file to render - so the renderer handed a dict to the
+	loader and died inside Jinja with `AttributeError: 'dict' object has no attribute 'split'`,
+	a traceback with nothing of ours in it.
+
+	A page that renders is the lowest bar there is, and it is the one bar nothing here checked.
+	"""
+
+	PAGES = ("distributor/sales", "distributor/orders", "distributor/claims")
+
+	def render(self, path: str) -> str:
+		from frappe.website.page_renderers.template_page import TemplatePage
+
+		frappe.set_user(self.depot.user)
+		try:
+			page = TemplatePage(path=path)
+			self.assertTrue(page.can_render(), f"/{path} is not a page at all")
+			answer = page.render()
+			return (answer.get_data(as_text=True)
+			        if hasattr(answer, "get_data") else str(answer))
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_each_page_renders_for_a_depot_login(self):
+		for path in self.PAGES:
+			with self.subTest(path=path):
+				self.assertGreater(len(self.render(path)), 500,
+				                   f"/{path} did not draw a page")
+
+	def test_the_sales_page_names_the_columns_the_reader_wants(self):
+		"""The one thing that page is for: a depot has to know what its file must contain
+		before it sends one."""
+		html = self.render("distributor/sales")
+		required = secondary_sales_service.template()["required"]
+		for column in required:
+			self.assertIn(column, html, f"the sales page does not name {column}")
+
+	def test_the_index_sends_a_depot_to_its_queue(self):
+		"""A bare index listing two links is a page nobody wanted to be on."""
+		from frappe.website.page_renderers.template_page import TemplatePage
+
+		frappe.set_user(self.depot.user)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				TemplatePage(path="distributor").render()
+			self.assertEqual(frappe.local.flags.redirect_location, "/distributor/orders")
+		finally:
+			frappe.local.flags.redirect_location = None
+			frappe.set_user("Administrator")
+
+	def test_every_class_a_page_uses_has_a_rule_behind_it(self):
+		"""The sales page invented `pad`, `muted` and `r`, and portal.css defined none of them.
+
+		So the card had no inner padding, its explanatory lines came out as body text, and four
+		number columns sat left-aligned. Nobody saw it because the page answered 500 before any
+		of it reached a browser - and once it rendered, the first thing said about it was that
+		the dashboard looked broken.
+
+		A class with no rule is a silent failure: the markup is valid, the page loads, and it
+		simply looks wrong. This is the cheapest possible check for it. Only literal class
+		attributes are read - anything a script composes is its own business.
+		"""
+		import io
+		import os
+		import re
+
+		app = frappe.get_app_path("fieldmate")
+		css = io.open(os.path.join(app, "public", "css", "portal.css"), encoding="utf-8").read()
+		defined = set(re.findall(r"\.([A-Za-z][\w-]*)", css))
+
+		pages = os.path.join(app, "www", "distributor")
+		for page in sorted(f for f in os.listdir(pages) if f.endswith(".html")):
+			html = io.open(os.path.join(pages, page), encoding="utf-8").read()
+			used = {c for attr in re.findall(r'class="([a-z0-9 _-]+)"', html)
+			        for c in attr.split()}
+			with self.subTest(page=page):
+				self.assertEqual(sorted(used - defined), [],
+				                 f"{page} uses classes portal.css does not define")

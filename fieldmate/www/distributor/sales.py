@@ -33,7 +33,13 @@ def get_context(context):
 	# The headers this reader already understands, shown on the page rather than hidden behind a
 	# download. A depot looking at its own export wants to know whether it is already accepted;
 	# handing them a format to convert to is how a file stops being sent.
-	context.template = secondary_sales_service.template()
+	#
+	# NOT `context.template`. That key belongs to Frappe: `template_page.get_raw_template` reads
+	# it as the path of the Jinja file to render, so setting it to a dict made every load of this
+	# page a 500 before a line of it was drawn - `AttributeError: 'dict' object has no attribute
+	# 'split'`, thrown inside Jinja's loader, nowhere near here. The page had never once
+	# rendered.
+	context.file_format = secondary_sales_service.template()
 
 	context.recent = frappe.get_all(
 		"FieldMate Secondary Sales",

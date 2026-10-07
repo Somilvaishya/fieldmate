@@ -72,13 +72,13 @@
     <div class="pad">
       <h2>Column names we already understand</h2>
       <p class="muted">Any one of these spellings works, in any order. Only
-         <b>{{ template.required | join(', ') }}</b> are needed.</p>
+         <b>{{ file_format.required | join(', ') }}</b> are needed.</p>
       <table>
         <thead><tr><th>What it is</th><th>Headers we accept</th></tr></thead>
         <tbody>
-          {% for field, names in template.accepted_headers.items() %}
+          {% for field, names in file_format.accepted_headers.items() %}
           <tr>
-            <td>{{ field }}{% if field in template.required %} <b>(needed)</b>{% endif %}</td>
+            <td>{{ field }}{% if field in file_format.required %} <b>(needed)</b>{% endif %}</td>
             <td class="muted">{{ names | join(' &middot; ') }}</td>
           </tr>
           {% endfor %}
@@ -93,8 +93,8 @@
       <table>
         <thead>
           <tr>
-            <th>File</th><th>Period</th><th class="r">Lines</th><th class="r">Value</th>
-            <th class="r">Shops matched</th><th class="r">Rows we could not read</th>
+            <th>File</th><th>Period</th><th class="num">Lines</th><th class="num">Value</th>
+            <th class="num">Shops matched</th><th class="num">Rows we could not read</th>
           </tr>
         </thead>
         <tbody>
@@ -102,10 +102,10 @@
           <tr>
             <td>{{ row.file_name or row.name }}</td>
             <td>{{ row.from_date }} &ndash; {{ row.to_date }}</td>
-            <td class="r">{{ row.total_lines }}</td>
-            <td class="r">{{ row.total_amount }}</td>
-            <td class="r">{{ row.matched_outlets }}</td>
-            <td class="r">{{ row.rows_rejected }}</td>
+            <td class="num">{{ row.total_lines }}</td>
+            <td class="num">{{ row.total_amount }}</td>
+            <td class="num">{{ row.matched_outlets }}</td>
+            <td class="num">{{ row.rows_rejected }}</td>
           </tr>
           {% else %}
           <tr><td colspan="6" class="muted">Nothing sent yet.</td></tr>
