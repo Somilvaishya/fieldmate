@@ -3,6 +3,8 @@
  "creation": "2026-09-21 20:00:00.000000", "doctype": "DocType", "engine": "InnoDB",
  "field_order": ["catalogue_name", "is_active", "column_head", "territory", "channel", "outlet_class",
    "section_validity", "valid_from", "column_validity", "valid_to",
+   "section_showcase", "is_showcase", "season", "column_showcase", "cover_image",
+   "blurb",
    "section_items", "items", "item_count"],
  "fields": [
   {"fieldname": "catalogue_name", "fieldtype": "Data", "label": "Catalogue Name", "reqd": 1, "unique": 1, "in_list_view": 1},
@@ -15,6 +17,12 @@
   {"fieldname": "valid_from", "fieldtype": "Date", "label": "Valid From", "in_list_view": 1},
   {"fieldname": "column_validity", "fieldtype": "Column Break"},
   {"fieldname": "valid_to", "fieldtype": "Date", "label": "Valid To"},
+  {"fieldname": "section_showcase", "fieldtype": "Section Break", "label": "Showcase"},
+  {"fieldname": "is_showcase", "fieldtype": "Check", "label": "Showcase", "in_standard_filter": 1, "description": "This catalogue was written to be read by a customer, not by a rep. Only a showcase can be put behind a share link - an ordinary catalogue carries focus flags, minimum order quantities and notes meant for the person selling, and putting one in front of a buyer is not a feature."},
+  {"fieldname": "season", "fieldtype": "Link", "label": "Season", "options": "FieldMate Season", "depends_on": "eval:doc.is_showcase", "description": "Where this showcase is a season's range. Blank is an ordinary one."},
+  {"fieldname": "column_showcase", "fieldtype": "Column Break"},
+  {"fieldname": "cover_image", "fieldtype": "Attach Image", "label": "Cover Image", "depends_on": "eval:doc.is_showcase", "description": "The one picture at the top of the shared page. Every other image comes from the Item master, because that is where somebody already maintains them and a second copy would be a second thing to keep in step."},
+  {"fieldname": "blurb", "fieldtype": "Small Text", "label": "Blurb", "depends_on": "eval:doc.is_showcase", "description": "A line or two under the cover. Shown to the customer, so write it for them."},
   {"fieldname": "section_items", "fieldtype": "Section Break", "label": "Items"},
   {"fieldname": "items", "fieldtype": "Table", "label": "Items", "options": "FieldMate Catalogue Item"},
   {"fieldname": "item_count", "fieldtype": "Int", "label": "Items", "read_only": 1}

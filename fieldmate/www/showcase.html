@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- A shared price list is not something to find in a search engine. -->
+<meta name="robots" content="noindex, nofollow">
+<title>{% if ok %}{{ title }}{% else %}Not available{% endif %}</title>
+<link rel="stylesheet" href="/assets/fieldmate/css/showcase.css">
+<script>window.frappe = {csrf_token: "{{ frappe.session.csrf_token }}"};</script>
+</head>
+<body>
+
+{% if not ok %}
+<div class="closed">
+  <h1>Not available</h1>
+  <p>{{ closed_message }}</p>
+  <p class="muted">If you were expecting to see a catalogue here, ask whoever sent you the link
+     for a new one.</p>
+</div>
+{% else %}
+
+<header class="cover" {% if cover_image %}style="background-image:url('{{ cover_image }}')"{% endif %}>
+  <div class="cover-text">
+    <h1>{{ title }}</h1>
+    {% if season %}<div class="season">{{ season }}</div>{% endif %}
+    {% if blurb %}<p>{{ blurb }}</p>{% endif %}
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Named, because a buyer wants to know whose prices these are, and because the rep wants
+       them to see it was personal. Nothing else about either party is on this page. -->
+  <p class="who">
+    Prepared for <b>{{ party_name }}</b>{% if shared_by %} by {{ shared_by }}{% endif %}.
+    {% if valid_to %}<span class="muted">Prices held until {{ frappe.utils.formatdate(valid_to) }}.</span>{% endif %}
+  </p>
+
+  {% if not items %}
+  <p class="muted">There is nothing priced on this catalogue yet.</p>
+  {% else %}
+
+  <div class="grid">
+    {% for item in items %}
+    <div class="card" data-item="{{ item.item_code }}">
+      <div class="pic">
+        {% if item.image %}<img src="{{ item.image }}" alt="" loading="lazy">{% else %}<span class="noimg"></span>{% endif %}
+      </div>
+      <div class="body">
+        <div class="name">{{ item.item_name }}</div>
+        <div class="rate">{{ frappe.utils.fmt_money(item.rate, currency=currency) }}
+          <span class="muted">per {{ item.uom }}</span></div>
+        {% if item.min_order_qty %}
+        <div class="muted small">Minimum {{ item.min_order_qty }}</div>
+        {% endif %}
+        <div class="qty">
+          <button type="button" class="step" data-step="-1" aria-label="Fewer">&minus;</button>
+          <input type="number" min="0" step="1" value="0" inputmode="numeric"
+                 aria-label="How many {{ item.item_name }}">
+          <button type="button" class="step" data-step="1" aria-label="More">+</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="ask">
+    <label for="note">Anything to add</label>
+    <textarea id="note" rows="2" placeholder="Delivery, sizes, anything else"></textarea>
+    <!-- Deliberately not called "Order". Nothing here commits anybody: it reaches the rep as a
+         draft, and they come back. Saying otherwise would be a promise this page cannot keep. -->
+    <button type="button" id="send" class="primary">Send this to my representative</button>
+    <p id="said" class="said" hidden></p>
+  </div>
+
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  // `tojson`, not `frappe.as_json`: the website Jinja environment is restricted and does
+  // not expose that one. The filter escapes for a script context, which is what matters
+  // here even though a token is only ever hex.
+  const token = {{ token | tojson }};
+  const cards = Array.from(document.querySelectorAll('.card'));
+
+  cards.forEach(function (card) {
+    const input = card.querySelector('input');
+    card.querySelectorAll('.step').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const next = Math.max(0, (Number(input.value) || 0) + Number(btn.dataset.step));
+        input.value = next;
+        card.classList.toggle('on', next > 0);
+      });
+    });
+    input.addEventListener('input', function () {
+      card.classList.toggle('on', (Number(input.value) || 0) > 0);
+    });
+  });
+
+  const said = document.getElementById('said');
+  const send = document.getElementById('send');
+
+  send.addEventListener('click', function () {
+    const lines = cards.map(function (card) {
+      return { item: card.dataset.item, qty: Number(card.querySelector('input').value) || 0 };
+    }).filter(function (line) { return line.qty > 0; });
+
+    if (!lines.length) {
+      tell('Put a quantity against something first.', false);
+      return;
+    }
+
+    send.disabled = true;
+    send.textContent = 'Sending…';
+
+    fetch('/api/method/fieldmate.www.showcase.ask', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Frappe-CSRF-Token': (window.frappe && window.frappe.csrf_token) || '',
+      },
+      body: JSON.stringify({ token: token, lines: JSON.stringify(lines),
+                             note: document.getElementById('note').value }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        const answer = (r && r.message) || {};
+        tell(answer.message || 'Thank you.', answer.ok);
+        if (answer.ok) send.remove();
+      })
+      .catch(function () {
+        // The one thing a stranger can be told: it did not go. Anything more specific is a
+        // detail about our server that they have no use for.
+        tell('That did not go through. Please try again, or reply to whoever sent you this.',
+             false);
+      })
+      .finally(function () {
+        send.disabled = false;
+        if (document.body.contains(send)) send.textContent = 'Send this to my representative';
+      });
+  });
+
+  function tell(words, good) {
+    said.textContent = words;
+    said.className = 'said ' + (good ? 'good' : 'bad');
+    said.hidden = false;
+  }
+}());
+</script>
+
+{% endif %}
+</body>
+</html>

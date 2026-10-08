@@ -14,7 +14,7 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 to 7 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 8 of 11 done.**
 
 - 1,020 Python tests green, ruff clean
 - 42 PWA tests green — see below
@@ -27,6 +27,29 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 8 — the showcase, behind a public link
+
+`FieldMate Share Link` (the phase's second and last new doctype), showcase fields on Product
+Catalogue, `services/showcase.py`, and a guest page at `/showcase?t=<token>`.
+
+**The only thing in the app that answers to somebody with no login.** Token generated not chosen,
+one party's prices fixed at creation, expires by itself, can be switched off, can be capped by
+opens, and a refusal says "not available" and nothing more — who it was for and when it expired
+are facts about a conversation the visitor may not have been in. `noindex`.
+
+Only a catalogue marked **Showcase** can be shared; an ordinary one carries notes written for the
+person selling. An unpriced item is left out rather than shown at nothing.
+
+**A self-order is not an order** — it is a draft for the rep who sent the link. Quantities are the
+only thing taken from the visitor, they are re-priced server-side, and an item the link does not
+show is dropped.
+
+Two Frappe facts learned the hard way, both in tests:
+
+- **`frappe.set_user` clears `local.form_dict` and `session.data`.** Setting a form value and then
+  switching user wipes it.
+- **`frappe.as_json` is not in the website's restricted Jinja environment**; Jinja's `tojson` is.
 
 ## Phase 2, step 7 — the cockpit, the reminder, and a top-up
 
@@ -415,9 +438,9 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 8: showcase — Product Catalogue marked as showcase with images from the Item master,
-and the phase's second new doctype, **Share Link**, showing a party its own prices. A self-order
-from one arrives as a draft order for the rep.
+Phase 2, step 9: the PWA screens — season booking, the booking list and its status, the showcase,
+and the deposit screen gaining PDC status. The first step of this phase that touches the phone, so
+it is also the first that the PWA suite covers rather than only the Python one.
 
 **Still open from step 6:** the e-way bill. india_compliance is installed, but company `test` has
 no GSTIN and reads as Unregistered, so none can be raised on testerp2. Nothing else in dispatch
