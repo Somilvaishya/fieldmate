@@ -14,7 +14,7 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 to 5 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 6 of 11 done.**
 
 - 1,020 Python tests green, ruff clean
 - 42 PWA tests green — see below
@@ -27,6 +27,37 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 6 — getting it out of the warehouse
+
+`services/dispatch.py`, the dispatch half of the allocation page, a **FieldMate Dispatch Planner**
+role, and an idempotency key on Delivery Note and Delivery Trip. No dispatch document of our own:
+the Delivery Note is the record of what left and the Sales Invoice of what was billed.
+
+**It does not build a Pick List, and the plan says it should.** ERPNext refuses outright —
+*"Cannot create a pick list for Sales Order X because it has reserved stock"* — because reserving
+and picking are two alternative ways of promising stock, not two steps of one. The reserved path
+goes straight to a Delivery Note built `for_reserved_stock`, whose line quantities come from what
+allocation actually held, so a booking served short ships what it was given. Picking instead would
+mean giving the allocation back first, which is the one thing a dispatch must not do.
+`test_a_pick_list_is_not_the_path_here` pins it so nobody re-reads the plan in six months and
+"fixes" this.
+
+A Delivery Trip is left a **draft** — the route is still being planned — but it needs a vehicle and
+a departure time, because ERPNext will not save one without them. That is the right rule rather
+than one to work around: a trip without either is a list of addresses.
+
+**Three things the tests caught:**
+
+1. `ready()` empties the moment a booking ships — ERPNext consumes the reservation when the goods
+   go out. The first `invoice()` read `ready()` and would have had nothing to bill the instant the
+   delivery succeeded. `notes_for()` looks them up by key instead.
+2. A Delivery Trip would not save: `vehicle` and `departure_time` are mandatory even in draft.
+3. **Test teardown order.** `OrderFixture.tearDown` cancels this rep's FieldMate Orders by filter,
+   and a FieldMate Order's `on_cancel` cancels its Sales Order — so by the time the base teardown
+   reached the Delivery Note, ERPNext refused with "Sales Order is cancelled or closed" and the
+   whole cleanup loop stopped there, leaking everything after it. Dispatch documents come down
+   first now. This is the "test teardowns" carry-over the plan lists, met for the second time.
 
 ## Phase 2, step 5 — who gets the stock when a season is short
 
@@ -291,12 +322,12 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 6: dispatch. ERPNext Pick List and Delivery Trip off the reserved Sales Orders, then
-Delivery Note and Sales Invoice, and a new Dispatch Planner role.
+Phase 2, step 7: the cockpit and the reminders — booked, allocated, delivered and paid by state,
+party and SKU; daily payment reminders; the cutoff lock; and top-up orders against a booking.
 
-**The e-way bill half cannot be finished on testerp2 yet**: india_compliance is installed now, but
-company `test` has no GSTIN and reads as Unregistered, so no e-way bill can be raised there. The
-rest of the step does not depend on it.
+**Still open from step 6:** the e-way bill. india_compliance is installed, but company `test` has
+no GSTIN and reads as Unregistered, so none can be raised on testerp2. Nothing else in dispatch
+depends on it, and the Sales Invoice that an e-way bill would hang off is already posted.
 
 Then, in no fixed order: the rest of the PWA harness where it is thinnest (the cart and review
 screens, and the scheme engine's JS half against the Python parity corpus), and the three

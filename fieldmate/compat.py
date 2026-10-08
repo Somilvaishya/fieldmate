@@ -804,6 +804,171 @@ def make_sales_order(payload: dict) -> str:
 
 
 # --------------------------------------------------------------------------------------
+# dispatch — the goods leaving, and the bill that follows them
+# --------------------------------------------------------------------------------------
+#
+# **Not a Pick List.** The plan this phase follows says "Pick List and Delivery Trip from the
+# reserved Sales Orders", and ERPNext will not do that: `create_pick_list` refuses outright for a
+# Sales Order carrying reserved stock -
+#
+#     "Cannot create a pick list for Sales Order {0} because it has reserved stock.
+#      Please unreserve the stock in order to create a pick list."
+#
+# Reservation and picking are two *alternative* ways of promising stock in ERPNext, not two steps
+# of one. The reserved path goes straight to a Delivery Note built from the reservations, which is
+# what `for_reserved_stock` does: it reads the Stock Reservation Entries and sets the line
+# quantities from what was actually held. Allocating and then picking would mean giving the
+# allocation back first, which is the one thing a dispatch must not do.
+
+
+def _key_column(doctype: str) -> str | None:
+	"""Where this doctype keeps our idempotency key, if the field has been installed."""
+	return SALES_ORDER_KEY_FIELD if _has_column(doctype, SALES_ORDER_KEY_FIELD) else None
+
+
+def posted_for_key(doctype: str, key: str) -> str | None:
+	"""The document already posted for this key, if there is one. Not a cancelled one."""
+	column = _key_column(doctype)
+	if not (key and column):
+		return None
+	return frappe.db.get_value(doctype, {column: key, "docstatus": ["<", 2]}, "name")
+
+
+def _assert_keyed(doctype: str) -> str:
+	column = _key_column(doctype)
+	if not column:
+		frappe.throw(
+			frappe._("{0} has no {1} field on this site, so it cannot be posted without risking "
+			         "a duplicate. Install the FieldMate fixtures and run bench migrate.")
+			.format(doctype, SALES_ORDER_KEY_FIELD)
+		)
+	return column
+
+
+def make_delivery_note(sales_order: str, key: str, posting_date=None) -> str | None:
+	"""Ship what is reserved against this Sales Order. Safe to call twice with one key.
+
+	Returns the Delivery Note, or None where there is nothing left to ship - an order already
+	delivered in full is the ordinary state of a dispatch run somebody restarted, not an error.
+
+	Built `for_reserved_stock`, so the quantities are the ones allocation actually held rather
+	than the ones the party asked for. A booking served short gets a Delivery Note for what it
+	was given, which is the whole point of having allocated.
+	"""
+	column = _assert_keyed("Delivery Note")
+
+	existing = posted_for_key("Delivery Note", key)
+	if existing:
+		return existing
+
+	if not reserved_for_sales_order(sales_order):
+		return None
+
+	from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note as _from_so
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		note = _from_so(sales_order, kwargs={"for_reserved_stock": True})
+		if not note.get("items"):
+			return None
+		note.set(column, key)
+		if posting_date:
+			note.set_posting_time = 1
+			note.posting_date = posting_date
+		note.flags.ignore_permissions = True
+		note.insert()
+		note.submit()
+	finally:
+		frappe.set_user(was)
+
+	return note.name
+
+
+def make_sales_invoice(delivery_note: str, key: str) -> str | None:
+	"""Bill a Delivery Note. Safe to call twice with one key.
+
+	Submitted, because an invoice sitting in draft is a sale nobody has recorded - and the
+	whole reason a primary sale is ours is that it reaches the ledger.
+	"""
+	column = _assert_keyed("Sales Invoice")
+
+	existing = posted_for_key("Sales Invoice", key)
+	if existing:
+		return existing
+
+	from erpnext.stock.doctype.delivery_note.delivery_note import make_sales_invoice as _from_dn
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		invoice = _from_dn(delivery_note)
+		if not invoice.get("items"):
+			return None
+		invoice.set(column, key)
+		invoice.flags.ignore_permissions = True
+		invoice.insert()
+		invoice.submit()
+	finally:
+		frappe.set_user(was)
+
+	return invoice.name
+
+
+def make_delivery_trip(delivery_notes: list[str], key: str, vehicle: str, departure_time,
+                       **fields) -> str | None:
+	"""One vehicle, several drops. Safe to call twice with one key.
+
+	`vehicle` and `departure_time` are required because ERPNext requires them - a Delivery Trip
+	will not save without them, draft or not. That is the right rule and worth passing on rather
+	than working around: a trip is a specific van leaving at a specific time, and one without
+	either is a list of addresses.
+
+	Left as a **draft**, unlike everything else here. The route is still being planned, the
+	driver may not be assigned, and submitting it says the trip is happening when nobody has
+	agreed to drive it.
+	"""
+	column = _assert_keyed("Delivery Trip")
+
+	existing = posted_for_key("Delivery Trip", key)
+	if existing:
+		return existing
+
+	notes = [name for name in (delivery_notes or []) if name]
+	if not notes:
+		return None
+
+	if not (vehicle and departure_time):
+		frappe.throw(frappe._(
+			"A delivery trip needs a vehicle and a departure time. ERPNext will not save one "
+			"without them, and neither should we - a trip without either is a list of "
+			"addresses."))
+
+	from erpnext.stock.doctype.delivery_note.delivery_note import make_delivery_trip as _from_dn
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		trip = _from_dn(notes[0])
+		for extra in notes[1:]:
+			other = _from_dn(extra)
+			for stop in other.get("delivery_stops") or []:
+				trip.append("delivery_stops", stop.as_dict(no_default_fields=True))
+		trip.set(column, key)
+		trip.vehicle = vehicle
+		trip.departure_time = departure_time
+		for field, value in fields.items():
+			if value:
+				trip.set(field, value)
+		trip.flags.ignore_permissions = True
+		trip.insert()
+	finally:
+		frappe.set_user(was)
+
+	return trip.name
+
+
+# --------------------------------------------------------------------------------------
 # stock reservation — ERPNext holds the stock, we only say who gets it
 # --------------------------------------------------------------------------------------
 #

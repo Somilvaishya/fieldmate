@@ -25,6 +25,9 @@ ROLES = [
 	("FieldMate Sales Head", True),
 	("FieldMate Admin", True),
 	("FieldMate Distributor", False),
+	# Phase 2. Whoever turns a season's allocation into vehicles leaving a gate. Desk only: a
+	# dispatch planner works off a screen with a whole season on it, never off a handset.
+	("FieldMate Dispatch Planner", True),
 ]
 
 
@@ -106,14 +109,19 @@ def create_roles() -> None:
 			frappe.db.set_value("Role", role_name, "desk_access", wanted)
 
 
-# Where a caller's idempotency key is kept on the two ERPNext documents we post. Custom Fields
-# rather than core edits, so `bench update` stays boring (compat rule 3).
+# Where a caller's idempotency key is kept on the ERPNext documents we post. Custom Fields rather
+# than core edits, so `bench update` stays boring (compat rule 3).
 IDEMPOTENCY_FIELDS = (
 	("Sales Order", "A field order retried after a dropped connection must not become two "
 	                "company commitments."),
 	("Payment Entry", "A deposit confirmation retried must not pay the same money twice."),
 	("Sales Invoice", "A claim approval clicked twice must not credit the distributor twice."),
 	("Expense Claim", "A settled travel claim retried must not pay the rep twice."),
+	# Phase 2. Dispatching a season is a button somebody will press twice while a long run is
+	# still going, and a second Delivery Note would take the same stock out of the warehouse
+	# again - a discrepancy found weeks later by somebody counting shelves.
+	("Delivery Note", "A dispatch run started twice must not ship the same booking twice."),
+	("Delivery Trip", "A route built twice must not send two vehicles for one load."),
 )
 
 

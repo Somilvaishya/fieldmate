@@ -16,6 +16,7 @@ from fieldmate.services import scheme_compile
 from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
 from fieldmate.tests.test_order import OrderFixture
+from fieldmate.tests.test_scheme_compile import default_selling_price_list
 
 
 class SeasonFixture(OrderFixture):
@@ -28,7 +29,10 @@ class SeasonFixture(OrderFixture):
 		self._before = {k: self.fresh_settings().get(k) for k in self.SETTINGS}
 		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=1)
 
-		self.party_price_list = frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+		# The same list `price_item` prices into and a cart resolves to, named rather than
+		# "whichever one MariaDB returns first" - this fixture creates extra selling lists, and
+		# an arbitrary pick moves the moment it does.
+		self.party_price_list = default_selling_price_list()
 		self.party = self.outlet.distributor
 		frappe.db.set_value("Customer", self.party, {
 			"fm_tier": "Super Stockist", "fm_buys_from": "Company",

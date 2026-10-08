@@ -6,6 +6,21 @@ from fieldmate.tests.base import FieldMateTestCase
 from fieldmate.tests.test_masters import MasterFixture
 
 
+def default_selling_price_list() -> str:
+	"""The list a fixture should price into, and the one a cart will resolve to.
+
+	`pricing.price_list_for` ends its chain at Selling Settings, so that is the answer. It used
+	to be "any selling, enabled Price List", which is not a rule but whatever MariaDB returned
+	first - and the moment a test created a second selling list, the price went onto one list
+	while the cart read another. Eighty-nine tests failed with "these have no price yet", none of
+	them near the code that caused it.
+	"""
+	named = frappe.db.get_single_value("Selling Settings", "selling_price_list")
+	if named and frappe.db.exists("Price List", named):
+		return named
+	return frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+
+
 class SchemeFixture(MasterFixture):
 	"""Schemes, items and a territory tree, all built here rather than taken from the site.
 
@@ -26,7 +41,7 @@ class SchemeFixture(MasterFixture):
 		sent, so an unpriced item stops the whole cart rather than booking itself free. A fixture
 		that skips this tests a shape no real site has.
 		"""
-		price_list = frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+		price_list = default_selling_price_list()
 		# Upsert, because a subclass routinely re-prices the same item at a rate its own
 		# arithmetic depends on, and ERPNext allows one price per item per list.
 		existing = frappe.db.get_value(

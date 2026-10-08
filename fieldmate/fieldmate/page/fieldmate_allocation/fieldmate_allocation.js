@@ -47,6 +47,14 @@ frappe.pages['fieldmate-allocation'].on_page_load = function (wrapper) {
 	page.add_button(__('Apply'), () => confirm_then('apply'), { btn_class: 'btn-default' });
 	page.add_button(__('Revert'), () => confirm_then('revert'), { btn_class: 'btn-default' });
 
+	// Dispatch, under its own menu. Allocating decides who is served short; dispatching takes
+	// the stock out of the warehouse, and they are different enough decisions that the second
+	// should not sit one slip of the thumb away from the first.
+	page.add_menu_item(__('Where has it got to?'), () => show_position());
+	page.add_menu_item(__('Deliver what is held'), () => confirm_dispatch('deliver'));
+	page.add_menu_item(__('Invoice what has shipped'), () => confirm_dispatch('invoice'));
+	page.add_menu_item(__('Build a delivery trip'), () => ask_for_a_van());
+
 	load_seasons();
 
 	function load_seasons() {
@@ -176,6 +184,82 @@ frappe.pages['fieldmate-allocation'].on_page_load = function (wrapper) {
 				<th class="text-right">${__('Asked')}</th>
 				<th class="text-right">${__('Gets')}</th>
 			</tr></thead><tbody>${rows}</tbody></table>`;
+	}
+
+	// ------------------------------------------------------------------ dispatch
+
+	function show_position() {
+		if (!state.season) return frappe.msgprint(__('Choose a season first.'));
+		frappe.call(`${METHOD}.position`, { season: state.season }).then((r) => {
+			const p = r.message;
+			frappe.msgprint({
+				title: __('{0} so far', [p.season_name]),
+				message: `<table class="table table-bordered table-sm">
+					<tr><td>${__('Booked')}</td><td class="text-right">${p.booked}</td></tr>
+					<tr><td>${__('Stock held')}</td><td class="text-right">${p.held}</td></tr>
+					<tr><td>${__('Shipped')}</td><td class="text-right">${p.shipped}</td></tr>
+					<tr><td>${__('Billed')}</td><td class="text-right">${p.billed}</td></tr>
+				</table>
+				<p class="text-muted small">${__('Every figure is read back from the Delivery '
+					+ 'Notes and Sales Invoices themselves, not from anything this page keeps.')}</p>`,
+			});
+		});
+	}
+
+	function confirm_dispatch(action) {
+		if (!state.season) return frappe.msgprint(__('Choose a season first.'));
+		const words = action === 'deliver'
+			? __('This submits a Delivery Note for every booking holding stock. The goods leave '
+				+ 'the warehouse. It cannot be undone from this page.')
+			: __('This submits a Sales Invoice for every Delivery Note of this season. The sale '
+				+ 'reaches the ledger.');
+		frappe.confirm(words, () => {
+			frappe.dom.freeze(__('Working…'));
+			frappe.call(`${METHOD}.${action}`, { season: state.season })
+				.then((r) => report(action, r.message))
+				.always(() => frappe.dom.unfreeze());
+		});
+	}
+
+	function ask_for_a_van() {
+		if (!state.season) return frappe.msgprint(__('Choose a season first.'));
+		// A trip is a specific van leaving at a specific time. ERPNext will not save one
+		// without both, and that is the right rule rather than one to work around.
+		frappe.prompt([
+			{ fieldname: 'vehicle', label: __('Vehicle'), fieldtype: 'Link',
+			  options: 'Vehicle', reqd: 1 },
+			{ fieldname: 'departure_time', label: __('Leaves at'), fieldtype: 'Datetime',
+			  reqd: 1, default: frappe.datetime.now_datetime() },
+		], (values) => {
+			frappe.dom.freeze(__('Working…'));
+			frappe.call(`${METHOD}.trip`, {
+				season: state.season, on: frappe.datetime.get_today(),
+				vehicle: values.vehicle, departure_time: values.departure_time,
+			})
+				.then((r) => {
+					const t = r.message;
+					if (!t.trip) {
+						frappe.msgprint(t.reason || __('Nothing to put on a trip.'));
+						return;
+					}
+					frappe.msgprint(__('Trip {0} drafted with {1} stop(s). Open it to assign a '
+						+ 'driver, then submit it.',
+					[`<a href="/app/delivery-trip/${t.trip}">${t.trip}</a>`, t.stops]));
+				})
+				.always(() => frappe.dom.unfreeze());
+		}, __('Build a delivery trip'), __('Build it'));
+	}
+
+	// Both numbers, always. A run that did nine of forty and stopped has to say which nine.
+	function report(action, answer) {
+		const done = action === 'deliver' ? answer.delivered : answer.invoiced;
+		const lines = [`<p>${__('{0} done, {1} not.', [done.length, answer.skipped.length])}</p>`];
+		if (answer.skipped.length) {
+			lines.push('<ul>' + answer.skipped.map((row) =>
+				`<li>${frappe.utils.escape_html(row.order || row.delivery_note)} — `
+				+ `${frappe.utils.escape_html(row.reason)}</li>`).join('') + '</ul>');
+		}
+		frappe.msgprint({ title: __('Dispatch'), message: lines.join('') });
 	}
 
 	function fmt(value) {
