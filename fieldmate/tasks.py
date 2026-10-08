@@ -84,3 +84,17 @@ def run_alerts():
 		frappe.logger("fieldmate").info(
 			f"{result['fired']} alerts fired across {result['rules']} rules "
 			f"({result['already_logged']} were already logged)")
+
+
+def remind_booking_payments():
+	"""Daily. Tell the rep and their manager about a season booking whose money is late.
+
+	Read off the Sales Order's own payment schedule, which ERPNext built from the season's
+	Payment Terms Template - the schedule finance maintains is the one that decides when money
+	is late, and a second copy of it here would be a second thing to keep in step.
+	"""
+	from fieldmate.services import cockpit as cockpit_service
+
+	answer = cockpit_service.remind_overdue()
+	if answer["overdue"]:
+		print(f"  FieldMate: {answer['overdue']} booking(s) overdue, {answer['told']} told")

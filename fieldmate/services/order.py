@@ -120,6 +120,7 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 	doc.delivery_instructions = data.get("delivery_instructions")
 	doc.confirmed_with = data.get("confirmed_with")
 	doc.remarks = data.get("remarks")
+	doc.tops_up = data.get("tops_up")
 	doc.client_uuid = data.get("client_uuid")
 	doc.created_offline = cint(data.get("created_offline"))
 	doc.device_id = data.get("device_id")
@@ -239,6 +240,7 @@ def price(doc, lines=None) -> dict:
 	# and it has to fall inside the season's delivery window - a date outside it is a promise
 	# the company has not made.
 	check_delivery_dates(doc)
+	check_top_up(doc)
 	_write_schemes(doc, result)
 	_write_totals(doc, result)
 	_write_credit(doc, result)
@@ -627,15 +629,80 @@ def lock_rates(doc) -> None:
 	doc.db_set("rates_locked_on", now_datetime(), update_modified=False)
 
 
+def check_top_up(doc) -> None:
+	"""A top-up adds to a booking, so it has to be the same party and the same season.
+
+	A party that booked in November and wants more in January books again - at the season's
+	terms, against the same season - and `tops_up` says which booking it is adding to, so the two
+	read as one commitment rather than two unrelated orders from the same party.
+
+	The cutoff is NOT checked here. Adding to a booking is not amending one: the original is
+	untouched, nothing already planned moves, and a season that has stopped accepting *changes*
+	has not stopped accepting *orders* until its booking window shuts - which `channel.resolve`
+	already enforces by refusing to call it a booking at all.
+	"""
+	if not doc.get("tops_up"):
+		return
+
+	if doc.order_kind != season_service.BOOKING:
+		frappe.throw(frappe._(
+			"Only a booking can top up another booking. This order is not one - check that its "
+			"date falls inside a season's booking window."))
+
+	original = frappe.db.get_value(
+		"FieldMate Order", doc.tops_up,
+		["name", "customer", "season", "order_kind", "docstatus"], as_dict=True)
+
+	if not original:
+		frappe.throw(frappe._("{0} is not an order.").format(doc.tops_up))
+	if original.name == doc.name:
+		frappe.throw(frappe._("An order cannot top itself up."))
+	if cint(original.docstatus) != 1:
+		frappe.throw(frappe._(
+			"{0} has not been submitted, so there is nothing to add to yet."
+		).format(original.name))
+	if original.order_kind != season_service.BOOKING:
+		frappe.throw(frappe._("{0} is not a booking.").format(original.name))
+	if original.customer != doc.customer:
+		frappe.throw(frappe._(
+			"{0} is {1}'s booking. A top-up is the same party asking for more, not a different "
+			"one.").format(original.name, original.customer))
+	if original.season != doc.season:
+		frappe.throw(frappe._(
+			"{0} is a booking of {1} and this one is of {2}. A top-up belongs to the same "
+			"season.").format(original.name, original.season, doc.season))
+
+
 def assert_may_amend(doc) -> None:
 	"""A booking stops moving at its season's change cutoff.
 
 	The commercial point of a season is that the company can plan against the book, so after the
-	cutoff the book is what it is. Checked on amend rather than on every save: the order has to
-	be allowed to reach a final state on the day it is taken.
+	cutoff the book is what it is.
+
+	**Changing a commitment, not reaching one.** This fired on any save of a non-new document,
+	which includes `submit` - so once a cutoff had passed, a booking taken perfectly legitimately
+	inside the booking window could not be submitted at all. A season whose book is open until
+	the 30th and whose changes shut on the 25th is an ordinary configuration, and every booking
+	taken in those five days was refused by a message about changes nobody had made.
+
+	So: an amendment is refused, and an update to an already-submitted booking is refused.
+	Saving a draft and submitting it are how an order reaches its final state on the day it is
+	taken, and neither moves anything the company has planned against.
 	"""
 	if doc.order_kind != season_service.BOOKING or not doc.season:
 		return
+	# An amendment, or a change to something already submitted. Saving a draft and submitting it
+	# are how an order reaches its final state on the day it is taken; neither moves anything the
+	# company has planned against.
+	# `_action`, not `docstatus`. Frappe sets `docstatus = 1` *before* running validate on a
+	# submit, so reading it here refuses the very submit that completes a legitimate booking -
+	# which is the bug this guard has now had twice. The action says which of the two is
+	# happening, and `before_update_after_submit` is where the second one arrives.
+	amending = bool(doc.get("amended_from"))
+	after_submit = getattr(doc, "_action", None) == "update_after_submit"
+	if not (amending or after_submit):
+		return
+
 	allowed, why = season_service.may_amend(doc.season)
 	if not allowed:
 		frappe.throw(why)

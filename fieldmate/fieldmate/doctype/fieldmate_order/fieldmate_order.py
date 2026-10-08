@@ -47,12 +47,15 @@ class FieldMateOrder(Document):
 		self.settle_the_party()
 		if self.items:
 			order_service.price(self)
-		# After the repricing, because `price` is what decides this is a booking at all. An
-		# amendment arriving after the season's change cutoff is refused here rather than in the
-		# service, for the reason the repricing is: an order amended through the offline sync
-		# push never passes through a service.
-		if not self.is_new():
-			order_service.assert_may_amend(self)
+		# After the repricing, because `price` is what decides this is a booking at all. Refused
+		# here rather than in the service for the reason the repricing is: an order amended
+		# through the offline sync push never passes through a service.
+		#
+		# Not guarded on `is_new`. An **amendment** is a brand new document carrying
+		# `amended_from`, so that guard excluded the one case this rule is for, while catching
+		# the submit of an ordinary new booking - which is how a season with an early change
+		# cutoff came to refuse every booking taken in its last few open days.
+		order_service.assert_may_amend(self)
 
 	def settle_the_party(self):
 		"""Exactly one party, and `party_type` agreeing with it.
@@ -90,6 +93,19 @@ class FieldMateOrder(Document):
 		# price it was read out.
 		order_service.lock_rates(self)
 		order_service.route(self)
+
+	def before_update_after_submit(self):
+		"""A submitted booking changing after its season's cutoff.
+
+		`save()` on a submitted document does **not** run `validate` - it takes the
+		update-after-submit path - so the check in `validate` never saw this case at all. The
+		fields a FieldMate Order allows after submit are small (the depot's reference, the
+		approval remark), but "the book has stopped moving" has to mean the book has stopped
+		moving.
+		"""
+		from fieldmate.services import order as order_service
+
+		order_service.assert_may_amend(self)
 
 	def on_cancel(self):
 		from fieldmate.services import order as order_service

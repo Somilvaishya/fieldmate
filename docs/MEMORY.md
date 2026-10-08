@@ -14,7 +14,7 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 to 6 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 7 of 11 done.**
 
 - 1,020 Python tests green, ruff clean
 - 42 PWA tests green — see below
@@ -27,6 +27,33 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 7 — the cockpit, the reminder, and a top-up
+
+`services/cockpit.py` and a Desk page at **fieldmate-season-cockpit**: booked, allocated,
+delivered and paid, by state, by party (largest owing first — it is a list you telephone from) and
+by SKU. Nothing is stored; every figure is read from the document that holds it, because a cockpit
+with its own numbers is a fifth opinion and the one nobody trusts the morning it disagrees.
+
+A **daily reminder** (`tasks.remind_booking_payments`) tells the rep who collects and the manager
+who asks, once per booking per day. Read off the Sales Order's own payment schedule — the one
+ERPNext built from the season's Payment Terms Template — not a copy of ours. Not the party: this
+app has never sent anything to a customer.
+
+A **top-up** is a second booking naming the first through `tops_up`: same party, same season,
+original submitted. The cutoff does not stop one, because adding to a booking is not amending it.
+
+**That found a bug from step 2.** `assert_may_amend` fired on any save of a non-new document, and
+`submit` is one — so once a change cutoff had passed, a booking taken legitimately inside the
+booking window could not be submitted at all. Three things came out of fixing it, all worth
+remembering about Frappe:
+
+- An **amendment is a brand new document** with `amended_from`, so a `not is_new()` guard excludes
+  the very case an amend rule is for.
+- `save()` on a submitted document **does not run `validate`** — that is the
+  `before_update_after_submit` path.
+- **`docstatus` is set before validate runs on a submit**, so it cannot be used to tell a submit
+  from an amendment. `_action` can.
 
 ## The last two carry-overs: a rate limit, and a CSRF token nobody was checking
 
@@ -340,6 +367,16 @@ All on testerp2, all found by the user rather than by a test:
 
 ## Known issues
 
+- **The suite failed once in a way nobody has explained.** One run reported 521 tests and 102
+  errors, every one of them `setUpClass` in `test_visit`, with `skipped=2` where every other run
+  reports `skipped=12`. That is not a truncated run of the usual set — it is a **smaller set being
+  discovered**. The same code then passed four times (1092, 1096, 1096, 1096) and the failure has
+  not reproduced, including running `test_cockpit` immediately before `test_visit`, which was the
+  obvious suspect. No scheduler process was running and no second bench process was found.
+  **Nothing was fixed for this**, because nothing was understood. If it comes back, the thing to
+  capture is the unfiltered output and the module list — the test count and the skip count are
+  what give it away.
+
 - **The scheduler now runs on this bench** — the Procfile line was commented out, not a FieldMate
   setting. A pilot site needs the same in its supervisor config, because the Procfile is not in
   this repo.
@@ -378,8 +415,9 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 7: the cockpit and the reminders — booked, allocated, delivered and paid by state,
-party and SKU; daily payment reminders; the cutoff lock; and top-up orders against a booking.
+Phase 2, step 8: showcase — Product Catalogue marked as showcase with images from the Item master,
+and the phase's second new doctype, **Share Link**, showing a party its own prices. A self-order
+from one arrives as a draft order for the rep.
 
 **Still open from step 6:** the e-way bill. india_compliance is installed, but company `test` has
 no GSTIN and reads as Unregistered, so none can be raised on testerp2. Nothing else in dispatch

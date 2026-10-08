@@ -412,10 +412,35 @@ class TestABookingStopsMovingAtTheCutoff(SeasonFixture):
 		                    update_modified=False)
 		frappe.clear_document_cache("FieldMate Season", name)
 
-		order.remarks = "too late"
+		# Submitted first: changing a *commitment* is what the cutoff stops. A draft is still
+		# the rep writing the order down, and refusing to let them finish it was a bug this
+		# test had pinned - see `order.assert_may_amend`.
+		self.as_rep(order_service.submit_order, order.name)
+		if order.sales_order:
+			self.track("Sales Order", order.sales_order)
+		order.reload()
+
+		# A field the document allows after submit, so Frappe's own "not allowed to change after
+		# submission" does not answer first and hide what is being tested.
+		order.distributor_reference = "too late"
 		with self.assertRaises(frappe.ValidationError) as caught:
 			order.save(ignore_permissions=True)
 		self.assertIn("closed for changes", str(caught.exception))
+
+	def test_a_booking_taken_after_the_cutoff_can_still_be_submitted(self):
+		"""A season whose book is open until the 30th and whose changes shut on the 25th is an
+		ordinary configuration. Every booking taken in those five days used to be refused at
+		submit by a message about changes nobody had made."""
+		name = self.make_season(booking_from=add_days(today(), -20),
+		                        booking_to=add_days(today(), 20),
+		                        change_cutoff=add_days(today(), -1))
+		self.assertTrue(name)
+		order = frappe.get_doc("FieldMate Order", self.book_party())
+		self.as_rep(order_service.submit_order, order.name)
+		order.reload()
+		self.assertEqual(order.docstatus, 1)
+		if order.sales_order:
+			self.track("Sales Order", order.sales_order)
 
 	def test_an_ordinary_order_is_not_held_to_any_cutoff(self):
 		result = self.book()

@@ -307,6 +307,9 @@ scheduler_events = {
 		# Close days a rep forgot to end, so tomorrow starts cleanly. The record is marked
 		# Auto Closed rather than Closed: a forgotten day is not a finished one.
 		"fieldmate.tasks.close_stale_days",
+		# A season booking whose money is late, told to the rep who collects it and the manager
+		# who asks. Once a booking per day - the job running twice must not tell anybody twice.
+		"fieldmate.tasks.remind_booking_payments",
 		# GPS trails track a named employee. Keep them only as long as FieldMate Settings says.
 		"fieldmate.tasks.purge_old_trails",
 		# Re-measure every live target plan. This is what makes a rep's performance screen a
