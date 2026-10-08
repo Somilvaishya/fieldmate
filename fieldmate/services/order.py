@@ -641,6 +641,21 @@ def assert_may_amend(doc) -> None:
 		frappe.throw(why)
 
 
+def _warehouse_for(customer: str | None) -> str | None:
+	"""The depot that serves this party, from `Customer.fm_warehouse`.
+
+	A group warehouse is refused rather than passed on: ERPNext cannot reserve stock in one and
+	says so with a message about group warehouses that names nothing a manager can act on. Left
+	blank here, ERPNext defaults per line instead, which at least works.
+	"""
+	if not customer:
+		return None
+	warehouse = frappe.db.get_value("Customer", customer, "fm_warehouse")
+	if not warehouse:
+		return None
+	return None if cint(frappe.get_cached_value("Warehouse", warehouse, "is_group")) else warehouse
+
+
 def _earliest_delivery(doc):
 	"""The header delivery date: the soonest any line is wanted, falling back to the order's own.
 
@@ -673,6 +688,13 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		# schedule. Named rather than copied: the schedule finance maintains is the one on the
 		# template, and a second copy of it here is a second thing to keep in step.
 		"payment_terms_template": season_service.payment_terms(doc.season),
+		# Which depot serves this party. `fm_warehouse` has been on Customer since Phase 1 and
+		# nothing read it; allocation is what needs it, because reserving stock means reserving
+		# it *somewhere* and the somewhere is the warehouse that will actually ship.
+		#
+		# Blank leaves ERPNext to default per line from the Item, which is its ordinary
+		# behaviour and the right fallback for a company running one warehouse.
+		"set_warehouse": _warehouse_for(seller.get("party")),
 		"items": [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate,
 			 # Per line, because that is the whole point of booking a season: a party asks for

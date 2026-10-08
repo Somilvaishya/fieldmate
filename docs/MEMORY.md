@@ -14,7 +14,7 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 to 4 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 5 of 11 done.**
 
 - 1,020 Python tests green, ruff clean
 - 42 PWA tests green — see below
@@ -27,6 +27,37 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 5 — who gets the stock when a season is short
+
+`services/allocation.py`, a Desk page at **fieldmate-allocation**, and a reservation seam in
+`compat`. **No allocation doctype**, which was the plan's own call and is the right one: the
+decision is FieldMate's, the record is ERPNext's Stock Reservation Entry. A second table of
+who-gets-what would be a second answer to a question the warehouse already answers, and the two
+would disagree the first time somebody delivered something.
+
+Three rules, named as the people arguing about them name them — **Advance First** (by the share
+of their own booking a party has paid, so a small distributor who paid in full outranks a large
+one who paid a tenth), **First Booked**, **Pro Rata** (floored, remainder to the largest ask, ties
+by order name — the same rule and the same reason as apportioning a cart discount in
+`services/tax`). Every ordering is total, so two previews of the same figures cannot differ.
+
+Preview, then apply, is the whole shape. A short season is somebody's commercial decision about
+which distributor is told they are served short, and nobody should make it by pressing a button
+and seeing what happened. The preview is the same arithmetic as the apply.
+
+Only **released** bookings are allocated. One still waiting for its advance has no Sales Order, so
+there is no line to reserve against — and reserving stock for an order nobody has paid for is what
+the advance hold exists to prevent.
+
+**It needed `set_warehouse` on the booking's Sales Order.** `Customer.fm_warehouse` has existed
+since Phase 1 and nothing read it; reserving stock means reserving it *somewhere*, and that
+somewhere is the depot that will ship. The allocation tests found this by stocking one warehouse
+while the Sales Order named another and reserving nothing at all — passing, silently, until the
+skips were removed.
+
+Stock reservation is now on for **fieldmate-test.local** as well. It was only on testerp2, so nine
+of these tests skipped on the first run — nine tests proving nothing, which is worse than none.
 
 ## Phase 2, step 4 — an offer that rewards booking early
 
@@ -260,12 +291,12 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 5: allocation. A Desk page and no doctype — preview the split of short stock by
-advance first, first booked or pro rata; applying it creates ERPNext Stock Reservation Entries
-against the bookings' Sales Orders, and reverting cancels them. The reservations are the record.
+Phase 2, step 6: dispatch. ERPNext Pick List and Delivery Trip off the reserved Sales Orders, then
+Delivery Note and Sales Invoice, and a new Dispatch Planner role.
 
-This is the first step that uses the stock reservation switched on earlier today, and the first
-that has no equivalent anywhere else in the app, so expect it to find things.
+**The e-way bill half cannot be finished on testerp2 yet**: india_compliance is installed now, but
+company `test` has no GSTIN and reads as Unregistered, so no e-way bill can be raised there. The
+rest of the step does not depend on it.
 
 Then, in no fixed order: the rest of the PWA harness where it is thinnest (the cart and review
 screens, and the scheme engine's JS half against the Python parity corpus), and the three

@@ -803,6 +803,130 @@ def make_sales_order(payload: dict) -> str:
 	return doc.name
 
 
+# --------------------------------------------------------------------------------------
+# stock reservation — ERPNext holds the stock, we only say who gets it
+# --------------------------------------------------------------------------------------
+#
+# A season's allocation is a FieldMate decision; the **record** of it is ERPNext's. There is no
+# FieldMate Allocation doctype and there should not be one: a second table of who-gets-what would
+# be a second answer to a question the warehouse already answers, and the two would disagree the
+# first time somebody delivered something. The Stock Reservation Entry is the record, reverting
+# is cancelling it, and a figure nobody can tie back to a reservation is not an allocation.
+#
+# Everything below is guarded on the feature being switched on. `enable_stock_reservation` is off
+# on a fresh ERPNext, and a site that has not switched it on should be told that plainly rather
+# than find allocation quietly doing nothing.
+
+
+def stock_reservation_enabled() -> bool:
+	"""Is ERPNext's stock reservation switched on for this site?"""
+	try:
+		return bool(cint(frappe.db.get_single_value("Stock Settings", "enable_stock_reservation")))
+	except Exception:
+		# A version of ERPNext without the setting at all. Treated as off rather than as an
+		# error: the rest of the app has nothing to do with reservation and must keep working.
+		return False
+
+
+def available_to_reserve(item_code: str, warehouse: str) -> float:
+	"""Actual qty less what is already reserved, for one item in one warehouse.
+
+	ERPNext's own figure, not a count of our own. What is physically there and what is already
+	promised are both its business, and a second opinion about either is how an allocation comes
+	to promise stock twice.
+	"""
+	if not (item_code and warehouse) or not stock_reservation_enabled():
+		return 0.0
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		get_available_qty_to_reserve,
+	)
+
+	return flt(get_available_qty_to_reserve(item_code, warehouse))
+
+
+def reserve_for_sales_order(sales_order: str, lines: list[dict]) -> int:
+	"""Reserve stock against named Sales Order lines. Returns how many entries were made.
+
+	`lines` is `[{"sales_order_item": ..., "warehouse": ..., "qty": ...}]`. ERPNext decides
+	whether each one can be met; a line it cannot meet is simply not reserved, which is the
+	right behaviour for an allocation - the point of allocating short stock is that somebody
+	gets less than they asked for.
+
+	Posted as Administrator for the same reason a Sales Order is: reserving stock is a warehouse
+	action and no field role holds write on it (ADR-004).
+	"""
+	if not lines or not stock_reservation_enabled():
+		return 0
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		create_stock_reservation_entries_for_so_items,
+	)
+
+	details = [
+		{"sales_order_item": row["sales_order_item"], "warehouse": row["warehouse"],
+		 "qty_to_reserve": flt(row["qty"])}
+		for row in lines if flt(row.get("qty")) > 0
+	]
+	if not details:
+		return 0
+
+	before = len(reserved_for_sales_order(sales_order))
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		doc = frappe.get_doc("Sales Order", sales_order)
+		doc.flags.ignore_permissions = True
+		create_stock_reservation_entries_for_so_items(doc, items_details=details, notify=False)
+	finally:
+		frappe.set_user(was)
+
+	return len(reserved_for_sales_order(sales_order)) - before
+
+
+def reserved_for_sales_order(sales_order: str) -> list[dict]:
+	"""What is reserved against this Sales Order right now, per line."""
+	if not sales_order or not stock_reservation_enabled():
+		return []
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		get_sre_details_for_voucher,
+	)
+
+	return get_sre_details_for_voucher("Sales Order", sales_order) or []
+
+
+def release_reservations(sales_order: str) -> int:
+	"""Cancel every reservation against this Sales Order. Returns how many went.
+
+	Safe to call on an order with none - reverting an allocation that was never applied is the
+	ordinary state of a Desk button somebody pressed twice, not an error worth raising.
+
+	Anything already delivered is left alone: ERPNext excludes a Delivered entry from the list,
+	and stock that has gone out of the door is not something an allocation can take back.
+	"""
+	if not sales_order or not stock_reservation_enabled():
+		return 0
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		cancel_stock_reservation_entries,
+	)
+
+	held = reserved_for_sales_order(sales_order)
+	if not held:
+		return 0
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		cancel_stock_reservation_entries(
+			voucher_type="Sales Order", voucher_no=sales_order, notify=False)
+	finally:
+		frappe.set_user(was)
+
+	return len(held)
+
+
 def cancel_sales_order(name: str) -> None:
 	"""Cancel the commitment behind a cancelled field order. Safe to call twice.
 
