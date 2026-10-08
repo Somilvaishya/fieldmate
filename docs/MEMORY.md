@@ -28,6 +28,35 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
 
+## The last two carry-overs: a rate limit, and a CSRF token nobody was checking
+
+**CSRF had been off the whole time and looked on.** `frappe.auth.validate_csrf_token` returns
+early for a session with no token saved, and an API login leaves one unset — so every write this
+app accepted was unprotected by it. `auth.login` answers a token now; the phone keeps it (in
+memory and `localStorage`, so it survives a service-worker reload) and sends
+`X-Frappe-CSRF-Token` on writes only. Cleared on sign-out. A server that answers without one is
+tolerated — the two sides being a release apart is an ordinary afternoon.
+
+A bug of mine in that, caught by its own test: `if not session.data` is False for a **fresh**
+session, whose data is an empty dict — so it answered None for exactly the sessions it was for.
+It asks `data is None` now.
+
+**Rate limits:** `auth.login` 20/hour, `sync.push` 60/hour, both **per address, not per
+username** — limiting by username lets anybody lock a named rep out of their own phone. The
+limiter short-circuits when there is no HTTP request, so test runs are never limited; that is
+pinned.
+
+**The scheduler was never a FieldMate problem.** Everything site-side was right; the bench's
+`Procfile` had the scheduler commented out with a note claiming `bench schedule` exits
+immediately. It does not — that was tested properly and it ran the full twenty seconds. The line
+is re-enabled with the worker's restart wrapper, and all six jobs ran clean by hand against
+testerp2.
+
+**The Procfile is a bench file, not in this repo**, so that half does not travel: a pilot site
+needs the same in its supervisor config. Also seen and left alone: the scheduler log is full of
+`Access denied` for `bench-15.local`, whose DB credentials do not work. Frappe catches per-site
+failures and carries on, so it is noise rather than a cause, and that site is not ours.
+
 ## The teardown carry-over, finished
 
 The plan's literal complaint — "five files delete every row on the site" — was already fixed;
@@ -311,10 +340,9 @@ All on testerp2, all found by the user rather than by a test:
 
 ## Known issues
 
-- **The scheduler is not running on testerp2.** `enable_scheduler` is 1 and `Scheduled Job Log`
-  holds no rows at all, so `close_stale_days`, `purge_old_trails`, `measure_targets` and the KPI
-  and alert jobs have never fired on that site. The Three-Phase Plan lists this as a carry-over to
-  do first. It is half of why the stale-day bug was found by a person.
+- **The scheduler now runs on this bench** — the Procfile line was commented out, not a FieldMate
+  setting. A pilot site needs the same in its supervisor config, because the Procfile is not in
+  this repo.
 - **Insights is not installed on testerp2**, so `setup/insights.py` has only ever been observed to
   no-op (Phase 8.4). The two datasets that need no Insights work today.
 - **GitHub Actions blocked** by an account billing lock unrelated to this repo.
@@ -334,8 +362,8 @@ The plan's "do first" list, as it stands today:
 | Direct-billed party bills the distributor | Done — it is the primary path now (ADR-024, ADR-033) |
 | `sales_mode` leftovers | Done — van sales removed entirely (ADR-032) |
 | Test teardowns delete rows they did not create | **Done.** The literal complaint was already fixed; the ordering, the retrying and the gate scripts are done too — see above |
-| Rate limit on login and push; CSRF header from the PWA | **Open** |
-| Scheduler on for the pilot site | **Open** — see Known issues |
+| Rate limit on login and push; CSRF header from the PWA | **Done** — see above |
+| Scheduler on for the pilot site | **Done on this bench** — the Procfile is not in this repo, so a pilot still needs it in supervisor |
 
 ## Open decisions
 

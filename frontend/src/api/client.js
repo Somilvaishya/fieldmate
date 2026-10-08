@@ -17,6 +17,39 @@ export class ApiError extends Error {
 // short enough that nobody stares at a frozen screen.
 const TIMEOUT_MS = 45_000
 
+// The CSRF token this session was given at login, sent back on every write.
+//
+// Frappe skips CSRF validation entirely for a session that has no token saved, and an API login
+// leaves one unset - so until `auth.login` started answering with one, every write this app made
+// was unprotected by it. The session cookie is `SameSite=Lax`, which stops the simplest
+// cross-site POST, but a cookie arriving is not a decision to perform an action.
+//
+// Kept in `localStorage` as well as in memory so it survives the reload a service-worker update
+// causes. It is not a secret the way a password is - it is only useful to somebody who already
+// has this browser's cookie - and it is cleared on sign-out with everything else.
+const CSRF_KEY = 'fm:csrf'
+let csrfToken = read(CSRF_KEY)
+
+function read(key) {
+  try {
+    return window.localStorage.getItem(key) || null
+  } catch {
+    // A private window, or storage the browser has refused. The token still works for the life
+    // of this tab; it simply will not survive a reload.
+    return null
+  }
+}
+
+export function setCsrfToken(token) {
+  csrfToken = token || null
+  try {
+    if (token) window.localStorage.setItem(CSRF_KEY, token)
+    else window.localStorage.removeItem(CSRF_KEY)
+  } catch {
+    // Nothing to do about it, and nothing worth telling a rep.
+  }
+}
+
 async function call(method, params = {}, { post = false } = {}) {
   const url = BASE + method
   const controller = new AbortController()
@@ -31,6 +64,9 @@ async function call(method, params = {}, { post = false } = {}) {
   let target = url
   if (post) {
     opts.headers['Content-Type'] = 'application/json'
+    // Only on writes. Frappe checks it for unsafe methods and nothing else, and sending it on
+    // every read would put it in a query log for no gain.
+    if (csrfToken) opts.headers['X-Frappe-CSRF-Token'] = csrfToken
     opts.body = JSON.stringify(params)
   } else {
     const qs = new URLSearchParams(
@@ -92,8 +128,13 @@ async function call(method, params = {}, { post = false } = {}) {
 }
 
 export const api = {
-  login: (usr, pwd, deviceUuid, extra = {}) =>
-    call('auth.login', { usr, pwd, device_uuid: deviceUuid, ...extra }, { post: true }),
+  login: async (usr, pwd, deviceUuid, extra = {}) => {
+    const answer = await call('auth.login',
+      { usr, pwd, device_uuid: deviceUuid, ...extra }, { post: true })
+    // Kept the moment it arrives, so the very next write already carries it.
+    setCsrfToken(answer && answer.csrf_token)
+    return answer
+  },
   bootstrap: () => call('auth.bootstrap'),
   logout: () => call('auth.logout', {}, { post: true }),
   registerDevice: (deviceUuid, extra = {}) =>
