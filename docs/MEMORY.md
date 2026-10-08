@@ -28,6 +28,34 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
 
+## The teardown carry-over, finished
+
+The plan's literal complaint — "five files delete every row on the site" — was already fixed;
+`wipe_since_setup` deletes only what a test created. What remained cost this phase three days of
+chasing failures nowhere near the code that broke, and is now done:
+
+- **Teardown no longer gives up on the first refusal.** It caught `DoesNotExistError` and nothing
+  else, so the first document ERPNext would not cancel ended the loop and everything after it
+  leaked. It cancels **newest first** (a Delivery Note before its Sales Order — ERPNext's own
+  rule, and only about taking fixtures down; nothing in the selling path runs backwards),
+  **retries** while anything still moves, and **switches off** whatever is genuinely stuck so a
+  leftover season cannot refuse the next test's `make_season`.
+- **`OrderFixture` no longer cleans up early.** It deleted this rep's orders before the base had
+  taken down what they led to, and a FieldMate Order's `on_cancel` cancels its Sales Order — so
+  the base then met a Delivery Note whose Sales Order was gone. `cleanup_targets()` hands them to
+  the base instead.
+- **gate4 to gate9 and two setup scripts were broken** by installing india_compliance. They took
+  "any GST HSN Code" (four-digit chapter headings are rejected, and most of the eighteen thousand
+  seeded rows are four digits) and "any selling Price List" (the season fixture creates extras).
+  Both answers are in `_guard` now, shared by every script in the folder.
+
+All eight gates pass on testerp2: 4 (5/5), 5 (3/3), 6 (6/6), 7 (5/5), 8 (5/5), 9 (4/4),
+Phase 1 (8/8).
+
+**Still true and worth watching:** fourteen test files commit mid-test, so what they post survives
+FrappeTestCase's rollback while the rows that keyed it do not. That is what makes the ordered,
+retrying teardown necessary rather than merely tidy.
+
 ## Phase 2, step 6 — getting it out of the warehouse
 
 `services/dispatch.py`, the dispatch half of the allocation page, a **FieldMate Dispatch Planner**
@@ -305,7 +333,7 @@ The plan's "do first" list, as it stands today:
 |---|---|
 | Direct-billed party bills the distributor | Done — it is the primary path now (ADR-024, ADR-033) |
 | `sales_mode` leftovers | Done — van sales removed entirely (ADR-032) |
-| Test teardowns delete rows they did not create | **Open.** Five test files still wipe by filter rather than by what they made |
+| Test teardowns delete rows they did not create | **Done.** The literal complaint was already fixed; the ordering, the retrying and the gate scripts are done too — see above |
 | Rate limit on login and push; CSRF header from the PWA | **Open** |
 | Scheduler on for the pilot site | **Open** — see Known issues |
 

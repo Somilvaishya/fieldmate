@@ -87,33 +87,7 @@ class DispatchFixture(SeasonFixture):
 			frappe.db.commit()
 		except Exception:
 			pass
-		self.unwind_dispatch()
 		super().tearDown()
-
-	def unwind_dispatch(self):
-		"""Cancel what dispatch posted, before anything cancels the orders behind it.
-
-		`OrderFixture.tearDown` cancels this rep's FieldMate Orders by filter, and a FieldMate
-		Order's `on_cancel` cancels its Sales Order - so by the time the base teardown reaches
-		the Delivery Note, the order it was raised against is already gone and ERPNext refuses
-		with "Sales Order is cancelled or closed". The whole cleanup loop then stops there and
-		everything after it leaks.
-
-		So the documents dispatch created come down first, newest first, which is the order they
-		depend on each other in.
-		"""
-		for doctype in ("Delivery Trip", "Sales Invoice", "Delivery Note"):
-			for tracked, name in reversed(self._created):
-				if tracked != doctype:
-					continue
-				try:
-					if frappe.db.get_value(doctype, name, "docstatus") == 1:
-						doc = frappe.get_doc(doctype, name)
-						doc.flags.ignore_permissions = True
-						doc.cancel()
-				except Exception:
-					pass
-		frappe.db.commit()
 
 	def close_other_seasons(self):
 		for name in frappe.get_all("FieldMate Season",

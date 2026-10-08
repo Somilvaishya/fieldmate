@@ -35,7 +35,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import add_days, flt, today
 
-from _guard import require_test_site
+from _guard import hsn_code, require_test_site, selling_price_list
 
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
@@ -97,7 +97,7 @@ def make_item(rate=100, case_size=None):
         "is_stock_item": 1,
     }
     if frappe.get_meta("Item").has_field("gst_hsn_code"):
-        data["gst_hsn_code"] = frappe.db.get_value("GST HSN Code", {}, "name")
+        data["gst_hsn_code"] = hsn_code()
     for field in frappe.get_all("Custom Field",
                                 filters={"dt": "Item", "reqd": 1, "fieldtype": "Select"},
                                 fields=["fieldname", "options"]):
@@ -107,7 +107,7 @@ def make_item(rate=100, case_size=None):
     doc = frappe.get_doc(data)
     doc.insert(ignore_permissions=True)
 
-    price_list = frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+    price_list = selling_price_list()
     frappe.get_doc({"doctype": "Item Price", "item_code": code, "price_list": price_list,
                     "selling": 1, "price_list_rate": rate}).insert(ignore_permissions=True)
     return code

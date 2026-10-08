@@ -22,7 +22,7 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
-from _guard import require_test_site
+from _guard import hsn_code, require_test_site
 
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
@@ -36,20 +36,14 @@ results = []
 def with_hsn(data: dict) -> dict:
     """An HSN code on the gate's own item, where the site wants one.
 
-    india_compliance refuses a sales Item with no HSN/SAC and refuses one of the wrong length -
-    `GST Settings` accepts six or eight digits by default, so the four-digit chapter headings
-    that make up most of the seeded table are not usable. 340111 is toilet soap, which is what
-    this gate sells, and carries no taxes of its own.
-
-    This is the fixture's problem, not FieldMate's: the app writes no GST field of its own. The
-    mirror of `tests/base.with_hsn`, kept here because the gate runs as a standalone script.
+    One answer, in `_guard`, shared with every other script here - this used to be a second copy
+    of the same logic, and two copies of a rule is how the gates came to disagree about which
+    price list to use.
     """
-    if not frappe.get_meta("Item").has_field("gst_hsn_code") or data.get("gst_hsn_code"):
-        return data
-    for code in ("340111", "340119", "340290"):
-        if frappe.db.exists("GST HSN Code", code):
+    if not data.get("gst_hsn_code"):
+        code = hsn_code()
+        if code:
             data["gst_hsn_code"] = code
-            break
     return data
 
 

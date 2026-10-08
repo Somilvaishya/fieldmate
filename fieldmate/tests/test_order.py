@@ -48,20 +48,23 @@ class OrderFixture(SchemeFixture):
 			self._territory = self.make_territory()
 		return self._territory
 
+	def cleanup_targets(self):
+		"""The orders this rep booked through the service, which `track` never saw.
+
+		Handed to the base rather than deleted here. Deleting them here ran **before** the base
+		had taken down what those orders led to: a FieldMate Order's `on_cancel` cancels its
+		Sales Order, so by the time the base reached a Delivery Note raised against it ERPNext
+		refused with "Sales Order is cancelled or closed", the whole cleanup stopped there, and
+		everything after it leaked.
+		"""
+		rows = []
+		for dt in ("FieldMate Scheme Ledger", "FieldMate Order"):
+			rows += [(dt, name) for name in frappe.get_all(
+				dt, pluck="name", filters={"field_user": self.rep.name})]
+		return list(super().cleanup_targets()) + rows
+
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Scheme Ledger", "FieldMate Order"):
-			for name in frappe.get_all(dt, pluck="name",
-			                           filters={"field_user": self.rep.name}):
-				try:
-					doc = frappe.get_doc(dt, name)
-					if doc.docstatus == 1:
-						doc.flags.ignore_permissions = True
-						doc.cancel()
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
 		super().tearDown()
 
 	def cart(self, qty=20):

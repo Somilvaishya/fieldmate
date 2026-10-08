@@ -17,7 +17,7 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
-from _guard import require_test_site
+from _guard import hsn_code, require_test_site, selling_price_list
 
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
@@ -79,7 +79,7 @@ def build_fixtures():
         "territory": territory.name, "approval_status": "Approved",
     }).insert(ignore_permissions=True)
 
-    price_list = frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+    price_list = selling_price_list()
     skus = []
     for _ in range(2):
         code = uid("G5-ITEM")
@@ -90,7 +90,7 @@ def build_fixtures():
             "is_stock_item": 1,
         }
         if frappe.get_meta("Item").has_field("gst_hsn_code"):
-            data["gst_hsn_code"] = frappe.db.get_value("GST HSN Code", {}, "name")
+            data["gst_hsn_code"] = hsn_code()
         for field in frappe.get_all("Custom Field",
                                     filters={"dt": "Item", "reqd": 1, "fieldtype": "Select"},
                                     fields=["fieldname", "options"]):

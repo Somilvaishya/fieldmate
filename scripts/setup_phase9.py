@@ -23,7 +23,7 @@ import sys
 
 import frappe
 
-from _guard import require_test_site
+from _guard import hsn_code, require_test_site
 
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
@@ -71,7 +71,7 @@ def settlement_item() -> str:
 		"description": "Settlement line for an approved FieldMate scheme claim. Not a product.",
 	}
 	if frappe.get_meta("Item").has_field("gst_hsn_code"):
-		data["gst_hsn_code"] = frappe.db.get_value("GST HSN Code", {}, "name")
+		data["gst_hsn_code"] = hsn_code()
 	frappe.get_doc(data).insert(ignore_permissions=True)
 	note("created", f"Item {SETTLEMENT_ITEM}", "non-stock, one line per claim")
 	return SETTLEMENT_ITEM
