@@ -24,6 +24,10 @@ import { db, getMeta, setMeta } from '../db'
 import { toPaise } from '../lib/money'
 import { isPosmItem } from '../lib/posm'
 import { moneyLabel, symbolFor } from '../lib/schemeWords'
+import {
+  advanceView, changeNote, defaultDeliveryDate, deliveryWindow, isBooking, outsideWindow,
+  seasonLabel,
+} from '../lib/season'
 import { pendingCount } from '../sync/outbox'
 import * as cart from '../stores/order'
 import * as visitStore from '../stores/visit'
@@ -51,6 +55,8 @@ const freeGoods = cart.freeGoods
 const blockers = cart.blockers
 const outletName = cart.outletName
 const activeVisit = visitStore.activeVisit
+const season = cart.season
+const orderKind = cart.orderKind
 
 const shop = ref(null)
 const distributor = ref(null)
@@ -231,6 +237,86 @@ function ago(ms) {
 }
 const creditAge = computed(() => (creditAt.value ? ago(Date.now() - creditAt.value) : null))
 
+// -------------------------------------------------------------------------------------- season
+
+/**
+ * A booking, and what that changes on this screen.
+ *
+ * Three things, and all three are promises made to the party at the counter: the rates are held
+ * at today's and will not be repriced before delivery, an advance has to be collected before the
+ * goods are planned, and every line is delivered inside the season's window. A rep who books a
+ * season order without saying any of that has promised the party nothing the company will keep.
+ *
+ * `weBill` is wider than a booking: an ordinary primary order is also a sale we invoice ourselves.
+ * The whole bottom half of this screen used to say "the distributor delivers it and bills the
+ * shop" over an order whose Sales Order we raise and whose invoice we send (ADR-023 is about a
+ * *retailer* order), so a rep booking on a distributor read out the one sentence that was false.
+ */
+const booking = computed(() => isBooking(orderKind.value))
+const weBill = computed(() => orderKind.value === 'Primary' || booking.value)
+const seasonName = computed(() => seasonLabel(season.value))
+const frozen = computed(() => changeNote(season.value))
+// Not `window`: this file adds listeners to the real one, and shadowing it here would have
+// silenced the online/offline handlers that make the whole screen work with no signal.
+const deliverWindow = computed(() => deliveryWindow(season.value))
+
+/**
+ * What this booking needs up front, from the phone's own arithmetic.
+ *
+ * Nothing has arrived yet - there is no order for money to be allocated against - so this is the
+ * requirement alone, which is the figure the rep has to say out loud before the party agrees to
+ * anything. What has actually been collected appears on the confirmation below, from the server's
+ * own count, because by then there is an order to count against.
+ */
+const advance = computed(() =>
+  advanceView({ netPaise: totals.value.net_paise, season: season.value })
+)
+
+/**
+ * When each line is wanted.
+ *
+ * One date for the order, which fills every line, and a per-line override for the few that differ
+ * - which is the shape a season booking actually has. Making a rep type the same date on forty
+ * lines is how a form stops being filled in honestly, and the server agrees: a blank line takes
+ * the window's first day rather than being refused.
+ */
+const bookingDate = ref('')
+const lineDates = ref({})
+
+function dateFor(line) {
+  return lineDates.value[line.item_code] || bookingDate.value || ''
+}
+
+function setLineDate(line, value) {
+  lineDates.value = { ...lineDates.value, [line.item_code]: value }
+}
+
+/** Every line's date, as the payload wants it. Empty for an order with no season. */
+const deliveryDates = computed(() => {
+  if (!booking.value) return null
+  const out = {}
+  for (const line of lines.value) {
+    const date = dateFor(line)
+    if (date) out[line.item_code] = date
+  }
+  return out
+})
+
+/**
+ * The lines the season will refuse, named here rather than at submit.
+ *
+ * The server throws on the first one it meets. A rep reading that has to fix it, send again, and
+ * be told about the next one - standing at a counter, on a market uplink.
+ */
+const badDates = computed(() =>
+  booking.value
+    ? outsideWindow(
+        lines.value.map((l) => ({ ...l, delivery_date: dateFor(l) })),
+        season.value
+      )
+    : []
+)
+
 // ---------------------------------------------------------------------------------- the lines
 
 /**
@@ -286,7 +372,12 @@ const freeUnitCount = computed(() =>
 const stoppers = computed(() => blockers.value.filter((b) => b.code !== 'EMPTY'))
 
 const ready = computed(
-  () => !isEmpty.value && !stoppers.value.length && readBack.value && !busy.value
+  () =>
+    !isEmpty.value &&
+    !stoppers.value.length &&
+    !badDates.value.length &&
+    readBack.value &&
+    !busy.value
 )
 
 // ------------------------------------------------------------------------------ the two engines
@@ -373,6 +464,9 @@ onMounted(async () => {
     await cart.openOutlet(outlet.value, { type: partyType.value })
   }
   await loadShop()
+  // The window's first day. Most lines of most bookings are wanted as early as they can be had,
+  // which is also what the server fills a blank line with.
+  bookingDate.value = defaultDeliveryDate(season.value) || ''
   if (creditDays.value === null) paymentTerm.value = 'Cash on Delivery'
   queued.value = await pendingCount()
   runCheck()
@@ -384,6 +478,25 @@ onUnmounted(() => {
 })
 
 // ----------------------------------------------------------------------------------- the punch
+
+/**
+ * What the button says, and what the stamp says afterwards.
+ *
+ * "Send to distributor" over an order we invoice ourselves is the same false sentence as the note
+ * at the bottom of the screen, in the one place a rep cannot miss it.
+ */
+const sendWords = computed(() => {
+  if (booking.value) return 'Book ' + (seasonName.value || 'this season')
+  if (weBill.value) return 'Send to the office'
+  return 'Send to distributor'
+})
+
+const doneWords = computed(() => {
+  if (done.value && done.value.offline) return 'Saved on this phone'
+  if (done.value && done.value.booking) return 'Booked'
+  if (weBill.value) return 'Sent to the office'
+  return 'Sent to the distributor'
+})
 
 const TERMS = [
   { value: 'Credit', label: 'On credit', icon: 'timer' },
@@ -415,6 +528,7 @@ async function send() {
       expectedDeliveryDate: dispatchIso.value,
       deliveryInstructions: instructions.value.trim() || null,
       confirmedWith: confirmedWith.value.trim() || null,
+      deliveryDates: deliveryDates.value,
     })
     queued.value = await pendingCount()
     // `stores/order.js` reads the new order's name off `data.order`, but `fieldmate.api.order
@@ -431,6 +545,12 @@ async function send() {
       // What the server did with it. ADR-023 routing lands here as a status, never as an invoice.
       status: (server && server.order_status) || null,
       approval: !!(server && server.approval_required),
+      // The server's own count of what has arrived against this booking, which on a booking
+      // just taken is nothing. The phone's figure is the requirement; this is the position.
+      advance: (server && server.advance) || null,
+      season: seasonName.value,
+      booking: booking.value,
+      weBill: weBill.value,
     }
   } catch (e) {
     error.value =
@@ -454,15 +574,39 @@ function finish() {
       <div class="card sent" :class="done.offline ? 'held' : 'gone'">
         <span class="stamp">
           <Icon :name="done.offline ? 'cloud-off' : 'check'" size="22" />
-          <span>{{ done.offline ? 'Saved on this phone' : 'Sent to the distributor' }}</span>
+          <span>{{ doneWords }}</span>
         </span>
         <b class="amount tnum">{{ sym }}{{ done.net }}</b>
         <p class="tnum ref" v-if="done.reference">Order {{ done.reference }}</p>
         <p class="tnum ref" v-else>No order number yet</p>
 
-        <p v-if="!done.offline">
+        <!-- What actually happened, which is three different things. A booking short of its
+             advance is **held**: the status says so and nothing is reserved, and a rep who walks
+             away thinking the goods are coming has told the party something untrue. -->
+        <p v-if="!done.offline && done.booking">
+          Booked against <b>{{ done.season }}</b> at today&rsquo;s rates.
+          <template v-if="done.advance && done.advance.short">
+            It is held until <b class="tnum">{{ money(toPaise(done.advance.short)) }}</b> more
+            advance is collected. Nothing is reserved or dispatched before then.
+          </template>
+          <template v-else-if="done.advance && done.advance.required">
+            The advance is in hand, so it goes forward to be planned.
+          </template>
+        </p>
+        <p v-else-if="!done.offline && done.weBill">
+          It is with the office now. We raise the order and we invoice it.
+        </p>
+        <p v-else-if="!done.offline">
           It is with <b>{{ distributorName || 'your distributor' }}</b> now. They deliver the
           order and bill the shop.
+        </p>
+
+        <!-- The one number a rep has to leave the counter with. -->
+        <p v-if="done.advance && done.advance.short" class="held-note">
+          <Icon name="alert" size="18" />
+          <span class="tnum">
+            Collect <b>{{ money(toPaise(done.advance.short)) }}</b> to release this booking.
+          </span>
         </p>
         <p v-if="done.approval" class="held-note">
           <Icon name="alert" size="18" />
@@ -472,9 +616,9 @@ function finish() {
           </span>
         </p>
         <p v-else>
-          There is no signal here, so the order is written down on this phone. It goes to
-          <b>{{ distributorName || 'your distributor' }}</b> on its own the moment you have a
-          link &mdash; you can walk on.
+          There is no signal here, so the order is written down on this phone. It
+          {{ done.weBill ? 'reaches the office' : 'goes to ' + (distributorName || 'your distributor') }}
+          on its own the moment you have a link &mdash; you can walk on.
         </p>
       </div>
 
@@ -541,8 +685,38 @@ function finish() {
       </div>
 
       <template v-else>
+        <!-- ------------------------------------------------------------- the season -->
+        <!-- Three promises, said before the money: the rates are held, an advance is due, and
+             every line lands inside the window. A rep who books a season order without saying
+             them has promised the party nothing the company will keep. -->
+        <div v-if="booking" class="card season">
+          <div class="crown">
+            <span class="stamp good">
+              <Icon name="timer" size="18" />
+              <span>Booking &middot; {{ seasonName }}</span>
+            </span>
+          </div>
+          <p class="foot">
+            These rates are held for this season. The order is not repriced before it is
+            delivered, whatever the list does in between.
+          </p>
+          <div v-if="advance.required" class="srow tnum">
+            <span>Advance to collect</span>
+            <b>{{ money(advance.required) }}</b>
+          </div>
+          <p v-if="advance.required" class="foot strong">
+            Nothing is reserved or dispatched until that much is in hand. Take it now if you can
+            &mdash; a cheque dated later does not count until its date.
+          </p>
+          <div v-if="deliverWindow.from" class="srow tnum">
+            <span>Delivery window</span>
+            <b>{{ deliverWindow.from }} to {{ deliverWindow.to }}</b>
+          </div>
+          <p v-if="frozen" class="foot strong">{{ frozen }}</p>
+        </div>
+
         <!-- ------------------------------------------------------- financial clearance -->
-        <div class="section"><h3>What the shop pays</h3></div>
+        <div class="section"><h3>{{ weBill ? "What the party pays" : "What the shop pays" }}</h3></div>
 
         <div class="card pay">
           <div class="payhead">
@@ -697,6 +871,20 @@ function finish() {
               </span>
               <span class="muted" v-else>no price</span>
             </span>
+            <!-- One date for the order fills every line; this is the override for the few that
+                 differ, which is the shape a season booking actually has. -->
+            <label v-if="booking" class="when">
+              <span class="sr">When {{ line.item_name }} is wanted</span>
+              <!-- Both events, deliberately. A date input fires `change` when the picker is
+                   committed and `input` as the value is edited, and which of the two arrives
+                   depends on the Android WebView - a handler on one of them loses the date on
+                   the other, silently, and the line then books on the order date instead of the
+                   one the rep chose. Setting it twice costs nothing. -->
+              <input type="date" :value="dateFor(line)" :min="deliverWindow.from"
+                     :max="deliverWindow.to"
+                     @input="setLineDate(line, $event.target.value)"
+                     @change="setLineDate(line, $event.target.value)" />
+            </label>
           </div>
 
           <!-- Free lines bill at zero and are marked as such. They are dispatched in addition,
@@ -738,8 +926,33 @@ function finish() {
           <span>{{ stoppers[0].message }} <b>Open the cart to fix it.</b></span>
         </RouterLink>
 
+        <!-- The one date, which every line follows unless the rep moved it above. -->
+        <div v-if="booking" class="card">
+          <label class="lbl" for="booking-date">When is this wanted</label>
+          <input id="booking-date" type="date" v-model="bookingDate"
+                 :min="deliverWindow.from" :max="deliverWindow.to" />
+          <p class="muted small">
+            Every line follows this unless you set one of them differently. It has to fall between
+            <b class="tnum">{{ deliverWindow.from }}</b> and
+            <b class="tnum">{{ deliverWindow.to }}</b>.
+          </p>
+        </div>
+
+        <!-- Named here, all of them, rather than one at a time at submit. -->
+        <p v-if="badDates.length" class="note crit" role="alert">
+          <Icon name="alert" size="18" />
+          <span>
+            {{ badDates.length === 1 ? 'One line is' : badDates.length + ' lines are' }} wanted
+            outside this season&rsquo;s delivery window:
+            <b>{{ badDates.map((l) => l.item_name).join(', ') }}</b>. Move
+            {{ badDates.length === 1 ? 'it' : 'them' }} between
+            <b class="tnum">{{ deliverWindow.from }}</b> and
+            <b class="tnum">{{ deliverWindow.to }}</b>.
+          </span>
+        </p>
+
         <!-- ------------------------------------------------------------- payment terms -->
-        <div class="section"><h3>How the shop pays</h3></div>
+        <div class="section"><h3>{{ weBill ? "How the party pays" : "How the shop pays" }}</h3></div>
         <fieldset class="terms">
           <legend class="sr">Payment term</legend>
           <label v-for="t in TERMS" :key="t.value" class="term"
@@ -802,10 +1015,25 @@ function finish() {
           <Icon name="alert" size="18" /><span>{{ error }}</span>
         </p>
 
-        <!-- ADR-023, said plainly and every time. Nothing here is invoiced by us. -->
+        <!-- ADR-023, said plainly and every time - and only where it applies. A *retailer*
+             order is a secondary sale the distributor bills; a primary order and a booking are
+             sales we invoice ourselves, and this screen said otherwise over every one of them. -->
         <p class="note plain">
           <Icon name="store" size="18" />
-          <span>
+          <span v-if="booking">
+            This books <b>{{ seasonName }}</b> for
+            <b>{{ outletName || outlet }}</b> at today&rsquo;s rates. We raise the order and we
+            invoice it.
+            <template v-if="advance.required">
+              It is held until <b class="tnum">{{ money(advance.required) }}</b> of advance is
+              collected &mdash; nothing is reserved before then.
+            </template>
+          </span>
+          <span v-else-if="weBill">
+            This is a sale we invoice. Sending it raises the order on our side &mdash; it does not
+            go to anybody else&rsquo;s queue.
+          </span>
+          <span v-else>
             Sending this puts the order in
             <b>{{ distributorName || 'your distributor' }}</b>&rsquo;s queue. They deliver it and
             they bill the shop. Nothing is invoiced from here.
@@ -830,7 +1058,7 @@ function finish() {
         <button class="btn-primary" :disabled="!ready" @click="send">
           <span v-if="busy">Sending&hellip;</span>
           <span v-else class="tnum">
-            {{ online ? 'Send to distributor' : 'Save on this phone' }} &middot;
+            {{ online ? sendWords : 'Save on this phone' }} &middot;
             {{ sym }}{{ totals.net }}
           </span>
         </button>
@@ -971,6 +1199,17 @@ textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var
 .bottom { position: sticky; bottom: 0; padding: 10px 0 4px; margin-top: 16px;
           background: var(--bg); border-top: 1px solid var(--line); display: grid; gap: 8px; }
 /* Instructional copy that gates the primary action: it holds the 16px floor. */
+/* The season card. Same furniture as the credit card above it, so the two read as one column. */
+.season .crown { margin-bottom: 6px; }
+.season .srow + .foot { margin-top: 6px; }
+
+/* The per-line delivery date. Narrow, because it sits beside a figure on a phone, and still 44px
+   of target - a date a rep cannot hit is a date they leave wrong. */
+.when { flex: none; }
+.when input { min-height: 44px; font: inherit; font-size: 14px; padding: 4px 6px;
+              border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+              color: var(--ink); }
+.small { font-size: 13px; margin: 6px 0 0; }
 .gate { margin: 0; text-align: center; font-size: 16px; color: var(--muted); }
 .btn-primary { display: flex; align-items: center; justify-content: center; gap: 6px;
                padding: 14px; min-height: 52px; border-radius: 6px; width: 100%; }

@@ -34,6 +34,7 @@ from frappe.utils import cint, flt, getdate, today
 from fieldmate import compat
 from fieldmate.services import credit as credit_service
 from fieldmate.services import pricing, scope
+from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
 from fieldmate.services import tax as tax_service
 
@@ -99,6 +100,12 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 		"currency": next((i["currency"] for i in items if i["currency"]), None),
 		"company": company,
 		"billing_party": party,
+		# What kind of sale this cart is, and - for a booking - the season it books into. Drawn
+		# off the channel rather than guessed from the price list: a season's list is an ordinary
+		# Price List, and nothing in its name says the order carries an advance, a delivery
+		# window and a change cutoff. `None` here is the ordinary order, which is most of them.
+		"order_kind": channel["kind"],
+		"season": season_service.describe(channel.get("season")),
 		"catalogues": [c.name for c in catalogues],
 		"item_count": len(items),
 		# Counted rather than left to the screen, because this is the number a manager should be

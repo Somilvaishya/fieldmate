@@ -330,6 +330,44 @@ def pdcs_for(order: str) -> list[dict]:
 	return [{**row, "amount": amounts[row["name"]]} for row in cheques]
 
 
+def pdc_total_by_order(orders: list[str]) -> dict:
+	"""Post-dated cheque money held against each of several orders.
+
+	The companion to `in_hand_by_order`, and for the same reason: `pdcs_for` answers one order,
+	and a booking list needs fifty. Fifty calls for a figure that is two queries is how a screen
+	stops being opened on a market uplink.
+
+	Only the total. Which cheque, drawn on which bank, falling due when, is what `pdcs_for`
+	is for and what somebody banking them needs; a list only has room to say that money is
+	promised and not yet arrived.
+	"""
+	if not orders:
+		return {}
+
+	rows = frappe.get_all(
+		"FieldMate Collection Allocation",
+		filters={"reference_type": "FieldMate Order", "reference_name": ["in", orders],
+		         "parenttype": "FieldMate Collection"},
+		fields=["reference_name", "allocated_amount", "parent"],
+	)
+	if not rows:
+		return {}
+
+	pending = set(frappe.get_all(
+		"FieldMate Collection",
+		filters={"name": ["in", list({r.parent for r in rows})], "docstatus": 1,
+		         "mode": "Cheque", "instrument_date": [">", nowdate()],
+		         "status": ["not in", ["Bounced", "Cancelled"]]},
+		pluck="name",
+	))
+
+	totals = {}
+	for row in rows:
+		if row.parent in pending:
+			totals[row.reference_name] = totals.get(row.reference_name, 0) + flt(row.allocated_amount)
+	return totals
+
+
 def in_hand_by_order(orders: list[str]) -> dict:
 	"""What has actually been **received** against each order, as opposed to promised.
 
@@ -581,17 +619,28 @@ def undeposited(field_user: str | None = None) -> dict:
 	rows = frappe.get_all(
 		"FieldMate Collection",
 		filters={"field_user": field_user, "docstatus": 1, "status": "Collected"},
+		# `instrument_date` as well as the number. A cheque dated three weeks out is a PDC: the
+		# office holds it until it falls due and no bank will take it before then, so a deposit
+		# screen that drew it among the ordinary cheques was telling the rep to hand in something
+		# nobody can bank, and telling them nothing about why it never clears.
 		fields=["name", "receipt_no", "collection_date", "party", "party_type", "mode",
-		        "amount", "instrument_no", "posts_to_ledger"],
+		        "amount", "instrument_no", "instrument_date", "posts_to_ledger"],
 		order_by="collection_date asc",
 	)
 
 	today = getdate(nowdate())
-	cash = cheque = ours_total = 0.0
+	cash = cheque = pdc = ours_total = 0.0
 	oldest_age = 0
 	for row in rows:
+		# Marked here rather than left to the screen to work out. The date that decides it is
+		# the server's, and a handset whose clock is a week out would otherwise tell the rep a
+		# cheque is bankable when the bank will refuse it.
+		row.is_pdc = cint(row.mode == "Cheque" and row.instrument_date
+		                  and getdate(row.instrument_date) > today)
 		if row.mode in ("Cheque", "DD"):
 			cheque += flt(row.amount)
+			if row.is_pdc:
+				pdc += flt(row.amount)
 		else:
 			cash += flt(row.amount)
 		if cint(row.posts_to_ledger):
@@ -604,6 +653,9 @@ def undeposited(field_user: str | None = None) -> dict:
 		"count": len(rows),
 		"cash_amount": round(cash, 2),
 		"cheque_amount": round(cheque, 2),
+		# Of which this much cannot be banked yet. Part of the cheque figure, not on top of it:
+		# the money is in the envelope either way, it simply will not clear until its date.
+		"pdc_amount": round(pdc, 2),
 		"total_amount": round(cash + cheque, 2),
 		"ours_amount": round(ours_total, 2),
 		"oldest_days": oldest_age,

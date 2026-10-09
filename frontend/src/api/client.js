@@ -236,6 +236,11 @@ export const api = {
   orderDetail: (name) => call('order.detail', { order: name }),
   orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
 
+  // The season book. Its own call rather than a filter on the list above, because what a booking
+  // is read for - the advance due, the advance arrived, the cheques held against it and not yet
+  // due - is not on the order document at all. One call draws the whole page, one booking or fifty.
+  orderBookings: (limit) => call('order.bookings', { limit: limit || 50 }),
+
   // fieldmate.api.stock.* — the shop count.
   //
   // The count sheet carries the previous count with it rather than offering it on a second call.
@@ -255,6 +260,21 @@ export const api = {
   cashInHand: () => call('collection.in_hand'),
   distributors: () => call('collection.distributors'),
   depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
+
+  // fieldmate.api.showcase.* — the range shown to a party behind a link with no login.
+  //
+  // Every one of these is about the caller's own links. The rep comes off the session, and a link
+  // is read or withdrawn only when it is theirs: a phone that could name a colleague could read
+  // who they had quoted at what price, and withdraw a live quotation out from under them.
+  //
+  // `share` returns the address to paste into a chat. It is built by the server from the site's
+  // own URL, never assembled here - a link pasted into WhatsApp has to work for somebody who has
+  // never opened this app.
+  showcaseCatalogues: (party, partyType = 'Customer') =>
+    call('showcase.catalogues', { party, party_type: partyType }),
+  showcaseShare: (payload) => call('showcase.share', payload, { post: true }),
+  showcaseLinks: (limit) => call('showcase.links', { limit: limit || 50 }),
+  showcaseWithdraw: (link) => call('showcase.withdraw', { link }, { post: true }),
 
   // ------------------------------------------------------- Phase 7: targets and expenses
   //

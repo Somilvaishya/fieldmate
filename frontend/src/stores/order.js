@@ -43,6 +43,7 @@ import { enqueue } from '../sync/outbox'
 import { evaluate } from '../scheme/engine'
 import { formatPaise, fromPaise, toPaise } from '../lib/money'
 import { forLines as taxFor } from '../lib/tax'
+import { advanceView, isBooking } from '../lib/season'
 import * as visitStore from './visit'
 
 /** Anything the rep did that the cart will not accept, with a sentence they can act on. */
@@ -445,6 +446,35 @@ export const cartQty = computed(
 
 /** The previous order at this shop, for the repeat-order prefill. */
 export const lastOrder = computed(() => catalogue.value?.last_order || null)
+
+// -------------------------------------------------------------------------------------- season
+
+/**
+ * The season this cart books into, or `null` for an ordinary order.
+ *
+ * The server's answer, carried whole and never re-derived. Which season an order books into is a
+ * question about its date against a company's open window (`services/season.open_for`), and a
+ * handset that worked it out from a price list name would be a second implementation of the one
+ * rule Phase 2 is built on.
+ */
+export const season = computed(() => catalogue.value?.season || null)
+
+/** Secondary, Primary or Booking, as the channel resolved it for this party today. */
+export const orderKind = computed(() => catalogue.value?.order_kind || null)
+
+export const isBookingCart = computed(() => isBooking(orderKind.value))
+
+/**
+ * What this cart would need up front if it were booked now, in paise.
+ *
+ * Nothing has arrived yet - there is no order for money to be allocated to - so this is the
+ * requirement alone, which is the figure the rep has to say out loud before the party agrees to
+ * anything. The arrived side appears once the booking exists, on the booking list and on the
+ * confirmation screen, both of which read the server's own count.
+ */
+export const advanceOnCart = computed(() =>
+  advanceView({ netPaise: totals.value.net_paise, season: season.value })
+)
 
 // ------------------------------------------------------------------------------------- pricing
 
@@ -964,6 +994,8 @@ export function buildOrderDoc({
   confirmedWith = null,
   remarks = null,
   visit = null,
+  deliveryDates = null,
+  topsUp = null,
   clientUuid = null,
   createdOffline = 0,
   deviceId = null,
@@ -992,6 +1024,10 @@ export function buildOrderDoc({
     confirmed_with: confirmedWith,
     remarks,
 
+    // The booking this one adds to, when the rep said so. The server checks it is the same party
+    // and the same season; this only carries the answer.
+    tops_up: topsUp,
+
     // The number the rep read out. Rupees, because every Currency column downstream is rupees.
     proposed_net_total: fromPaise(p.net_paise),
 
@@ -1016,6 +1052,12 @@ export function buildOrderDoc({
           rate: fromPaise(view.display_rate_paise),
           gross_amount: fromPaise(view.gross_paise),
           is_free_item: 0,
+
+          // When this line is wanted. Only a booking fills it in - the whole point of booking a
+          // season is that different lines land in different weeks - and the server refuses a
+          // date outside the season's delivery window. `undefined` rather than `null` for an
+          // ordinary order, so nothing about dates appears in a shop order's payload at all.
+          delivery_date: (deliveryDates && deliveryDates[line.item_code]) || undefined,
 
           has_order_history: line.has_order_history ? 1 : 0,
           last_ordered_qty: line.last_ordered_qty,

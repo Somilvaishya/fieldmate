@@ -144,3 +144,40 @@ def delivery_window(season: str | None) -> tuple[str | None, str | None]:
 		return None, None
 	doc = frappe.get_cached_doc("FieldMate Season", season)
 	return doc.delivery_from, doc.delivery_to
+
+
+def describe(season: str | None) -> dict | None:
+	"""Everything a screen has to say about a season, in one read.
+
+	The phone draws four things off this: that the order it is building is a booking at all, what
+	has to be collected up front, which dates its lines may be delivered between, and whether the
+	book is still open to changes. Each of those lives on the master as its own field, and a
+	screen asking for them one at a time is a screen that will one day show three of the four.
+
+	`None` for no season, which is the ordinary order. The caller tests the whole block rather
+	than a flag, so there is no second way to ask "is this a booking".
+	"""
+	if not season:
+		return None
+
+	doc = frappe.get_cached_doc("FieldMate Season", season)
+	may_change, note = may_amend(season)
+	return {
+		"name": doc.name,
+		"season_name": doc.season_name,
+		"festival_date": str(doc.festival_date) if doc.festival_date else None,
+		"booking_to": str(doc.booking_to) if doc.booking_to else None,
+		"change_cutoff": str(doc.change_cutoff) if doc.change_cutoff else None,
+		"delivery_from": str(doc.delivery_from) if doc.delivery_from else None,
+		"delivery_to": str(doc.delivery_to) if doc.delivery_to else None,
+		# The percentage, not an amount. The cart total moves with every tap and the phone has
+		# the same integer arithmetic the server does, so what travels is the rate.
+		"advance_pct": flt(doc.advance_pct),
+		"payment_terms": doc.payment_terms_template,
+		"price_list": doc.price_list,
+		# Said rather than implied. A rep whose booking is refused at submit because the cutoff
+		# passed this morning should have read it on the screen before they built the cart.
+		"may_change": bool(may_change),
+		"change_note": note,
+		"notes": doc.get("notes"),
+	}

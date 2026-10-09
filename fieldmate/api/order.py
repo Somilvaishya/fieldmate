@@ -58,6 +58,18 @@ def list_mine(limit: int = 50):
 
 @frappe.whitelist()
 @endpoint()
+def bookings(limit: int = 50):
+	"""This rep's season bookings, with what each one still needs up front.
+
+	Its own endpoint rather than a filter on `list_mine`, because the figures a booking is read
+	for - the advance due, the advance arrived, the cheques held against it - are not on the order
+	document at all. See `order_service.my_bookings`.
+	"""
+	return ok({"bookings": order_service.my_bookings(_me(), int(limit or 50))})
+
+
+@frappe.whitelist()
+@endpoint()
 def detail(order: str):
 	doc = frappe.get_doc("FieldMate Order", order)
 	order_service.assert_owner(doc)

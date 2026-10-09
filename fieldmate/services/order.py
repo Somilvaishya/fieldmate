@@ -1013,14 +1013,77 @@ def mine(field_user: str | None = None, limit: int = 50) -> list[dict]:
 		# (ADR-033), so a list selecting only the outlet drew a card with a blank name on it.
 		# `tax_total` and `grand_total` because the phone's list showed `net_total` as the order's
 		# value - a figure short by the whole of the GST on the bill the party actually receives.
+		# `order_kind` and `season` as well, so one list can draw a shop order and a season
+		# booking without a second call to find out which it was looking at.
 		fields=["name", "order_date", "outlet", "party_type", "customer", "net_total",
 		        "tax_total", "grand_total", "order_status", "credit_status",
+		        "order_kind", "season", "expected_delivery_date",
 		        "docstatus", "client_uuid"],
 		order_by="order_date desc, creation desc",
 		limit_page_length=limit,
 		user=frappe.session.user,
 		ignore_permissions=False,
 	)
+
+
+def my_bookings(field_user: str | None = None, limit: int = 50) -> list[dict]:
+	"""This rep's season bookings, each with what it still needs up front.
+
+	A list of its own rather than a filter on `mine`, because the figures that matter about a
+	booking are not on the order at all: what has to be collected before it is released lives on
+	the season, and what has arrived lives in the collections allocated to it. A screen that read
+	`mine` and then asked per order would make fifty calls to draw one list, on a market uplink,
+	which is how a screen stops being opened.
+
+	Batched deliberately. `in_hand_by_order` and `pdc_total_by_order` each answer the whole page
+	in one query, so this costs three reads whether the rep has one booking or fifty.
+	"""
+	from fieldmate.services import collection as collection_service
+
+	field_user = field_user or field_user_service.for_user()
+	rows = frappe.get_list(
+		"FieldMate Order",
+		filters={"field_user": field_user, "order_kind": season_service.BOOKING},
+		fields=["name", "order_date", "customer", "season", "net_total", "tax_total",
+		        "grand_total", "order_status", "docstatus", "rates_locked_on", "tops_up",
+		        "client_uuid", "currency"],
+		order_by="order_date desc, creation desc",
+		limit_page_length=cint(limit),
+		user=frappe.session.user,
+		ignore_permissions=False,
+	)
+	if not rows:
+		return []
+
+	names = [row["name"] for row in rows]
+	in_hand = collection_service.in_hand_by_order(names)
+	pdcs = collection_service.pdc_total_by_order(names)
+
+	# One read per distinct season rather than per order: a rep's bookings are of one or two
+	# seasons, and `describe` is a cached-doc read either way.
+	seasons: dict[str, dict] = {}
+	for row in rows:
+		if row["season"] and row["season"] not in seasons:
+			seasons[row["season"]] = season_service.describe(row["season"]) or {}
+
+		season = seasons.get(row["season"]) or {}
+		required = season_service.advance_required(row["season"], row["net_total"])
+		arrived = flt(in_hand.get(row["name"]) or 0)
+
+		row["season_name"] = season.get("season_name")
+		row["delivery_from"] = season.get("delivery_from")
+		row["delivery_to"] = season.get("delivery_to")
+		row["advance_required"] = required
+		# `in_hand`, not paid. A post-dated cheque is allocated to the booking and shown beside
+		# this figure, and it is not money until its date - the same line `advance_position`
+		# draws, for the same reason.
+		row["advance_in_hand"] = arrived
+		row["advance_short"] = flt(max(0.0, required - arrived), 2)
+		row["pdc_total"] = flt(pdcs.get(row["name"]) or 0)
+		row["held"] = row["order_status"] == AWAITING_ADVANCE
+		row["rates_locked"] = bool(row["rates_locked_on"])
+
+	return rows
 
 
 def for_distributor(distributor: str, status: str | None = None) -> list[dict]:
@@ -1043,7 +1106,7 @@ def for_distributor(distributor: str, status: str | None = None) -> list[dict]:
 
 
 def summarise(doc) -> dict:
-	return {
+	answer = {
 		"name": doc.name,
 		"client_uuid": doc.client_uuid,
 		"outlet": doc.outlet,
@@ -1051,6 +1114,15 @@ def summarise(doc) -> dict:
 		# it is what a primary order looks like.
 		"party_type": doc.party_type,
 		"customer": doc.customer,
+		# What kind of sale, and - for a booking - which season, whether its rates are final and
+		# which earlier booking it adds to. All four were stored from step 2 onward and none was
+		# sent, so the phone could book a season order and then had no way to draw one.
+		"order_kind": doc.order_kind,
+		"season": doc.season,
+		"rates_locked_on": str(doc.rates_locked_on) if doc.rates_locked_on else None,
+		"tops_up": doc.tops_up,
+		"expected_delivery_date": (str(doc.expected_delivery_date)
+		                           if doc.expected_delivery_date else None),
 		"order_date": str(doc.order_date) if doc.order_date else None,
 		"order_status": doc.order_status,
 		"docstatus": cint(doc.docstatus),
@@ -1080,6 +1152,18 @@ def summarise(doc) -> dict:
 			for r in (doc.schemes_applied or [])
 		],
 	}
+
+	# What this booking needs up front, and what has arrived. Only for a booking, because only
+	# a booking has an advance, and because the two reads behind it are two reads nobody should
+	# pay for on an ordinary shop order.
+	#
+	# On the order the phone has just submitted as much as on one it is re-reading: a rep who
+	# books a season order has to be told, on the confirmation screen, how much to collect
+	# before the goods are planned. Learning it a week later is learning it from the office.
+	if doc.order_kind == season_service.BOOKING:
+		answer["advance"] = advance_position(doc)
+
+	return answer
 
 
 def assert_owner(doc) -> None:

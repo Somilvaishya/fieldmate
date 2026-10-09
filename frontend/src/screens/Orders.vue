@@ -14,6 +14,9 @@ const filter = ref('')
 const WORDS = {
   'Draft': 'Not sent',
   'Pending Approval': 'Waiting on your manager',
+  // A season booking held for its advance. Nobody is deciding anything - it is waiting for
+  // money - so it must not read like an approval the rep can chase a manager about.
+  'Awaiting Advance': 'Waiting for the advance',
   'Approved': 'Approved',
   'Sent To Distributor': 'With the depot',
   'Accepted': 'Depot accepted',
@@ -24,6 +27,7 @@ const WORDS = {
 }
 const TONE = {
   'Pending Approval': 'warn',
+  'Awaiting Advance': 'warn',
   'Rejected': 'crit',
   'Cancelled': 'crit',
   'Delivered': 'ok',
@@ -55,6 +59,11 @@ const shown = computed(() =>
  */
 function billTotal(o) {
   return Number(o.grand_total || 0) || Number(o.net_total || 0)
+}
+
+/** Is this a season booking? Then its advance, not its status, is what the rep has to act on. */
+function isBooking(o) {
+  return o.order_kind === 'Booking'
 }
 
 /** Who the order is for. A primary order has no outlet - it has a party (ADR-033). */
@@ -148,7 +157,11 @@ onMounted(load)
         <!-- The way into a primary order. It lives here rather than on the tab bar because a
              rep books one a week of these and twenty shop orders a day, and a sixth tab would
              cost the twenty to serve the one. -->
-        <RouterLink to="/parties" class="ghost small">Order on a distributor</RouterLink>
+        <span class="ways">
+          <RouterLink to="/parties" class="ghost small">Order on a distributor</RouterLink>
+          <RouterLink to="/bookings" class="ghost small">Season book</RouterLink>
+          <RouterLink to="/showcase" class="ghost small">Share the range</RouterLink>
+        </span>
       </div>
       <button class="quiet" :disabled="loading" @click="load" aria-label="Refresh">
         <Icon name="refresh" size="18" />
@@ -182,6 +195,11 @@ onMounted(load)
             <span class="pill" :class="TONE[o.order_status] || 'flat'">
               {{ WORDS[o.order_status] || o.order_status }}
             </span>
+            <!-- Marked, because a booking is not an order the rep forgets about: it is held
+                 until its advance is in, and the season book is where that figure lives. -->
+            <RouterLink v-if="isBooking(o)" class="pill book" to="/bookings">
+              {{ o.season || 'Booking' }}
+            </RouterLink>
           </div>
         </div>
 
@@ -255,6 +273,8 @@ onMounted(load)
 .pill.warn { background: var(--warn-soft); color: var(--warn); }
 .pill.crit { background: var(--crit-soft); color: var(--crit); }
 .pill.flat { background: var(--primary-soft); color: var(--primary); }
+.pill.book { background: var(--primary); color: var(--on-primary); text-decoration: none; }
+.ways { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 .note { color: var(--muted); font-size: 14px; text-align: center; padding: 20px 0; }
 .note.crit { color: var(--crit); text-align: left; background: var(--crit-soft);
              border-radius: 8px; padding: 10px 12px; }

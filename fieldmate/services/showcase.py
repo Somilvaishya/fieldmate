@@ -216,16 +216,82 @@ def _remarks(link, note: str | None) -> str:
 	return f"{words}\n{note.strip()}" if (note or "").strip() else words
 
 
+def url_for(token: str) -> str:
+	"""The address that goes in the WhatsApp message.
+
+	Built from the site's own URL rather than assembled on the phone: a handset that composed
+	this would compose it from whatever host it happened to be served on, and a link pasted into
+	a chat has to work for somebody who has never opened our app.
+	"""
+	return frappe.utils.get_url(f"/showcase?t={token}")
+
+
+def shareable_for(party: str, party_type: str = "Customer") -> list[dict]:
+	"""The catalogues that may be shown to this party, which is not all of them.
+
+	Two filters, and both matter. `matching_masters` is the ordinary scoping - territory,
+	channel, class - so a party is never offered a catalogue written for somebody else's region.
+	`is_showcase` is the one this module adds: an ordinary catalogue carries focus flags, minimum
+	order quantities and notes written for the person selling, and putting one in front of a
+	buyer is not a feature, it is a leak.
+	"""
+	doc = catalogue_service.readable_party(party, party_type)
+	matched = catalogue_service.matching_masters(
+		"FieldMate Product Catalogue", doc, getdate(nowdate()))
+
+	return [
+		{
+			"name": c.name,
+			"catalogue_name": c.catalogue_name,
+			"blurb": c.get("blurb"),
+			"line_count": len(c.get("items") or []),
+		}
+		for c in matched
+		if cint(c.get("is_showcase"))
+	]
+
+
 def links_of(field_user: str, limit: int = 50) -> list[dict]:
-	"""What this rep has shared, newest first, with how it has been received."""
-	return frappe.get_all(
+	"""What this rep has shared, newest first, with how it has been received.
+
+	Enriched here rather than on the screen. A row needs the catalogue's name, the party's name
+	and the address itself before it is worth drawing, and none of the three is on the link - so
+	a phone assembling them would make three calls a row, or print ids at a rep.
+
+	`live` is the document's own verdict, not a date comparison repeated here. A link can be
+	closed four ways - switched off, not open yet, expired, or opened more times than allowed -
+	and a list that re-derived any of them would one day disagree with the page itself.
+	"""
+	rows = frappe.get_all(
 		"FieldMate Share Link",
 		filters={"field_user": field_user},
 		fields=["name", "token", "catalogue", "party_type", "customer", "outlet",
-		        "valid_to", "is_active", "view_count", "last_opened"],
+		        "valid_from", "valid_to", "max_views", "is_active", "view_count",
+		        "first_opened", "last_opened", "season"],
 		order_by="creation desc",
 		limit_page_length=cint(limit),
 	)
+
+	for row in rows:
+		doc = frappe.get_cached_doc("FieldMate Share Link", row["name"])
+		live, why = doc.is_live()
+		row["live"] = bool(live)
+		# The same sentence a visitor would get. The rep needs more than that - which is why
+		# `valid_to` and `max_views` are in the row, for the screen to say "expired on the 3rd"
+		# out of fields the rep is entitled to and a stranger is not.
+		row["closed_because"] = "" if live else why
+		row["url"] = url_for(row["token"])
+		row["catalogue_name"] = frappe.get_cached_value(
+			"FieldMate Product Catalogue", row["catalogue"], "catalogue_name")
+		row["party"] = row["customer"] if row["party_type"] == "Customer" else row["outlet"]
+		row["party_name"] = _party_name(row["party_type"], row["party"])
+
+	return rows
+
+
+def owner_of(name: str) -> str | None:
+	"""Which rep made a link. Asked before anything is done to one."""
+	return frappe.db.get_value("FieldMate Share Link", name, "field_user")
 
 
 def withdraw(name: str) -> None:
