@@ -3,7 +3,7 @@
 Current state only. Permanent decisions go in DECISIONS.md.
 **Update at the end of every task.**
 
-Last updated: 7 Oct 2026. The previous version of this file was three weeks stale — it still read
+Last updated: 9 Oct 2026. The previous version of this file was three weeks stale — it still read
 "171 tests, Phase 1 complete" while Phase 9 had shipped and the suite was at 955. A stale MEMORY
 is worse than none, because somebody acts on it.
 
@@ -14,10 +14,11 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 to 8 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 9 of 11 done.**
 
-- 1,020 Python tests green, ruff clean
-- 42 PWA tests green — see below
+- 1,171 Python tests green (skipped=12), ruff clean
+- 155 PWA tests green — see below
+- Gates 4-9 and Phase 1 pass on testerp2
 - Branch `fix/phase-3-field-findings`
 
 The plan now being worked from is the **FieldMate Three-Phase Plan** of 3 Oct 2026 (Sagar), not
@@ -27,6 +28,55 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 9 — the season on the phone
+
+`services/season.describe`, a season block on the catalogue payload, booking fields and the
+advance position on `order.summarise`, `order.my_bookings`, `collection.pdc_total_by_order`,
+`is_pdc` on the satchel rows, `api/showcase.py`, `frontend/src/lib/season.js`, and two new screens
+— `/bookings` (the season book) and `/showcase`.
+
+**The first step of this phase the handset can see.** Everything before it happened on the server,
+and none of it reached the rep: the catalogue payload said nothing about a season, the order
+summary said nothing about a booking, the orders list could not tell one from a shop order, and
+the deposit screen could not tell a post-dated cheque from money.
+
+**Arrived and promised are two different figures, and both travel.** A PDC is allocated to a
+booking and shown against it, and it is not money until its date. The season book reports the PDC
+total *beside* the shortfall and never inside it; the deposit screen gives post-dated cheques
+their own block with the date on every line.
+
+Three live defects found while building it:
+
+- **The review screen told every order that "the distributor delivers it and bills the shop."**
+  ADR-023 is about a *retailer* order. A primary order and a booking are sales we raise and we
+  invoice, and the screen said otherwise in three places including the button.
+- **The depot collection form had no field for the date on the cheque**, so every cheque was
+  recorded as money in hand in all but name — a booking would release on a promise.
+- **The per-line delivery date listened on `change` only.** Which of `input` and `change` arrives
+  depends on the Android WebView, so on some handsets the date was lost silently.
+
+And one thing the plan did not name: **a depot collection can now be allocated to a booking.**
+`FieldMate Collection.on_submit` tries the advance gate again for each order a receipt names, and
+nothing else does — without it there was no path from the field to the gate at all.
+
+Two fixture lessons, both now written into the code:
+
+- a helper called `book` shadowed `OrderFixture.book`, so the test that wanted a plain shop order
+  got a second season and the master refused it as an overlap.
+- **a released booking's Sales Order has to be tracked.** Submitting one commits, so it outlives
+  FrappeTestCase's per-class rollback while the naming series counter is rolled back — and the
+  next run to reach that order name fails on a duplicate `fm_source_key`.
+
+Two test-environment quirks, worked around in the tests and not in the product: vitest reports a
+rejection from a mock reset in `beforeEach` as **unhandled** even where the component catches it,
+and happy-dom **refuses** a value outside a date input's `min`/`max` where a real browser only
+marks it invalid.
+
+**Not verified end to end on testerp2.** That site has no season, no booking and no showcase
+catalogue, so the new screens have nothing to draw there. Those fixtures belong to step 10's gate
+script and step 11's manual sheet. What was verified there: every new endpoint imports and the
+no-season path answers correctly.
 
 ## Phase 2, step 8 — the showcase, behind a public link
 
@@ -364,10 +414,13 @@ phone drew wrong, and not one was catchable in Python:
 
 The first four tests written were reverted against the old code to prove they fail on it. They do.
 
-Covered today: `lib/tax.js` (the money rule the server copies), `lib/credit.js`, the orders list
-screen, the check-in guard in `stores/visit.js`, and `liveSpecs` (which offers a phone still
-honours). **Not yet covered:** the cart and review screens, the scheme engine's JS half against
-the Python parity corpus, the sync outbox, and the Dexie migrations.
+Covered today: `lib/tax.js` (the money rule the server copies), `lib/credit.js`, `lib/season.js`
+(the booking arithmetic, written twice and required to agree to the paisa), the orders list, the
+check-in guard in `stores/visit.js`, `liveSpecs`, the CSRF token, and — as of step 9 — the season
+book, the deposit screen's PDC block, the share screen, and the review screen on its booking path.
+**Not yet covered:** the cart and catalogue screens, the review screen's ordinary shop path, the
+scheme engine's JS half against the Python parity corpus, the sync outbox, and the Dexie
+migrations.
 
 ## Field findings fixed this week
 
@@ -431,21 +484,28 @@ The plan's "do first" list, as it stands today:
    from a super stockist. One site with two companies, or two sites.
 2. **Before Phase 2:** whether November bookings taken as plain primary orders is acceptable. If
    not, the first three Phase 2 items come into Phase 1 and it runs about two weeks longer.
-3. **Before Phase 2:** booking terms — advance %, balance due relative to Holi, PDCs accepted,
-   price lock. Allocation rule when stock is short.
+3. **The booking terms are built as configuration, not settled as a decision.** Advance %, the
+   balance's payment terms template, the price lock, the delivery window and the change cutoff are
+   fields on `FieldMate Season`; the allocation rule is one of three on the same master (advance
+   first / first booked / pro rata). PDCs are accepted and recorded, and deliberately do not
+   release a booking until they fall due. What is still open is the **data** — nobody has set those
+   values for the real Holi season, and testerp2 has no season record at all.
 4. Per-outlet credit limits are built and unset. `FieldMate Outlet.credit_limit` is 0 on every
    outlet on testerp2, which reads as "no limit set" and not as a limit of zero.
 
 ## Next step
 
-Phase 2, step 9: the PWA screens — season booking, the booking list and its status, the showcase,
-and the deposit screen gaining PDC status. The first step of this phase that touches the phone, so
-it is also the first that the PWA suite covers rather than only the Python one.
+Phase 2, step 10: the gate script for the phase. It also has to **create the data the phase needs
+on testerp2** — a season, a showcase catalogue, and a booking taken against it — because the
+screens from step 9 have nothing to draw there until something does.
 
 **Still open from step 6:** the e-way bill. india_compliance is installed, but company `test` has
 no GSTIN and reads as Unregistered, so none can be raised on testerp2. Nothing else in dispatch
 depends on it, and the Sales Invoice that an e-way bill would hang off is already posted.
 
-Then, in no fixed order: the rest of the PWA harness where it is thinnest (the cart and review
-screens, and the scheme engine's JS half against the Python parity corpus), and the three
-carry-over items still open — test teardowns, rate limit and CSRF, and the scheduler.
+Then step 11, the manual test sheet for the phase, and after that the plan's own next move: testing
+Phase 1 and Phase 2 together, one flow at a time.
+
+The carry-over list above is clear. What is left of the PWA harness is where it is thinnest: the
+cart and catalogue screens, and the scheme engine's JS half against the Python parity corpus. The
+review screen is covered as of step 9, but only on the booking path.
