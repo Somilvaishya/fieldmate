@@ -3,7 +3,7 @@
 Current state only. Permanent decisions go in DECISIONS.md.
 **Update at the end of every task.**
 
-Last updated: 9 Oct 2026. The previous version of this file was three weeks stale — it still read
+Last updated: 10 Oct 2026. The previous version of this file was three weeks stale — it still read
 "171 tests, Phase 1 complete" while Phase 9 had shipped and the suite was at 955. A stale MEMORY
 is worse than none, because somebody acts on it.
 
@@ -14,11 +14,11 @@ is worse than none, because somebody acts on it.
 **Build plan phases 0–9 complete, gates 0–9 passed on testerp2.**
 **Channel redesign Phase 1 complete (10/10 steps), gate 8/8 on testerp2.**
 
-**Three-Phase Plan Phase 2 — steps 1 to 9 of 11 done.**
+**Three-Phase Plan Phase 2 — steps 1 to 10 of 11 done.**
 
-- 1,171 Python tests green (skipped=12), ruff clean
+- 1,175 Python tests green (skipped=12), ruff clean
 - 155 PWA tests green — see below
-- Gates 4-9 and Phase 1 pass on testerp2
+- Gates 4-9, Phase 1 and Phase 2 pass on testerp2 (Phase 2 with one criterion not answerable)
 - Branch `fix/phase-3-field-findings`
 
 The plan now being worked from is the **FieldMate Three-Phase Plan** of 3 Oct 2026 (Sagar), not
@@ -28,6 +28,62 @@ TASKS.md numbering is the old one and is kept because the per-task history is st
 | Plan | Phase 1 | Phase 2 | Phase 3 |
 |---|---|---|---|
 | Three-Phase Plan | All primary + secondary sales — **done** | Holi season — booking, advances, allocation, dispatch | After the sale — claims, returns, Tally/Busy, replenishment |
+
+## Phase 2, step 10 — the gate, and what it found
+
+`scripts/gate_phase2.py`, the plan's four "done when" lines against a real site, plus the Phase 2
+documents added to `clean_gate_fixtures`.
+
+    1. PASS  a booking with an advance and two PDCs posts one Sales Order with the season's schedule
+    2. PASS  short stock splits by each of the three rules, and reverts
+    3. PASS  a dispatch produces Delivery Notes and invoices with the advance allocated
+    4. PASS  the cockpit's totals reconcile against the Sales Orders behind them
+    5. SKIP  the booking's tax is the Sales Order's tax - not answerable on this bench
+
+Three of the four only mean anything on **short stock** and an **unpaid booking**, so the fixture
+builds exactly that: two bookings, one paid, 20 in the warehouse against 30 asked for.
+
+**Criterion 3 failed, and the defect was real.** A season is bought months before delivery, so by
+the time the invoice is raised the party has already paid — and the invoice went out without the
+advance on it. The party is billed for money they handed over in November, their Payment Entry sits
+unallocated, the receivable is overstated, and somebody journals it by hand in February.
+`compat.make_sales_invoice` now takes `allocate_advances`, which sets **ERPNext's own switch**
+(`allocate_advances_automatically`); off by default, and a season dispatch asks. Four tests in
+`test_dispatch`, including that an advance larger than the bill is not over-allocated.
+
+**Criterion 5 is the open one, and it is a decision rather than a patch.** FieldMate's tax comes
+from **Item Tax Templates** (item, then item group) — `services/tax.py`, mirrored in `lib/tax.js`
+so a rep can quote offline. ERPNext puts tax on a sales document from a **Sales Taxes and Charges
+Template in its header**; an Item Tax Template only overrides a rate on an account row that header
+already carries. This site has the first and not the second: company `test` has no GSTIN and no
+address, so india_compliance determines no place of supply and selects no template. Marking one
+`is_default` does not help — `get_party_details` still returns none — so it is not a field nobody
+set.
+
+So today **a primary order here quotes 3,360 and the invoice goes out at 3,000**, and nothing in
+the app notices. That is a Phase 1 shortfall (its plan row asked for a `taxes` table and
+`place_of_supply` on the order; what shipped is a computed `tax_total`). Three ways out, and the
+choice is the business's:
+
+1. fill in the company's GSTIN and address — smallest, and a pilot needs it anyway;
+2. have the app refuse or warn when its computed tax has no ERPNext tax head behind it;
+3. take our tax from where ERPNext takes its own, so the two cannot diverge.
+
+Three expectations of mine were wrong and the code was right each time, which is worth recording
+because two of them look like product bugs at first glance:
+
+- **pro rata gives 14/6, not 13.33/6.67.** Nobody can reserve a third of a bar of soap:
+  `allocation.split` floors each share and hands the stray unit to the largest ask, and documents
+  it. The gate restates that arithmetic rather than copying the figure.
+- `held_by` reports `reserved`, not `reserved_qty`.
+- the gate never **banked** the advance, so no Payment Entry existed for criterion 3 to find —
+  ADR-004 working exactly as intended.
+
+`clean_gate_fixtures` grew the documents this phase posts, in strict dependency order: a Payment
+Entry references an invoice, an invoice is made against a Delivery Note, a note ships a Sales
+Order, and ERPNext refuses to cancel a Sales Order while a reservation holds stock for it. A Stock
+Entry has no name of its own to match, so the gate stamps its remarks. Three gate runs now leave
+**nothing** behind on testerp2, verified doctype by doctype.
 
 ## Phase 2, step 9 — the season on the phone
 
@@ -443,6 +499,13 @@ All on testerp2, all found by the user rather than by a test:
 
 ## Known issues
 
+- **A primary order quotes a tax the company does not bill.** On testerp2 today an order reads
+  3,360 to the rep and its Sales Order and invoice total 3,000. FieldMate's tax comes from Item
+  Tax Templates; ERPNext puts tax on a document from a Sales Taxes and Charges Template in its
+  header, and this site has no GSTIN on the company so india_compliance selects none. Found by
+  the Phase 2 gate, which reports it as criterion 5 every run. Three ways out are listed under
+  step 10; the choice is the business's and nothing has been changed for it yet.
+
 - **The suite failed once in a way nobody has explained.** One run reported 521 tests and 102
   errors, every one of them `setUpClass` in `test_visit`, with `skipped=2` where every other run
   reports `skipped=12`. That is not a truncated run of the usual set — it is a **smaller set being
@@ -495,17 +558,23 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 10: the gate script for the phase. It also has to **create the data the phase needs
-on testerp2** — a season, a showcase catalogue, and a booking taken against it — because the
-screens from step 9 have nothing to draw there until something does.
+Phase 2, step 11: the manual test sheet, `docs/MANUAL_TESTS_PHASE2_SEASON.md`. The gate already
+points at it. It covers what the gate cannot: the phone's season screens from step 9, the two Desk
+pages (allocation and cockpit), the showcase as a party actually sees it, and the e-way bill.
 
-**Still open from step 6:** the e-way bill. india_compliance is installed, but company `test` has
-no GSTIN and reads as Unregistered, so none can be raised on testerp2. Nothing else in dispatch
-depends on it, and the Sales Invoice that an e-way bill would hang off is already posted.
+It also has to say **what testerp2 does not have**: no season, no booking and no showcase catalogue
+exist there, so the step 9 screens have nothing to draw until somebody creates them. The sheet's
+first section is that setup.
 
-Then step 11, the manual test sheet for the phase, and after that the plan's own next move: testing
-Phase 1 and Phase 2 together, one flow at a time.
+**Open, and waiting on a decision rather than on work:** the tax head (step 10 above). A primary
+order on this site quotes a figure with GST and the invoice goes out with none.
 
-The carry-over list above is clear. What is left of the PWA harness is where it is thinnest: the
-cart and catalogue screens, and the scheme engine's JS half against the Python parity corpus. The
-review screen is covered as of step 9, but only on the booking path.
+**Still open from step 6:** the e-way bill, which has the same root cause — india_compliance is
+installed, company `test` has no GSTIN, so it reads as Unregistered and none can be raised here.
+Nothing else in dispatch depends on it, and the Sales Invoice it would hang off is already posted.
+
+After step 11, the plan's own next move: testing Phase 1 and Phase 2 together, one flow at a time.
+
+What is left of the PWA harness is where it is thinnest: the cart and catalogue screens, and the
+scheme engine's JS half against the Python parity corpus. The review screen is covered as of step
+9, but only on the booking path.
