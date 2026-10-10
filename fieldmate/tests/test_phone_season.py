@@ -17,11 +17,12 @@ Phase 2 gate depends on somebody saying at a counter.
 """
 
 import frappe
-from frappe.utils import add_days, today
+from frappe.utils import add_days, flt, today
 
 from fieldmate.services import catalogue as catalogue_service
 from fieldmate.services import collection as collection_service
 from fieldmate.services import order as order_service
+from fieldmate.services import scheme_compile
 from fieldmate.services import season as season_service
 from fieldmate.services import showcase as showcase_service
 from fieldmate.tests.test_season import SeasonFixture
@@ -478,3 +479,123 @@ class TestWhatTheShareScreenIsTold(PhoneFixture):
 
 	def test_it_says_nothing_about_a_link_that_does_not_exist(self):
 		self.assertIsNone(showcase_service.owner_of("FM-SHARE-NOPE"))
+
+
+class TestOneAnswerAboutWhichList(PhoneFixture):
+	"""Which price list a booking is quoted from, asked of all three readers.
+
+	**This was wrong and the manual-test seeding found it.** A booking is priced from its season's
+	list, and `cart_for` has done that since step 2 - but `for_outlet`, the catalogue a rep
+	browses, and `prices_for`, the narrow re-pricing endpoint, were both still reading the party's
+	own list. So during a season the rep browsed and quoted at one set of rates while the server
+	booked the order at another: 8.20 on the screen against 7.38 in the order, on every line. The
+	phone computes its totals from the catalogue, so the figure said at the counter was the wrong
+	one and `totals_match` went to zero on every booking.
+
+	`for_outlet` is the one that reached a rep. `prices_for` had the same defect and no caller -
+	`api.cataloguePrices` is wired into the client and nothing invokes it - which is why it went
+	unnoticed, and is exactly the reason to pin it here now.
+
+	Three readers, one answer, and the fixture's two lists disagree on purpose - a test where the
+	party's list and the season's list hold the same rate cannot see any of this.
+	"""
+
+	PARTY_RATE, SEASON_RATE = 100, 70
+
+	def setUp(self):
+		super().setUp()
+		self.price_item(self.item, self.PARTY_RATE)
+		self.season_list = self.season_price_list(self.SEASON_RATE)
+		# A catalogue, which the order fixtures do not build and do not need: `cart_for` prices
+		# whatever the cart names, while `for_outlet` and `prices_for` deliberately answer only
+		# what the party is allowed to be sold. No channel and no outlet class on it, because
+		# that is the whole of what makes a master reach a Customer rather than a shop.
+		doc = frappe.get_doc({
+			"doctype": "FieldMate Product Catalogue",
+			"catalogue_name": self.uid("CAT"), "is_active": 1,
+			"items": [{"item_code": self.item, "sort_order": 1}],
+		}).insert(ignore_permissions=True)
+		self.track("FieldMate Product Catalogue", doc.name)
+
+	def open_the_book(self):
+		return self.make_season(price_list=self.season_list, advance_pct=0)
+
+	def catalogue(self):
+		return catalogue_service.for_outlet(self.party, self.rep.name, party_type="Customer")
+
+	def fresh_prices(self):
+		return catalogue_service.prices_for(
+			self.party, [{"item_code": self.item, "qty": 10}], self.rep.name,
+			party_type="Customer")
+
+	def cart(self):
+		return catalogue_service.cart_for(
+			self.party, [{"item": self.item, "qty": 10}], self.rep.name, party_type="Customer")
+
+	def rate_on(self, payload):
+		"""The rate this payload carries for the fixture item, in rupees.
+
+		Three shapes, because the three readers answer three shapes: `for_outlet` a list of rows,
+		`prices_for` a dict keyed by item code, `cart_for` a list in integer paise. Normalising
+		here is the point - the test is that the number is the same however it is asked for.
+		"""
+		rows = payload.get("items") or payload.get("lines") or []
+
+		if isinstance(rows, dict):
+			row = rows.get(self.item)
+			self.assertIsNotNone(row, "the item is not in that payload at all")
+			return flt(row["rate"])
+
+		for row in rows:
+			if (row.get("item_code") or row.get("item")) == self.item:
+				return (flt(row["rate"]) if row.get("rate") is not None
+				        else scheme_compile.in_rupees(row["rate_paise"]))
+		self.fail("the item is not in that payload at all")
+
+	# -------------------------------------------------------------- inside a season
+
+	def test_the_catalogue_is_priced_from_the_season(self):
+		self.open_the_book()
+		self.assertEqual(self.catalogue()["price_list"], self.season_list)
+
+	def test_the_call_made_before_a_total_is_read_out_is_too(self):
+		self.open_the_book()
+		self.assertEqual(self.fresh_prices()["price_list"], self.season_list)
+
+	def test_the_cart_is_too(self):
+		self.open_the_book()
+		self.assertEqual(self.cart()["price_list"], self.season_list)
+
+	def test_all_three_agree_on_the_rate(self):
+		"""To the paisa. A rep reads the first, the phone totals the second and the server books
+		the third, and the whole money design rests on the three being one number."""
+		self.open_the_book()
+		rates = {self.rate_on(self.catalogue()),
+		         self.rate_on(self.fresh_prices()),
+		         self.rate_on(self.cart())}
+		self.assertEqual(rates, {float(self.SEASON_RATE)},
+		                 "the catalogue, the fresh-price call and the cart disagree")
+
+	# ------------------------------------------------------------- outside a season
+
+	def test_an_ordinary_primary_order_is_quoted_from_the_partys_own_list(self):
+		"""The season's list governs a booking and nothing else. The day the book shuts, the
+		party goes back to buying on its own terms."""
+		rates = {self.rate_on(self.catalogue()),
+		         self.rate_on(self.fresh_prices()),
+		         self.rate_on(self.cart())}
+		self.assertEqual(rates, {float(self.PARTY_RATE)})
+
+	def test_a_shop_is_untouched_by_the_season(self):
+		"""A kirana buys from its distributor whatever month it is."""
+		self.open_the_book()
+		shop = catalogue_service.for_outlet(self.outlet.name, self.rep.name)
+		self.assertNotEqual(shop["price_list"], self.season_list)
+
+	def test_the_fresh_price_call_knows_a_customer_from_a_shop(self):
+		"""It passed no `party_type` at all, so a Customer was read as an Outlet - the same
+		defect `_from_outlet` had, on the one call the phone makes before a rep speaks."""
+		self.open_the_book()
+		answer = self.fresh_prices()
+		self.assertEqual(answer["outlet"], self.party)
+		self.assertEqual(self.rate_on(answer), float(self.SEASON_RATE))

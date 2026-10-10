@@ -38,7 +38,7 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
-from _guard import hsn_code, require_test_site
+from _guard import hsn_code, pause_open_seasons, require_test_site, resume_seasons
 
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
@@ -620,6 +620,12 @@ def main():
     frappe.db.set_single_value("FieldMate Settings", {"enable_primary_sales": 1})
     frappe.cache().delete_value("fieldmate_settings")
 
+    # Any other open book has to close before this gate opens its own: `season.open_for` refuses
+    # to choose between two and the master refuses to create the second. Closed rather than
+    # deleted, which is what the master's own refusal tells a person to do, and put back below.
+    paused = pause_open_seasons(settings_service.value("default_company")
+                                or frappe.db.get_value("Company", {}, "name"))
+
     fx = None
     try:
         fx = build()
@@ -638,6 +644,11 @@ def main():
                 frappe.db.commit()
             except Exception as e:
                 print(f"  !! could not release this season's reservations: {e}")
+        try:
+            # The gate's own season is purged below, and `resume_seasons` skips what is gone.
+            resume_seasons(paused)
+        except Exception as e:
+            print(f"  !! could not re-open the seasons this run paused: {e}")
         try:
             frappe.db.set_single_value("FieldMate Settings", was)
             frappe.cache().delete_value("fieldmate_settings")

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
@@ -106,6 +106,21 @@ const owing = computed(() => bookings.value.filter((b) => Number(b.advance_short
 const chosenBooking = computed(() =>
   owing.value.find((b) => b.name === form.value.booking) || null
 )
+
+/**
+ * Picking a booking settles which depot the money came from.
+ *
+ * Not a convenience. A booking belongs to one party, and a receipt saved against **another**
+ * depot while allocated to that booking is money credited to the wrong account and an advance
+ * that releases somebody else's order. The rep is choosing the booking, so the booking decides.
+ * The shortfall is only suggested, because a part payment is an ordinary thing.
+ */
+watch(() => form.value.booking, () => {
+  const b = chosenBooking.value
+  if (!b) return
+  form.value.distributor = b.customer || form.value.distributor
+  if (!Number(form.value.amount)) form.value.amount = String(b.advance_short || '')
+})
 
 /**
  * Is this receipt going to release the booking it is put against?

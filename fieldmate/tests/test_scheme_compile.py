@@ -514,8 +514,9 @@ class TestWhichKindOfSaleASchemeIsFor(SchemeFixture):
 		name = self.make_distributor()
 		frappe.db.set_value("Customer", name, {
 			"fm_tier": "Super Stockist", "fm_buys_from": "Company",
-			"default_price_list": frappe.db.get_value(
-				"Price List", {"selling": 1, "enabled": 1}, "name"),
+			# Named, for the reason `default_selling_price_list` sets out: an arbitrary pick moves
+			# the moment another fixture leaves a selling list behind.
+			"default_price_list": default_selling_price_list(),
 		}, update_modified=False)
 		frappe.clear_document_cache("Customer", name)
 		return name

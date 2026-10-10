@@ -22,7 +22,7 @@ import sys
 import frappe
 from frappe.utils import add_days, flt, today
 
-from _guard import hsn_code, require_test_site
+from _guard import hsn_code, pause_open_seasons, require_test_site, resume_seasons
 
 SITE = sys.argv[1] if len(sys.argv) > 1 else "testerp2.web.gargsystems.com"
 
@@ -369,6 +369,13 @@ def main():
     live = settings_service.get()
     was = {k: live.get(k) for k in ("enable_secondary_sales", "enable_primary_sales")}
 
+    # An open season would make every primary order below a **booking** of it, priced from the
+    # season's list - which is correct behaviour and makes this gate depend on whatever seasons
+    # are live on the site. It failed exactly that way with "these have no price yet", a message
+    # naming the symptom and hiding the cause. Phase 1 is tested without a season open.
+    company = settings_service.value("default_company") or frappe.db.get_value("Company", {}, "name")
+    paused = pause_open_seasons(company)
+
     try:
         fx = build()
         criterion_1(fx, was)
@@ -380,6 +387,10 @@ def main():
         criterion_7(fx)
         criterion_8(fx)
     finally:
+        try:
+            resume_seasons(paused)
+        except Exception as e:
+            print(f"  !! could not re-open the seasons this run paused: {e}")
         try:
             frappe.db.set_single_value("FieldMate Settings", was)
             frappe.cache().delete_value("fieldmate_settings")

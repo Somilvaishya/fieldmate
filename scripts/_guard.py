@@ -77,3 +77,46 @@ def hsn_code() -> str | None:
 	row = frappe.db.sql(
 		"select name from `tabGST HSN Code` where length(name) in (6, 8) limit 1")
 	return row[0][0] if row else None
+
+
+def pause_open_seasons(company: str | None) -> list[str]:
+	"""Close any season of `company` whose book is open, and hand back what was closed.
+
+	**An open season changes what a primary order is.** `channel.resolve` calls a primary order
+	dated inside a booking window a *Booking* of that season and prices it from the season's own
+	list. That is the design and it is right - but it makes every gate that books a primary order
+	depend on whatever seasons happen to be live on the site at the time.
+
+	Both of these failed exactly that way the day `setup_phase2_season.py` first ran. The Phase 1
+	gate booked a primary order, got a booking priced from a season list its item was not on, and
+	refused with "these have no price yet" - a message naming the symptom and hiding the cause.
+	The Phase 2 gate could not create its own season at all, because the master refuses a second
+	open book over the same dates.
+
+	Deactivated rather than deleted, which is what a real site would do and what the master's own
+	refusal tells a person to do. Every caller puts them back in a `finally`.
+	"""
+	if not company:
+		return []
+
+	names = frappe.get_all("FieldMate Season",
+	                       filters={"company": company, "is_active": 1}, pluck="name")
+	for name in names:
+		frappe.db.set_value("FieldMate Season", name, "is_active", 0, update_modified=False)
+		frappe.clear_document_cache("FieldMate Season", name)
+	if names:
+		frappe.db.commit()
+		print(f"  paused {len(names)} open season(s) for the run: {', '.join(names)}")
+	return names
+
+
+def resume_seasons(names: list[str]) -> None:
+	"""Put back what `pause_open_seasons` closed. Safe to call with an empty list."""
+	for name in names or []:
+		if not frappe.db.exists("FieldMate Season", name):
+			# Purged by the gate that made it, which is the ordinary case for its own season.
+			continue
+		frappe.db.set_value("FieldMate Season", name, "is_active", 1, update_modified=False)
+		frappe.clear_document_cache("FieldMate Season", name)
+	if names:
+		frappe.db.commit()

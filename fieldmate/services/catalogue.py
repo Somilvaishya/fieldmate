@@ -53,10 +53,20 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 	"""
 	doc = readable_party(outlet, party_type)
 	on = getdate(today())
-	price_list = price_list or resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
 	channel = credit_service.billing_party(doc, field_user, party_type)
 	party = channel["party"]
+	# The channel first, then the list, because **a booking is priced from its season's list**
+	# and that answer only exists once the channel has been resolved. `cart_for` has done this
+	# since step 2; this function and `prices_for` were left reading the party's own list, so
+	# during a season the rep browsed and quoted at one set of rates while the server booked the
+	# order at another - 8.20 on the screen against 7.38 in the order, on every line. The phone
+	# computes its totals from what is here, so the figure read out at the counter was the wrong
+	# one and `totals_match` went to zero on every booking.
+	#
+	# A caller that named a list still wins: the order estimate re-prices against the list the
+	# order was actually written on.
+	price_list = price_list or channel.get("price_list") or resolve_price_list(doc, field_user)
 
 	catalogues = matching_masters("FieldMate Product Catalogue", doc, on)
 	rows = catalogue_rows(catalogues)
@@ -294,8 +304,16 @@ def prices_for(outlet, lines, field_user: str | None = None,
                party_type: str | None = None) -> dict:
 	"""Fresh rates for a cart the rep already built, and nothing else.
 
-	The phone holds prices from whenever it last synced, which may have been yesterday morning
-	in a different market. This is the call it makes before the rep reads a total out loud.
+	The phone holds prices from whenever it last synced, which may have been yesterday morning in
+	a different market, and this is the narrow call for re-pricing a cart without fetching the
+	whole catalogue again.
+
+	**No screen calls it yet.** `api.cataloguePrices` is wired into the client and nothing invokes
+	it; the phone re-fetches the catalogue through `for_outlet` instead, and checks a total through
+	`order.estimate`. Said here rather than left to be discovered, because an endpoint nobody
+	calls is an endpoint whose bugs nobody finds - this one was quoting the party's own list to a
+	season booking and reading a Customer as an Outlet, and neither showed up in the field because
+	nothing asked it anything.
 
 	Each line is `{"item_code": ..., "qty": ...}` with the quantity in **base units**, because
 	that is what a quantity break on Item Price is measured in and the phone already holds the
@@ -306,9 +324,14 @@ def prices_for(outlet, lines, field_user: str | None = None,
 	"""
 	doc = readable_party(outlet, party_type)
 	on = getdate(today())
-	price_list = resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	party = credit_service.billing_party(doc, field_user)["party"]
+	# `party_type` as well, which was missing: without it a Customer is read as an Outlet, which
+	# is the same defect `_from_outlet` had and the same cost - the wrong party, and so the wrong
+	# list and the wrong tax, on the one call the phone makes before a rep speaks.
+	channel = credit_service.billing_party(doc, field_user, party_type)
+	party = channel["party"]
+	# Same rule as `for_outlet` and `cart_for`: a booking is quoted from its season's list.
+	price_list = channel.get("price_list") or resolve_price_list(doc, field_user)
 
 	wanted = {}
 	for line in lines or []:

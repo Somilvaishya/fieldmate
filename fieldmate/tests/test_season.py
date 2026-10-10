@@ -45,6 +45,21 @@ class SeasonFixture(OrderFixture):
 
 	def tearDown(self):
 		self.apply_settings(**self._before)
+		# **Disabled before the base tries to delete them.** These are selling price lists, and a
+		# stray enabled one is not harmless: a fixture that takes "any selling, enabled Price
+		# List" gets it instead of Standard Selling, and the failure arrives in an unrelated file
+		# as "these have no price yet". That has now happened twice - 89 tests once, 6 another
+		# time - so a list that cannot be deleted is at least made unable to win that query.
+		#
+		# The base `_quieten` does this for anything it could not drop, which covers most runs.
+		# This covers the rest: a teardown that raises before reaching it, or a list held by a
+		# Sales Order that committed.
+		for name in getattr(self, "_season_lists", ()):
+			try:
+				frappe.db.set_value("Price List", name, "enabled", 0, update_modified=False)
+			except Exception:
+				pass
+		frappe.db.commit()
 		super().tearDown()
 
 	def season_price_list(self, rate=70):
@@ -59,6 +74,9 @@ class SeasonFixture(OrderFixture):
 			                "Price List", self.party_price_list, "currency") or "INR",
 		                }).insert(ignore_permissions=True)
 		self.track("Price List", name)
+		# Remembered as well as tracked, so `tearDown` can disable it even where it cannot be
+		# deleted. See the note there.
+		self._season_lists = [*getattr(self, "_season_lists", []), name]
 		row = frappe.get_doc({"doctype": "Item Price", "item_code": self.item,
 		                      "price_list": name, "price_list_rate": rate}
 		                     ).insert(ignore_permissions=True)

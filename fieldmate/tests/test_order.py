@@ -18,7 +18,7 @@ from frappe.utils import add_days, today
 
 from fieldmate.services import order as order_service
 from fieldmate.services import settings as settings_service
-from fieldmate.tests.test_scheme_compile import SchemeFixture
+from fieldmate.tests.test_scheme_compile import SchemeFixture, default_selling_price_list
 
 
 class OrderFixture(SchemeFixture):
@@ -411,10 +411,14 @@ class TestAnOrderOnAPartyWeBill(OrderFixture):
 		super().setUp()
 		self._before = {k: self.fresh_settings().get(k) for k in self.SETTINGS}
 		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=1)
-		# A party we sell to: a Customer with a channel tier, priced off its own list. The list is
-		# the one `price_item` uses, so the party and the cart agree about what things cost.
-		self.party_price_list = frappe.db.get_value(
-			"Price List", {"selling": 1, "enabled": 1}, "name")
+		# A party we sell to: a Customer with a channel tier, priced off its own list. **Named**,
+		# not "whichever selling list MariaDB returns first" - that is not a rule, and the moment
+		# another fixture leaves a selling list behind it moves. It did: a leaked
+		# `SEASON-PL-` list from the season fixture won that query and these six tests failed
+		# with "these have no price yet", which names the symptom and hides the cause. The same
+		# lesson `default_selling_price_list` and `_guard.selling_price_list` were both written
+		# for, in the one class that had not learned it.
+		self.party_price_list = default_selling_price_list()
 		self.party = self.outlet.distributor
 		frappe.db.set_value("Customer", self.party, {
 			"fm_tier": "Super Stockist", "fm_buys_from": "Company",

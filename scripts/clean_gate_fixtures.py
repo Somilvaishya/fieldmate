@@ -26,6 +26,10 @@ for arg in sys.argv[1:]:
 
 GO = "--yes" in sys.argv
 
+# Every prefix the scripts in this folder generate. `G_` is a single-character wildcard covering
+# the numbered gates; the phase gates use their own.
+PREFIXES = ("G_", "P1", "P2")
+
 def targets(prefix: str = "G_"):
     """What to remove, newest dependency first: a beat holds outlets, a field user holds a login.
 
@@ -110,9 +114,12 @@ def targets(prefix: str = "G_"):
         ("Item Price", {"item_code": ["like", f"{prefix}-ITEM-%"]}),
         ("FieldMate Product Catalogue", {"catalogue_name": ["like", f"{prefix}-CAT-%"]}),
         ("Item", {"item_code": ["like", f"{prefix}-ITEM-%"]}),
-        # After every Item Price on it. A season prices from a list of its own, so each run
-        # leaves one behind - and a stray selling list is not harmless: the gates resolve "the"
-        # selling list and a second one moves the answer.
+        # After every Item Price on it. A season prices from a list of its own and the Phase 1
+        # gate makes a PTR list, so every run leaves one behind - and a stray selling list is not
+        # harmless: `_guard.selling_price_list` resolves "the" selling list and a second one moves
+        # the answer. Sixteen empty `P1-PL-` lists were found on testerp2 because this pattern
+        # named only the season one.
+        ("Price List", {"name": ["like", f"{prefix}-PL-%"]}),
         ("Price List", {"name": ["like", f"{prefix}-SEASON-PL-%"]}),
         ("Territory", {"name": ["like", f"{prefix}-TERR-%"]}),
     ]
@@ -150,7 +157,14 @@ def purge(prefix: str = "G_", quiet: bool = False, passes: int = 3) -> int:
                                       delete_permanently=True)
                     moved += 1
                 except Exception:
-                    failed += 1
+                    # Gone anyway counts as gone. Deleting some doctypes enqueues work
+                    # afterwards, and on a bench with no Redis running that raises **after** the
+                    # row has been removed - which reported "could not remove 15" over fifteen
+                    # price lists that had in fact just gone, and sent somebody chasing them.
+                    if frappe.db.exists(doctype, name):
+                        failed += 1
+                    else:
+                        moved += 1
             frappe.db.commit()
 
         removed += moved
@@ -172,8 +186,12 @@ def main():
     print(f"\nGate fixtures on {SITE}{'' if GO else '   (dry run — nothing will be deleted)'}")
     print("-" * 70)
 
+    # **Both families.** `G_` is a single-character SQL wildcard, so it reaches G2 through G9 and
+    # nothing else - the phase gates prefix `P1` and `P2` and were invisible to this script, which
+    # is how sixteen empty `P1-PL-` price lists sat on testerp2 unnoticed. The gates clean up after
+    # themselves; this is for the runs that died before they could.
     total = removed = failed = 0
-    for doctype, filters in targets():
+    for doctype, filters in [row for prefix in PREFIXES for row in targets(prefix)]:
         try:
             names = frappe.get_all(doctype, filters=filters, pluck="name")
         except Exception as e:
@@ -197,7 +215,11 @@ def main():
                                   delete_permanently=True)
                 removed += 1
             except Exception:
-                failed += 1
+                # Gone anyway counts as gone - see the note in `purge`.
+                if frappe.db.exists(doctype, name):
+                    failed += 1
+                else:
+                    removed += 1
         frappe.db.commit()
 
     print("-" * 70)
