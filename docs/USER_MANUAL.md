@@ -231,6 +231,24 @@ Then **Item Price** for each: your selling price list, e.g. 122.00, 8.20, 275.00
 > An item with no price **stops the whole cart** rather than booking itself free. Leave one item
 > deliberately unpriced later to see that message.
 
+**MRP (optional).** Each Item has an **MRP** field, in the pricing section. FieldMate created it
+because ERPNext has none of its own, and it fills it in for nobody — the printed price on a pack
+is the company's to state. Fill it in and the app refuses any order line priced above it, on the
+catalogue row and again at submit. Leave it blank and nothing is checked.
+
+**GST (optional, and off until you set it up).** A rep's cart shows the GST the distributor will
+charge, so that the number read out at the counter is the number on the bill that evening.
+FieldMate charges none of it — a retailer order still posts no invoice and no ledger entry.
+
+To switch it on: **Desk → Item Tax Template → New** (title e.g. `GST 18%`, your company, one row
+per tax account with its rate — `9` and `9` for CGST and SGST, or one row of `18`). Then put that
+template on the items, either on each **Item → Tax** table or once on the **Item Group**, which is
+how most companies do it.
+
+> Until a template covers an item, that item's GST is zero and the cart shows no GST row at all.
+> That is deliberate: a zero GST line is a claim about your tax position, not a fact about the
+> order.
+
 ## 2.5 FieldMate Product Catalogue
 
 **New.** Active on. Territory: yours. Add all your items.

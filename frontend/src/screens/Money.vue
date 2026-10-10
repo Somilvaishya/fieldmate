@@ -1,9 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
+
+const route = useRoute()
 
 const inHand = ref(null)
 const collections = ref([])
@@ -69,7 +72,20 @@ async function load() {
 // not one on the phone at all.
 const depots = ref([])
 const taking = ref(false)
-const form = ref({ distributor: '', amount: '', mode: 'Cash', reference: '', from: '' })
+// `date` and `booking` as well as the rest.
+//
+// **The date is what makes a cheque a cheque.** A season booking is released only by money that
+// has *arrived*, and a cheque dated three weeks out has not - `in_hand_by_order` says so and
+// `release_if_paid` honours it. A form with no date field recorded every cheque as cash in all
+// but name, so a booking would release on a promise and the office would reserve stock against it.
+//
+// **The booking is what makes an advance an advance.** `FieldMate Collection.on_submit` tries the
+// advance gate again for each order the receipt is allocated to, and nothing else does. Money
+// taken from a depot and allocated to nothing is money that pays no booking: the rep collects it,
+// the figure on the season book does not move, and nobody can say why.
+const form = ref({
+  distributor: '', amount: '', mode: 'Cash', reference: '', date: '', from: '', booking: '',
+})
 const saveError = ref('')
 const saving = ref(false)
 
@@ -80,6 +96,47 @@ const draftUuid = ref(null)
 
 const MODES = ['Cash', 'UPI', 'Cheque', 'DD', 'Bank Transfer']
 const needsReference = computed(() => form.value.mode !== 'Cash')
+const isCheque = computed(() => ['Cheque', 'DD'].includes(form.value.mode))
+
+// This rep's open bookings, so a receipt can be put against one. Only the ones still short:
+// allocating to a booking whose advance is already in hand is allowed and pointless, and a
+// list of twenty where two matter is a list nobody reads.
+const bookings = ref([])
+const owing = computed(() => bookings.value.filter((b) => Number(b.advance_short) > 0))
+const chosenBooking = computed(() =>
+  owing.value.find((b) => b.name === form.value.booking) || null
+)
+
+/**
+ * Picking a booking settles which depot the money came from.
+ *
+ * Not a convenience. A booking belongs to one party, and a receipt saved against **another**
+ * depot while allocated to that booking is money credited to the wrong account and an advance
+ * that releases somebody else's order. The rep is choosing the booking, so the booking decides.
+ * The shortfall is only suggested, because a part payment is an ordinary thing.
+ */
+watch(() => form.value.booking, () => {
+  const b = chosenBooking.value
+  if (!b) return
+  form.value.distributor = b.customer || form.value.distributor
+  if (!Number(form.value.amount)) form.value.amount = String(b.advance_short || '')
+})
+
+/**
+ * Is this receipt going to release the booking it is put against?
+ *
+ * Said out loud because it is the single thing a rep most needs to know while taking the money,
+ * and the one thing the form itself cannot change: a post-dated cheque is recorded, allocated
+ * and shown against the booking, and the booking stays held until the cheque falls due.
+ */
+const willRelease = computed(() => {
+  const b = chosenBooking.value
+  if (!b) return null
+  if (isCheque.value && form.value.date && form.value.date > new Date().toISOString().slice(0, 10)) {
+    return false
+  }
+  return Number(form.value.amount || 0) >= Number(b.advance_short || 0)
+})
 
 const canSave = computed(() =>
   !!form.value.distributor
@@ -91,23 +148,43 @@ async function openTake() {
   taking.value = true
   saveError.value = ''
   draftUuid.value = crypto.randomUUID()
-  if (depots.value.length) return
   try {
-    const data = await api.distributors()
-    depots.value = data.distributors || []
-    if (depots.value.length === 1) form.value.distributor = depots.value[0].distributor
+    if (!depots.value.length) {
+      const data = await api.distributors()
+      depots.value = data.distributors || []
+      if (depots.value.length === 1) form.value.distributor = depots.value[0].distributor
+    }
+    // Fetched every time the form opens, not once. What a booking is short of moves because
+    // somebody else banked a cheque, and a cached figure is wrong in the one direction that
+    // matters: it would ask the party for money they have already paid.
+    const book = await api.orderBookings()
+    bookings.value = book.bookings || []
   } catch (e) {
+    // The depots are needed to save at all; the bookings are not. Either way this is one
+    // sentence, because a rep cannot act on which of the two calls failed.
     saveError.value = e instanceof ApiError
       ? e.message
       : 'Could not load your depots. This one needs signal.'
   }
+
+  // Walked in from the season book: the booking, its depot and what it is short of are already
+  // known, so the rep is not asked to type any of them again.
+  const wanted = String(route.query.order || '')
+  if (!wanted) return
+  const match = bookings.value.find((b) => b.name === wanted)
+  if (!match) return
+  form.value.booking = match.name
+  form.value.distributor = match.customer || form.value.distributor
+  if (!Number(form.value.amount)) form.value.amount = String(match.advance_short || '')
 }
 
 function closeTake() {
   taking.value = false
   saveError.value = ''
   draftUuid.value = null
-  form.value = { distributor: '', amount: '', mode: 'Cash', reference: '', from: '' }
+  form.value = {
+    distributor: '', amount: '', mode: 'Cash', reference: '', date: '', from: '', booking: '',
+  }
 }
 
 async function takeFromDepot() {
@@ -120,7 +197,21 @@ async function takeFromDepot() {
       amount: Number(form.value.amount),
       mode: form.value.mode,
       instrument_no: form.value.reference.trim() || null,
+      // Only for an instrument that has one. A date on a cash receipt is a field nobody reads;
+      // a *missing* date on a cheque is a PDC recorded as money in hand.
+      instrument_date: isCheque.value ? form.value.date || null : null,
       collected_from_name: form.value.from.trim() || null,
+      // Against the booking, where the rep said so. This is the whole of what makes the advance
+      // gate work from the field: `FieldMate Collection.on_submit` reads these rows and tries
+      // the gate again for each order named.
+      allocations: form.value.booking
+        ? [{
+            reference_type: 'FieldMate Order',
+            reference_name: form.value.booking,
+            outstanding_amount: Number(chosenBooking.value?.advance_short || 0),
+            allocated_amount: Number(form.value.amount),
+          }]
+        : [],
       client_uuid: draftUuid.value,
       device_id: await deviceUuid(),
     })
@@ -135,7 +226,12 @@ async function takeFromDepot() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  // Walked in from the season book with a booking to pay. Opening the form is the whole point of
+  // that link, and making the rep hunt for the button again is a step that exists for no reason.
+  if (route.query.order) await openTake()
+})
 </script>
 
 <template>
@@ -218,6 +314,47 @@ onMounted(load)
           <input v-model="form.reference" type="text" :disabled="saving"
                  placeholder="Cheque / UPI reference" />
         </label>
+
+        <!-- The date on the cheque, which is not today just because today is when it was
+             handed over. A later date is a PDC: still recorded, still allocated, and not money
+             until it falls due. -->
+        <label v-if="isCheque">
+          <span class="lbl">Date on the {{ form.mode }}</span>
+          <input v-model="form.date" type="date" :disabled="saving" />
+        </label>
+
+        <!-- What it pays. Only bookings still short of their advance appear, because those are
+             the only ones a receipt changes anything for. -->
+        <label v-if="owing.length">
+          <span class="lbl">
+            Against a booking <em class="opt">(optional)</em>
+          </span>
+          <select v-model="form.booking" :disabled="saving">
+            <option value="">Not against a booking</option>
+            <option v-for="b in owing" :key="b.name" :value="b.name">
+              {{ b.customer }} · {{ b.season_name || b.season }} · short
+              {{ formatRupees(b.advance_short) }}
+            </option>
+          </select>
+        </label>
+
+        <!-- Said while the rep is still standing there, because it is the one thing the form
+             cannot fix and the party is waiting to be told. -->
+        <p v-if="chosenBooking && willRelease === true" class="note good">
+          <Icon name="check" size="18" />
+          <span>This releases the booking. It goes forward to be planned.</span>
+        </p>
+        <p v-else-if="chosenBooking && willRelease === false" class="note warn">
+          <Icon name="alert" size="18" />
+          <span v-if="isCheque && form.date">
+            A cheque dated later does not release the booking. It is recorded and held against it,
+            and the booking goes forward when the cheque falls due.
+          </span>
+          <span v-else class="tnum">
+            This is less than the <b>{{ formatRupees(chosenBooking.advance_short) }}</b> still
+            due, so the booking stays held. Record it anyway &mdash; part of an advance counts.
+          </span>
+        </p>
 
         <label>
           <span class="lbl">Who handed it over <em class="opt">(optional)</em></span>
@@ -315,6 +452,12 @@ onMounted(load)
 .pill.crit { background: var(--crit-soft); color: var(--crit); }
 .pill.calm, .pill.flat { background: var(--primary-soft); color: var(--primary); }
 .note { color: var(--muted); font-size: 14px; text-align: center; padding: 20px 0; }
+.note.good { color: var(--ok); text-align: left; background: var(--ok-soft);
+             border-radius: 8px; padding: 10px 12px; display: flex; gap: 8px;
+             align-items: flex-start; }
+.note.warn { color: var(--warn); text-align: left; background: var(--warn-soft);
+             border-radius: 8px; padding: 10px 12px; display: flex; gap: 8px;
+             align-items: flex-start; }
 .note.crit { color: var(--crit); text-align: left; background: var(--crit-soft);
              border-radius: 8px; padding: 10px 12px; }
 .empty { text-align: center; padding: 32px 16px; color: var(--muted); display: flex;

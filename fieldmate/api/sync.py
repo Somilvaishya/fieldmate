@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import frappe
+from frappe.rate_limiter import rate_limit
 
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import sync as sync_service
@@ -76,6 +77,10 @@ def pull(device_uuid: str | None = None, since: str | None = None, doctypes: str
 
 
 @frappe.whitelist(methods=["POST"])
+# A day's work is one batch, and a rep syncing hard sends a handful. Sixty an hour per address
+# leaves an ordinary day untouched - the whole point of this app is that a rep can sync whenever
+# the signal allows - and stops a loop or a stolen device pushing without limit.
+@rate_limit(limit=60, seconds=60 * 60, methods=["POST"])
 @endpoint(require_device=True)
 def push(device_uuid: str | None = None, batch_uuid: str | None = None, records: str | None = None,
          app_version: str | None = None, _device=None, **kwargs):

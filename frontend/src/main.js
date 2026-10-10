@@ -49,6 +49,9 @@ const router = createRouter({
     // catalogue of several hundred SKUs, and a rep opening Today on a four-year-old Android should
     // not be paying for the order screens to get there - the cold-open budget is 2 seconds. It also
     // means a missing screen is a broken route rather than a broken app while these are being built.
+    // The way into a primary order. A retailer order starts from a shop on a planned beat; this
+    // one starts from the handful of parties a rep sells through.
+    { path: '/parties', component: () => import('./screens/Parties.vue'), name: 'parties' },
     { path: '/order/:outlet', component: () => import('./screens/OrderCatalogue.vue'), name: 'order-catalogue' },
     { path: '/order/:outlet/cart', component: () => import('./screens/OrderCart.vue'), name: 'order-cart' },
     { path: '/order/:outlet/schemes', component: () => import('./screens/OrderSchemes.vue'), name: 'order-schemes' },
@@ -79,6 +82,11 @@ const router = createRouter({
     // The three the bottom bar needs. None of them takes an id: they are the rep's own lists,
     // and a rep has exactly one of each.
     { path: '/orders', component: () => import('./screens/Orders.vue'), name: 'orders' },
+    // The season book. Its own screen rather than a tab on the orders list, because what a
+    // booking is read for - the advance still to collect - is not what an order is read for,
+    // and the figures behind it are not on the order document at all.
+    { path: '/bookings', component: () => import('./screens/Bookings.vue'), name: 'bookings' },
+    { path: '/showcase', component: () => import('./screens/Showcase.vue'), name: 'showcase' },
     { path: '/money', component: () => import('./screens/Money.vue'), name: 'money' },
     { path: '/me', component: () => import('./screens/Me.vue'), name: 'me' },
   ],

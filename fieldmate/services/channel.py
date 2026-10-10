@@ -22,13 +22,16 @@ from __future__ import annotations
 
 import frappe
 
+from fieldmate.services import pricing
+from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
 
 # A depot holding our own stock. Real in the chain, not a party we sell to.
 CFA = "CFA"
 
 
-def resolve(party: str, party_type: str | None = None, field_user: str | None = None) -> dict:
+def resolve(party: str, party_type: str | None = None, field_user: str | None = None,
+            on=None) -> dict:
 	"""Resolve one party to a kind of sale, a billing party and a price list.
 
 	`party_type` is "Outlet" or "Customer". It can be left out and will be worked out, which is
@@ -40,9 +43,10 @@ def resolve(party: str, party_type: str | None = None, field_user: str | None = 
 	its verdict instead of raising.
 	"""
 	party_type = party_type or _kind_of(party)
+	company = _company(field_user)
 
 	if party_type == "Outlet":
-		answer = _from_outlet(party)
+		answer = _from_outlet(party, field_user)
 	elif party_type == "Customer":
 		answer = _from_customer(party)
 	else:
@@ -50,6 +54,8 @@ def resolve(party: str, party_type: str | None = None, field_user: str | None = 
 
 	# The site's own switch, applied last. A party can be perfectly well set up for a kind of
 	# sale this company does not make.
+	# Asked before the season is read, deliberately: a Booking *is* a primary sale, so the switch
+	# that governs it is `enable_primary_sales` and there is no third switch to add.
 	if answer["allowed"] and not settings_service.allows(answer["kind"]):
 		word = "Primary" if answer["kind"] == settings_service.PRIMARY else "Secondary"
 		answer["allowed"] = False
@@ -57,7 +63,23 @@ def resolve(party: str, party_type: str | None = None, field_user: str | None = 
 			"{0} sales are switched off for this company. Ask your manager."
 		).format(word)
 
-	answer["company"] = _company(field_user)
+	answer["company"] = company
+
+	# A season, last of all, because it only ever narrows an answer the party already gave: a
+	# primary order dated inside an open booking window is a booking of that season, and is
+	# priced from the season's own list rather than the party's.
+	#
+	# `on` is the **order date**, not today. A rep syncing in December must not have November's
+	# orders book into a season that opened after they were taken, and must not have them
+	# repriced off a list that did not exist when they were taken either.
+	answer["season"] = None
+	if answer["allowed"] and answer["kind"] == settings_service.PRIMARY:
+		season = season_service.open_for(company, on)
+		if season:
+			answer["kind"] = season_service.BOOKING
+			answer["season"] = season
+			answer["price_list"] = season_service.price_list(season) or answer["price_list"]
+
 	return answer
 
 
@@ -66,8 +88,14 @@ def resolve(party: str, party_type: str | None = None, field_user: str | None = 
 # --------------------------------------------------------------------------------------
 
 
-def _from_outlet(outlet: str) -> dict:
-	"""A shop. Secondary, unless it is one of the few we invoice ourselves."""
+def _from_outlet(outlet: str, field_user: str | None = None) -> dict:
+	"""A shop. Secondary, unless it is one of the few we invoice ourselves.
+
+	`field_user` is passed on to `pricing.price_list_for`, which reads the rep's own list as one
+	step of its chain. It was missing, so this module answered a different list from the one the
+	catalogue used for any rep who had one - a drift the comment on `resolve_price_list` says
+	cannot happen, and which stayed invisible while nothing read the answer from here.
+	"""
 	doc = frappe.db.get_value(
 		"FieldMate Outlet", outlet,
 		["name", "outlet_name", "distributor", "customer", "price_list"],
@@ -88,7 +116,9 @@ def _from_outlet(outlet: str) -> dict:
 			"party_name": doc.outlet_name,
 			"bill_to": doc.customer,
 			"bill_to_name": _customer_name(doc.customer),
-			"price_list": _price_list_of(doc.customer) or doc.price_list,
+			# We are the seller here, so the fallback is the list we bill them from rather than a
+			# PTR; the shop's own still wins, for the reason `pricing.price_list_for` gives.
+			"price_list": doc.price_list or pricing.sells_to_us(doc.customer),
 			"tier": _tier_of(doc.customer),
 			"direct_billed": True,
 			"allowed": True,
@@ -108,8 +138,11 @@ def _from_outlet(outlet: str) -> dict:
 		# The distributor bills the shop. Our books never see this sale.
 		"bill_to": doc.distributor,
 		"bill_to_name": _customer_name(doc.distributor),
-		# What the shop pays: its distributor's PTR list, or whatever was set on the shop.
-		"price_list": _ptr_list_of(doc.distributor) or doc.price_list,
+		# What the shop pays. The chain is `pricing.price_list_for` - the shop's own list, then
+		# the distributor's PTR, then the rep's and the company's. This used to read the PTR
+		# first, which would have quoted the tier price at the one modern-trade account that had
+		# negotiated its own.
+		"price_list": pricing.price_list_for(doc, field_user),
 		"tier": _tier_of(doc.distributor),
 		"direct_billed": False,
 		"allowed": True,
@@ -160,7 +193,7 @@ def _from_customer(customer: str) -> dict:
 		bill_to = doc.fm_parent_customer
 
 	return {**base, "bill_to": bill_to, "bill_to_name": _customer_name(bill_to),
-	        "price_list": _price_list_of(bill_to), "allowed": True, "reason": ""}
+	        "price_list": pricing.sells_to_us(bill_to), "allowed": True, "reason": ""}
 
 
 # --------------------------------------------------------------------------------------
@@ -181,14 +214,9 @@ def _tier_of(customer: str | None) -> str | None:
 	return frappe.db.get_value("Customer", customer, "fm_tier") if customer else None
 
 
-def _price_list_of(customer: str | None) -> str | None:
-	"""What this party pays us."""
-	return frappe.db.get_value("Customer", customer, "default_price_list") if customer else None
-
-
-def _ptr_list_of(customer: str | None) -> str | None:
-	"""What the shops under this party pay."""
-	return frappe.db.get_value("Customer", customer, "fm_ptr_price_list") if customer else None
+# Which list a party buys on is `services.pricing`, not two private readers here. There were two
+# - one for what a party pays us and one for what its shops pay - and having both in this file is
+# how this module came to answer the PTR question differently from the catalogue.
 
 
 def _customer_name(customer: str | None) -> str | None:
@@ -211,5 +239,5 @@ def _no(party_type: str | None, party_name: str | None, party: str, reason: str)
 	return {
 		"kind": None, "party_type": party_type, "party": party, "party_name": party_name,
 		"bill_to": None, "bill_to_name": None, "price_list": None, "tier": None,
-		"direct_billed": False, "allowed": False, "reason": reason,
+		"direct_billed": False, "allowed": False, "reason": reason, "season": None,
 	}

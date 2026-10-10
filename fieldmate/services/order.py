@@ -29,6 +29,12 @@ from fieldmate import compat
 from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import scheme_compile
+from fieldmate.services import season as season_service
+
+# A booking that has been taken and is waiting for the money that releases it. Its own status
+# rather than Pending Approval: nobody is deciding anything, and a manager looking at a queue of
+# things to approve should not find orders in it that they cannot act on.
+AWAITING_ADVANCE = "Awaiting Advance"
 
 # What the rep is told when their own order needs a manager. Never an exception: a rep refused in
 # front of a shopkeeper stops booking in the app at all, and then we lose the data as well as the
@@ -42,7 +48,8 @@ BREACH_ROUTED = ("This shop is over its credit limit, so your order needs your m
 # --------------------------------------------------------------------------------------
 
 
-def estimate(outlet, lines, field_user: str | None = None, payment_term: str | None = None) -> dict:
+def estimate(outlet, lines, field_user: str | None = None, payment_term: str | None = None,
+             party_type: str | None = None) -> dict:
 	"""What this cart comes to, and what it does to the shop's credit. Creates no document.
 
 	The cart screen calls this on every quantity change, so it stays a read. The phone runs the
@@ -50,13 +57,13 @@ def estimate(outlet, lines, field_user: str | None = None, payment_term: str | N
 	has a signal — the two agreeing to the paise is what Gate 4 measures.
 	"""
 	field_user = field_user or field_user_service.for_user()
-	result = scheme_compile.evaluate_for(outlet, field_user, lines)
+	result = scheme_compile.evaluate_for(outlet, field_user, lines, party_type=party_type)
 
 	# Cash and UPI on delivery are settled at the door, so they consume no credit. Treating them
 	# as exposure blocks orders that were never a risk in the first place.
 	on_credit = (payment_term or "Credit") == "Credit"
 	result["credit"] = credit_service.check(
-		outlet, field_user, result["totals"]["net"] if on_credit else 0
+		outlet, field_user, result["totals"]["net"] if on_credit else 0, party_type
 	)
 	result["payment_term"] = payment_term or "Credit"
 	return result
@@ -74,8 +81,15 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 		frappe.throw("You are not set up as a field user yet. Ask your manager.")
 
 	data = dict(payload or {})
-	outlet = data.get("outlet")
-	if not outlet:
+	# A shop, or a party we bill ourselves. `party_type` is inferred rather than demanded, so
+	# that every build of the phone already in a pocket goes on sending `outlet` and goes on
+	# working; the controller settles the pair either way.
+	outlet, customer = data.get("outlet"), data.get("customer")
+	party_type = data.get("party_type") or ("Customer" if customer and not outlet else "Outlet")
+	if party_type == "Customer":
+		if not customer:
+			frappe.throw("A primary order needs a party.")
+	elif not outlet:
 		frappe.throw("An order needs a shop.")
 
 	# A push that already landed comes back as itself. The phone assigns identity and the server
@@ -94,7 +108,9 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 		frappe.throw("There is nothing in this order yet.")
 
 	doc = frappe.new_doc("FieldMate Order")
+	doc.party_type = party_type
 	doc.outlet = outlet
+	doc.customer = customer
 	doc.field_user = field_user
 	doc.order_date = data.get("order_date") or nowdate()
 	doc.visit = data.get("visit")
@@ -104,6 +120,7 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 	doc.delivery_instructions = data.get("delivery_instructions")
 	doc.confirmed_with = data.get("confirmed_with")
 	doc.remarks = data.get("remarks")
+	doc.tops_up = data.get("tops_up")
 	doc.client_uuid = data.get("client_uuid")
 	doc.created_offline = cint(data.get("created_offline"))
 	doc.device_id = data.get("device_id")
@@ -126,6 +143,19 @@ def price(doc, lines=None) -> dict:
 	inserts the document directly. Without the controller path, a day of orders captured in a
 	village would land with every total at zero. That exact bug shipped once on Day End.
 	"""
+	# A booking that has been submitted is not repriced, at all.
+	#
+	# Pinning the price *list* was not enough and is the wrong idea: the list is corrected between
+	# November and February, so re-pricing off the same list hands the party February's rate for
+	# an order they were read out in November. A commitment is a commitment - the figures on it
+	# were settled when it was submitted, and `rates_locked_on` is the record of that.
+	#
+	# This is also why the controller can go on calling `price` from `validate` without a special
+	# case: cancelling or amending a booking re-validates it, and re-validating must not quietly
+	# rewrite what the party agreed to.
+	if doc.rates_locked_on:
+		return {}
+
 	# Read what the rep actually entered - a count of cases against the UOM they chose - and let
 	# `cart_for` convert it to base units. Reading `qty` instead would be reading a column the
 	# server fills, which is empty on the way in and silently dropped the whole line.
@@ -134,6 +164,9 @@ def price(doc, lines=None) -> dict:
 			"item": row.item_code,
 			"qty": flt(row.qty_display) or flt(row.qty),
 			"uom": row.display_uom or row.uom,
+			# Carried, or a booking loses when each line was wanted every time it is repriced -
+			# and the controller reprices on every save.
+			"delivery_date": row.delivery_date,
 		}
 		for row in (doc.items or [])
 		# Free goods are the engine's to grant, never an input. A line arriving already flagged
@@ -141,12 +174,46 @@ def price(doc, lines=None) -> dict:
 		# hand it over a second time.
 		if not cint(row.is_free_item)
 	]
-	result = scheme_compile.evaluate_for(doc.outlet, doc.field_user, source)
+	party = doc.customer if doc.party_type == "Customer" else doc.outlet
+	# The order date, not today, and the list this order was locked at if it has one.
+	#
+	# A season is booked months before it is delivered, so by delivery the season's price list
+	# will have moved - and a party that booked in November is owed November's price. Once a
+	# booking is submitted its list is pinned, so a later pricing pass re-states the same cart at
+	# the same rates instead of quietly repricing a commitment.
+	result = scheme_compile.evaluate_for(
+		party, doc.field_user, source, party_type=doc.party_type, on=doc.order_date)
 
 	doc.price_list = result.get("price_list")
-	party = result.get("billing_party") or {}
-	doc.distributor = doc.distributor or _distributor_for(doc.outlet)
-	doc.company = doc.company or party.get("company")
+	channel = result.get("channel") or {}
+
+	# What kind of sale this is, and whether this company makes that kind at all. Until now the
+	# `enable_primary_sales` and `enable_secondary_sales` settings were written, were read by
+	# `channel.resolve` and gated nothing, because nothing called it. This is where they bite.
+	#
+	# Refused at the commit rather than earlier, like every other refusal here: a rep should see a
+	# catalogue and prices at a shop they cannot currently book for, and be told why when they
+	# try - not handed an empty screen with nothing on it to explain itself.
+	if channel and not channel.get("allowed", True):
+		frappe.throw(channel.get("reason") or frappe._("This order cannot be booked here."))
+
+	# Who gets the bill, which `channel.resolve` has already decided: the shop's distributor on a
+	# retailer order, and the party itself on a primary one. `_distributor_for` stays as the
+	# fallback for an order assembled without a channel answer - a fixture, or a push from a
+	# build that predates this.
+	doc.distributor = doc.distributor or channel.get("party") or _distributor_for(doc.outlet)
+	doc.company = doc.company or channel.get("company")
+
+	# What kind of order this is, written onto the document. Derived here and nowhere else: the
+	# party decides Secondary or Primary, and a primary order dated inside an open season is a
+	# Booking of it (Phase 2). The field is read-only on the form for the same reason the totals
+	# are - a rep does not get to say what kind of sale they made.
+	#
+	# Recomputed on every pricing pass rather than set once at insert, because an order amended
+	# across a season's opening date would otherwise keep the kind it was created with.
+	doc.order_kind, doc.season = season_service.kind_for(
+		{**channel, "company": doc.company}, doc.order_date)
+
 	doc.currency = doc.currency or frappe.db.get_value("Company", doc.company, "default_currency")
 
 	if result.get("unpriced_items"):
@@ -156,7 +223,24 @@ def price(doc, lines=None) -> dict:
 			"have them priced."
 		)
 
+	# Above the printed price on the pack. Refused rather than warned about: a shopkeeper cannot
+	# resell at a profit above the MRP, and in India selling over it is an offence under the
+	# Legal Metrology Act. It is a price list somebody has set wrong, not a decision for the rep
+	# standing at the counter, so the message names the party who can fix it.
+	if result.get("above_mrp_items"):
+		frappe.throw(
+			"These are priced above their MRP, so they cannot go on an order: "
+			f"{', '.join(result['above_mrp_items'])}. Ask your manager to correct the price "
+			"list."
+		)
+
 	_write_items(doc, result, source)
+	# After the lines exist, not before: `_write_items` rebuilds them from the engine's answer,
+	# so anything written on a row ahead of it is thrown away. Only a booking carries a date,
+	# and it has to fall inside the season's delivery window - a date outside it is a promise
+	# the company has not made.
+	check_delivery_dates(doc)
+	check_top_up(doc)
 	_write_schemes(doc, result)
 	_write_totals(doc, result)
 	_write_credit(doc, result)
@@ -164,6 +248,15 @@ def price(doc, lines=None) -> dict:
 
 
 def _write_items(doc, result: dict, source: list | None = None) -> None:
+	# When each line was asked for, kept from what came in. The engine answers quantities and
+	# rates and has no opinion about dates (ADR-021), so this is the only place the rep's own
+	# answer survives the rebuild.
+	wanted = {
+		(line.get("item") or line.get("item_code")): line.get("delivery_date")
+		for line in (source or [])
+		if (line.get("item") or line.get("item_code")) and line.get("delivery_date")
+	}
+
 	doc.set("items", [])
 	for line in result.get("lines") or []:
 		row = doc.append("items", {})
@@ -181,6 +274,7 @@ def _write_items(doc, result: dict, source: list | None = None) -> None:
 		row.rate = scheme_compile.in_rupees(line["rate_paise"])
 		row.price_list_rate = scheme_compile.in_rupees(line.get("price_list_paise") or line["rate_paise"])
 		row.amount = scheme_compile.in_rupees(line["qty"] * line["rate_paise"])
+		row.delivery_date = wanted.get(line["item"])
 		row.is_free_item = 0
 
 	# A line the rep set to zero is kept, though the engine dropped it. "Asked and declined" and
@@ -262,9 +356,15 @@ def _write_totals(doc, result: dict) -> None:
 	doc.discount_total = totals["discount"]
 	doc.net_total = totals["net"]
 	doc.incentive_amount = totals["incentive"]
-	# Tax is the distributor's to compute on their own invoice in order booking, so it stays zero
-	# here rather than pretending to a number we have no authority over.
-	doc.tax_total = flt(doc.tax_total or 0)
+	# Tax is the distributor's, and FieldMate posts none of it. It is written here anyway, and
+	# this is a reversal: the line used to be pinned at zero "rather than pretending to a number
+	# we have no authority over". That was right about authority and wrong about silence. We have
+	# no authority to *charge* it; we have every reason to say it, because `stores/order.js` sets
+	# the cart one job - the number the rep says out loud has to be the number on the invoice the
+	# distributor raises that evening - and that invoice carries GST. A rep quoting the net and a
+	# shopkeeper receiving a bill eighteen per cent higher are having an argument nobody can
+	# settle, about a figure this app had and did not show. See `services/tax`.
+	doc.tax_total = totals.get("tax") or 0
 	doc.grand_total = flt(doc.net_total) + flt(doc.tax_total)
 	doc.total_lines = len(doc.items or [])
 	doc.total_qty = sum(flt(row.qty) for row in (doc.items or []))
@@ -278,7 +378,9 @@ def _write_totals(doc, result: dict) -> None:
 
 def _write_credit(doc, result: dict) -> None:
 	on_credit = (doc.payment_term or "Credit") == "Credit"
-	position = credit_service.check(doc.outlet, doc.field_user, doc.net_total if on_credit else 0)
+	party = doc.customer if doc.party_type == "Customer" else doc.outlet
+	position = credit_service.check(party, doc.field_user,
+	                                doc.net_total if on_credit else 0, doc.party_type)
 
 	doc.credit_limit_at_order = flt(position.get("limit") or 0)
 	doc.outstanding_at_order = flt(position.get("outstanding") or 0)
@@ -350,6 +452,72 @@ def submit_order(name: str) -> dict:
 	return summarise(frappe.get_doc("FieldMate Order", name))
 
 
+def advance_position(doc) -> dict:
+	"""What this booking needs up front, and what has actually arrived.
+
+	Returned whole rather than raised, like every other verdict in this module: a rep is asked
+	for an advance at a counter and has to be able to say how much, not be refused after the
+	fact.
+
+	`in_hand`, not `paid`: a post-dated cheque is allocated to the order and visible as a PDC,
+	and it is not money until its date. Releasing a season booking against one means reserving
+	stock and planning a dispatch on a promise.
+	"""
+	from fieldmate.services import collection as collection_service
+
+	required = season_service.advance_required(doc.season, doc.net_total)
+	if not required:
+		return {"required": 0.0, "in_hand": 0.0, "short": 0.0, "held": False,
+		        "pdc_total": 0.0, "message": ""}
+
+	in_hand = flt(collection_service.in_hand_by_order([doc.name]).get(doc.name) or 0)
+	pdc_total = sum(flt(row["amount"]) for row in collection_service.pdcs_for(doc.name))
+	short = flt(max(0.0, required - in_hand), 2)
+
+	message = ""
+	if short:
+		message = frappe._(
+			"This booking needs {0} up front and {1} has been received. It is held until the "
+			"balance of {2} is collected."
+		).format(_money(required, doc.currency), _money(in_hand, doc.currency),
+		         _money(short, doc.currency))
+		if pdc_total:
+			# Said out loud, because a rep who has taken a cheque will otherwise read the hold
+			# as the office losing their paperwork.
+			message += " " + frappe._(
+				"{0} of post-dated cheques is held against it and does not count until it falls "
+				"due.").format(_money(pdc_total, doc.currency))
+
+	return {"required": required, "in_hand": in_hand, "short": short, "held": bool(short),
+	        "pdc_total": flt(pdc_total, 2), "message": message}
+
+
+def _money(value, currency: str | None) -> str:
+	return frappe.utils.fmt_money(flt(value), currency=currency)
+
+
+def release_if_paid(order: str) -> bool:
+	"""Try the gate again for a booking that was held. Called when money lands against it.
+
+	An advance hold is not an approval: nobody decides it, and the only thing that clears it is
+	the money arriving. So this is called from the collection path rather than from the approval
+	path, and it routes the order the moment the gate opens.
+
+	Returns whether it released, so a caller can say so. Safe to call on anything - an order that
+	is not a held booking is left exactly as it is.
+	"""
+	doc = frappe.get_doc("FieldMate Order", order)
+	if doc.docstatus != 1 or doc.order_kind != season_service.BOOKING:
+		return False
+	if doc.order_status != AWAITING_ADVANCE:
+		return False
+	if advance_position(doc)["held"]:
+		return False
+
+	route(doc)
+	return frappe.db.get_value("FieldMate Order", order, "order_status") != AWAITING_ADVANCE
+
+
 def route(doc) -> None:
 	"""Where a submitted order goes. Called from the controller's `on_submit`.
 
@@ -371,7 +539,18 @@ def route(doc) -> None:
 		doc.db_set("order_status", "Pending Approval", update_modified=False)
 		return
 
-	seller = credit_service.we_are_the_seller(doc.outlet, doc.field_user)
+	# A booking waiting on its advance goes nowhere either, and it is a different kind of waiting
+	# from the one above. An approval is a judgement somebody makes; an advance is money that has
+	# either arrived or has not, so no manager clears this - `release_if_paid` does, when the
+	# collection lands. Held before the accrual for the same reason an approval is: a booking
+	# that never gets paid for must not consume scheme budget on its way past.
+	waiting = advance_position(doc)
+	if waiting["held"]:
+		doc.db_set("order_status", AWAITING_ADVANCE, update_modified=False)
+		return
+
+	party = doc.customer if doc.party_type == "Customer" else doc.outlet
+	seller = credit_service.we_are_the_seller(party, doc.field_user, doc.party_type)
 
 	if seller["routes_to_distributor"]:
 		# ADR-023. This is the whole of fulfilment in order booking: the distributor bills the
@@ -410,6 +589,151 @@ def roll_up_to_visit(doc) -> None:
 	}, update_modified=False)
 
 
+def check_delivery_dates(doc) -> None:
+	"""A booking line is delivered inside its season's window, or not promised at all.
+
+	Blank is allowed and means the season's first delivery day: most lines of most bookings are
+	wanted as early as they can be had, and making a rep type the same date on forty lines is how
+	a form stops being filled in honestly.
+
+	An ordinary order has no window to be inside, so its lines are left alone.
+	"""
+	if doc.order_kind != season_service.BOOKING or not doc.season:
+		return
+
+	opens, closes = season_service.delivery_window(doc.season)
+	if not opens:
+		return
+
+	for row in doc.items or []:
+		if not row.delivery_date:
+			row.delivery_date = opens
+			continue
+		if not (getdate(opens) <= getdate(row.delivery_date) <= getdate(closes)):
+			frappe.throw(frappe._(
+				"{0} is wanted on {1}, which is outside this season's delivery window "
+				"({2} to {3})."
+			).format(row.item_code, frappe.utils.formatdate(row.delivery_date),
+			         frappe.utils.formatdate(opens), frappe.utils.formatdate(closes)))
+
+
+def lock_rates(doc) -> None:
+	"""Stop repricing this booking. Called once, when it is submitted.
+
+	The rates are already on the lines; this records that they are now final, and `price` reads
+	it to decide whether to look the list up again. Nothing is copied or recomputed here - a
+	lock that recomputed would be the thing it is meant to prevent.
+	"""
+	if doc.order_kind != season_service.BOOKING or doc.rates_locked_on:
+		return
+	doc.db_set("rates_locked_on", now_datetime(), update_modified=False)
+
+
+def check_top_up(doc) -> None:
+	"""A top-up adds to a booking, so it has to be the same party and the same season.
+
+	A party that booked in November and wants more in January books again - at the season's
+	terms, against the same season - and `tops_up` says which booking it is adding to, so the two
+	read as one commitment rather than two unrelated orders from the same party.
+
+	The cutoff is NOT checked here. Adding to a booking is not amending one: the original is
+	untouched, nothing already planned moves, and a season that has stopped accepting *changes*
+	has not stopped accepting *orders* until its booking window shuts - which `channel.resolve`
+	already enforces by refusing to call it a booking at all.
+	"""
+	if not doc.get("tops_up"):
+		return
+
+	if doc.order_kind != season_service.BOOKING:
+		frappe.throw(frappe._(
+			"Only a booking can top up another booking. This order is not one - check that its "
+			"date falls inside a season's booking window."))
+
+	original = frappe.db.get_value(
+		"FieldMate Order", doc.tops_up,
+		["name", "customer", "season", "order_kind", "docstatus"], as_dict=True)
+
+	if not original:
+		frappe.throw(frappe._("{0} is not an order.").format(doc.tops_up))
+	if original.name == doc.name:
+		frappe.throw(frappe._("An order cannot top itself up."))
+	if cint(original.docstatus) != 1:
+		frappe.throw(frappe._(
+			"{0} has not been submitted, so there is nothing to add to yet."
+		).format(original.name))
+	if original.order_kind != season_service.BOOKING:
+		frappe.throw(frappe._("{0} is not a booking.").format(original.name))
+	if original.customer != doc.customer:
+		frappe.throw(frappe._(
+			"{0} is {1}'s booking. A top-up is the same party asking for more, not a different "
+			"one.").format(original.name, original.customer))
+	if original.season != doc.season:
+		frappe.throw(frappe._(
+			"{0} is a booking of {1} and this one is of {2}. A top-up belongs to the same "
+			"season.").format(original.name, original.season, doc.season))
+
+
+def assert_may_amend(doc) -> None:
+	"""A booking stops moving at its season's change cutoff.
+
+	The commercial point of a season is that the company can plan against the book, so after the
+	cutoff the book is what it is.
+
+	**Changing a commitment, not reaching one.** This fired on any save of a non-new document,
+	which includes `submit` - so once a cutoff had passed, a booking taken perfectly legitimately
+	inside the booking window could not be submitted at all. A season whose book is open until
+	the 30th and whose changes shut on the 25th is an ordinary configuration, and every booking
+	taken in those five days was refused by a message about changes nobody had made.
+
+	So: an amendment is refused, and an update to an already-submitted booking is refused.
+	Saving a draft and submitting it are how an order reaches its final state on the day it is
+	taken, and neither moves anything the company has planned against.
+	"""
+	if doc.order_kind != season_service.BOOKING or not doc.season:
+		return
+	# An amendment, or a change to something already submitted. Saving a draft and submitting it
+	# are how an order reaches its final state on the day it is taken; neither moves anything the
+	# company has planned against.
+	# `_action`, not `docstatus`. Frappe sets `docstatus = 1` *before* running validate on a
+	# submit, so reading it here refuses the very submit that completes a legitimate booking -
+	# which is the bug this guard has now had twice. The action says which of the two is
+	# happening, and `before_update_after_submit` is where the second one arrives.
+	amending = bool(doc.get("amended_from"))
+	after_submit = getattr(doc, "_action", None) == "update_after_submit"
+	if not (amending or after_submit):
+		return
+
+	allowed, why = season_service.may_amend(doc.season)
+	if not allowed:
+		frappe.throw(why)
+
+
+def _warehouse_for(customer: str | None) -> str | None:
+	"""The depot that serves this party, from `Customer.fm_warehouse`.
+
+	A group warehouse is refused rather than passed on: ERPNext cannot reserve stock in one and
+	says so with a message about group warehouses that names nothing a manager can act on. Left
+	blank here, ERPNext defaults per line instead, which at least works.
+	"""
+	if not customer:
+		return None
+	warehouse = frappe.db.get_value("Customer", customer, "fm_warehouse")
+	if not warehouse:
+		return None
+	return None if cint(frappe.get_cached_value("Warehouse", warehouse, "is_group")) else warehouse
+
+
+def _earliest_delivery(doc):
+	"""The header delivery date: the soonest any line is wanted, falling back to the order's own.
+
+	ERPNext refuses a Sales Order whose header date is later than a line's, and a booking is
+	exactly the document where the lines differ.
+	"""
+	dates = [getdate(r.delivery_date) for r in (doc.items or []) if r.delivery_date]
+	fallback = getdate(doc.expected_delivery_date or doc.order_date)
+	return min([*dates, fallback]) if dates else fallback
+
+
 def _raise_sales_order(doc, seller: dict) -> None:
 	"""The one path where an ERPNext document is correct: we are billing the shop ourselves."""
 	if doc.sales_order:
@@ -418,15 +742,32 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		"customer": seller["party"],
 		"company": doc.company,
 		"transaction_date": getdate(doc.order_date),
-		"delivery_date": doc.expected_delivery_date or getdate(doc.order_date),
+		# The order's own date is the earliest its lines ask for, so ERPNext's header date does
+		# not sit after a line that is wanted sooner.
+		"delivery_date": _earliest_delivery(doc),
 		"currency": doc.currency,
 		"selling_price_list": doc.price_list,
 		# `compat.make_sales_order` reads this as `key` and refuses without it. Sending it under
 		# the name of the column it eventually lands in meant every directly-billed order threw
 		# "A Sales Order cannot be posted without an idempotency key" and none ever posted.
 		"key": doc.name,
+		# A season's payment terms, which ERPNext turns into the Sales Order's own payment
+		# schedule. Named rather than copied: the schedule finance maintains is the one on the
+		# template, and a second copy of it here is a second thing to keep in step.
+		"payment_terms_template": season_service.payment_terms(doc.season),
+		# Which depot serves this party. `fm_warehouse` has been on Customer since Phase 1 and
+		# nothing read it; allocation is what needs it, because reserving stock means reserving
+		# it *somewhere* and the somewhere is the warehouse that will actually ship.
+		#
+		# Blank leaves ERPNext to default per line from the Item, which is its ordinary
+		# behaviour and the right fallback for a company running one warehouse.
+		"set_warehouse": _warehouse_for(seller.get("party")),
 		"items": [
-			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate}
+			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate,
+			 # Per line, because that is the whole point of booking a season: a party asks for
+			 # part of its order in January and the rest in February, and ERPNext plans and
+			 # reserves against the date it was actually asked for.
+			 "delivery_date": row.delivery_date}
 			for row in (doc.items or [])
 		] + [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom,
@@ -668,13 +1009,81 @@ def mine(field_user: str | None = None, limit: int = 50) -> list[dict]:
 	return frappe.get_list(
 		"FieldMate Order",
 		filters={"field_user": field_user},
-		fields=["name", "order_date", "outlet", "net_total", "order_status", "credit_status",
+		# `customer` and `party_type` as well as `outlet`: a primary order has no outlet at all
+		# (ADR-033), so a list selecting only the outlet drew a card with a blank name on it.
+		# `tax_total` and `grand_total` because the phone's list showed `net_total` as the order's
+		# value - a figure short by the whole of the GST on the bill the party actually receives.
+		# `order_kind` and `season` as well, so one list can draw a shop order and a season
+		# booking without a second call to find out which it was looking at.
+		fields=["name", "order_date", "outlet", "party_type", "customer", "net_total",
+		        "tax_total", "grand_total", "order_status", "credit_status",
+		        "order_kind", "season", "expected_delivery_date",
 		        "docstatus", "client_uuid"],
 		order_by="order_date desc, creation desc",
 		limit_page_length=limit,
 		user=frappe.session.user,
 		ignore_permissions=False,
 	)
+
+
+def my_bookings(field_user: str | None = None, limit: int = 50) -> list[dict]:
+	"""This rep's season bookings, each with what it still needs up front.
+
+	A list of its own rather than a filter on `mine`, because the figures that matter about a
+	booking are not on the order at all: what has to be collected before it is released lives on
+	the season, and what has arrived lives in the collections allocated to it. A screen that read
+	`mine` and then asked per order would make fifty calls to draw one list, on a market uplink,
+	which is how a screen stops being opened.
+
+	Batched deliberately. `in_hand_by_order` and `pdc_total_by_order` each answer the whole page
+	in one query, so this costs three reads whether the rep has one booking or fifty.
+	"""
+	from fieldmate.services import collection as collection_service
+
+	field_user = field_user or field_user_service.for_user()
+	rows = frappe.get_list(
+		"FieldMate Order",
+		filters={"field_user": field_user, "order_kind": season_service.BOOKING},
+		fields=["name", "order_date", "customer", "season", "net_total", "tax_total",
+		        "grand_total", "order_status", "docstatus", "rates_locked_on", "tops_up",
+		        "client_uuid", "currency"],
+		order_by="order_date desc, creation desc",
+		limit_page_length=cint(limit),
+		user=frappe.session.user,
+		ignore_permissions=False,
+	)
+	if not rows:
+		return []
+
+	names = [row["name"] for row in rows]
+	in_hand = collection_service.in_hand_by_order(names)
+	pdcs = collection_service.pdc_total_by_order(names)
+
+	# One read per distinct season rather than per order: a rep's bookings are of one or two
+	# seasons, and `describe` is a cached-doc read either way.
+	seasons: dict[str, dict] = {}
+	for row in rows:
+		if row["season"] and row["season"] not in seasons:
+			seasons[row["season"]] = season_service.describe(row["season"]) or {}
+
+		season = seasons.get(row["season"]) or {}
+		required = season_service.advance_required(row["season"], row["net_total"])
+		arrived = flt(in_hand.get(row["name"]) or 0)
+
+		row["season_name"] = season.get("season_name")
+		row["delivery_from"] = season.get("delivery_from")
+		row["delivery_to"] = season.get("delivery_to")
+		row["advance_required"] = required
+		# `in_hand`, not paid. A post-dated cheque is allocated to the booking and shown beside
+		# this figure, and it is not money until its date - the same line `advance_position`
+		# draws, for the same reason.
+		row["advance_in_hand"] = arrived
+		row["advance_short"] = flt(max(0.0, required - arrived), 2)
+		row["pdc_total"] = flt(pdcs.get(row["name"]) or 0)
+		row["held"] = row["order_status"] == AWAITING_ADVANCE
+		row["rates_locked"] = bool(row["rates_locked_on"])
+
+	return rows
 
 
 def for_distributor(distributor: str, status: str | None = None) -> list[dict]:
@@ -697,16 +1106,33 @@ def for_distributor(distributor: str, status: str | None = None) -> list[dict]:
 
 
 def summarise(doc) -> dict:
-	return {
+	answer = {
 		"name": doc.name,
 		"client_uuid": doc.client_uuid,
 		"outlet": doc.outlet,
+		# Which party, and which kind. An empty `outlet` is not missing data on a primary order -
+		# it is what a primary order looks like.
+		"party_type": doc.party_type,
+		"customer": doc.customer,
+		# What kind of sale, and - for a booking - which season, whether its rates are final and
+		# which earlier booking it adds to. All four were stored from step 2 onward and none was
+		# sent, so the phone could book a season order and then had no way to draw one.
+		"order_kind": doc.order_kind,
+		"season": doc.season,
+		"rates_locked_on": str(doc.rates_locked_on) if doc.rates_locked_on else None,
+		"tops_up": doc.tops_up,
+		"expected_delivery_date": (str(doc.expected_delivery_date)
+		                           if doc.expected_delivery_date else None),
 		"order_date": str(doc.order_date) if doc.order_date else None,
 		"order_status": doc.order_status,
 		"docstatus": cint(doc.docstatus),
 		"gross_total": flt(doc.gross_total),
 		"discount_total": flt(doc.discount_total),
 		"net_total": flt(doc.net_total),
+		# The tax and the total it makes. Both were stored and neither was sent, so every screen
+		# downstream could only quote the net and none could show what the party is billed.
+		"tax_total": flt(doc.tax_total),
+		"grand_total": flt(doc.grand_total),
 		"incentive_amount": flt(doc.incentive_amount),
 		"totals_match": cint(doc.totals_match),
 		"proposed_net_total": flt(doc.proposed_net_total),
@@ -726,6 +1152,18 @@ def summarise(doc) -> dict:
 			for r in (doc.schemes_applied or [])
 		],
 	}
+
+	# What this booking needs up front, and what has arrived. Only for a booking, because only
+	# a booking has an advance, and because the two reads behind it are two reads nobody should
+	# pay for on an ordinary shop order.
+	#
+	# On the order the phone has just submitted as much as on one it is re-reading: a rep who
+	# books a season order has to be told, on the confirmation screen, how much to collect
+	# before the goods are planned. Learning it a week later is learning it from the office.
+	if doc.order_kind == season_service.BOOKING:
+		answer["advance"] = advance_position(doc)
+
+	return answer
 
 
 def assert_owner(doc) -> None:

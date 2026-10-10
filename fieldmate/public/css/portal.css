@@ -78,6 +78,12 @@ a { color: var(--primary); }
               background: var(--sunken); border-radius: 8px; }
 
 main { padding: calc(var(--head) + 20px) 20px 48px calc(var(--rail) + 20px); }
+/* The page's own measure. The rail is fixed, so `main` was free to run the whole width of
+   whatever monitor the depot happens to use: the date fields ran edge to edge and the reference
+   table put a hand's width between a column name and the names it accepts. The rail is added back
+   because the padding above starts after it. */
+main { max-width: calc(var(--rail) + 1060px); }
+h2 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
              gap: 12px; margin-bottom: 16px; }
 h1 { font-size: 22px; line-height: 1.2; margin: 0; letter-spacing: -.01em; }
@@ -103,6 +109,22 @@ h1 { font-size: 22px; line-height: 1.2; margin: 0; letter-spacing: -.01em; }
        padding: 12px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
 .bar .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .bar .row .grow { flex: 1 1 260px; }
+
+/* A card holding prose or a form rather than a table edge to edge.
+
+   `.pad` and `.muted` were used by the sales page and defined nowhere, so that page drew with no
+   inner padding and its explanatory lines came out as body text. Nothing caught it because the
+   page answered 500 before any of it reached a browser. */
+.pad { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.pad .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.pad .row label { flex: 0 1 220px; margin-bottom: 0; }
+/* A date is eight characters and a file picker is a button. Neither is improved by being as wide
+   as the page. */
+.pad input[type="date"], .pad input[type="file"] { max-width: 320px; }
+/* The left column of a reference table names one field; it does not need half the page. */
+.pad table td:first-child { width: 200px; }
+.muted { color: var(--muted); }
+p.muted { font-size: 13px; margin: 0; }
 input, select, button, textarea { font: inherit; }
 input, select, textarea {
   min-height: 38px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;

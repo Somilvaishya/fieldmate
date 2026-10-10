@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "user", "full_name", "distributor", "column_head", "designation", "is_active", "last_seen_on",
-  "section_rights", "can_accept_orders", "can_raise_claims", "column_rights", "notes"
+  "section_rights", "can_accept_orders", "can_upload_sales", "can_raise_claims", "column_rights", "notes"
  ],
  "fields": [
   {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User", "reqd": 1, "unique": 1,
@@ -28,6 +28,8 @@
   {"fieldname": "section_rights", "fieldtype": "Section Break", "label": "What They May Do"},
   {"fieldname": "can_accept_orders", "fieldtype": "Check", "label": "May Accept Orders", "default": "1",
    "description": "Moving an order through the queue commits the depot to supplying it. An accountant reading the same screen should not be able to."},
+  {"fieldname": "can_upload_sales", "fieldtype": "Check", "label": "May Send Sales Files", "default": "1",
+   "description": "Whether this login may upload the depot's own secondary sales file. On by default: a depot that cannot send its sales is a depot whose sales nobody has."},
   {"fieldname": "can_raise_claims", "fieldtype": "Check", "label": "May Raise Claims", "default": "1",
    "description": "Raising a claim asks us for money. A storekeeper who can accept an order has no business doing that."},
   {"fieldname": "column_rights", "fieldtype": "Column Break"},

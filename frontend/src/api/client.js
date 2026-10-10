@@ -17,6 +17,39 @@ export class ApiError extends Error {
 // short enough that nobody stares at a frozen screen.
 const TIMEOUT_MS = 45_000
 
+// The CSRF token this session was given at login, sent back on every write.
+//
+// Frappe skips CSRF validation entirely for a session that has no token saved, and an API login
+// leaves one unset - so until `auth.login` started answering with one, every write this app made
+// was unprotected by it. The session cookie is `SameSite=Lax`, which stops the simplest
+// cross-site POST, but a cookie arriving is not a decision to perform an action.
+//
+// Kept in `localStorage` as well as in memory so it survives the reload a service-worker update
+// causes. It is not a secret the way a password is - it is only useful to somebody who already
+// has this browser's cookie - and it is cleared on sign-out with everything else.
+const CSRF_KEY = 'fm:csrf'
+let csrfToken = read(CSRF_KEY)
+
+function read(key) {
+  try {
+    return window.localStorage.getItem(key) || null
+  } catch {
+    // A private window, or storage the browser has refused. The token still works for the life
+    // of this tab; it simply will not survive a reload.
+    return null
+  }
+}
+
+export function setCsrfToken(token) {
+  csrfToken = token || null
+  try {
+    if (token) window.localStorage.setItem(CSRF_KEY, token)
+    else window.localStorage.removeItem(CSRF_KEY)
+  } catch {
+    // Nothing to do about it, and nothing worth telling a rep.
+  }
+}
+
 async function call(method, params = {}, { post = false } = {}) {
   const url = BASE + method
   const controller = new AbortController()
@@ -31,6 +64,9 @@ async function call(method, params = {}, { post = false } = {}) {
   let target = url
   if (post) {
     opts.headers['Content-Type'] = 'application/json'
+    // Only on writes. Frappe checks it for unsafe methods and nothing else, and sending it on
+    // every read would put it in a query log for no gain.
+    if (csrfToken) opts.headers['X-Frappe-CSRF-Token'] = csrfToken
     opts.body = JSON.stringify(params)
   } else {
     const qs = new URLSearchParams(
@@ -92,8 +128,13 @@ async function call(method, params = {}, { post = false } = {}) {
 }
 
 export const api = {
-  login: (usr, pwd, deviceUuid, extra = {}) =>
-    call('auth.login', { usr, pwd, device_uuid: deviceUuid, ...extra }, { post: true }),
+  login: async (usr, pwd, deviceUuid, extra = {}) => {
+    const answer = await call('auth.login',
+      { usr, pwd, device_uuid: deviceUuid, ...extra }, { post: true })
+    // Kept the moment it arrives, so the very next write already carries it.
+    setCsrfToken(answer && answer.csrf_token)
+    return answer
+  },
   bootstrap: () => call('auth.bootstrap'),
   logout: () => call('auth.logout', {}, { post: true }),
   registerDevice: (deviceUuid, extra = {}) =>
@@ -149,31 +190,36 @@ export const api = {
   // Everything this shop may be sold, priced, plus the last order's quantities. One call, because
   // the cart screen needs both before it can draw anything and a second round trip on a market
   // uplink is a second chance for the rep to give up on it.
-  catalogue: (outlet) => call('catalogue.items', { outlet }),
+  // `partyType` is 'Customer' on a primary order and left out on a retailer one, which is what
+  // every build of this client before primary orders sent. The server reads a missing one as a
+  // shop, so an old phone goes on working.
+  catalogue: (outlet, partyType) => call('catalogue.items', { outlet, party_type: partyType }),
 
   // The repeat-order prefill. There is no endpoint of its own for it - `catalogue.items` carries
   // `last_order` deliberately, for the reason above - so this is the same call reading one key out
   // of the payload. Callers that already hold a cached catalogue should read `last_order` off that
   // instead of pulling four hundred priced SKUs down to fill in eight quantities.
-  catalogueLastOrder: (outlet) =>
-    call('catalogue.items', { outlet }).then((data) => data.last_order),
+  catalogueLastOrder: (outlet, partyType) =>
+    call('catalogue.items', { outlet, party_type: partyType }).then((data) => data.last_order),
 
   // Fresh rates for a cart that already exists. POSTed rather than sent as a query string: a
   // forty-line cart of long SKU codes runs past what some proxies will carry in a URL, and a
   // truncated cart re-prices as a different cart. `items` is [{item_code, qty}] in BASE units,
   // because that is what a quantity break on Item Price is measured in.
-  cataloguePrices: (outlet, items) => call('catalogue.prices', { outlet, items }, { post: true }),
+  cataloguePrices: (outlet, items, partyType) =>
+    call('catalogue.prices', { outlet, items, party_type: partyType }, { post: true }),
 
   // The compiled specs for this shop, for the phone to cache and evaluate against with no signal.
   // `skipped` comes back beside them: a scheme a manager has to fix must not look live in Desk and
   // absent in the field for as long as nobody happens to notice.
-  schemesFor: (outlet) => call('scheme.applicable', { outlet }),
+  schemesFor: (outlet, partyType) => call('scheme.applicable', { outlet, party_type: partyType }),
 
   // The same specs run on the server against server prices - the figure of record. The phone's own
   // answer is what the rep said out loud; docs/SCHEME_SPEC.md allows the two no divergence, so
   // where they differ one of the two engines is wrong and we would like to know which.
   // `lines` is [{item_code, qty, uom}].
-  schemeEvaluate: (outlet, lines) => call('scheme.evaluate', { outlet, lines }, { post: true }),
+  schemeEvaluate: (outlet, lines, partyType) =>
+    call('scheme.evaluate', { outlet, lines, party_type: partyType }, { post: true }),
 
   // fieldmate.api.order.* — written by another workstream and not on disk at the time these were
   // added, so the parameter names below are this client's half of the contract rather than
@@ -189,6 +235,11 @@ export const api = {
   orderList: (filters = {}) => call('order.list_mine', { limit: 50, ...filters }),
   orderDetail: (name) => call('order.detail', { order: name }),
   orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
+
+  // The season book. Its own call rather than a filter on the list above, because what a booking
+  // is read for - the advance due, the advance arrived, the cheques held against it and not yet
+  // due - is not on the order document at all. One call draws the whole page, one booking or fifty.
+  orderBookings: (limit) => call('order.bookings', { limit: limit || 50 }),
 
   // fieldmate.api.stock.* — the shop count.
   //
@@ -209,6 +260,21 @@ export const api = {
   cashInHand: () => call('collection.in_hand'),
   distributors: () => call('collection.distributors'),
   depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
+
+  // fieldmate.api.showcase.* — the range shown to a party behind a link with no login.
+  //
+  // Every one of these is about the caller's own links. The rep comes off the session, and a link
+  // is read or withdrawn only when it is theirs: a phone that could name a colleague could read
+  // who they had quoted at what price, and withdraw a live quotation out from under them.
+  //
+  // `share` returns the address to paste into a chat. It is built by the server from the site's
+  // own URL, never assembled here - a link pasted into WhatsApp has to work for somebody who has
+  // never opened this app.
+  showcaseCatalogues: (party, partyType = 'Customer') =>
+    call('showcase.catalogues', { party, party_type: partyType }),
+  showcaseShare: (payload) => call('showcase.share', payload, { post: true }),
+  showcaseLinks: (limit) => call('showcase.links', { limit: limit || 50 }),
+  showcaseWithdraw: (link) => call('showcase.withdraw', { link }, { post: true }),
 
   // ------------------------------------------------------- Phase 7: targets and expenses
   //

@@ -134,11 +134,24 @@ class TestCheckIn(VisitFixture):
 		second = self.check_in(client_uuid=self.uid("VIS"))
 		self.assertEqual(second["visit_sequence"], 2)
 
-	def test_walking_into_the_next_shop_closes_the_previous_visit(self):
-		"""A rep who forgot to check out must never be locked out of the next shop."""
+	def test_walking_into_the_next_shop_no_longer_closes_the_previous_visit(self):
+		"""This used to be the rule, written here as one: a check-in anywhere closed whatever
+		visit was open. The reasoning was that a rep who forgot to check out must never be
+		locked out of the next shop, and that part still holds - it is now a deliberate
+		override rather than what happens by default. See TestAVisitEndsByCheckingOut.
+		"""
 		first = self.check_in()
 		other = self.make_outlet(territory=self.territory, approval_status="Approved")
-		self.check_in(outlet=other.name, client_uuid=self.uid("VIS"))
+		with self.assertRaises(visit_service.OpenVisitError):
+			self.check_in(outlet=other.name, client_uuid=self.uid("VIS"))
+
+		still_open = frappe.get_doc("FieldMate Visit", first["visit"])
+		self.assertFalse(still_open.check_out_time)
+
+	def test_the_override_still_closes_it_and_says_why(self):
+		first = self.check_in()
+		other = self.make_outlet(territory=self.territory, approval_status="Approved")
+		self.check_in(outlet=other.name, client_uuid=self.uid("VIS"), close_open_visit=1)
 
 		closed = frappe.get_doc("FieldMate Visit", first["visit"])
 		self.assertTrue(closed.check_out_time)
@@ -863,7 +876,7 @@ class TestMerchandisingAudit(VisitFixture):
 			"is_stock_item": 0,
 		}
 		data.update(kwargs)
-		doc = frappe.get_doc(data).insert(ignore_permissions=True)
+		doc = frappe.get_doc(self.with_hsn(data)).insert(ignore_permissions=True)
 		self.track("Item", doc.name)
 		return doc.name
 
@@ -949,3 +962,200 @@ class TestMerchandisingAudit(VisitFixture):
 			frappe.db.get_value("FieldMate Visit", opened["visit"], "merchandising_audit"),
 			audit.name,
 		)
+
+
+class TestAVisitEndsByCheckingOut(VisitFixture):
+	"""A second check-in used to close the first visit, always and silently.
+
+	One tap from the shop list ended the visit the rep was standing in, stamped it "No Order" and
+	short, and told nobody - so a rep could walk a row of shops leaving behind empty visits that
+	still counted towards coverage. Checking out is how a visit ends.
+
+	The refusal is for a check-in happening now. A visit created offline already happened - the
+	rep was in that shop - and rejecting it when the queue lands would delete real work.
+	"""
+
+	def second_shop(self):
+		return self.make_outlet(
+			territory=self.territory,
+			latitude=DELHI[0], longitude=DELHI[1],
+			approval_status="Approved",
+		)
+
+	def test_it_is_refused_and_names_the_shop_they_are_in(self):
+		self.check_in()
+		other = self.second_shop()
+		with self.assertRaises(visit_service.OpenVisitError) as caught:
+			self.check_in(outlet=other.name, client_uuid=self.uid("VIS2"))
+		self.assertIn(self.outlet.outlet_name, str(caught.exception),
+		              "the shop they have to go back to, by name")
+
+	def test_the_refusal_leaves_the_open_visit_alone(self):
+		"""The whole point. A refusal that had already closed the visit would be the bug with a
+		message attached."""
+		first = self.check_in()
+		other = self.second_shop()
+		with self.assertRaises(visit_service.OpenVisitError):
+			self.check_in(outlet=other.name, client_uuid=self.uid("VIS2"))
+
+		doc = frappe.get_doc("FieldMate Visit", first["visit"])
+		self.assertFalse(doc.check_out_time, "still open, still theirs to finish properly")
+		self.assertEqual(visit_service.open_visit(self.rep.name)["visit"], first["visit"])
+
+	def test_checking_out_first_lets_the_next_one_through(self):
+		first = self.check_in()
+		self.check_out(first["visit"])
+		other = self.second_shop()
+		second = self.check_in(outlet=other.name, client_uuid=self.uid("VIS2"))
+		self.assertEqual(second["outlet"], other.name)
+
+	def test_a_rep_who_has_walked_away_can_say_so(self):
+		"""The deliberate override, sent only after the screen has said what it closes. Without
+		it a rep whose shop is behind them is stuck outside the next one."""
+		first = self.check_in()
+		other = self.second_shop()
+		second = self.check_in(outlet=other.name, client_uuid=self.uid("VIS2"),
+		                       close_open_visit=1)
+		self.assertEqual(second["outlet"], other.name)
+
+		closed = frappe.get_doc("FieldMate Visit", first["visit"])
+		self.assertTrue(closed.check_out_time)
+		self.assertTrue(closed.is_short_visit)
+
+	def test_a_visit_taken_offline_is_recorded_not_rejected(self):
+		"""It already happened. The rep stood in that shop, the phone had no signal, and the
+		queue is landing now - refusing it would throw away the visit."""
+		first = self.check_in()
+		other = self.second_shop()
+		second = self.check_in(outlet=other.name, client_uuid=self.uid("VIS2"),
+		                       created_offline=1)
+		self.assertEqual(second["outlet"], other.name)
+		self.assertTrue(
+			frappe.db.get_value("FieldMate Visit", first["visit"], "check_out_time"))
+
+	def test_checking_in_again_at_the_same_shop_is_not_refused(self):
+		"""The guard is about walking off mid-visit. A rep re-opening the app, or a push being
+		retried, is at the shop they are already in - refusing that would lock a rep out of the
+		shop they are standing in, which is worse than what this fixes."""
+		self.check_in()
+		again = self.check_in(client_uuid=self.uid("VIS"))
+		self.assertEqual(again["outlet"], self.outlet.name)
+
+	def test_a_visit_closed_this_way_is_not_counted_as_a_sale(self):
+		"""`visit_outcome` is a Select with options and no default, so it holds its first option
+		- "Order Taken" - from the moment the visit is inserted. The old `or "No Order"` could
+		therefore never fire, and `day_counts` counts that exact string as a productive visit:
+		a rep walking a row of shops inflated their own productivity figure.
+
+		Found by this test, not in the field."""
+		reason = self.make_reason()
+		first = self.check_in()
+		other = self.second_shop()
+		self.check_in(outlet=other.name, client_uuid=self.uid("VIS2"), close_open_visit=1)
+
+		closed = frappe.get_doc("FieldMate Visit", first["visit"])
+		self.assertEqual(closed.visit_outcome, "No Order", "no order was taken in it")
+		self.assertEqual(closed.no_order_reason, reason,
+		                 "and a reason, so the figure can be explained")
+
+
+class TestAForgottenDayClosesItsVisit(VisitFixture):
+	"""A day auto-closed used to leave the visit on it open forever - and an open visit from
+	yesterday blocks today's first check-in, which is the bug the rep actually meets."""
+
+	def test_the_open_visit_goes_with_the_day(self):
+		from fieldmate.services import day as day_service
+
+		first = self.check_in()
+		day = day_service.current(self.rep.name)
+		frappe.db.set_value("FieldMate Day Start", day["day_start"], {
+			"day_date": add_to_date(today(), days=-1),
+			"start_time": add_to_date(now_datetime(), days=-1),
+		}, update_modified=False)
+		# Back-dated properly: this is a visit the rep really walked away from yesterday, so
+		# the check-in time moves with the date. A visit checked in *today* is a live one and
+		# is deliberately left alone - see TestALiveVisitSurvivesTheDayClosing.
+		frappe.db.set_value("FieldMate Visit", first["visit"], {
+			"visit_date": add_to_date(today(), days=-1),
+			"check_in_time": add_to_date(now_datetime(), days=-1),
+		}, update_modified=False)
+		frappe.clear_document_cache("FieldMate Day Start", day["day_start"])
+		frappe.clear_document_cache("FieldMate Visit", first["visit"])
+
+		self.assertIsNone(day_service.current(self.rep.name))
+		self.assertTrue(
+			frappe.db.get_value("FieldMate Visit", first["visit"], "check_out_time"),
+			"closed with the day, so today's first check-in is not blocked by it")
+		self.assertIsNone(visit_service.open_visit(self.rep.name))
+
+
+class TestALiveVisitSurvivesTheDayClosing(VisitFixture):
+	"""Found in the field, by the person it happened to.
+
+	A rep was standing in a shop with a visit open. The day they were working under was dated
+	yesterday - which is the bug `day.current` now fixes - so the first call the app made closed
+	that day, and the day closing took the visit with it. The rep could not check out of the shop
+	they were in, and the app went on showing a visit the server had already closed.
+
+	So the tidy-up stops at the visit the rep is in. `check_in_time` decides that, not
+	`visit_date`: `visit_date` is the field the original bug corrupted.
+	"""
+
+	def stale_day(self):
+		from fieldmate.services import day as day_service
+		day = day_service.current(self.rep.name)
+		frappe.db.set_value("FieldMate Day Start", day["day_start"], {
+			"day_date": add_to_date(today(), days=-1),
+			"start_time": add_to_date(now_datetime(), days=-1),
+		}, update_modified=False)
+		frappe.clear_document_cache("FieldMate Day Start", day["day_start"])
+		return day["day_start"]
+
+	def test_a_visit_checked_in_today_is_not_closed_with_yesterdays_day(self):
+		from fieldmate.services import day as day_service
+
+		first = self.check_in()
+		self.stale_day()
+		# The corruption as it actually appeared: checked in today, filed under yesterday.
+		frappe.db.set_value("FieldMate Visit", first["visit"], "visit_date",
+		                    add_to_date(today(), days=-1), update_modified=False)
+		frappe.clear_document_cache("FieldMate Visit", first["visit"])
+
+		self.assertIsNone(day_service.current(self.rep.name), "the day is over")
+		self.assertFalse(
+			frappe.db.get_value("FieldMate Visit", first["visit"], "check_out_time"),
+			"but the rep is still in the shop")
+		self.assertEqual(visit_service.open_visit(self.rep.name)["visit"], first["visit"])
+
+	def test_the_day_that_opens_next_adopts_it(self):
+		"""Otherwise it dangles off a closed day carrying the wrong date, and every count that
+		reads `visit_date` misses it."""
+		from fieldmate.services import day as day_service
+
+		first = self.check_in()
+		stale = self.stale_day()
+		frappe.db.set_value("FieldMate Visit", first["visit"], "visit_date",
+		                    add_to_date(today(), days=-1), update_modified=False)
+		frappe.clear_document_cache("FieldMate Visit", first["visit"])
+		day_service.current(self.rep.name)
+
+		fresh = self.start_day()
+		self.assertNotEqual(fresh["day_start"], stale)
+		row = frappe.db.get_value("FieldMate Visit", first["visit"],
+		                          ["day_start", "visit_date"], as_dict=True)
+		self.assertEqual(row.day_start, fresh["day_start"])
+		self.assertEqual(str(row.visit_date), str(today()))
+
+	def test_the_rep_can_then_check_out_of_the_shop_they_are_in(self):
+		"""The whole point of the two tests above, said as the rep would say it."""
+		from fieldmate.services import day as day_service
+
+		first = self.check_in()
+		self.stale_day()
+		day_service.current(self.rep.name)
+		self.start_day()
+
+		closed = self.check_out(first["visit"])
+		self.assertTrue(closed["created"])
+		self.assertTrue(
+			frappe.db.get_value("FieldMate Visit", first["visit"], "check_out_time"))

@@ -17,6 +17,7 @@ from frappe.utils import cint, flt, now_datetime
 
 from fieldmate import compat
 from fieldmate.services import catalogue as catalogue_service
+from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import settings as settings_service
 
@@ -94,17 +95,37 @@ def detail(outlet: str, user: str | None = None) -> dict:
 	allowed, reason = doc.can_take_order()
 	party = doc.billing_party()
 
-	# Whose books, resolved the way the rest of the app resolves it: from the rep, then from
-	# settings. This used to read `doc.get("company")` first - a field FieldMate Outlet does not
-	# have - so the whole expression fell through to `default_company`, and on any site where
-	# nobody had set that, every shop came back with no credit at all. The phone read the empty
-	# block as "not on this phone" while `credit.check()`, which asks the rep, was answering
-	# "Within Limit, 50,000" for the same shop a function away.
-	company = catalogue_service.resolve_company(field_user_service.for_user(user))
+	# The company is resolved inside `credit.check` now, from the rep and then from settings,
+	# which is how the rest of the app does it. It was resolved here as well until this function
+	# stopped computing credit of its own - and the lesson is worth keeping: the version before
+	# that read `doc.get("company")` first, a field FieldMate Outlet does not have, so the whole
+	# expression fell through to `default_company`. On any site where nobody had set that, every
+	# shop came back with no credit at all, and the phone read the empty block as "not on this
+	# phone" while `credit.check()` answered "Within Limit, 50,000" for the same shop a function
+	# away.
 
-	credit = {}
-	if party and company:
-		credit = compat.get_credit_status(party, company)
+	# One credit answer for the whole app. This used to call `compat.get_credit_status`, which
+	# was a third way of asking - `credit.check` for the order path, `collection.outstanding_for`
+	# for the money screens, and this for the shop screen - and the three disagreed by
+	# construction: this one measured the distributor and labelled it as the shop's.
+	#
+	# The four keys three screens already read keep their names and their meaning, so nothing on
+	# a phone that has not been updated changes. What is added is the rest of the verdict, and
+	# the shop's own position with its distributor, which no screen could see before.
+	verdict = credit_service.check(doc.name, field_user_service.for_user(user), 0)
+	credit = {
+		"credit_limit": verdict["limit"],
+		"outstanding": verdict["outstanding"],
+		"headroom": verdict["headroom"],
+		"unlimited": not bool(verdict["limit"]),
+		"status": verdict["status"],
+		"message": verdict["message"],
+		"party": verdict["party"],
+		"party_name": verdict["party_name"],
+		# What this shop owes its distributor - our own count, and it says so. None on a party
+		# we bill ourselves, where there is only one debt.
+		"shop": verdict.get("shop"),
+	}
 
 	return {
 		"outlet": {f: doc.get(f) for f in DETAIL_FIELDS if f != "name"} | {"name": doc.name},
@@ -251,10 +272,22 @@ def approve(outlet: str, decision: str, notes: str | None = None, user: str | No
 
 
 def refresh_outstanding(outlet: str) -> float:
-	"""Live from the ledger. Stored only so a list view has something to show."""
-	doc = frappe.get_doc("FieldMate Outlet", outlet)
-	party = doc.billing_party()
-	company = doc.get("company") or settings_service.value("default_company")
-	amount = flt(compat.get_outstanding(party, company)) if (party and company) else 0.0
-	doc.db_set("outstanding_amount", amount, update_modified=False)
+	"""What this shop owes its distributor. Stored only so a list view has something to show.
+
+	It used to read `compat.get_outstanding(billing_party)` - the **distributor's** balance with
+	us - and write it onto the shop. Every shop under one distributor therefore showed the same
+	number, that distributor's whole debt to this company, labelled as what the shop owed. A rep
+	opening three kiranas on one beat saw the same five lakh against all three.
+
+	The right figure is `collection.outstanding_for`, which counts the orders booked at this shop
+	and subtracts the money collected against them. It is an estimate and says so - we are not a
+	party to that sale and no receivable for it exists anywhere - but it is this shop's estimate
+	rather than somebody else's fact.
+	"""
+	from fieldmate.services import collection as collection_service
+
+	amount = flt(collection_service.outstanding_for(outlet).get("outstanding"))
+	frappe.db.set_value("FieldMate Outlet", outlet, "outstanding_amount", amount,
+	                    update_modified=False)
+	frappe.clear_document_cache("FieldMate Outlet", outlet)
 	return amount

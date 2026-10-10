@@ -62,6 +62,21 @@ function shape(detail) {
     // so nothing on a screen ever does arithmetic on a float.
     limit_paise: toPaise(c.credit_limit) || 0,
     outstanding_paise: toPaise(c.outstanding) || 0,
+    // **Whose figures these are.** Everything above is the *distributor's* position with us,
+    // read out of ERPNext's receivable - `api.outlet` has always returned the billing party's
+    // credit. Every screen drew it under a heading like "Credit headroom" on a shop's screen,
+    // so a rep standing in a kirana read the distributor's limit as that kirana's. They are not
+    // the same number and are not owed to the same party. The name travels with them now, so a
+    // screen cannot show the figure without saying whose it is.
+    party: c.party || null,
+    party_name: c.party_name || null,
+    // The shop's own debt to its distributor. FieldMate's own count - orders we booked here,
+    // less collections allocated against them - because we are not a party to that sale and
+    // there is no receivable to read. Zero limit means nobody has set one, not a limit of zero.
+    shop_limit_paise: toPaise(c.shop?.limit) || 0,
+    shop_outstanding_paise: toPaise(c.shop?.outstanding) || 0,
+    shop_headroom_paise: toPaise(c.shop?.headroom) || 0,
+    shop_has_limit: (c.shop?.limit || 0) > 0,
     // ERPNext reads a zero limit as "no limit configured", not "no credit", and `compat.py` passes
     // that reading straight through as `unlimited`. A screen that treated zero as a wall would
     // stop every order on a site where nobody has typed a limit yet.
@@ -124,7 +139,13 @@ export function assessCredit(reading, orderPaise = 0) {
       tone: 'muted',
       order_paise: order,
       outstanding_paise: reading.outstanding_paise,
-      headline: 'No credit limit set for this shop',
+      party_name: reading.party_name,
+      shop_limit_paise: reading.shop_limit_paise,
+      shop_outstanding_paise: reading.shop_outstanding_paise,
+      shop_headroom_paise: reading.shop_headroom_paise,
+      shop_has_limit: reading.shop_has_limit,
+      // Named. "This shop" was the one party the figure was never about.
+      headline: `No credit limit set for ${reading.party_name || 'this distributor'}`,
     }
   }
 
@@ -148,5 +169,10 @@ export function assessCredit(reading, orderPaise = 0) {
     after_paise: after,
     over_paise: over ? -after : 0,
     used_pct: used,
+    party_name: reading.party_name,
+    shop_limit_paise: reading.shop_limit_paise,
+    shop_outstanding_paise: reading.shop_outstanding_paise,
+    shop_headroom_paise: reading.shop_headroom_paise,
+    shop_has_limit: reading.shop_has_limit,
   }
 }

@@ -42,6 +42,8 @@ import { db, deviceUuid, getMeta, rememberName, setMeta } from '../db'
 import { enqueue } from '../sync/outbox'
 import { evaluate } from '../scheme/engine'
 import { formatPaise, fromPaise, toPaise } from '../lib/money'
+import { forLines as taxFor } from '../lib/tax'
+import { advanceView, isBooking } from '../lib/season'
 import * as visitStore from './visit'
 
 /** Anything the rep did that the cart will not accept, with a sentence they can act on. */
@@ -61,6 +63,11 @@ const STALE_AFTER_MS = 12 * 60 * 60 * 1000
 // --------------------------------------------------------------------------------------- state
 
 export const outlet = ref(null)
+// Which kind of party the open order is for: null or 'Outlet' for a shop, 'Customer' for a
+// party we bill ourselves. It rides beside the name rather than being inferred from it,
+// because the two namespaces can and do collide - a Customer and an outlet may share a name,
+// and guessing wrong prices the cart off the wrong list.
+export const partyType = ref(null)
 export const outletName = ref(null)
 
 /** Cart lines, base units only. Everything a screen reads goes through `lines` below. */
@@ -181,6 +188,12 @@ function newLine(item) {
     unpriceable: !!item.unpriceable,
     currency: item.currency || null,
     mrp: item.mrp ?? null,
+    // The price list quotes above the price printed on the pack. The server refuses an order
+    // holding one, so the cart says so here rather than letting the rep find out at submit.
+    above_mrp: !!item.above_mrp,
+    // The distributor's tax rate on this item, in basis points. Zero means no tax template
+    // covers it, which is most items on most sites.
+    tax_bps: Math.trunc(item.tax_bps || 0),
 
     // In display units, as the catalogue master was written.
     min_order_qty: item.min_order_qty ?? null,
@@ -218,15 +231,27 @@ export const isEmpty = computed(() => rawLines.value.length === 0)
  */
 export const totals = computed(() => {
   const p = pricing.value
+  // The distributor's tax on the distributor's sale, so that the figure the rep reads out is the
+  // one the shop will be billed. FieldMate posts none of it - see `lib/tax.js`, which is this
+  // rule's other copy and the server's.
+  const rates = {}
+  for (const line of rawLines.value) if (line.tax_bps) rates[line.item_code] = line.tax_bps
+  const taxed = taxFor(p.lines || rawLines.value, rates, p.discount_paise)
+  const grand = p.net_paise + taxed.tax_paise
+
   return {
     gross_paise: p.cart_gross_paise,
     discount_paise: p.discount_paise,
     net_paise: p.net_paise,
     incentive_paise: p.incentive_paise,
+    tax_paise: taxed.tax_paise,
+    grand_paise: grand,
     gross: formatPaise(p.cart_gross_paise),
     discount: formatPaise(p.discount_paise),
     net: formatPaise(p.net_paise),
     incentive: formatPaise(p.incentive_paise),
+    tax: formatPaise(taxed.tax_paise),
+    grand: formatPaise(grand),
     currency: catalogue.value?.currency || null,
     // The engine's own complaints, e.g. a discount larger than the cart. Never hidden.
     errors: p.errors || [],
@@ -349,6 +374,19 @@ export const blockers = computed(() => {
     })
   }
 
+  // A line can reach this state without ever being added through addLine: a re-price against a
+  // list somebody changed mid-day turns a good line into this one.
+  const overMrp = rawLines.value.filter((l) => l.above_mrp)
+  if (overMrp.length) {
+    out.push({
+      code: 'ABOVE_MRP',
+      message:
+        'These are priced above the MRP printed on the pack, so the order cannot be sent. ' +
+        'Ask your manager to correct the price list.',
+      items: overMrp.map((l) => l.item_code),
+    })
+  }
+
   const below = rawLines.value.filter(
     (l) => l.min_order_qty && l.qty / (l.conversion_factor || 1) < l.min_order_qty
   )
@@ -409,6 +447,35 @@ export const cartQty = computed(
 /** The previous order at this shop, for the repeat-order prefill. */
 export const lastOrder = computed(() => catalogue.value?.last_order || null)
 
+// -------------------------------------------------------------------------------------- season
+
+/**
+ * The season this cart books into, or `null` for an ordinary order.
+ *
+ * The server's answer, carried whole and never re-derived. Which season an order books into is a
+ * question about its date against a company's open window (`services/season.open_for`), and a
+ * handset that worked it out from a price list name would be a second implementation of the one
+ * rule Phase 2 is built on.
+ */
+export const season = computed(() => catalogue.value?.season || null)
+
+/** Secondary, Primary or Booking, as the channel resolved it for this party today. */
+export const orderKind = computed(() => catalogue.value?.order_kind || null)
+
+export const isBookingCart = computed(() => isBooking(orderKind.value))
+
+/**
+ * What this cart would need up front if it were booked now, in paise.
+ *
+ * Nothing has arrived yet - there is no order for money to be allocated to - so this is the
+ * requirement alone, which is the figure the rep has to say out loud before the party agrees to
+ * anything. The arrived side appears once the booking exists, on the booking list and on the
+ * confirmation screen, both of which read the server's own count.
+ */
+export const advanceOnCart = computed(() =>
+  advanceView({ netPaise: totals.value.net_paise, season: season.value })
+)
+
 // ------------------------------------------------------------------------------------- pricing
 
 /**
@@ -418,10 +485,24 @@ export const lastOrder = computed(() => catalogue.value?.last_order || null)
  * filtering happens out here, on the way in. It matters for a phone that has not synced for three
  * days: without it the rep is quoting an offer that ended on Sunday, and the server will refuse it.
  */
-function liveSpecs(all, on = todayStamp()) {
+/**
+ * Which offers this phone still honours today.
+ *
+ * Exported for its own test. It is one half of a rule the server also enforces - `for_outlet`
+ * filters on the same four dates - and the two drifting apart is the whole class of bug this
+ * app keeps finding in the field. A rule written twice gets tested twice.
+ */
+export function liveSpecs(all, on = todayStamp()) {
   return (all || []).filter((spec) => {
     if (spec.valid_from && String(spec.valid_from) > on) return false
     if (spec.valid_to && String(spec.valid_to) < on) return false
+    // The early-booking window, which is a different question: `valid_*` is when the offer
+    // exists, these are when the order has to be taken to earn it. A season scheme is live
+    // from November to March because that is when it is billed, and rewards November's orders.
+    // The server filters on them too; this is so a phone three days behind on its sync retires
+    // the offer itself rather than quoting one whose book shut on Sunday.
+    if (spec.booking_from && String(spec.booking_from) > on) return false
+    if (spec.booking_to && String(spec.booking_to) < on) return false
     return true
   })
 }
@@ -482,13 +563,13 @@ export async function peek(outletName) {
   }
 }
 
-export async function openOutlet(name, { refresh = true } = {}) {
+export async function openOutlet(name, { refresh = true, type = null } = {}) {
   const token = ++loadToken
 
   // Everything held for the previous shop goes before the new one is named. Leaving it in place
   // was a way for a rep with no signal to walk into the next shop, find nothing cached for it, and
   // be shown the last shop's items at the last shop's prices - which looks entirely normal.
-  if (outlet.value !== name) {
+  if (outlet.value !== name || partyType.value !== type) {
     catalogue.value = null
     catalogueFetchedAt.value = null
     specs.value = []
@@ -501,6 +582,7 @@ export async function openOutlet(name, { refresh = true } = {}) {
   }
 
   outlet.value = name
+  partyType.value = type
   loading.value = true
   error.value = null
 
@@ -509,6 +591,11 @@ export async function openOutlet(name, { refresh = true } = {}) {
     if (token !== loadToken) return null
     rawLines.value = cached?.lines || []
     outletName.value = cached?.outletName || null
+    // The cart remembers what kind of party it was for, and that wins when the caller does not
+    // say. A rep reopening an unsent cart from a link with no type on it would otherwise have a
+    // primary order re-priced as a shop order - off a different list, against a different credit
+    // limit - with nothing on the screen to show it had changed.
+    if (!type && cached?.party_type) partyType.value = cached.party_type
 
     await Promise.all([
       loadCatalogue(name, { refresh, token }),
@@ -547,6 +634,11 @@ function reconcileWithCatalogue() {
     line.off_catalogue = false
     line.unpriceable = !!item.unpriceable
     line.rate_paise = item.unpriceable ? null : toPaise(item.rate)
+    // Re-read, not carried over: a price list corrected during the day clears this, and one
+    // changed the wrong way sets it on a line that was fine when the rep added it.
+    line.above_mrp = !!item.above_mrp
+    line.mrp = item.mrp ?? null
+    line.tax_bps = Math.trunc(item.tax_bps || 0)
     line.item_name = item.item_name || line.item_name
     line.min_order_qty = item.min_order_qty ?? null
     line.max_order_qty = item.max_order_qty ?? null
@@ -568,11 +660,12 @@ async function loadCatalogue(name, { refresh = true, token = null } = {}) {
   if (!refresh && cached) return
 
   try {
-    const payload = await api.catalogue(name)
+    const payload = await api.catalogue(name, partyType.value)
     if (token !== null && token !== loadToken) return
     catalogue.value = payload
     catalogueFetchedAt.value = Date.now()
-    await db.catalogues.put(plain({ outlet: name, payload, fetchedAt: catalogueFetchedAt.value }))
+    await db.catalogues.put(plain({ outlet: name, party_type: partyType.value, payload,
+                                    fetchedAt: catalogueFetchedAt.value }))
   } catch (e) {
     if (!cached) {
       // Nothing cached and nothing fetched: the screen has to say why it is empty rather than draw
@@ -601,7 +694,7 @@ async function loadSchemes(name, { refresh = true, token = null } = {}) {
   if (!refresh && cached) return
 
   try {
-    const payload = await api.schemesFor(name)
+    const payload = await api.schemesFor(name, partyType.value)
     if (token !== null && token !== loadToken) return
     specs.value = payload.specs || []
     skippedSchemes.value = payload.skipped || []
@@ -645,6 +738,7 @@ async function persist() {
   await db.carts.put(
     plain({
       outlet: outlet.value,
+      party_type: partyType.value,
       outletName: outletName.value,
       lines: rawLines.value,
       updatedAt: Date.now(),
@@ -686,6 +780,15 @@ export async function addItem(itemCode, { qty = null, unit = 'display' } = {}) {
     throw new CartError(
       'UNPRICEABLE',
       `${item.item_name || itemCode} has no price yet, so it cannot be ordered. Ask your manager to have it priced.`
+    )
+  }
+  if (item.above_mrp) {
+    // Refused at the tap, not at submit. The shopkeeper is standing there, and this is not
+    // something the rep can fix or decide to accept - the printed price is on the pack in his
+    // hand, and selling over it is an offence.
+    throw new CartError(
+      'ABOVE_MRP',
+      `${item.item_name || itemCode} is priced above its MRP, so it cannot be ordered. Ask your manager to correct the price list.`
     )
   }
 
@@ -767,7 +870,7 @@ export async function prefillFromLastOrder({ replace = false } = {}) {
   let history = lastOrder.value
   if (!history) {
     try {
-      history = await api.catalogueLastOrder(outlet.value)
+      history = await api.catalogueLastOrder(outlet.value, partyType.value)
     } catch {
       history = null
     }
@@ -841,19 +944,26 @@ export async function verifyWithServer() {
     .map((l) => ({ item_code: l.item_code, qty: l.qty, uom: l.base_uom }))
 
   try {
-    const server = await api.schemeEvaluate(outlet.value, payload)
+    const server = await api.schemeEvaluate(outlet.value, payload, partyType.value)
     const local = pricing.value
+    const localTotals = totals.value
     const delta = (server.net_paise ?? 0) - local.net_paise
+    // Tax as well as net. The two sides run the same arithmetic, so a difference here is a
+    // difference in the *rates* - a tax template changed today against a catalogue cached
+    // yesterday - and it lands on the bill the shop receives just as surely as a wrong price.
+    const taxDelta = (server.tax_paise ?? 0) - localTotals.tax_paise
     return {
       checked: true,
-      matched: delta === 0,
+      matched: delta === 0 && taxDelta === 0,
       delta_paise: delta,
+      tax_delta_paise: taxDelta,
       server,
       local: {
         cart_gross_paise: local.cart_gross_paise,
         discount_paise: local.discount_paise,
         net_paise: local.net_paise,
         incentive_paise: local.incentive_paise,
+        tax_paise: localTotals.tax_paise,
       },
     }
   } catch (e) {
@@ -884,6 +994,8 @@ export function buildOrderDoc({
   confirmedWith = null,
   remarks = null,
   visit = null,
+  deliveryDates = null,
+  topsUp = null,
   clientUuid = null,
   createdOffline = 0,
   deviceId = null,
@@ -895,7 +1007,11 @@ export function buildOrderDoc({
     docstatus: 1,
     client_uuid: clientUuid,
     order_date: todayStamp(),
-    outlet: outlet.value,
+    // A shop or a party we bill. The server infers the type when it is absent, so an older
+    // build of this app that sends only an outlet goes on working.
+    party_type: partyType.value || 'Outlet',
+    outlet: partyType.value === 'Customer' ? null : outlet.value,
+    customer: partyType.value === 'Customer' ? outlet.value : null,
     visit: visit || null,
 
     price_list: cat.price_list || null,
@@ -907,6 +1023,10 @@ export function buildOrderDoc({
     delivery_instructions: deliveryInstructions,
     confirmed_with: confirmedWith,
     remarks,
+
+    // The booking this one adds to, when the rep said so. The server checks it is the same party
+    // and the same season; this only carries the answer.
+    tops_up: topsUp,
 
     // The number the rep read out. Rupees, because every Currency column downstream is rupees.
     proposed_net_total: fromPaise(p.net_paise),
@@ -932,6 +1052,12 @@ export function buildOrderDoc({
           rate: fromPaise(view.display_rate_paise),
           gross_amount: fromPaise(view.gross_paise),
           is_free_item: 0,
+
+          // When this line is wanted. Only a booking fills it in - the whole point of booking a
+          // season is that different lines land in different weeks - and the server refuses a
+          // date outside the season's delivery window. `undefined` rather than `null` for an
+          // ordinary order, so nothing about dates appears in a shop order's payload at all.
+          delivery_date: (deliveryDates && deliveryDates[line.item_code]) || undefined,
 
           has_order_history: line.has_order_history ? 1 : 0,
           last_ordered_qty: line.last_ordered_qty,
@@ -1055,7 +1181,13 @@ export async function recentOrders(filters = {}) {
       client_uuid: row.clientUuid,
       outlet: row.data?.outlet || null,
       order_date: row.data?.order_date || null,
+      // The net, and only the net: `proposed_net_total` is the goods figure the rep read out and
+      // the order document carries no tax of its own. The list falls back to it until the server
+      // answers with the bill total, and the row is marked `pending` beside it.
       net_total: row.data?.proposed_net_total ?? null,
+      grand_total: null,
+      customer: row.data?.customer || null,
+      party_type: row.data?.party_type || null,
       order_status: 'Draft',
       pending: true,
       blocked: row.state === 'blocked',

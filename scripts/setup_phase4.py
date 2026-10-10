@@ -40,7 +40,7 @@ import sys
 import frappe
 from frappe.utils import add_days, today
 
-from _guard import require_test_site
+from _guard import hsn_code, require_test_site, selling_price_list
 
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
@@ -157,7 +157,7 @@ def ensure_item(sku: dict) -> str:
 	# india_compliance, where the site has it, refuses an Item with no HSN code. FieldMate has no
 	# opinion about GST; the seed only has to produce an item this site will accept.
 	if frappe.get_meta("Item").has_field("gst_hsn_code"):
-		data["gst_hsn_code"] = frappe.db.get_value("GST HSN Code", {}, "name")
+		data["gst_hsn_code"] = hsn_code()
 	for field in frappe.get_all("Custom Field", filters={"dt": "Item", "reqd": 1, "fieldtype": "Select"},
 	                            fields=["fieldname", "options"]):
 		choices = [c for c in (field.options or "").split("\n") if c]
@@ -252,7 +252,7 @@ def build() -> None:
 	price_list = (
 		frappe.db.get_single_value("FieldMate Settings", "default_price_list")
 		or frappe.db.get_single_value("Selling Settings", "selling_price_list")
-		or frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+		or selling_price_list()
 	)
 	print(f"\nPrice list: {price_list}\n")
 

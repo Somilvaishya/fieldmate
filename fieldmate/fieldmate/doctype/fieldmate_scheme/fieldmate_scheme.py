@@ -3,6 +3,7 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt, getdate
 
 from fieldmate.services import scope
+from fieldmate.services import settings as settings_service
 from fieldmate.services.visit import is_on_beat
 
 # Each kind of benefit is granted through exactly one column, and the engine reads only that one.
@@ -325,6 +326,66 @@ class FieldMateScheme(Document):
 
 	def is_live_on(self, date) -> bool:
 		return bool(cint(self.is_active)) and scope.is_effective_on(self, date)
+
+	def books_in(self, date) -> bool:
+		"""Was the order taken inside this scheme's early-booking window?
+
+		A different question from `is_live_on`, which asks whether the offer exists at all. A
+		season scheme is live from November to March because that is when it is billed, and
+		rewards only the orders booked in November.
+
+		Read with `.get`, like `applies_to` - on a site where the code has landed and the
+		migration has not run, the columns do not exist and reading them as attributes fails
+		every order on that site from inside the pricing path.
+		"""
+		opens, closes = self.get("booking_from"), self.get("booking_to")
+		if not opens and not closes:
+			return True
+		on = getdate(date)
+		if opens and on < getdate(opens):
+			return False
+		return not (closes and on > getdate(closes))
+
+	def advance_met(self, season_advance_pct) -> bool:
+		"""Does the deal behind this order carry the advance this offer asks for?
+
+		Measured against the **season's** advance, not against what has been collected. The order
+		is priced the moment it is taken, when nothing has been paid - so reading what is in hand
+		would mean no early-booking offer ever fired at the counter, which is the one place it
+		has to. A booking cannot be released without its season's advance either, so by the time
+		anything is billed the two come to the same thing.
+
+		A scheme asking for an advance therefore cannot reach an order that is not a booking.
+		"""
+		asked = flt(self.get("requires_advance_pct"))
+		if not asked:
+			return True
+		return flt(season_advance_pct) >= asked
+
+	def covers_sale(self, kind: str | None) -> bool:
+		"""Whether this scheme is for this kind of sale at all.
+
+		Asked before the scope rows, because it is a different question from *where*: a scheme
+		can be scoped to the whole of North and still be the wrong scheme for a distributor's own
+		purchase. A retailer offer firing on a primary order is trade spend nobody budgeted, and
+		it would do so silently - the engine would simply find a scheme that matched everywhere.
+
+		`None` means the caller did not say, which is every caller that predates primary orders,
+		so it reads as a retailer order.
+
+		Read with `.get`, not as an attribute. On a site where the code has landed and the
+		migration has not yet run, the field does not exist and `self.applies_to` raises
+		`AttributeError` - from inside the pricing path, so *every* order on that site fails
+		until somebody runs `bench migrate`. Found by the Phase 1 gate on a site one migration
+		behind, which is precisely the window a deploy opens.
+		"""
+		mine = self.get("applies_to") or "Secondary"
+		# A booking is a primary sale, so a scheme written for Primary covers it. `applies_to`
+		# deliberately does NOT grow a Booking option: a scheme that should run only during a
+		# season says so with its own validity dates, which it already has, rather than with a
+		# third scope nobody can tell apart from the second.
+		asked = "Primary" if kind == settings_service.BOOKING else (kind or "Secondary")
+		return mine == "Both" or mine == asked
 
 	def covers_outlet(self, outlet) -> bool:
 		"""Whether this scheme's scope reaches a particular shop.

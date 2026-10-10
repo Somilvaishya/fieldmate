@@ -44,14 +44,68 @@ class FieldMateOrder(Document):
 		"""
 		from fieldmate.services import order as order_service
 
+		self.settle_the_party()
 		if self.items:
 			order_service.price(self)
+		# After the repricing, because `price` is what decides this is a booking at all. Refused
+		# here rather than in the service for the reason the repricing is: an order amended
+		# through the offline sync push never passes through a service.
+		#
+		# Not guarded on `is_new`. An **amendment** is a brand new document carrying
+		# `amended_from`, so that guard excluded the one case this rule is for, while catching
+		# the submit of an ordinary new booking - which is how a season with an early change
+		# cutoff came to refuse every booking taken in its last few open days.
+		order_service.assert_may_amend(self)
+
+	def settle_the_party(self):
+		"""Exactly one party, and `party_type` agreeing with it.
+
+		An order is for a shop or for a party we bill ourselves, never both and never neither.
+		The check is here rather than in the service for the reason the repricing is: an order
+		captured with no signal arrives through `sync.push`, which inserts the document directly
+		and calls no service at all.
+
+		`party_type` is inferred where a caller did not send one, because every order written
+		before this field existed has an outlet and no idea that it needed to say so, and so does
+		every build of the phone that is already in somebody's pocket.
+		"""
+		import frappe
+
+		if not self.party_type:
+			self.party_type = "Customer" if (self.customer and not self.outlet) else "Outlet"
+
+		if self.party_type == "Customer":
+			self.outlet = None
+			if not self.customer:
+				frappe.throw(frappe._("A primary order has to say which party it is for."))
+		else:
+			self.customer = None
+			if not self.outlet:
+				frappe.throw(frappe._("An order has to say which shop it is for."))
 
 	def on_submit(self):
 		"""Hand the order to whoever actually fulfils it. See ADR-023."""
 		from fieldmate.services import order as order_service
 
+		# Before routing, so that whatever the order becomes downstream is built on rates that
+		# have stopped moving. A booking taken in November is delivered in February off a season
+		# list that will have been corrected twice by then, and the party is owed the November
+		# price it was read out.
+		order_service.lock_rates(self)
 		order_service.route(self)
+
+	def before_update_after_submit(self):
+		"""A submitted booking changing after its season's cutoff.
+
+		`save()` on a submitted document does **not** run `validate` - it takes the
+		update-after-submit path - so the check in `validate` never saw this case at all. The
+		fields a FieldMate Order allows after submit are small (the depot's reference, the
+		approval remark), but "the book has stopped moving" has to mean the book has stopped
+		moving.
+		"""
+		from fieldmate.services import order as order_service
+
+		order_service.assert_may_amend(self)
 
 	def on_cancel(self):
 		from fieldmate.services import order as order_service

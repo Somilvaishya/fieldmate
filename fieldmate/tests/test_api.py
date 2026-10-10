@@ -114,3 +114,35 @@ class TestDeviceResolution(FieldMateTestCase):
 		self.track("FieldMate Device Registry", device.name)
 		with self.assertRaises(frappe.PermissionError):
 			device.assert_active()
+
+
+class TestThePhoneCanAskAboutAParty(FieldMateTestCase):
+	"""Phase 1, step 9. The order screens take a party type from the query string and hand it to
+	every call they make; these are the endpoints on the other end of those calls.
+
+	Asserted on the signatures rather than by driving each one, because what step 9 needed from
+	the server was that the parameter exists and reaches the service. What the service then does
+	with it is `test_order`, `test_catalogue` and `test_scheme_compile`.
+	"""
+
+	def test_every_endpoint_the_order_flow_calls_accepts_a_party_type(self):
+		import inspect
+
+		from fieldmate.api import catalogue as catalogue_api
+		from fieldmate.api import order as order_api
+		from fieldmate.api import scheme as scheme_api
+
+		for fn in (catalogue_api.items, catalogue_api.prices, order_api.estimate,
+		           scheme_api.applicable, scheme_api.evaluate):
+			self.assertIn("party_type", inspect.signature(fn).parameters,
+			              f"{fn.__name__} cannot be asked about a party")
+
+	def test_leaving_it_out_still_means_a_shop(self):
+		"""Every build of the phone already in a pocket sends no party type at all, and goes on
+		working. The default is on the parameter, not on the caller."""
+		import inspect
+
+		from fieldmate.api import catalogue as catalogue_api
+
+		self.assertIsNone(
+			inspect.signature(catalogue_api.items).parameters["party_type"].default)

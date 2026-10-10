@@ -328,3 +328,105 @@ class TestABouncedCheque(CollectionFixture):
 		collection_service.bounce(collection["name"])
 		result = collection_service.bounce(collection["name"])
 		self.assertEqual(result["status"], "Bounced")
+
+
+class TestADistributorsFileSupersedesOurOrders(CollectionFixture):
+	"""Phase 1, step 7a. `outstanding_for` admits a gap in its own docstring - a distributor who
+	invoiced the shop something we never saw - and a sales file is what closes it. For any period
+	a file covers, the bills are the invoices the distributor raised; everywhere else they are the
+	orders this app booked. Never both: an order we took and the invoice raised for it are one
+	sale, and counting both shows a shopkeeper twice what they owe."""
+
+	def tearDown(self):
+		self.wipe_since_setup("FieldMate Secondary Sales")
+		super().tearDown()
+
+	def file_covering(self, from_date, to_date, *lines):
+		"""A submitted sales file from this shop's distributor.
+
+		Lines are (sale_date, qty, amount, invoice_no), already matched to this outlet - what the
+		matcher does with retailer names is `test_secondary_sales`'s business.
+		"""
+		doc = frappe.get_doc({
+			"doctype": "FieldMate Secondary Sales",
+			"distributor": self.distributor.name,
+			"from_date": from_date, "to_date": to_date,
+			"items": [
+				{"sale_date": d, "item_code": self.item, "qty": qty, "amount": amount,
+				 "outlet": self.outlet.name, "invoice_no": inv}
+				for d, qty, amount, inv in lines
+			],
+		})
+		doc.flags.ignore_permissions = True
+		doc.insert()
+		doc.submit()
+		self.track("FieldMate Secondary Sales", doc.name)
+		return doc
+
+	def owed(self):
+		return self.as_rep(collection_service.outstanding_for, self.outlet.name, self.rep.name)
+
+	def test_with_no_file_the_orders_still_answer(self):
+		"""The proxy is all there is until a file arrives, and it goes on working."""
+		self.book(qty=20)
+		self.assertEqual(self.owed()["outstanding"], 2000.0)
+
+	def test_a_file_replaces_the_orders_it_covers(self):
+		"""Not adds to. 2000 of orders and 1800 invoiced for the same period is 1800 owed."""
+		order = self.book(qty=20)
+		on = frappe.db.get_value("FieldMate Order", order["name"], "order_date")
+		self.file_covering(on, on, (on, 20, 1800.0, "INV-1"))
+
+		position = self.owed()
+		self.assertEqual(position["outstanding"], 1800.0)
+		self.assertEqual([b["bill_no"] for b in position["bills"]], ["INV-1"])
+
+	def test_an_order_outside_the_period_is_untouched(self):
+		"""A file for September says nothing about an order taken in October."""
+		order = self.book(qty=20)
+		on = frappe.db.get_value("FieldMate Order", order["name"], "order_date")
+		self.file_covering(add_days(on, -40), add_days(on, -10), (add_days(on, -20), 5, 500.0, "INV-OLD"))
+
+		position = self.owed()
+		self.assertEqual(position["outstanding"], 2500.0, "the order and the old invoice, both")
+		self.assertEqual(sorted(b["bill_no"] for b in position["bills"]),
+		                 sorted(["INV-OLD", order["name"]]))
+
+	def test_money_paid_against_a_superseded_order_still_counts(self):
+		"""The rep allocated it to the order; the file says that order was invoiced. The same
+		goods, so the money is applied to the invoices that billed them."""
+		order = self.book(qty=20)
+		on = frappe.db.get_value("FieldMate Order", order["name"], "order_date")
+		self.collect(amount=500, allocations=[
+			{"reference_type": "FieldMate Order", "reference_name": order["name"],
+			 "allocated_amount": 500}])
+		self.file_covering(on, on, (on, 20, 1800.0, "INV-1"))
+
+		self.assertEqual(self.owed()["outstanding"], 1300.0, "1800 invoiced less 500 collected")
+
+	def test_it_is_applied_oldest_first(self):
+		order = self.book(qty=20)
+		on = frappe.db.get_value("FieldMate Order", order["name"], "order_date")
+		self.collect(amount=700, allocations=[
+			{"reference_type": "FieldMate Order", "reference_name": order["name"],
+			 "allocated_amount": 700}])
+		self.file_covering(add_days(on, -5), on,
+		                   (add_days(on, -5), 5, 500.0, "INV-OLD"),
+		                   (on, 10, 1000.0, "INV-NEW"))
+
+		position = self.owed()
+		self.assertEqual(position["outstanding"], 800.0)
+		# 500 settles the older invoice outright, so it drops off; 200 lands on the newer.
+		self.assertEqual([b["bill_no"] for b in position["bills"]], ["INV-NEW"])
+		self.assertEqual(position["bills"][0]["pending"], 800.0)
+
+	def test_lines_with_no_invoice_number_are_grouped_by_their_day(self):
+		"""Some exports carry none, and a day's sales to one shop is the nearest thing to a bill
+		that such a file can offer."""
+		order = self.book(qty=20)
+		on = frappe.db.get_value("FieldMate Order", order["name"], "order_date")
+		self.file_covering(on, on, (on, 5, 300.0, None), (on, 7, 400.0, None))
+
+		position = self.owed()
+		self.assertEqual(position["outstanding"], 700.0)
+		self.assertEqual(len(position["bills"]), 1, "one day, one bill")

@@ -18,7 +18,7 @@ from frappe.utils import add_days, today
 
 from fieldmate.services import order as order_service
 from fieldmate.services import settings as settings_service
-from fieldmate.tests.test_scheme_compile import SchemeFixture
+from fieldmate.tests.test_scheme_compile import SchemeFixture, default_selling_price_list
 
 
 class OrderFixture(SchemeFixture):
@@ -48,20 +48,23 @@ class OrderFixture(SchemeFixture):
 			self._territory = self.make_territory()
 		return self._territory
 
+	def cleanup_targets(self):
+		"""The orders this rep booked through the service, which `track` never saw.
+
+		Handed to the base rather than deleted here. Deleting them here ran **before** the base
+		had taken down what those orders led to: a FieldMate Order's `on_cancel` cancels its
+		Sales Order, so by the time the base reached a Delivery Note raised against it ERPNext
+		refused with "Sales Order is cancelled or closed", the whole cleanup stopped there, and
+		everything after it leaked.
+		"""
+		rows = []
+		for dt in ("FieldMate Scheme Ledger", "FieldMate Order"):
+			rows += [(dt, name) for name in frappe.get_all(
+				dt, pluck="name", filters={"field_user": self.rep.name})]
+		return list(super().cleanup_targets()) + rows
+
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		for dt in ("FieldMate Scheme Ledger", "FieldMate Order"):
-			for name in frappe.get_all(dt, pluck="name",
-			                           filters={"field_user": self.rep.name}):
-				try:
-					doc = frappe.get_doc(dt, name)
-					if doc.docstatus == 1:
-						doc.flags.ignore_permissions = True
-						doc.cancel()
-					frappe.delete_doc(dt, name, force=True, ignore_permissions=True)
-				except Exception:
-					pass
-		frappe.db.commit()
 		super().tearDown()
 
 	def cart(self, qty=20):
@@ -157,12 +160,27 @@ class TestOnlyADirectlyBilledOutletIsOurs(OrderFixture):
 
 	def test_a_directly_billed_outlet_is_not_routed_to_a_distributor(self):
 		"""ADR-001's escape hatch: an outlet the company genuinely invoices itself."""
-		self.outlet.db_set("customer", self.make_distributor(), update_modified=False)
+		billed = self.make_distributor()
+		self.outlet.db_set("customer", billed, update_modified=False)
 		answer = order_service.credit_service.we_are_the_seller(self.outlet.name, self.rep.name)
 
 		self.assertTrue(answer["we_bill"])
 		self.assertFalse(answer["routes_to_distributor"])
-		self.assertEqual(answer["reason"], "directly billed outlet")
+		# `why` rather than `reason` since step 5: `reason` now carries the refusal from
+		# `channel.resolve` - why this sale cannot be made - and two meanings of the same key in
+		# one dict is how a caller ends up showing "directly billed outlet" to a rep as an error.
+		self.assertEqual(answer["why"], "directly billed outlet")
+
+	def test_the_bill_goes_to_the_shop_we_invoice_and_not_its_distributor(self):
+		"""The defect this wiring fixes. `billing_party` answered `doc.distributor` whatever the
+		shop's own `customer` said, so a directly-billed outlet priced, credit-checked and raised
+		its Sales Order against the distributor - the one party ADR-024 says is not involved."""
+		billed = self.make_distributor()
+		self.outlet.db_set("customer", billed, update_modified=False)
+
+		answer = order_service.credit_service.billing_party(self.outlet.name, self.rep.name)
+		self.assertEqual(answer["party"], billed)
+		self.assertNotEqual(answer["party"], self.outlet.distributor)
 class TestTheServerOwnsTheTotals(OrderFixture):
 	def test_a_phone_that_got_the_total_wrong_is_overwritten_and_recorded(self):
 		"""Divergence is never blocked. The rep already said a number across a counter, so what
@@ -330,3 +348,178 @@ class TestAnOfflineOrderLandsTheSameWay(OrderFixture):
 		self.assertEqual(doc.net_total, 2000.0, "priced on the controller, not taken from the phone")
 		self.assertEqual(doc.order_status, "Sent To Distributor", "routed on the controller too")
 		self.assertIsNone(doc.sales_order, "and still no accounting document")
+
+
+class TestTheSiteSwitchActuallyGates(OrderFixture):
+	"""`enable_primary_sales` and `enable_secondary_sales` were written, were read by
+	`channel.resolve` and gated nothing, because nothing called it. Step 5 wires it in, and this
+	is what "whichever is enabled on a site is what that site does" actually means."""
+
+	SETTINGS = ("enable_secondary_sales", "enable_primary_sales")
+
+	def setUp(self):
+		super().setUp()
+		self._before = {k: self.fresh_settings().get(k) for k in self.SETTINGS}
+
+	def tearDown(self):
+		self.apply_settings(**self._before)
+		super().tearDown()
+
+	def test_a_shop_cannot_be_booked_with_secondary_sales_switched_off(self):
+		self.apply_settings(enable_secondary_sales=0, enable_primary_sales=1)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book()
+		self.assertIn("switched off", frappe.utils.strip_html(str(ctx.exception)))
+
+	def test_the_message_says_who_can_turn_it_on(self):
+		"""A rep standing at a counter cannot act on "not allowed"."""
+		self.apply_settings(enable_secondary_sales=0, enable_primary_sales=1)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book()
+		self.assertIn("manager", frappe.utils.strip_html(str(ctx.exception)).lower())
+
+	def test_nothing_is_left_half_written_when_it_refuses(self):
+		self.apply_settings(enable_secondary_sales=0, enable_primary_sales=1)
+		before = frappe.db.count("FieldMate Order")
+		with self.assertRaises(frappe.ValidationError):
+			self.book()
+		self.assertEqual(frappe.db.count("FieldMate Order"), before)
+
+	def test_a_shop_books_normally_with_secondary_sales_on(self):
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=0)
+		result = self.book()
+		self.assertEqual(result["order_status"], "Sent To Distributor")
+
+	def test_a_directly_billed_shop_is_refused_when_primary_is_off(self):
+		"""The other half of the switch. That shop is a primary sale - we invoice it - so a site
+		that does not make primary sales cannot book it, however ordinary the shop looks."""
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=0)
+		self.outlet.db_set("customer", self.make_distributor(), update_modified=False)
+
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book()
+		self.assertIn("switched off", frappe.utils.strip_html(str(ctx.exception)))
+
+
+class TestAnOrderOnAPartyWeBill(OrderFixture):
+	"""Phase 1, step 5c: a primary sale. The rep is at a super stockist's office, not a kirana,
+	and the party is an ERPNext Customer rather than a FieldMate Outlet."""
+
+	SETTINGS = ("enable_secondary_sales", "enable_primary_sales")
+
+	def setUp(self):
+		super().setUp()
+		self._before = {k: self.fresh_settings().get(k) for k in self.SETTINGS}
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=1)
+		# A party we sell to: a Customer with a channel tier, priced off its own list. **Named**,
+		# not "whichever selling list MariaDB returns first" - that is not a rule, and the moment
+		# another fixture leaves a selling list behind it moves. It did: a leaked
+		# `SEASON-PL-` list from the season fixture won that query and these six tests failed
+		# with "these have no price yet", which names the symptom and hides the cause. The same
+		# lesson `default_selling_price_list` and `_guard.selling_price_list` were both written
+		# for, in the one class that had not learned it.
+		self.party_price_list = default_selling_price_list()
+		self.party = self.outlet.distributor
+		frappe.db.set_value("Customer", self.party, {
+			"fm_tier": "Super Stockist", "fm_buys_from": "Company",
+			"default_price_list": self.party_price_list,
+		}, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+
+	def tearDown(self):
+		self.apply_settings(**self._before)
+		super().tearDown()
+
+	def book_party(self, qty=10, **extra):
+		payload = {"party_type": "Customer", "customer": self.party,
+		           "lines": self.cart(qty), "client_uuid": self.uid("PORD")}
+		payload.update(extra)
+		created = self.as_rep(order_service.create, payload, self.rep.name)
+		self.track("FieldMate Order", created["name"])
+		return created
+
+	def test_an_order_can_name_a_customer_instead_of_a_shop(self):
+		created = self.book_party()
+		doc = frappe.get_doc("FieldMate Order", created["name"])
+		self.assertEqual(doc.party_type, "Customer")
+		self.assertEqual(doc.customer, self.party)
+		self.assertFalse(doc.outlet, "a primary order is on nobody's shop")
+
+	def test_the_party_is_the_one_billed(self):
+		doc = frappe.get_doc("FieldMate Order", self.book_party()["name"])
+		self.assertEqual(doc.distributor, self.party,
+		                 "on a primary sale the party we bill is the party itself")
+
+	def test_it_is_priced_off_the_partys_own_list(self):
+		doc = frappe.get_doc("FieldMate Order", self.book_party()["name"])
+		self.assertEqual(doc.price_list, self.party_price_list)
+		self.assertEqual(doc.net_total, 1000)
+
+	def test_primary_sales_switched_off_refuses_it(self):
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=0)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book_party()
+		self.assertIn("switched off", frappe.utils.strip_html(str(ctx.exception)))
+
+	def test_an_order_with_no_party_at_all_is_refused(self):
+		with self.assertRaises(frappe.ValidationError):
+			self.as_rep(order_service.create,
+			            {"party_type": "Customer", "lines": self.cart(),
+			             "client_uuid": self.uid("PORD")}, self.rep.name)
+
+	def test_a_customer_with_no_tier_is_not_a_party_we_sell_to(self):
+		"""Most Customers on an ERPNext site have nothing to do with FieldMate."""
+		frappe.db.set_value("Customer", self.party, "fm_tier", None, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.book_party()
+		self.assertIn("channel tier", frappe.utils.strip_html(str(ctx.exception)))
+
+	def test_a_shop_order_still_says_it_is_a_shop_order(self):
+		"""The field is inferred where a caller does not send one, so every build of the phone
+		already in a pocket goes on working."""
+		doc = frappe.get_doc("FieldMate Order", self.book()["name"])
+		self.assertEqual(doc.party_type, "Outlet")
+		self.assertFalse(doc.customer)
+
+	def test_submitting_one_posts_a_sales_order_to_that_party(self):
+		"""The whole point of a primary sale: it is ours, so it reaches the company order book.
+
+		A retailer order is the opposite and `TestAnOrderIsASecondarySale` asserts that - the two
+		tests are each other's mirror and both are needed, because the bug worth catching is one
+		branch quietly taking the other's path.
+		"""
+		created = self.book_party()
+		before = frappe.db.count("Sales Order")
+		result = self.as_rep(order_service.submit_order, created["name"])
+
+		doc = frappe.get_doc("FieldMate Order", created["name"])
+		self.assertEqual(doc.order_status, "Approved")
+		self.assertTrue(doc.sales_order, "a primary sale posts a Sales Order")
+		self.track("Sales Order", doc.sales_order)
+		self.assertEqual(frappe.db.count("Sales Order"), before + 1, "exactly one")
+		self.assertEqual(
+			frappe.db.get_value("Sales Order", doc.sales_order, "customer"), self.party,
+			"billed to the party we sold to, not to anybody else")
+		self.assertEqual(result["order_status"], "Approved")
+
+	def test_it_is_not_handed_to_a_distributors_queue(self):
+		"""There is no distributor in a primary sale - we are the seller."""
+		created = self.book_party()
+		self.as_rep(order_service.submit_order, created["name"])
+		doc = frappe.get_doc("FieldMate Order", created["name"])
+		self.track("Sales Order", doc.sales_order)
+		self.assertNotEqual(doc.order_status, "Sent To Distributor")
+		self.assertFalse(doc.sent_to_distributor_on)
+
+	def test_submitting_twice_posts_one_sales_order(self):
+		"""A dropped connection must not become two company commitments."""
+		created = self.book_party()
+		self.as_rep(order_service.submit_order, created["name"])
+		doc = frappe.get_doc("FieldMate Order", created["name"])
+		self.track("Sales Order", doc.sales_order)
+		first = doc.sales_order
+
+		self.as_rep(order_service.submit_order, created["name"])
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Order", created["name"], "sales_order"), first)

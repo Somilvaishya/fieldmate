@@ -9,6 +9,19 @@ import { flushSoon } from '../sync/pinger'
 // The visit the rep is standing in, if any.
 export const activeVisit = ref(null)
 
+/** A check-in refused because the rep has not checked out of the last shop.
+ *
+ * Carries that visit, so the screen can offer the way back to it rather than only naming it.
+ */
+export class OpenVisitError extends Error {
+  constructor(visit) {
+    super(`You are still checked in at ${visit.outletName || visit.outlet}. ` +
+          `Check out from there first.`)
+    this.code = 'VISIT_OPEN_ELSEWHERE'
+    this.visit = visit
+  }
+}
+
 function isOffline(e) {
   return e instanceof ApiError && e.code === 'OFFLINE'
 }
@@ -115,10 +128,48 @@ export async function resume() {
     await db.visits.update(stale.clientUuid, { state: 'abandoned' })
   }
   activeVisit.value = open[0]
+  await reconcileOpen()
   return activeVisit.value
 }
 
-export async function checkIn(outlet, { fix = {}, deviationNote = null } = {}) {
+/**
+ * Ask the server whether the visit this phone thinks is open is still open there.
+ *
+ * It can be closed on the server and open here: a day auto-closed takes its visits with it, and
+ * `check_in` closes one on the deliberate override. Nothing used to ask - `api.currentVisit`
+ * existed and was called from nowhere - so the phone kept showing a visit that no longer
+ * existed, offered a check-out that quietly did nothing, and refused the next check-in because
+ * of it. A rep standing in the next shop could not get in.
+ *
+ * Offline the local answer stands, which is the whole point of holding it. A visit created
+ * offline has no server name yet and is left alone - the server has never heard of it.
+ */
+async function reconcileOpen() {
+  const mine = activeVisit.value
+  if (!mine || !mine.serverName) return
+  try {
+    const server = await api.currentVisit()
+    if (server.open && server.visit === mine.serverName) return
+    await db.visits.update(mine.clientUuid, { state: 'closed' })
+    activeVisit.value = null
+  } catch {
+    // No signal, or the server would not say. Their own record stands.
+  }
+}
+
+export async function checkIn(outlet, { fix = {}, deviationNote = null,
+                                        closeOpen = false } = {}) {
+  // Checking out is the way a visit ends. A second check-in used to close the first one on the
+  // server, silently, stamped "No Order" and short - so a rep could walk a row of shops from the
+  // list leaving empty visits behind that still counted towards coverage.
+  //
+  // Refused here as well as on the server, and the local check is the one that matters: offline
+  // the server is not reachable, the visit queues with `created_offline` set, and the server
+  // honours those rather than rejecting work the rep really did. So this is the only thing
+  // standing between a stray tap and a closed visit.
+  const open = activeVisit.value
+  if (open && open.outlet !== outlet.name && !closeOpen) throw new OpenVisitError(open)
+
   const clientUuid = crypto.randomUUID()
   // Which day this visit belongs to. Offline that is the queued day's client id, which
   // sync._apply resolves through depends_on once the day itself lands.
@@ -161,6 +212,8 @@ export async function checkIn(outlet, { fix = {}, deviationNote = null } = {}) {
       location_provider: local.locationProvider,
       is_mock_location: local.isMockLocation,
       deviation_note: deviationNote,
+      // Only ever set after the rep has been told on screen what it closes.
+      close_open_visit: closeOpen ? 1 : 0,
     })
     local.serverName = server.visit
     local.distanceM = server.distance_from_outlet_m

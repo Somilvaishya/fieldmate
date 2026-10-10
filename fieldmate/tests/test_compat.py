@@ -129,3 +129,43 @@ class TestSalesOrderAdapters(FieldMateTestCase):
 	def test_cancelling_what_is_not_there_is_not_an_error(self):
 		"""A retried cancel is the ordinary state after a dropped connection."""
 		self.assertIsNone(compat.cancel_sales_order("SAL-ORD-does-not-exist"))
+
+
+class TestTheErpnextTaxDependency(FieldMateTestCase):
+	"""`compat.item_tax_rates` calls two functions inside ERPNext, one of them private.
+
+	That is a deliberate trade, argued in its docstring: the alternative is a second copy of
+	ERPNext's three template-selection rules - a tax category, a validity window and a net-rate
+	band - which would drift from the first and misprice tax silently. The price of the trade is
+	this test, which turns a signature change in ERPNext into a failure here rather than a wrong
+	number on a bill.
+	"""
+
+	def test_the_matcher_is_still_where_we_call_it(self):
+		from erpnext.stock.get_item_details import _get_item_tax_template, get_item_tax_map
+		self.assertTrue(callable(_get_item_tax_template))
+		self.assertTrue(callable(get_item_tax_map))
+
+	def test_the_matcher_still_takes_args_and_a_list_of_rows(self):
+		"""Called with no matching rows it answers None rather than raising - which is also the
+		shape `item_tax_rates` relies on for every item no template covers."""
+		from erpnext.stock.get_item_details import _get_item_tax_template
+		company = frappe.db.get_value("Company", {}, "name")
+		if not company:
+			self.skipTest("no company on this site")
+		answer = _get_item_tax_template(
+			{"company": company, "tax_category": "", "base_net_rate": 0}, [])
+		self.assertIsNone(answer)
+
+	def test_the_rate_map_takes_a_company_and_a_template(self):
+		from erpnext.stock.get_item_details import get_item_tax_map
+		company = frappe.db.get_value("Company", {}, "name")
+		if not company:
+			self.skipTest("no company on this site")
+		# No template at all is the ordinary case on most sites, and must answer empty.
+		self.assertFalse(get_item_tax_map(company, None, as_json=False))
+
+	def test_a_site_with_no_templates_is_answered_without_touching_the_item_list(self):
+		"""The fast path that most ERPNext sites take. `company=None` cannot resolve anything,
+		so it must return empty rather than query for items that were never going to be taxed."""
+		self.assertEqual(compat.item_tax_rates(["NO-SUCH-ITEM"], company=None), {})

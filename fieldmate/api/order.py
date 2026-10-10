@@ -25,13 +25,15 @@ def _me() -> str:
 
 @frappe.whitelist()
 @endpoint()
-def estimate(outlet: str, lines=None, payment_term: str | None = None):
+def estimate(outlet: str, lines=None, payment_term: str | None = None,
+             party_type: str | None = None):
 	"""Price a cart without recording anything.
 
 	The phone calls this only when it has a signal. With none it runs the same arithmetic locally
 	through its own copy of the engine, and the two are required to agree to the paise.
 	"""
-	return ok(order_service.estimate(outlet, parse_json(lines, "lines") or [], _me(), payment_term))
+	return ok(order_service.estimate(outlet, parse_json(lines, "lines") or [], _me(),
+	                                 payment_term, party_type=party_type))
 
 
 @frappe.whitelist(methods=["POST"])
@@ -52,6 +54,18 @@ def submit(payload=None):
 @endpoint()
 def list_mine(limit: int = 50):
 	return ok({"orders": order_service.mine(_me(), int(limit or 50))})
+
+
+@frappe.whitelist()
+@endpoint()
+def bookings(limit: int = 50):
+	"""This rep's season bookings, with what each one still needs up front.
+
+	Its own endpoint rather than a filter on `list_mine`, because the figures a booking is read
+	for - the advance due, the advance arrived, the cheques held against it - are not on the order
+	document at all. See `order_service.my_bookings`.
+	"""
+	return ok({"bookings": order_service.my_bookings(_me(), int(limit or 50))})
 
 
 @frappe.whitelist()

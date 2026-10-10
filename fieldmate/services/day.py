@@ -42,6 +42,23 @@ def current(field_user: str) -> dict | None:
 		return None
 
 	doc = frappe.get_doc("FieldMate Day Start", name)
+
+	# A day belongs to its date. An Open record from an earlier date is a day the rep forgot to
+	# end, and handing it back is not harmless: `start` is idempotent on this answer, so the rep
+	# gets yesterday back with `created: False`, and `visit.check_in` takes `visit_date` from it -
+	# so today's visits, orders and collections all land on yesterday's day and yesterday's date.
+	# Coverage, attendance and the day counts are wrong from the first check-in and nothing on the
+	# screen says so.
+	#
+	# `close_stale_days` is scheduled to catch this and cannot be the guarantee: it waits out
+	# `auto_close_day_after_hours`, so a day started in the evening is still Open the next
+	# morning - and on a site whose scheduler is not running it never fires at all, which is how
+	# this was found. Closed here, in the one read every caller goes through, so the answer is
+	# right whether or not a cron ever ran.
+	if getdate(doc.day_date) != getdate(today()):
+		auto_close_day(doc)
+		return None
+
 	return {
 		"day_start": doc.name,
 		"day_date": str(doc.day_date),
@@ -126,6 +143,7 @@ def start(field_user: str, payload: dict) -> dict:
 
 	doc.submit()
 
+	adopt_open_visits(field_user, doc)
 	mirror_to_hrms(doc, "IN")
 
 	return {
@@ -153,7 +171,58 @@ def end(field_user: str, payload: dict) -> dict:
 
 	end_time = payload.get("end_time") or now_datetime()
 	counts = day_counts(field_user, start_doc.day_date)
+	doc = _record_day_end(field_user, start_doc, end_time, counts, payload)
 
+	start_doc.db_set("status", "Closed", update_modified=False)
+	mirror_to_hrms(start_doc, "OUT", timestamp=end_time, day_end=doc.name,
+	               latitude=doc.latitude, longitude=doc.longitude)
+	write_attendance_summary(field_user, start_doc, doc)
+
+	return {"day_end": doc.name, "created": True, "duration_hours": doc.duration_hours,
+	        "distance_km": doc.distance_km, **counts}
+
+
+def adopt_open_visits(field_user: str, start_doc) -> list[str]:
+	"""Move a visit the rep is still in onto the day that has just opened.
+
+	`auto_close_day` leaves a visit checked in today alone, because the rep is standing in that
+	shop. That leaves it pointing at a day which is now closed and carrying the wrong date - so
+	the day that opens next adopts it, and the visit the rep walks out of is filed under the day
+	they walked it in.
+
+	Only visits checked in today, and only while they are still open. Anything older was closed
+	with its own day.
+	"""
+	if not frappe.db.table_exists("FieldMate Visit"):
+		return []
+
+	adopted = []
+	for row in frappe.get_all(
+		"FieldMate Visit",
+		filters={"field_user": field_user, "check_out_time": ["is", "not set"], "docstatus": 0},
+		fields=["name", "check_in_time", "day_start"],
+	):
+		if not row.check_in_time or getdate(row.check_in_time) != getdate(start_doc.day_date):
+			continue
+		if row.day_start == start_doc.name:
+			continue
+		frappe.db.set_value("FieldMate Visit", row.name, {
+			"day_start": start_doc.name,
+			"visit_date": start_doc.day_date,
+		}, update_modified=False)
+		frappe.clear_document_cache("FieldMate Visit", row.name)
+		adopted.append(row.name)
+	return adopted
+
+
+def _record_day_end(field_user: str, start_doc, end_time, counts: dict, payload: dict):
+	"""The Day End document itself, written the same way however the day came to be over.
+
+	Shared by `end` and `auto_close_day` on purpose. A day the rep forgot to end used to be
+	closed by flipping a status and nothing else - no Day End, so no counts, no distance, no
+	attendance and no OUT in HRMS. The record of a forgotten day was a day that produced nothing,
+	which is not what happened.
+	"""
 	doc = frappe.get_doc({
 		"doctype": "FieldMate Day End",
 		"day_start": start_doc.name,
@@ -175,14 +244,72 @@ def end(field_user: str, payload: dict) -> dict:
 	# See the note in start(): a rep holds no submit right of their own (ADR-004).
 	doc.flags.ignore_permissions = True
 	doc.submit()
+	return doc
 
-	start_doc.db_set("status", "Closed", update_modified=False)
-	mirror_to_hrms(start_doc, "OUT", timestamp=end_time, day_end=doc.name,
-	               latitude=doc.latitude, longitude=doc.longitude)
-	write_attendance_summary(field_user, start_doc, doc)
 
-	return {"day_end": doc.name, "created": True, "duration_hours": doc.duration_hours,
-	        "distance_km": doc.distance_km, **counts}
+def last_activity(field_user: str, start_doc):
+	"""When the day actually stopped, as far as anything recorded knows.
+
+	Closing a forgotten day at `now` would book a twenty-hour day and an attendance row to match.
+	Nobody knows when the rep stopped, so the latest thing the day produced stands in for it, and
+	the day's own start time stands in when it produced nothing at all. A figure that is visibly
+	the last check-out is better than one that is confidently wrong.
+	"""
+	stamps = [get_datetime(start_doc.start_time)]
+	if frappe.db.table_exists("FieldMate Visit"):
+		for row in frappe.get_all(
+			"FieldMate Visit",
+			filters={"field_user": field_user, "visit_date": start_doc.day_date},
+			fields=["check_in_time", "check_out_time"],
+		):
+			stamps += [get_datetime(v) for v in (row.check_in_time, row.check_out_time) if v]
+	return max(stamps)
+
+
+def auto_close_day(start_doc) -> str | None:
+	"""Close a day the rep never ended, as completely as they would have.
+
+	Marked `Auto Closed` rather than `Closed`: a forgotten day is not a finished one and coverage
+	figures should not pretend otherwise. Everything else is the real closing - the visit still
+	open on it, the Day End with the day's counts, the OUT in HRMS and the attendance summary -
+	because a day left half-closed is what made today's work land on yesterday's record.
+	"""
+	# Imported here, not at the top: `visit` imports this module, so a module-level import is a
+	# cycle.
+	from fieldmate.services import visit as visit_service
+
+	field_user = start_doc.field_user
+	if frappe.db.table_exists("FieldMate Visit"):
+		for row in frappe.get_all(
+			"FieldMate Visit",
+			filters={"field_user": field_user, "visit_date": start_doc.day_date,
+			         "check_out_time": ["is", "not set"]},
+			fields=["name", "check_in_time"],
+		):
+			# A visit checked in TODAY is one the rep is standing in, even though it is filed
+			# under this stale day - which is exactly what the bug above produced. Closing it
+			# would end a live visit from under them, mid-shop, and that is not a tidy-up.
+			#
+			# Read from `check_in_time`, not `visit_date`: `visit_date` is the field the bug
+			# corrupted, so it is the one thing here that cannot be trusted. `start` adopts
+			# whatever is left open onto the new day.
+			if row.check_in_time and getdate(row.check_in_time) == getdate(today()):
+				continue
+			visit_service.auto_close(row.name)
+
+	existing = frappe.db.get_value("FieldMate Day End", {"day_start": start_doc.name}, "name")
+	if not existing:
+		end_time = last_activity(field_user, start_doc)
+		counts = day_counts(field_user, start_doc.day_date)
+		doc = _record_day_end(field_user, start_doc, end_time, counts, {
+			"remarks": frappe._("Closed automatically - the day was never ended."),
+		})
+		existing = doc.name
+		mirror_to_hrms(start_doc, "OUT", timestamp=end_time, day_end=doc.name)
+		write_attendance_summary(field_user, start_doc, doc)
+
+	start_doc.db_set("status", "Auto Closed", update_modified=False)
+	return existing
 
 
 def day_counts(field_user: str, date) -> dict:
@@ -406,9 +533,10 @@ def auto_close_stale_days() -> int:
 		filters={"status": "Open", "docstatus": 1, "start_time": ["<", cutoff]},
 		pluck="name",
 	)
+	# The same closing `current` does, not a status flip. This used to set the field and stop,
+	# which left the visit still open on the day, no Day End at all, and no OUT in HRMS.
 	for name in names:
-		frappe.db.set_value("FieldMate Day Start", name, "status", "Auto Closed",
-		                    update_modified=False)
+		auto_close_day(frappe.get_doc("FieldMate Day Start", name))
 	if names:
 		frappe.db.commit()
 	return len(names)

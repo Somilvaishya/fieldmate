@@ -6,7 +6,8 @@ Two separate activities, constantly confused:
 
 | | Where | Proves |
 |---|---|---|
-| Tests | `dev-15.local` | The code does what the developer thought |
+| Python tests | `dev-15.local` | The server does what the developer thought |
+| PWA tests | nowhere — `npm test` needs no site | The phone draws what the server answered |
 | Gate verification | `testerp2.web.gargsystems.com` | The feature actually works |
 
 Never verify a gate on dev-15. A green suite is necessary, not sufficient. `bench migrate`
@@ -18,7 +19,44 @@ succeeding proves nothing.
 cd ~/frappe/frappe-bench-v15
 bench --site dev-15.local run-tests --app fieldmate
 bench --site dev-15.local run-tests --app fieldmate --module fieldmate.fieldmate.doctype.fm_visit.test_fm_visit
+
+cd apps/fieldmate/frontend && npm test          # the PWA suite
+cd apps/fieldmate/frontend && npm run test:watch
+
+./scripts/ci-local.sh                           # ruff, Python, PWA tests, PWA build
 ```
+
+## The PWA suite — why it exists
+
+For most of this project the phone had **no tests at all**, and the argument for that was always
+that the server is where the decisions are. It is, and it was not enough. In the first week of
+October three bugs reached a rep in three days. Every one was a figure the server answered
+correctly and the phone drew wrong:
+
+- the GST on an order the phone had booked was never shown, so a rep read out a number short by
+  the whole of the tax;
+- a kirana's screen showed its distributor's credit limit under a heading saying it was the
+  shop's;
+- a check-in into the next shop silently closed the visit the rep was standing in.
+
+None of them was findable in Python. All of them are cheap here. **A green Python suite says
+nothing about what a rep reads off a screen.**
+
+Vitest, `@vue/test-utils`, happy-dom, fake-indexeddb. Tests live in `frontend/tests/`, run in
+about a second, and need no site and no network.
+
+What to write, in order of what has actually broken:
+
+1. **Anything the server computes and the phone re-states.** `lib/tax.js` and `scheme/engine.js`
+   are each one half of a rule written twice; they are compared to the paise at submit, so a
+   divergence is a real order quoted wrong at a counter.
+2. **Any figure drawn under a label.** All three bugs above were a correct number under the wrong
+   words. Assert the label and the figure together.
+3. **Any guard that protects a record.** The check-in guard is the only thing standing between a
+   stray tap and a closed visit, and offline it is the *only* one — the server is not reachable.
+
+When fixing a bug found in the field, write the test against the old code first and watch it fail.
+The first four tests in this suite were, and did.
 
 ## Fixture hygiene — read before writing any test
 

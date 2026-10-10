@@ -1,0 +1,128 @@
+/* The shared catalogue page.
+ *
+ * Its own stylesheet rather than the portal's: a distributor portal is a workplace and this is
+ * something a buyer opens on a phone, in a market, from a WhatsApp message. It has to read at
+ * arm's length and load on a bad uplink, so there is nothing here but text, pictures and one
+ * button.
+ */
+
+:root {
+  --ink: #16202e;
+  --muted: #5d6b7e;
+  --line: #e4e7ec;
+  --surface: #ffffff;
+  --paper: #f6f7f9;
+  --primary: #092850;
+  --on-primary: #ffffff;
+  --ok: #156b3f;
+  --ok-soft: #e7f4ec;
+  --bad: #9a2c2c;
+  --bad-soft: #fbeaea;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---------------------------------------------------------------- closed */
+
+.closed { max-width: 420px; margin: 18vh auto; padding: 0 20px; text-align: center; }
+.closed h1 { font-size: 22px; margin: 0 0 8px; }
+
+/* ---------------------------------------------------------------- cover */
+
+.cover {
+  min-height: 180px;
+  background: var(--primary) center/cover no-repeat;
+  color: var(--on-primary);
+  display: flex;
+  align-items: flex-end;
+}
+.cover-text {
+  width: 100%;
+  padding: 20px 16px;
+  /* Readable over whatever picture somebody attached, including a pale one. */
+  background: linear-gradient(transparent, rgba(9, 40, 80, .82));
+}
+.cover h1 { margin: 0; font-size: 24px; line-height: 1.2; }
+.cover .season { font-size: 14px; opacity: .9; margin-top: 2px; }
+.cover p { margin: 8px 0 0; font-size: 15px; opacity: .95; max-width: 44em; }
+
+/* ---------------------------------------------------------------- body */
+
+.wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+.who { margin: 0 0 16px; font-size: 15px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.card.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+
+.pic { aspect-ratio: 4 / 3; background: var(--paper); display: grid; place-items: center; }
+.pic img { width: 100%; height: 100%; object-fit: contain; }
+.noimg { width: 100%; height: 100%; background: repeating-linear-gradient(
+  45deg, #eef1f4, #eef1f4 10px, #e7ebf0 10px, #e7ebf0 20px); }
+
+.body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.name { font-weight: 600; line-height: 1.3; }
+.rate { font-size: 17px; font-weight: 650; }
+.rate .muted { font-size: 13px; font-weight: 400; }
+
+/* Big enough for a thumb on a counter, which is where this is used. */
+.qty { display: flex; gap: 6px; margin-top: auto; padding-top: 8px; }
+.qty input {
+  flex: 1; min-width: 0; text-align: center; font: inherit; font-weight: 600;
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 4px;
+}
+.step {
+  width: 44px; min-height: 40px; font-size: 20px; line-height: 1;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+  color: var(--ink); cursor: pointer;
+}
+.step:active { background: var(--line); }
+
+/* ---------------------------------------------------------------- asking */
+
+.ask {
+  margin-top: 20px; padding: 16px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ask label { font-size: 13px; color: var(--muted); }
+.ask textarea {
+  font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  resize: vertical;
+}
+button.primary {
+  min-height: 48px; font: inherit; font-weight: 600; cursor: pointer;
+  background: var(--primary); color: var(--on-primary);
+  border: 0; border-radius: 10px; padding: 12px 16px;
+}
+button.primary:disabled { opacity: .6; cursor: wait; }
+
+.said { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 15px; }
+.said.good { background: var(--ok-soft); color: var(--ok); }
+.said.bad { background: var(--bad-soft); color: var(--bad); }
+
+@media (max-width: 420px) {
+  .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .cover h1 { font-size: 21px; }
+}

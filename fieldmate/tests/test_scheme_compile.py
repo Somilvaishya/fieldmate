@@ -6,6 +6,21 @@ from fieldmate.tests.base import FieldMateTestCase
 from fieldmate.tests.test_masters import MasterFixture
 
 
+def default_selling_price_list() -> str:
+	"""The list a fixture should price into, and the one a cart will resolve to.
+
+	`pricing.price_list_for` ends its chain at Selling Settings, so that is the answer. It used
+	to be "any selling, enabled Price List", which is not a rule but whatever MariaDB returned
+	first - and the moment a test created a second selling list, the price went onto one list
+	while the cart read another. Eighty-nine tests failed with "these have no price yet", none of
+	them near the code that caused it.
+	"""
+	named = frappe.db.get_single_value("Selling Settings", "selling_price_list")
+	if named and frappe.db.exists("Price List", named):
+		return named
+	return frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+
+
 class SchemeFixture(MasterFixture):
 	"""Schemes, items and a territory tree, all built here rather than taken from the site.
 
@@ -26,7 +41,7 @@ class SchemeFixture(MasterFixture):
 		sent, so an unpriced item stops the whole cart rather than booking itself free. A fixture
 		that skips this tests a shape no real site has.
 		"""
-		price_list = frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+		price_list = default_selling_price_list()
 		# Upsert, because a subclass routinely re-prices the same item at a rate its own
 		# arithmetic depends on, and ERPNext allows one price per item per list.
 		existing = frappe.db.get_value(
@@ -60,10 +75,10 @@ class SchemeFixture(MasterFixture):
 			"is_stock_item": 1,
 		}
 		data.update(kwargs)
-		# india_compliance, where the site has it, refuses an Item with no HSN code. FieldMate has
-		# no opinion about GST; the fixture only has to produce an item this site will accept.
-		if frappe.get_meta("Item").has_field("gst_hsn_code") and not data.get("gst_hsn_code"):
-			data["gst_hsn_code"] = frappe.db.get_value("GST HSN Code", {}, "name")
+		# This used to take any row from the HSN table, and most of those are four-digit chapter
+		# headings that india_compliance rejects as the wrong length. `with_hsn` picks one the
+		# site will actually accept - see `base.hsn_code`.
+		self.with_hsn(data)
 		for fieldname, value in self.site_required_fields("Item").items():
 			data.setdefault(fieldname, value)
 
@@ -484,3 +499,98 @@ class TestEvaluateFor(SchemeFixture):
 
 		self.assertEqual(result["cart_gross_paise"], 0)
 		self.assertEqual(result["unpriced_items"], [unpriced])
+
+
+class TestWhichKindOfSaleASchemeIsFor(SchemeFixture):
+	"""Phase 1, step 8. A scheme written for a shop must not fire on a distributor's own
+	purchase: a retailer offer landing on a primary order is trade spend nobody budgeted, and it
+	would land silently - the engine would simply find a scheme scoped to everywhere.
+
+	This is why step 5c compiled no schemes at all for a primary order. `applies_to` is what
+	makes it safe to compile them."""
+
+	def party(self):
+		"""A Customer we sell to, priced off the same list the cart uses."""
+		name = self.make_distributor()
+		frappe.db.set_value("Customer", name, {
+			"fm_tier": "Super Stockist", "fm_buys_from": "Company",
+			# Named, for the reason `default_selling_price_list` sets out: an arbitrary pick moves
+			# the moment another fixture leaves a selling list behind.
+			"default_price_list": default_selling_price_list(),
+		}, update_modified=False)
+		frappe.clear_document_cache("Customer", name)
+		return name
+
+	def names_for_party(self, party, kind="Primary") -> list[str]:
+		return [spec["scheme"] for spec in scheme_compile.for_outlet(
+			party, None, party_type="Customer", kind=kind)["specs"]]
+
+	def test_a_scheme_says_nothing_and_is_a_retailer_scheme(self):
+		"""Every scheme written before this field existed, and the one a manager creates without
+		thinking about it. The default is the safe direction."""
+		scheme = self.make_scheme()
+		self.assertEqual(scheme.applies_to, "Secondary")
+		self.assertIn(scheme.name, self.compiled_names(self.make_outlet().name))
+
+	def test_a_retailer_scheme_does_not_reach_a_primary_order(self):
+		scheme = self.make_scheme()
+		self.assertNotIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_a_primary_scheme_does_not_reach_a_shop(self):
+		scheme = self.make_scheme(applies_to="Primary")
+		self.assertNotIn(scheme.name, self.compiled_names(self.make_outlet().name))
+
+	def test_a_primary_scheme_reaches_a_party_we_bill(self):
+		scheme = self.make_scheme(applies_to="Primary")
+		self.assertIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_both_reaches_either(self):
+		scheme = self.make_scheme(applies_to="Both")
+		self.assertIn(scheme.name, self.compiled_names(self.make_outlet().name))
+		self.assertIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_a_primary_scheme_can_be_scoped_to_one_party(self):
+		"""On a primary order the scope row's `distributor` means the party itself, not the shops
+		under it - and the two cannot be confused, because `applies_to` has already decided which
+		kind of scheme is being asked about."""
+		mine, theirs = self.party(), self.party()
+		scheme = self.make_scheme(applies_to="Primary", scopes=[{"distributor": mine}])
+
+		self.assertIn(scheme.name, self.names_for_party(mine))
+		self.assertNotIn(scheme.name, self.names_for_party(theirs))
+
+	def test_a_channel_scoped_scheme_never_reaches_a_party(self):
+		"""A channel is a kind of shop. A party we bill is not one, so a scheme that names a
+		channel is a shop scheme whatever else it says."""
+		channel = frappe.get_doc({
+			"doctype": "FieldMate Outlet Channel", "channel_name": self.uid("CH"),
+		}).insert(ignore_permissions=True)
+		self.track("FieldMate Outlet Channel", channel.name)
+
+		scheme = self.make_scheme(applies_to="Both", scopes=[{"channel": channel.name}])
+		self.assertNotIn(scheme.name, self.names_for_party(self.party()))
+
+	def test_a_directly_billed_shop_is_a_primary_sale_not_an_outlet_one(self):
+		"""The case that makes the party type the wrong thing to read. This shop is a
+		FieldMate Outlet and the sale is ours, so it gets primary schemes."""
+		shop = self.make_outlet()
+		retailer = self.make_scheme()
+		primary = self.make_scheme(applies_to="Primary")
+
+		names = [spec["scheme"] for spec in scheme_compile.for_outlet(
+			shop.name, None, kind="Primary")["specs"]]
+		self.assertIn(primary.name, names)
+		self.assertNotIn(retailer.name, names)
+
+	def test_a_scheme_whose_site_has_not_migrated_yet_is_a_retailer_scheme(self):
+		"""Not an exception. Between a deploy landing and `bench migrate` running, the column
+		does not exist - and `self.applies_to` raises `AttributeError` from inside the pricing
+		path, which fails *every* order on that site until somebody notices.
+
+		Found by the Phase 1 gate against a site one migration behind, which is exactly the
+		window a deploy opens. The unit suite could not find it: its own site was migrated.
+		"""
+		scheme = self.make_scheme()
+		del scheme.applies_to
+		self.assertTrue(scheme.covers_sale("Secondary"))
+		self.assertFalse(scheme.covers_sale("Primary"))

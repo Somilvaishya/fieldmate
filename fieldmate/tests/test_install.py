@@ -131,3 +131,41 @@ class TestCustomerChannelFields(FieldMateTestCase):
 		offered = {t for t in spec["options"].split("\n") if t}
 		self.assertEqual(offered, {"CFA", "Super Stockist", "Distributor", "Sub-stockist",
 		                           "Wholesaler", "Modern Trade"})
+
+
+class TestTheItemMrpField(FieldMateTestCase):
+	"""ERPNext has no MRP field, so FieldMate makes one - and knows when not to."""
+
+	def test_the_field_is_on_item(self):
+		install.create_item_mrp_field()
+		self.assertTrue(frappe.db.has_column("Item", "fm_mrp"))
+
+	def test_running_it_twice_adds_nothing(self):
+		install.create_item_mrp_field()
+		before = frappe.db.count("Custom Field", {"dt": "Item", "fieldname": "fm_mrp"})
+		install.create_item_mrp_field()
+		self.assertEqual(
+			frappe.db.count("Custom Field", {"dt": "Item", "fieldname": "fm_mrp"}), before)
+
+	def test_it_refuses_where_the_site_already_has_an_mrp_column(self):
+		"""The one case that matters. `compat.MRP_FIELDS` prefers `fm_mrp`, so an empty one
+		created beside a populated `mrp` would hide every real MRP on the site and
+		`pricing.is_above_mrp` would quietly stop checking anything."""
+		existing = frappe.db.exists("Custom Field", {"dt": "Item", "fieldname": "fm_mrp"})
+		if existing:
+			frappe.delete_doc("Custom Field", existing, force=True, ignore_permissions=True)
+
+		with patch.object(frappe.db, "has_column",
+		                  side_effect=lambda dt, col: dt == "Item" and col == "mrp"):
+			install.create_item_mrp_field()
+
+		self.assertFalse(frappe.db.exists("Custom Field", {"dt": "Item", "fieldname": "fm_mrp"}),
+		                 "a site that already records an MRP is left alone")
+		# Put it back for whatever runs next, since this site does not have an `mrp` column.
+		install.create_item_mrp_field()
+
+	def test_it_creates_a_field_and_never_a_value(self):
+		"""An MRP FieldMate invented would be a number on a phone that nobody agreed to."""
+		install.create_item_mrp_field()
+		priced = frappe.get_all("Item", filters={"fm_mrp": [">", 0]}, limit=1)
+		self.assertEqual(priced, [], "nothing on this site was given an MRP by the installer")

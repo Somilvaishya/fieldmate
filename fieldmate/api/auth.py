@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import frappe
+from frappe.rate_limiter import rate_limit
 
 from fieldmate import compat
 from fieldmate.api._base import API_VERSION, Err, FieldMateError, endpoint, ok
@@ -21,11 +22,18 @@ FIELDMATE_ROLES = (
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=20, seconds=60 * 60, methods=["POST"])
 @endpoint(require_auth=False)
 def login(usr: str | None = None, pwd: str | None = None, device_uuid: str | None = None, **kwargs):
 	"""Sign in and bind the session to a device.
 
-	The only guest-accessible method in the app.
+	The only guest-accessible method in the app, which is why it is the one that carries a rate
+	limit. Twenty attempts an hour from one address: a rep who has forgotten which of two
+	passwords it was can try all morning, and somebody working through a list cannot.
+
+	Counted per IP rather than per username, deliberately. Limiting by username lets anybody lock
+	a named rep out of their own phone by failing their login twenty times, and a rep standing in
+	a market cannot wait an hour for that to expire.
 	"""
 	if not usr or not pwd:
 		raise FieldMateError(Err.BAD_REQUEST, "Enter your username and password.")
@@ -55,10 +63,52 @@ def login(usr: str | None = None, pwd: str | None = None, device_uuid: str | Non
 		{
 			"user": frappe.session.user,
 			"sid": frappe.session.sid,
+			# What the phone sends back on every POST as `X-Frappe-CSRF-Token`.
+			#
+			# Frappe skips CSRF validation entirely for a session that has no token saved
+			# (`auth.validate_csrf_token`, the `not saved_token` arm), and an API login leaves
+			# one unset - so until now every write this app accepted was unprotected by it. The
+			# session cookie is `SameSite=Lax`, which stops the simplest cross-site POST, but a
+			# cookie is not a decision to perform an action and should not be read as one.
+			"csrf_token": _csrf_token(),
 			"device": device.device_uuid if device else None,
 			**_profile(),
 		}
 	)
+
+
+def _csrf_token() -> str | None:
+	"""This session's CSRF token, generating one if the session has none.
+
+	A session created through the API has no token, and Frappe reads "no token" as "do not
+	check" - so asking for one here is what turns the check on for this app at all. Generated
+	once and kept on the session, so every later call in the same session agrees about it.
+	"""
+	session = getattr(frappe.local, "session", None)
+	data = getattr(session, "data", None) if session else None
+	# `is None`, not falsiness. A fresh session carries an **empty** dict, which is falsy - so
+	# the first version of this answered None for exactly the sessions it existed to give a
+	# token to, and CSRF stayed switched off while appearing to be on.
+	if data is None:
+		return None
+
+	token = data.get("csrf_token")
+	if not token:
+		token = frappe.generate_hash()
+		data.csrf_token = token
+		# Written through, or the token lives only in this request and the next call rejects
+		# what the phone sends back. Absent outside a web request - a patch, a scheduled job, a
+		# test - where there is no session row to update and nothing to write through to.
+		session_obj = getattr(frappe.local, "session_obj", None)
+		if session_obj is not None:
+			try:
+				session_obj.update(force=True)
+			except Exception:
+				# A session Frappe will not let us write is still a session this request can
+				# use. Refusing here would fail a login over a guard.
+				pass
+
+	return token
 
 
 @frappe.whitelist(methods=["POST"])

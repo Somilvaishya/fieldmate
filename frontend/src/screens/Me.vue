@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '../api/client'
+import { api, setCsrfToken } from '../api/client'
 import { getMeta, setMeta, wipe } from '../db'
 import * as outbox from '../sync/outbox'
 import * as photoQueue from '../sync/photos'
@@ -81,6 +81,10 @@ async function finishSignOut() {
   // The session dies first. If the wipe fails half way, a phone with data on it is at least a
   // phone nobody can use to reach the server.
   await api.logout().catch(() => {})
+  // The session's CSRF token goes with the session. Left behind it is harmless - the server
+  // would refuse it - but a token for a session that no longer exists is one more thing on a
+  // handed-back handset that looks like it belongs to the last rep.
+  setCsrfToken(null)
   await wipe().catch(() => {})
   router.push('/login')
 }

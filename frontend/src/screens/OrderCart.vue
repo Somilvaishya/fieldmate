@@ -65,6 +65,13 @@ const confirming = ref(null)
 const prefilled = ref(null)
 
 const outlet = computed(() => route.params.outlet)
+// The kind of party, from the query string. Absent means a shop, which is every link this
+// app wrote before primary orders existed.
+const partyType = computed(() => route.query.party || null)
+// What to put back on the next link. An empty object for a shop, so every URL this app already
+// writes stays exactly as it was.
+const keepParty = computed(() => (partyType.value ? { party: partyType.value } : {}))
+
 const currency = computed(() => catalogue.value?.currency || null)
 const symbol = computed(() => symbolFor(currency.value))
 
@@ -90,7 +97,7 @@ function todayStamp() {
 
 async function open(name) {
   const held = cart.outlet.value === name && !!cart.catalogue.value
-  await Promise.all([cart.openOutlet(name, { refresh: !held }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
   await maybePrefill(name)
 }
 
@@ -341,7 +348,7 @@ function blockerLines(blocker) {
   <div class="wrap screen">
     <div class="top">
       <header class="head">
-        <RouterLink class="back" :to="{ name: 'order-catalogue', params: { outlet } }"
+        <RouterLink class="back" :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }"
                     aria-label="Back to the item list">
           <Icon name="back" size="24" />
         </RouterLink>
@@ -353,9 +360,11 @@ function blockerLines(blocker) {
               <Icon name="check" size="18" /> Credit active
             </span>
             <span v-else-if="creditView.state === 'breach'" class="tag crit">
-              <Icon name="alert" size="18" /> Over credit limit
+              <Icon name="alert" size="18" /> Distributor over credit limit
             </span>
-            <span v-else-if="creditView.state === 'unlimited'" class="tag">No credit limit set</span>
+            <span v-else-if="creditView.state === 'unlimited'" class="tag">
+              No credit limit on {{ creditView.party_name || 'the distributor' }}
+            </span>
             <span v-if="credit?.credit_days" class="tag tnum">{{ credit.credit_days }} day terms</span>
           </div>
         </div>
@@ -364,9 +373,14 @@ function blockerLines(blocker) {
       <!-- Credit, in full, because this is the screen where the order value exists. -->
       <section class="credit" :class="creditView.tone" aria-label="Credit position">
         <div class="crow">
-          <b v-if="creditView.state === 'breach'">Over the limit</b>
+          <!-- Whose limit. This said "this shop" over the distributor's own figures. -->
+          <b v-if="creditView.state === 'breach'">
+            {{ creditView.party_name || 'The distributor' }} is over the limit
+          </b>
           <b v-else-if="creditView.state === 'within'">Safe zone &middot; under limit</b>
-          <b v-else-if="creditView.state === 'unlimited'">No limit set for this shop</b>
+          <b v-else-if="creditView.state === 'unlimited'">
+            No limit set for {{ creditView.party_name || 'this distributor' }}
+          </b>
           <b v-else>Credit not on this phone</b>
           <span v-if="creditView.state === 'breach'" class="tnum">
             {{ money(creditView.over_paise) }} over
@@ -387,6 +401,13 @@ function blockerLines(blocker) {
             <div><dt>Already owed</dt><dd class="tnum">{{ money(creditView.outstanding_paise) }}</dd></div>
             <div><dt>This order</dt><dd class="tnum">{{ money(creditView.order_paise) }}</dd></div>
           </dl>
+          <!-- The shop's own debt to its distributor. A different number from every figure
+               above, and the one a rep is most often asked about across the counter. -->
+          <p v-if="creditView.shop_has_limit" class="cnote tnum">
+            This shop owes {{ creditView.party_name || 'its distributor' }}
+            <b>{{ money(creditView.shop_outstanding_paise) }}</b>
+            of {{ money(creditView.shop_limit_paise) }} &mdash; our own count.
+          </p>
           <p class="cnote">
             <span v-if="creditView.state === 'breach'">
               This order takes the shop past its limit. You can still book it &mdash; your manager
@@ -398,8 +419,8 @@ function blockerLines(blocker) {
         </template>
         <p v-else class="cnote">
           {{ creditOffline
-            ? 'This shop’s credit has not reached this phone yet. Take the order — the office will see where it lands.'
-            : 'No credit limit is recorded for this shop, so nothing is holding this order.' }}
+            ? 'The distributor’s credit has not reached this phone yet. Take the order — the office will see where it lands.'
+            : 'No credit limit is recorded for this distributor, so nothing is holding this order.' }}
         </p>
       </section>
 
@@ -476,7 +497,7 @@ function blockerLines(blocker) {
           Open the item list and add what the shopkeeper wants. Everything is saved on this phone
           as you go, signal or not.
         </p>
-        <RouterLink class="ghost" :to="{ name: 'order-catalogue', params: { outlet } }">
+        <RouterLink class="ghost" :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }">
           <Icon name="store" size="20" /> Open the item list
         </RouterLink>
       </div>
@@ -596,6 +617,21 @@ function blockerLines(blocker) {
             <b class="tnum big">{{ symbol }}{{ totals.net }}</b>
           </div>
 
+          <!-- The distributor's GST on the distributor's invoice. Shown because the number the
+               rep says out loud has to be the number on the bill that arrives this evening, and
+               a net-only quote is short by all of it. Absent where no tax template covers the
+               cart, which is most sites - a zero row would read as "no GST", which is a claim. -->
+          <template v-if="totals.tax_paise">
+            <div class="brow">
+              <span>GST</span>
+              <b class="tnum">{{ symbol }}{{ totals.tax }}</b>
+            </div>
+            <div class="brow total">
+              <span>Bill total</span>
+              <b class="tnum big">{{ symbol }}{{ totals.grand }}</b>
+            </div>
+          </template>
+
           <!-- Free goods are their own lines at zero. Their value is what the shop received, and
                it is never subtracted from anything. -->
           <div v-if="freeGoods.length" class="free">
@@ -642,18 +678,18 @@ function blockerLines(blocker) {
     <div class="bottom">
       <p v-if="!isEmpty" class="sum">
         <span class="tnum">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
-        <b class="grand tnum">{{ symbol }}{{ totals.net }}</b>
+        <b class="grand tnum">{{ symbol }}{{ totals.tax_paise ? totals.grand : totals.net }}</b>
       </p>
       <!-- One primary, and it follows what the rep is actually doing: with nothing in the cart the
            only useful action is the item list, so that is the primary rather than a dead button
            next to it. -->
       <div class="acts">
         <RouterLink :class="isEmpty ? 'btn-primary' : 'ghost'"
-                    :to="{ name: 'order-catalogue', params: { outlet } }">
+                    :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }">
           <Icon name="plus" size="20" /> Add products
         </RouterLink>
         <RouterLink v-if="!isEmpty" class="btn-primary"
-                    :to="{ name: 'order-schemes', params: { outlet } }">
+                    :to="{ name: 'order-schemes', params: { outlet }, query: keepParty }">
           <Icon name="tag" size="20" /> See what this earns
         </RouterLink>
       </div>

@@ -29,6 +29,7 @@ from frappe.utils import cint, flt, getdate, today
 from fieldmate import compat
 from fieldmate.services import catalogue as catalogue_service
 from fieldmate.services import scheme_engine
+from fieldmate.services import tax as tax_service
 from fieldmate.services.scheme_engine import round_half_up_div
 
 # Why a scheme did not make it into the payload. Stable strings, because the distributor portal
@@ -45,18 +46,32 @@ COLLAPSED_SLABS = "COLLAPSED_SLABS"
 # --------------------------------------------------------------------------------------
 
 
-def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: str | None = None) -> dict:
-	"""Every live scheme that reaches this shop today, compiled.
+def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: str | None = None,
+               party_type: str | None = None, kind: str | None = None,
+               season: str | None = None) -> dict:
+	"""Every live scheme that reaches this party today, compiled.
 
 	This is what the phone caches and evaluates against offline. A scheme edited in Desk does not
 	reach a rep until the next pull, which is correct - the rep quoted what they were holding -
 	but it means the payload has to say when it was compiled, so the app can show its own age
 	rather than imply it is current.
+
+	`kind` is the kind of sale, from `channel.resolve`, and a scheme has to be written for it.
+	Not the party type: a shop the company invoices direct is an Outlet and a primary sale.
+
+	`season` is the season a booking belongs to, if any. It decides two things no other filter
+	can: whether the order date falls inside a scheme's early-booking window, and whether the
+	deal carries the advance a scheme asks for.
 	"""
-	doc = catalogue_service.readable_outlet(outlet)
+	doc = catalogue_service.readable_party(outlet, party_type)
 	on = getdate(on_date or today())
 	price_list = price_list or catalogue_service.resolve_price_list(doc, field_user)
 	company = catalogue_service.resolve_company(field_user)
+
+	# What the season behind this order asks for up front. Read once here rather than once per
+	# scheme: a site with forty live schemes would otherwise read the same season forty times.
+	season_advance = flt(
+		frappe.get_cached_value("FieldMate Season", season, "advance_pct")) if season else 0.0
 
 	live = []
 	for name in frappe.get_all(
@@ -64,6 +79,15 @@ def for_outlet(outlet, field_user: str | None = None, on_date=None, price_list: 
 	):
 		scheme = frappe.get_cached_doc("FieldMate Scheme", name)
 		if not scheme.is_live_on(on):
+			continue
+		if not scheme.covers_sale(kind):
+			continue
+		# Taken inside the early-booking window, and carrying the advance the offer asks for.
+		# Both are about the *order*, not about where it was booked, so they sit beside
+		# `covers_sale` rather than inside the scope rows.
+		if not scheme.books_in(on):
+			continue
+		if not scheme.advance_met(season_advance):
 			continue
 		if not scheme.covers_outlet(doc):
 			continue
@@ -160,6 +184,11 @@ def compile_scheme(scheme, free_details: dict) -> tuple[dict | None, str | None]
 		# quoting one that ended on Sunday. Advisory: the engine never reads a clock.
 		"valid_from": str(scheme.valid_from) if scheme.valid_from else None,
 		"valid_to": str(scheme.valid_to) if scheme.valid_to else None,
+		# The early-booking window, carried for the same reason the validity dates are: a phone
+		# that has not synced for three days can retire an offer itself rather than quote one
+		# whose book shut on Sunday. Advisory on both sides - the engine never reads a clock.
+		"booking_from": str(scheme.get("booking_from")) if scheme.get("booking_from") else None,
+		"booking_to": str(scheme.get("booking_to")) if scheme.get("booking_to") else None,
 	}, None
 
 
@@ -382,7 +411,8 @@ def to_bp(percent) -> int:
 # --------------------------------------------------------------------------------------
 
 
-def evaluate_for(outlet, field_user: str | None, lines) -> dict:
+def evaluate_for(outlet, field_user: str | None, lines, party_type: str | None = None,
+                 price_list: str | None = None, on=None) -> dict:
 	"""What this cart actually comes to, computed on the server against server prices.
 
 	The phone works the same schemes out at the counter because the rep has to say a number out
@@ -393,8 +423,18 @@ def evaluate_for(outlet, field_user: str | None, lines) -> dict:
 	the order document, Desk, the reports a manager reads - works in rupees, and converting in
 	four places is how three of them end up rounding differently.
 	"""
-	cart = catalogue_service.cart_for(outlet, lines, field_user)
-	compiled = for_outlet(cart["outlet"], field_user, price_list=cart["price_list"])
+	cart = catalogue_service.cart_for(outlet, lines, field_user, price_list=price_list,
+	                                  party_type=party_type, on=on)
+	# Schemes for the kind of sale this is. Step 5c compiled none at all for a primary order,
+	# because a scheme scoped to everywhere would have fired on one silently; `applies_to` is
+	# what makes it safe to compile them now.
+	# The kind comes from `channel.resolve`, not from the party type: a shop the company invoices
+	# direct is an Outlet and a *primary* sale, and reading the type would put a retailer scheme
+	# on it.
+	channel = cart.get("channel") or {}
+	compiled = for_outlet(cart["outlet"], field_user, on_date=on, price_list=cart["price_list"],
+	                      party_type=party_type, kind=channel.get("kind"),
+	                      season=channel.get("season"))
 
 	result = scheme_engine.evaluate({"outlet": cart["outlet"], "lines": cart["lines"]},
 	                                compiled["specs"])
@@ -402,16 +442,32 @@ def evaluate_for(outlet, field_user: str | None, lines) -> dict:
 	result["outlet"] = cart["outlet"]
 	result["price_list"] = cart["price_list"]
 	result["billing_party"] = cart["billing_party"]
+	result["channel"] = cart.get("channel") or {}
 	result["lines"] = cart["lines"]
 	result["skipped_schemes"] = compiled["skipped"]
 	# Carried through rather than swallowed: the screen has to name the SKU whose price
-	# is missing, and the order service has to refuse to commit one.
+	# is missing, and the order service has to refuse to commit one. Same for a SKU priced above
+	# its MRP, which is a price nobody may legally sell at.
 	result["unpriced_items"] = cart.get("unpriced_items") or []
+	result["above_mrp_items"] = cart.get("above_mrp_items") or []
+
+	# Tax last, because what is taxable is the net and the net is what the engine just decided.
+	# This is the distributor's tax on the distributor's sale and FieldMate posts none of it -
+	# see `services/tax`. It is here so the rep quotes the figure the shop will actually be
+	# billed rather than one short by the whole of the GST.
+	taxed = tax_service.for_lines(
+		result["lines"], cart.get("tax_rates") or {}, discount_paise=result["discount_paise"])
+	result["tax_paise"] = taxed["tax_paise"]
+	result["tax_lines"] = taxed["lines"]
+	result["grand_paise"] = result["net_paise"] + taxed["tax_paise"]
+
 	result["totals"] = {
 		"gross": in_rupees(result["cart_gross_paise"]),
 		"discount": in_rupees(result["discount_paise"]),
 		"net": in_rupees(result["net_paise"]),
 		"incentive": in_rupees(result["incentive_paise"]),
+		"tax": in_rupees(result["tax_paise"]),
+		"grand": in_rupees(result["grand_paise"]),
 	}
 	return result
 

@@ -20,6 +20,7 @@ from frappe.utils import add_days, flt, today
 from fieldmate.api import portal as portal_api
 from fieldmate.services import claim as claim_service
 from fieldmate.services import portal as portal_service
+from fieldmate.services import secondary_sales as secondary_sales_service
 from fieldmate.tests.test_order import OrderFixture
 
 
@@ -659,3 +660,226 @@ class TestSettlement(ClaimFixture):
 		doc.flags.ignore_permissions = True
 		with self.assertRaises(frappe.ValidationError):
 			doc.cancel()
+
+
+class TestADepotSendsItsOwnSalesFile(PortalFixture):
+	"""Phase 1, step 7c. The reader, the column mapping and the bad-row tolerance have existed
+	since Phase 5 and were reachable only from Desk - so a depot emailed a file and somebody at
+	this end imported it, which is a step that gets skipped in a busy week."""
+
+	def csv(self, *rows, header="Date,Item Code,Qty,Amount,Shop Name"):
+		return "\n".join([header, *rows])
+
+	def upload(self, content, **extra):
+		payload = {"from_date": "2026-09-01", "to_date": "2026-09-30",
+		           "content": content, "file_name": "sales.csv"}
+		payload.update(extra)
+		answer = self.as_depot(lambda: portal_api.upload_secondary_sales(**payload))
+		# The envelope, not just its data. `@endpoint` turns a refusal into `{ok: False, ...}`
+		# rather than raising, so indexing straight into `data` reports a KeyError and hides the
+		# message that says what actually went wrong.
+		self.assertTrue(answer.get("ok"), answer.get("message") or answer)
+		return answer["data"]
+
+	def test_a_depot_can_send_its_own_file(self):
+		result = self.upload(self.csv(f"2026-09-05,{self.item},12,1464,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual(result["imported"], 1)
+
+	def test_the_sales_land_against_the_depot_that_sent_them(self):
+		"""The distributor is taken from the session and never from the payload. A depot sending
+		a file for somebody else's sales is the one thing this endpoint must not allow, and the
+		only way to be sure is not to accept the name at all."""
+		result = self.upload(self.csv(f"2026-09-05,{self.item},12,1464,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Secondary Sales", result["name"], "distributor"),
+			self.distributor.name)
+
+	def test_the_endpoint_will_not_even_accept_another_depots_name(self):
+		"""A depot sending a file for somebody else's sales is the one thing this must not allow,
+		and the only way to be sure is not to take the name at all. Asserted on the signature
+		rather than on behaviour, because a parameter that exists is a parameter somebody will
+		eventually pass through from a form."""
+		import inspect
+		params = inspect.signature(portal_api.upload_secondary_sales).parameters
+		self.assertNotIn("distributor", params)
+		self.assertNotIn("customer", params)
+
+	def test_a_bad_row_does_not_cost_the_good_ones(self):
+		"""Gate 5 criterion 1, now reachable from the portal. A distributor who has to fix and
+		resend a whole file stops sending files."""
+		result = self.upload(self.csv(
+			f"2026-09-05,{self.item},12,1464,Sharma Kirana",
+			"2026-09-06,NOPE,3,99,Some Shop",
+			f"2026-09-07,{self.item},4,488,Raja Stores",
+		))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual(result["imported"], 2)
+		self.assertEqual(len(result["rejected"]), 1)
+		self.assertIn("NOPE", result["rejected"][0]["reason"])
+
+	def test_a_login_without_the_right_is_refused(self):
+		"""Refused as an envelope, not as a raise: `@endpoint` turns every refusal into one so a
+		depot's browser gets a message rather than a stack trace."""
+		row = frappe.get_doc("FieldMate Portal User", self.depot.name)
+		row.can_upload_sales = 0
+		row.save(ignore_permissions=True)
+
+		answer = self.as_depot(lambda: portal_api.upload_secondary_sales(
+			from_date="2026-09-01", to_date="2026-09-30",
+			content=self.csv(f"2026-09-05,{self.item},1,10,Sharma Kirana")))
+
+		self.assertFalse(answer["ok"])
+		self.assertIn("cannot send sales files", answer["message"])
+		self.assertIn("your depot", answer["message"],
+		              "the message names who can turn it on")
+
+	def test_the_template_says_which_headers_are_understood(self):
+		"""So a depot can see its own export is probably already accepted, rather than being
+		handed a format to convert to."""
+		answer = self.as_depot(portal_api.secondary_sales_template)["data"]
+		self.assertIn("invoice_no", answer["columns"])
+		self.assertIn("bill no", answer["accepted_headers"]["invoice_no"])
+		self.assertEqual(sorted(answer["required"]), ["date", "item_code", "qty"])
+
+	def test_nothing_is_posted_for_it(self):
+		"""ADR-023. These are the distributor's sales; FieldMate records them, never bills them."""
+		before = frappe.db.count("GL Entry"), frappe.db.count("Sales Invoice")
+		result = self.upload(self.csv(f"2026-09-05,{self.item},12,1464,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", result["name"])
+		self.assertEqual((frappe.db.count("GL Entry"), frappe.db.count("Sales Invoice")), before)
+
+	def test_the_page_builds_its_own_context(self):
+		"""A smoke test, because a broken context or a bad template reference shows up only in a
+		browser - and the browser belongs to a distributor, not to us.
+
+		It was not enough. This called `get_context` and stopped there, so it passed for weeks
+		over a page that answered 500 on every single load - and the key it asserted,
+		`context.template`, was the cause: Frappe reads that one as the path of the Jinja file to
+		render. Building a context is not drawing a page. See
+		TestThePortalPagesActuallyRender, which draws them.
+		"""
+		from fieldmate.www.distributor import sales as sales_page
+
+		context = self.as_depot(lambda: sales_page.get_context(frappe._dict()))
+		self.assertEqual(context.distributor, self.distributor.name)
+		self.assertTrue(context.can_upload)
+		self.assertIn("invoice_no", context.file_format["accepted_headers"])
+		self.assertIsInstance(context.recent, list)
+
+	def test_the_page_leaves_frappes_own_context_keys_alone(self):
+		"""`template`, `doc`, `route` and their like belong to the renderer. A page that writes
+		one does not fail where it was written - it fails inside Jinja, in a traceback with
+		nothing of ours in it."""
+		from fieldmate.www.distributor import sales as sales_page
+
+		context = self.as_depot(lambda: sales_page.get_context(frappe._dict()))
+		for reserved in ("template", "doc", "route", "path"):
+			self.assertNotIn(reserved, context, f"{reserved} belongs to Frappe, not to this page")
+
+	def test_the_page_lists_only_this_depots_files(self):
+		other = self.second_depot()
+		mine = self.upload(self.csv(f"2026-09-05,{self.item},3,360,Sharma Kirana"))
+		self.track("FieldMate Secondary Sales", mine["name"])
+
+		theirs = frappe.get_doc({
+			"doctype": "FieldMate Secondary Sales", "distributor": other.name,
+			"from_date": "2026-09-01", "to_date": "2026-09-30",
+			"items": [{"sale_date": "2026-09-05", "item_code": self.item, "qty": 1}],
+		})
+		theirs.flags.ignore_permissions = True
+		theirs.insert()
+		theirs.submit()
+		self.track("FieldMate Secondary Sales", theirs.name)
+
+		from fieldmate.www.distributor import sales as sales_page
+		names = {r.name for r in self.as_depot(
+			lambda: sales_page.get_context(frappe._dict())).recent}
+		self.assertIn(mine["name"], names)
+		self.assertNotIn(theirs.name, names, "one depot must not see another's book")
+
+
+class TestThePortalPagesActuallyRender(PortalFixture):
+	"""Every test in this file called a service. None of them ever drew a page.
+
+	So `/distributor/sales` answered 500 on every load since the day it was written, and nothing
+	said so: `sales.py` set `context.template`, which is a key Frappe owns - `template_page`
+	reads it as the path of the Jinja file to render - so the renderer handed a dict to the
+	loader and died inside Jinja with `AttributeError: 'dict' object has no attribute 'split'`,
+	a traceback with nothing of ours in it.
+
+	A page that renders is the lowest bar there is, and it is the one bar nothing here checked.
+	"""
+
+	PAGES = ("distributor/sales", "distributor/orders", "distributor/claims")
+
+	def render(self, path: str) -> str:
+		from frappe.website.page_renderers.template_page import TemplatePage
+
+		frappe.set_user(self.depot.user)
+		try:
+			page = TemplatePage(path=path)
+			self.assertTrue(page.can_render(), f"/{path} is not a page at all")
+			answer = page.render()
+			return (answer.get_data(as_text=True)
+			        if hasattr(answer, "get_data") else str(answer))
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_each_page_renders_for_a_depot_login(self):
+		for path in self.PAGES:
+			with self.subTest(path=path):
+				self.assertGreater(len(self.render(path)), 500,
+				                   f"/{path} did not draw a page")
+
+	def test_the_sales_page_names_the_columns_the_reader_wants(self):
+		"""The one thing that page is for: a depot has to know what its file must contain
+		before it sends one."""
+		html = self.render("distributor/sales")
+		required = secondary_sales_service.template()["required"]
+		for column in required:
+			self.assertIn(column, html, f"the sales page does not name {column}")
+
+	def test_the_index_sends_a_depot_to_its_queue(self):
+		"""A bare index listing two links is a page nobody wanted to be on."""
+		from frappe.website.page_renderers.template_page import TemplatePage
+
+		frappe.set_user(self.depot.user)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				TemplatePage(path="distributor").render()
+			self.assertEqual(frappe.local.flags.redirect_location, "/distributor/orders")
+		finally:
+			frappe.local.flags.redirect_location = None
+			frappe.set_user("Administrator")
+
+	def test_every_class_a_page_uses_has_a_rule_behind_it(self):
+		"""The sales page invented `pad`, `muted` and `r`, and portal.css defined none of them.
+
+		So the card had no inner padding, its explanatory lines came out as body text, and four
+		number columns sat left-aligned. Nobody saw it because the page answered 500 before any
+		of it reached a browser - and once it rendered, the first thing said about it was that
+		the dashboard looked broken.
+
+		A class with no rule is a silent failure: the markup is valid, the page loads, and it
+		simply looks wrong. This is the cheapest possible check for it. Only literal class
+		attributes are read - anything a script composes is its own business.
+		"""
+		import os
+		import re
+
+		app = frappe.get_app_path("fieldmate")
+		with open(os.path.join(app, "public", "css", "portal.css"), encoding="utf-8") as fh:
+			css = fh.read()
+		defined = set(re.findall(r"\.([A-Za-z][\w-]*)", css))
+
+		pages = os.path.join(app, "www", "distributor")
+		for page in sorted(f for f in os.listdir(pages) if f.endswith(".html")):
+			with open(os.path.join(pages, page), encoding="utf-8") as fh:
+				html = fh.read()
+			used = {c for attr in re.findall(r'class="([a-z0-9 _-]+)"', html)
+			        for c in attr.split()}
+			with self.subTest(page=page):
+				self.assertEqual(sorted(used - defined), [],
+				                 f"{page} uses classes portal.css does not define")

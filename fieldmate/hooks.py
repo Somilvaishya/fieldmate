@@ -94,6 +94,10 @@ after_migrate = [
 	# The channel fields on ERPNext Customer. A party we bill is a Customer with a tier, not a
 	# record of our own (Phase 1).
 	"fieldmate.setup.install.create_customer_fields",
+	# Somewhere on Item to record the printed price, which ERPNext has no field for. Creates the
+	# field and never a value, and refuses where the site already has an `mrp` column of its own
+	# (Phase 1, step 3).
+	"fieldmate.setup.install.create_item_mrp_field",
 	# The five exception rules, created once and never edited again - a site that has tuned a
 	# threshold keeps its own (Phase 8).
 	"fieldmate.services.alerts.install_starter_rules",
@@ -303,6 +307,9 @@ scheduler_events = {
 		# Close days a rep forgot to end, so tomorrow starts cleanly. The record is marked
 		# Auto Closed rather than Closed: a forgotten day is not a finished one.
 		"fieldmate.tasks.close_stale_days",
+		# A season booking whose money is late, told to the rep who collects it and the manager
+		# who asks. Once a booking per day - the job running twice must not tell anybody twice.
+		"fieldmate.tasks.remind_booking_payments",
 		# GPS trails track a named employee. Keep them only as long as FieldMate Settings says.
 		"fieldmate.tasks.purge_old_trails",
 		# Re-measure every live target plan. This is what makes a rep's performance screen a

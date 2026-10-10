@@ -33,26 +33,40 @@ from frappe.utils import cint, flt, getdate, today
 
 from fieldmate import compat
 from fieldmate.services import credit as credit_service
-from fieldmate.services import scope
+from fieldmate.services import pricing, scope
+from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
+from fieldmate.services import tax as tax_service
 
 # --------------------------------------------------------------------------------------
 # the sellable list
 # --------------------------------------------------------------------------------------
 
 
-def for_outlet(outlet, field_user: str | None = None, price_list: str | None = None) -> dict:
+def for_outlet(outlet, field_user: str | None = None, price_list: str | None = None,
+                party_type: str | None = None) -> dict:
 	"""Everything this shop may be sold today, priced, in one payload.
 
 	`price_list` is for our own callers - the order estimate re-prices against the list the
 	order was written on. It is never taken from a device: a phone that could name its own
 	price list could quote the cart off whichever one is cheapest.
 	"""
-	doc = readable_outlet(outlet)
+	doc = readable_party(outlet, party_type)
 	on = getdate(today())
-	price_list = price_list or resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	party = credit_service.billing_party(doc, field_user)["party"]
+	channel = credit_service.billing_party(doc, field_user, party_type)
+	party = channel["party"]
+	# The channel first, then the list, because **a booking is priced from its season's list**
+	# and that answer only exists once the channel has been resolved. `cart_for` has done this
+	# since step 2; this function and `prices_for` were left reading the party's own list, so
+	# during a season the rep browsed and quoted at one set of rates while the server booked the
+	# order at another - 8.20 on the screen against 7.38 in the order, on every line. The phone
+	# computes its totals from what is here, so the figure read out at the counter was the wrong
+	# one and `totals_match` went to zero on every booking.
+	#
+	# A caller that named a list still wins: the order estimate re-prices against the list the
+	# order was actually written on.
+	price_list = price_list or channel.get("price_list") or resolve_price_list(doc, field_user)
 
 	catalogues = matching_masters("FieldMate Product Catalogue", doc, on)
 	rows = catalogue_rows(catalogues)
@@ -67,6 +81,15 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 		)
 	}
 
+	# The rate per item, not the tax amount. The phone computes the amount itself as quantities
+	# change - it has the same `round_half_up_div` the server uses - so what travels is one
+	# number per item rather than a figure that goes stale on the next tap.
+	tax_rates = tax_service.rates_for(
+		list(details), company=company, party=party,
+		net_rates={code: d["price_list_rate"] for code, d in details.items()},
+		item_groups={code: d["item_group"] for code, d in details.items()},
+	)
+
 	items = []
 	for item_code, (row, catalogue) in rows.items():
 		detail = details.get(item_code)
@@ -74,7 +97,8 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 			# A catalogue naming an item that has since been deleted or disabled is a master
 			# nobody tidied, not something to put in front of a shopkeeper.
 			continue
-		items.append(item_payload(item_code, row, catalogue, detail, must_sell.get(item_code)))
+		items.append(item_payload(item_code, row, catalogue, detail, must_sell.get(item_code),
+		                          tax_bps=tax_rates.get(item_code, 0)))
 
 	items.sort(key=lambda row: (row["sort_order"], row["item_name"] or row["item_code"]))
 
@@ -86,6 +110,12 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 		"currency": next((i["currency"] for i in items if i["currency"]), None),
 		"company": company,
 		"billing_party": party,
+		# What kind of sale this cart is, and - for a booking - the season it books into. Drawn
+		# off the channel rather than guessed from the price list: a season's list is an ordinary
+		# Price List, and nothing in its name says the order carries an advance, a delivery
+		# window and a change cutoff. `None` here is the ordinary order, which is most of them.
+		"order_kind": channel["kind"],
+		"season": season_service.describe(channel.get("season")),
 		"catalogues": [c.name for c in catalogues],
 		"item_count": len(items),
 		# Counted rather than left to the screen, because this is the number a manager should be
@@ -96,7 +126,8 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 	}
 
 
-def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell) -> dict:
+def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell,
+                 tax_bps: int = 0) -> dict:
 	"""One catalogue line as the phone receives it."""
 	order_uom, conversion_factor, fell_back = order_unit(row, detail)
 	rate = detail["price_list_rate"]
@@ -123,6 +154,16 @@ def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell) -
 		"currency": detail["currency"],
 		"mrp": detail["mrp"],
 		"unpriceable": rate is None,
+		# A price list that quotes above the printed price on the pack. Flagged on the catalogue
+		# screen so a rep sees it before building a cart, and refused at the order. Both figures
+		# are per stock UOM - see `pricing.is_above_mrp` for why `order_uom_rate` is not the one
+		# to compare.
+		"above_mrp": pricing.is_above_mrp(rate, detail["mrp"]),
+
+		# The distributor's tax rate on this item, in basis points - 1800 is 18%. Zero means no
+		# tax template covers it, which is most items on most ERPNext sites. The phone applies it
+		# to the line's share of the net; `services/tax` holds the rule and the reason.
+		"tax_bps": int(tax_bps or 0),
 
 		"is_focus": bool(cint(row.is_focus)),
 		"is_must_sell": bool(must_sell),
@@ -259,11 +300,20 @@ def last_order_for(outlet, field_user: str | None = None) -> dict:
 # --------------------------------------------------------------------------------------
 
 
-def prices_for(outlet, lines, field_user: str | None = None) -> dict:
+def prices_for(outlet, lines, field_user: str | None = None,
+               party_type: str | None = None) -> dict:
 	"""Fresh rates for a cart the rep already built, and nothing else.
 
-	The phone holds prices from whenever it last synced, which may have been yesterday morning
-	in a different market. This is the call it makes before the rep reads a total out loud.
+	The phone holds prices from whenever it last synced, which may have been yesterday morning in
+	a different market, and this is the narrow call for re-pricing a cart without fetching the
+	whole catalogue again.
+
+	**No screen calls it yet.** `api.cataloguePrices` is wired into the client and nothing invokes
+	it; the phone re-fetches the catalogue through `for_outlet` instead, and checks a total through
+	`order.estimate`. Said here rather than left to be discovered, because an endpoint nobody
+	calls is an endpoint whose bugs nobody finds - this one was quoting the party's own list to a
+	season booking and reading a Customer as an Outlet, and neither showed up in the field because
+	nothing asked it anything.
 
 	Each line is `{"item_code": ..., "qty": ...}` with the quantity in **base units**, because
 	that is what a quantity break on Item Price is measured in and the phone already holds the
@@ -272,11 +322,16 @@ def prices_for(outlet, lines, field_user: str | None = None) -> dict:
 	Only items this shop's own catalogue holds are priced. An endpoint that priced anything on
 	the site would be a way to read the whole price book one item at a time from a phone.
 	"""
-	doc = readable_outlet(outlet)
+	doc = readable_party(outlet, party_type)
 	on = getdate(today())
-	price_list = resolve_price_list(doc, field_user)
 	company = resolve_company(field_user)
-	party = credit_service.billing_party(doc, field_user)["party"]
+	# `party_type` as well, which was missing: without it a Customer is read as an Outlet, which
+	# is the same defect `_from_outlet` had and the same cost - the wrong party, and so the wrong
+	# list and the wrong tax, on the one call the phone makes before a rep speaks.
+	channel = credit_service.billing_party(doc, field_user, party_type)
+	party = channel["party"]
+	# Same rule as `for_outlet` and `cart_for`: a booking is quoted from its season's list.
+	price_list = channel.get("price_list") or resolve_price_list(doc, field_user)
 
 	wanted = {}
 	for line in lines or []:
@@ -316,7 +371,10 @@ def prices_for(outlet, lines, field_user: str | None = None) -> dict:
 			"conversion_factor": conversion_factor,
 			"order_uom_rate": None if rate is None else flt(rate * conversion_factor, 2),
 			"currency": detail["currency"],
+			"mrp": detail["mrp"],
 			"unpriceable": rate is None,
+			# Per stock UOM on both sides, never `order_uom_rate` - see `pricing.is_above_mrp`.
+			"above_mrp": pricing.is_above_mrp(rate, detail["mrp"]),
 		}
 
 	return {
@@ -326,13 +384,15 @@ def prices_for(outlet, lines, field_user: str | None = None) -> dict:
 		"currency": next((p["currency"] for p in priced.values() if p["currency"]), None),
 		"items": priced,
 		"unpriceable": sorted(code for code, p in priced.items() if p["unpriceable"]),
+		"above_mrp": sorted(code for code, p in priced.items() if p["above_mrp"]),
 		# Named rather than dropped in silence. A cart holding a line this shop may not be sold
 		# is a bug somewhere upstream, and the rep is the last person who should discover it.
 		"not_in_catalogue": off_catalogue,
 	}
 
 
-def cart_for(outlet, lines, field_user: str | None = None, price_list: str | None = None) -> dict:
+def cart_for(outlet, lines, field_user: str | None = None, price_list: str | None = None,
+             party_type: str | None = None, on=None) -> dict:
 	"""A rep's cart restated as the scheme engine's input: base units and integer paise.
 
 	The engine is a pure function and reads no price, no UOM and no clock (ADR-021), so this is
@@ -344,10 +404,14 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 	zero books it free and a guess is a guess, and either way the rep has already read a total
 	to a shopkeeper. Throwing here is the only outcome that ends with somebody fixing the price.
 	"""
-	doc = readable_outlet(outlet)
-	price_list = price_list or resolve_price_list(doc, field_user)
+	doc = readable_party(outlet, party_type)
 	company = resolve_company(field_user)
-	party = credit_service.billing_party(doc, field_user)["party"]
+	channel = credit_service.billing_party(doc, field_user, party_type, on=on)
+	# A booking is priced from its season's list, and that answer is already in `channel` - it
+	# has to be, because the list has to be settled before a single line is priced. A caller that
+	# named a list still wins: `order.price` passes the one a submitted booking was locked at.
+	price_list = price_list or channel.get("price_list") or resolve_price_list(doc, field_user)
+	party = channel["party"]
 
 	wanted = {}
 	for line in lines or []:
@@ -366,6 +430,7 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 
 	cart_lines = []
 	unpriceable = []
+	over_mrp = []
 	unknown = []
 	unconvertible = []
 	for code, entry in wanted.items():
@@ -384,6 +449,12 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 		if rate is None:
 			unpriceable.append(code)
 			continue
+
+		# Collected here because this is where the base-unit rate and the item's MRP are both in
+		# hand. Named rather than thrown, like `unpriceable`, and not carried on the line below:
+		# those lines are the scheme engine's input and ADR-021 keeps that to units and paise.
+		if pricing.is_above_mrp(rate, detail["mrp"]):
+			over_mrp.append(code)
 
 		cart_lines.append({
 			"item": code,
@@ -414,8 +485,24 @@ def cart_for(outlet, lines, field_user: str | None = None, price_list: str | Non
 		"outlet": doc.name,
 		"price_list": price_list,
 		"company": company,
+		# The party as a name, which is what every caller has always read, and the whole answer
+		# beside it. `channel` carries the kind of sale and whether this company makes that kind
+		# at all - `order.create` refuses on it, and reading `.get()` off the bare string was a
+		# crash waiting for the first order whose company was not already set.
 		"billing_party": party,
+		"channel": channel,
 		"unpriced_items": sorted(unpriceable),
+		"above_mrp_items": sorted(over_mrp),
+		# The rate per item, not the tax. What is taxable depends on the cart's discount, which
+		# the scheme engine has not run yet - so `scheme_compile.evaluate_for` does the
+		# arithmetic once it has a discount to apportion.
+		"tax_rates": tax_service.rates_for(
+			[l["item"] for l in cart_lines],
+			company=company,
+			party=party,
+			net_rates={code: details[code]["price_list_rate"] for code in details},
+			item_groups={code: details[code]["item_group"] for code in details},
+		),
 		"lines": cart_lines,
 	}
 
@@ -433,6 +520,57 @@ def to_paise(rupees) -> int:
 # --------------------------------------------------------------------------------------
 # masters, scope and the shop itself
 # --------------------------------------------------------------------------------------
+
+
+def readable_party(party, party_type: str | None = None, user: str | None = None):
+	"""The party this order is for, shaped so that everything downstream can read it.
+
+	A primary order is on a Customer; a retailer order is on a FieldMate Outlet. Rather than
+	teaching `scope`, `pricing`, `matching_masters` and the catalogue readers about two kinds of
+	party, a Customer is presented here in the shape they already understand - a name, a
+	territory, a price list, and the two fields it genuinely does not have.
+
+	**Blank channel and blank outlet class are the whole scoping rule.** `scope.applies_to_outlet`
+	excludes a master that names a channel the party does not match, so a Customer matches only
+	those catalogues that name no channel and no class - which reads exactly right: a catalogue
+	scoped to General Trade is a shop catalogue, and a distributor is not a shop.
+
+	`customer` is set to the party itself, so `channel.resolve` reads this as a sale we make
+	rather than one the distributor makes, which is what a primary sale is.
+	"""
+	if (party_type or "Outlet") != "Customer":
+		return readable_outlet(party, user)
+
+	name = party if isinstance(party, str) else party.name
+	row = frappe.db.get_value(
+		"Customer", name,
+		["name", "customer_name", "territory", "default_price_list", "disabled"], as_dict=True)
+	if not row:
+		raise frappe.DoesNotExistError(frappe._("That party no longer exists."))
+	if row.disabled:
+		frappe.throw(frappe._("{0} is disabled, so nothing can be ordered on them.")
+		             .format(row.customer_name or name))
+
+	return frappe._dict(
+		doctype="Customer",
+		name=row.name,
+		outlet_name=row.customer_name or row.name,
+		territory=row.territory,
+		# Not "unset" but "does not exist for this kind of party" - see the scoping note above.
+		channel=None,
+		outlet_class=None,
+		# What we bill them from. `pricing.price_list_for` reads this first, which is right: a
+		# party's own list is the most specific thing anybody has said about what they pay.
+		price_list=row.default_price_list,
+		# Itself. A scheme scope row naming a distributor means "shops under this party" on a
+		# retailer order and "this party" on a primary one, and the two cannot be confused
+		# because `applies_to` has already decided which kind of scheme is being asked about.
+		distributor=row.name,
+		customer=row.name,
+		# A beat is a walking route between shops, which a party we bill is not on. Named rather
+		# than left missing, so `scope_row_matches` reads a blank instead of raising.
+		primary_beat=None,
+	)
 
 
 def readable_outlet(outlet, user: str | None = None):
@@ -531,33 +669,11 @@ def must_sell_rows(lists: list) -> dict:
 def resolve_price_list(outlet_doc, field_user: str | None = None) -> str | None:
 	"""Which list this shop is quoted from.
 
-	The shop's own list first, because a modern-trade account is the whole reason that field
-	exists; then the rep's, for a van route selling off a different list to the same shops; then
-	the company default. Never `frappe.defaults`, which would answer with whatever price list
-	the last Desk session touched and would be silently wrong for every rep who has never
-	opened Desk (ADR-020).
+	The chain itself is `pricing.price_list_for`, which is also what `channel.resolve` reads, so
+	the catalogue, the cart and the channel answer cannot drift apart. The name is kept because
+	it is what every caller in this module and the scheme compiler already say.
 	"""
-	if field_user is not None and not isinstance(field_user, str):
-		raise TypeError(
-			f"field_user must be a FieldMate Field User name, got {type(field_user).__name__}. "
-			"Check the argument order at the call site."
-		)
-	if outlet_doc.price_list:
-		return outlet_doc.price_list
-	if field_user:
-		own = frappe.db.get_value("FieldMate Field User", field_user, "default_price_list")
-		if own:
-			return own
-	ours = settings_service.value("default_price_list")
-	if ours:
-		return ours
-
-	# Nothing in FieldMate names one, so fall back to what the company already told ERPNext to
-	# sell at. Without this every order on a site nobody had configured failed with "no price on
-	# None" - a message that names the symptom and hides the cause, on the one screen where a rep
-	# is standing in front of a shopkeeper. Selling Settings is a deliberate configuration, not a
-	# session default, so it does not reopen the ADR-020 hole that `frappe.defaults` would.
-	return frappe.db.get_single_value("Selling Settings", "selling_price_list")
+	return pricing.price_list_for(outlet_doc, field_user)
 
 
 def resolve_company(field_user: str | None = None) -> str | None:

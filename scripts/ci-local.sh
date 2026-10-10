@@ -6,6 +6,9 @@
 #   ./scripts/ci-local.sh --site dev-15.local
 #   ./scripts/ci-local.sh --bench ~/frappe/bench-v16 --site v16.localhost
 #
+# Four lanes: ruff, the Python suite on a real site, the PWA suite (vitest, no site needed),
+# and the PWA build.
+#
 # Exit code is 0 only if every lane passed, so it also works as a pre-push hook.
 
 set -uo pipefail
@@ -64,10 +67,21 @@ bench --site "$SITE" run-tests --app fieldmate >/dev/null 2>&1
 record $? "tests"
 
 if [ "$SKIP_FRONTEND" -eq 0 ]; then
-	step "frontend build"
 	if command -v npm >/dev/null 2>&1; then
-		( cd "$APP/frontend" && npm ci --silent && npm run build >/dev/null )
-		record $? "frontend"
+		step "frontend install"
+		( cd "$APP/frontend" && npm ci --silent )
+		record $? "frontend deps"
+
+		# The phone's own suite. It runs BEFORE the build, because a build that succeeds over a
+		# broken screen is exactly the state three field bugs shipped in: the server was right,
+		# 955 Python tests were green, and the figure on the handset was wrong.
+		step "frontend tests"
+		( cd "$APP/frontend" && npm test )
+		record $? "frontend tests"
+
+		step "frontend build"
+		( cd "$APP/frontend" && npm run build >/dev/null )
+		record $? "frontend build"
 	else
 		echo "  SKIP  npm not on PATH (source nvm first)"
 	fi

@@ -19,6 +19,7 @@ from __future__ import annotations
 import frappe
 from frappe.utils import cint, flt, getdate, nowdate
 from frappe.utils.caching import request_cache
+from frappe.utils.nestedset import get_ancestors_of
 
 # Minimum host versions, enforced at install time by fieldmate.setup.install.
 #
@@ -503,6 +504,125 @@ def get_item_details(
 	return details
 
 
+# --------------------------------------------------------------------------------------
+# tax — ERPNext's own templates, resolved in bulk because this feeds a 400-SKU screen
+# --------------------------------------------------------------------------------------
+#
+# GST comes from `Item Tax Template`, which is ERPNext core and present whether or not
+# india_compliance is installed. That matters: neither bench this was built against has
+# india_compliance, and a FieldMate that could only compute tax with it would be a FieldMate that
+# computes no tax on most sites.
+#
+# **One effective rate per item, as basis points.** The templates hold account-and-rate pairs -
+# CGST 9 and SGST 9, or IGST 18 - and what a rep reads out at a counter is their sum. FieldMate
+# deliberately does not split them: the split depends on the supplier's state and the buyer's,
+# the supplier on a secondary sale is the distributor rather than us, and the document that has
+# to carry the split is the distributor's own invoice. Basis points rather than a float because
+# the phone has to reach the same figure offline, and ADR-022 keeps money arithmetic integral.
+
+
+def item_tax_rates(
+	item_codes: list[str],
+	company: str | None,
+	tax_category: str | None = None,
+	posting_date=None,
+	net_rates: dict | None = None,
+	item_groups: dict | None = None,
+) -> dict[str, int]:
+	"""Effective tax rate per item code, in basis points. Absent means nobody has set one.
+
+	Resolved the way ERPNext resolves it - the item's own `Item Tax` rows first, then its Item
+	Group's and that group's ancestors' - and by calling ERPNext's matcher rather than restating
+	its rules, which cover a tax category, a validity date and a net-rate band each.
+
+	That matcher is `_get_item_tax_template`, which is private. Calling one underscore-prefixed
+	function from this module is the lesser evil: the alternative is a second copy of three
+	selection rules that would drift from the first, and absorbing exactly this kind of coupling
+	is what `compat` is for. `test_compat` pins the dependency so a signature change fails loudly
+	here instead of quietly mispricing tax.
+
+	Reads do not grow with the item list: the tax rows come back in two queries however long it
+	is, and the matcher runs over rows already in hand.
+	"""
+	codes = [code for code in (item_codes or []) if code]
+	if not codes or not company:
+		return {}
+	if not frappe.db.exists("DocType", "Item Tax Template"):
+		return {}
+	# The ordinary case on a site nobody has set tax up on, answered without touching the item
+	# list at all.
+	if not frappe.db.count("Item Tax Template", {"company": company, "disabled": 0}):
+		return {}
+
+	try:
+		from erpnext.stock.get_item_details import _get_item_tax_template, get_item_tax_map
+	except ImportError:
+		return {}
+
+	own = _tax_rows_for("Item", codes)
+	groups = item_groups or dict(frappe.get_all(
+		"Item", filters={"name": ["in", codes]}, fields=["name", "item_group"],
+		limit_page_length=0, as_list=True))
+
+	# Every group an item might inherit from, so the rows for all of them come back together.
+	lineage: dict[str, list[str]] = {}
+	for group in {g for g in groups.values() if g}:
+		lineage[group] = [group, *get_ancestors_of("Item Group", group)]
+	group_rows = _tax_rows_for("Item Group", sorted({g for line in lineage.values() for g in line}))
+
+	net_rates = net_rates or {}
+	templates: dict[str, int] = {}
+	out: dict[str, int] = {}
+
+	for code in codes:
+		taxes = own.get(code)
+		if not taxes:
+			for group in lineage.get(groups.get(code), []):
+				if group_rows.get(group):
+					taxes = group_rows[group]
+					break
+		if not taxes:
+			continue
+
+		args = {
+			"company": company,
+			"tax_category": tax_category or "",
+			"posting_date": posting_date or nowdate(),
+			"base_net_rate": flt(net_rates.get(code)),
+		}
+		template = _get_item_tax_template(args, taxes)
+		if not template:
+			continue
+
+		if template not in templates:
+			rates = get_item_tax_map(company, template, as_json=False) or {}
+			# Summed, and rounded to the basis point. A template holding 9 and 9 answers 1800.
+			templates[template] = round(sum(flt(r) for r in rates.values()) * 100)
+		if templates[template]:
+			out[code] = templates[template]
+
+	return out
+
+
+def _tax_rows_for(parenttype: str, parents: list[str]) -> dict[str, list]:
+	"""`Item Tax` rows for these parents, keyed by parent, in one query.
+
+	Returned as `_dict`s because ERPNext's matcher reads them as attributes.
+	"""
+	if not parents:
+		return {}
+	rows: dict[str, list] = {}
+	for row in frappe.get_all(
+		"Item Tax",
+		filters={"parenttype": parenttype, "parent": ["in", parents]},
+		fields=["parent", "item_tax_template", "tax_category", "valid_from",
+		        "minimum_net_rate", "maximum_net_rate"],
+		limit_page_length=0,
+	):
+		rows.setdefault(row.parent, []).append(frappe._dict(row))
+	return rows
+
+
 def get_conversion_factor(item_code: str, uom: str | None) -> float | None:
 	"""How many stock units make up one `uom` of this item, or None when nobody has said.
 
@@ -618,9 +738,22 @@ def make_sales_order(payload: dict) -> str:
 	doc.transaction_date = payload.get("transaction_date") or nowdate()
 	doc.delivery_date = payload.get("delivery_date") or doc.transaction_date
 	doc.order_type = payload.get("order_type") or "Sales"
-	for field in ("currency", "selling_price_list", "po_no", "set_warehouse", "taxes_and_charges"):
+	# `payment_terms_template` is here for a season booking: ERPNext builds the Sales Order's
+	# payment schedule from it, which is where an advance and a balance due date come from.
+	for field in ("currency", "selling_price_list", "po_no", "set_warehouse", "taxes_and_charges",
+	              "payment_terms_template"):
 		if payload.get(field):
 			doc.set(field, payload[field])
+
+	# Naming a tax template does not fill the tax rows. The Desk form fetches them when somebody
+	# picks one in the field; a document inserted from the server gets the name written, no rows,
+	# and a grand total equal to the net - a Sales Order that says it is taxed and is not, which
+	# is worse than one that refuses. ERPNext's own expander is called rather than a copy of it.
+	if doc.get("taxes_and_charges") and not doc.get("taxes"):
+		from erpnext.controllers.accounts_controller import get_taxes_and_charges
+		for row in get_taxes_and_charges(
+			"Sales Taxes and Charges Template", doc.taxes_and_charges) or []:
+			doc.append("taxes", row)
 
 	# Every rupee in this cart was already settled by the scheme engine, from a spec the rep
 	# saw on the phone (SCHEME_SPEC). Letting ERPNext's Pricing Rules run again would discount
@@ -643,10 +776,333 @@ def make_sales_order(payload: dict) -> str:
 			"is_free_item": cint(line.get("is_free_item")),
 		})
 
-	doc.flags.ignore_permissions = True
-	doc.insert()
-	doc.submit()
+	# Posted by the server, as the server. The docstring above has always said this happens "on
+	# the rep's behalf"; until now it happened in the rep's own session, and did not work.
+	#
+	# `doc.flags.ignore_permissions` covers the Sales Order and nothing else. ERPNext checks
+	# permissions again *inside* validation: `set_missing_item_details` calls `get_item_details`,
+	# which calls `check_permission()` on the **Item** - a different document, with flags of its
+	# own that nothing here can reach. A Field Rep holds no read on Item, so submitting an order
+	# for a directly-billed outlet raised a bare `PermissionError` out of the framework. That is
+	# the failure this codebase keeps calling out by name: a framework error on a rep's screen,
+	# with nothing on it that names a cause or a remedy.
+	#
+	# `frappe.flags.ignore_permissions` does not help either - `frappe.permissions.has_permission`
+	# never consults it. Administrator is the only short-circuit it has, so the session is swapped
+	# for the posting and put back in a `finally`. The Sales Order's `owner` is then the server
+	# rather than the rep, which is the truth: the rep proposed it and the server committed it,
+	# and `fm_source_key` names the FieldMate Order that says who proposed it.
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		doc.flags.ignore_permissions = True
+		doc.insert()
+		doc.submit()
+	finally:
+		frappe.set_user(was)
 	return doc.name
+
+
+# --------------------------------------------------------------------------------------
+# dispatch — the goods leaving, and the bill that follows them
+# --------------------------------------------------------------------------------------
+#
+# **Not a Pick List.** The plan this phase follows says "Pick List and Delivery Trip from the
+# reserved Sales Orders", and ERPNext will not do that: `create_pick_list` refuses outright for a
+# Sales Order carrying reserved stock -
+#
+#     "Cannot create a pick list for Sales Order {0} because it has reserved stock.
+#      Please unreserve the stock in order to create a pick list."
+#
+# Reservation and picking are two *alternative* ways of promising stock in ERPNext, not two steps
+# of one. The reserved path goes straight to a Delivery Note built from the reservations, which is
+# what `for_reserved_stock` does: it reads the Stock Reservation Entries and sets the line
+# quantities from what was actually held. Allocating and then picking would mean giving the
+# allocation back first, which is the one thing a dispatch must not do.
+
+
+def _key_column(doctype: str) -> str | None:
+	"""Where this doctype keeps our idempotency key, if the field has been installed."""
+	return SALES_ORDER_KEY_FIELD if _has_column(doctype, SALES_ORDER_KEY_FIELD) else None
+
+
+def posted_for_key(doctype: str, key: str) -> str | None:
+	"""The document already posted for this key, if there is one. Not a cancelled one."""
+	column = _key_column(doctype)
+	if not (key and column):
+		return None
+	return frappe.db.get_value(doctype, {column: key, "docstatus": ["<", 2]}, "name")
+
+
+def _assert_keyed(doctype: str) -> str:
+	column = _key_column(doctype)
+	if not column:
+		frappe.throw(
+			frappe._("{0} has no {1} field on this site, so it cannot be posted without risking "
+			         "a duplicate. Install the FieldMate fixtures and run bench migrate.")
+			.format(doctype, SALES_ORDER_KEY_FIELD)
+		)
+	return column
+
+
+def make_delivery_note(sales_order: str, key: str, posting_date=None) -> str | None:
+	"""Ship what is reserved against this Sales Order. Safe to call twice with one key.
+
+	Returns the Delivery Note, or None where there is nothing left to ship - an order already
+	delivered in full is the ordinary state of a dispatch run somebody restarted, not an error.
+
+	Built `for_reserved_stock`, so the quantities are the ones allocation actually held rather
+	than the ones the party asked for. A booking served short gets a Delivery Note for what it
+	was given, which is the whole point of having allocated.
+	"""
+	column = _assert_keyed("Delivery Note")
+
+	existing = posted_for_key("Delivery Note", key)
+	if existing:
+		return existing
+
+	if not reserved_for_sales_order(sales_order):
+		return None
+
+	from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note as _from_so
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		note = _from_so(sales_order, kwargs={"for_reserved_stock": True})
+		if not note.get("items"):
+			return None
+		note.set(column, key)
+		if posting_date:
+			note.set_posting_time = 1
+			note.posting_date = posting_date
+		note.flags.ignore_permissions = True
+		note.insert()
+		note.submit()
+	finally:
+		frappe.set_user(was)
+
+	return note.name
+
+
+def make_sales_invoice(delivery_note: str, key: str, allocate_advances: bool = False) -> str | None:
+	"""Bill a Delivery Note. Safe to call twice with one key.
+
+	Submitted, because an invoice sitting in draft is a sale nobody has recorded - and the
+	whole reason a primary sale is ours is that it reaches the ledger.
+
+	`allocate_advances` sets **ERPNext's own switch**, which makes it run `set_advances()` during
+	validate and put the party's outstanding advance Payment Entries against this invoice. Off by
+	default, so nothing that bills without asking changes behaviour; a season dispatch asks,
+	because a party that paid an advance in November and is billed in February would otherwise
+	receive an invoice for the whole amount with their own money sitting unallocated on their
+	account - an overstated receivable that somebody has to journal by hand.
+
+	Deliberately ERPNext's switch rather than advance rows of our own: which advance covers which
+	invoice, in which currency, to what exchange gain, is accounting ERPNext already does, and a
+	second implementation of it here would be a second answer to reconcile.
+	"""
+	column = _assert_keyed("Sales Invoice")
+
+	existing = posted_for_key("Sales Invoice", key)
+	if existing:
+		return existing
+
+	from erpnext.stock.doctype.delivery_note.delivery_note import make_sales_invoice as _from_dn
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		invoice = _from_dn(delivery_note)
+		if not invoice.get("items"):
+			return None
+		invoice.set(column, key)
+		if allocate_advances:
+			invoice.allocate_advances_automatically = 1
+		invoice.flags.ignore_permissions = True
+		invoice.insert()
+		invoice.submit()
+	finally:
+		frappe.set_user(was)
+
+	return invoice.name
+
+
+def make_delivery_trip(delivery_notes: list[str], key: str, vehicle: str, departure_time,
+                       **fields) -> str | None:
+	"""One vehicle, several drops. Safe to call twice with one key.
+
+	`vehicle` and `departure_time` are required because ERPNext requires them - a Delivery Trip
+	will not save without them, draft or not. That is the right rule and worth passing on rather
+	than working around: a trip is a specific van leaving at a specific time, and one without
+	either is a list of addresses.
+
+	Left as a **draft**, unlike everything else here. The route is still being planned, the
+	driver may not be assigned, and submitting it says the trip is happening when nobody has
+	agreed to drive it.
+	"""
+	column = _assert_keyed("Delivery Trip")
+
+	existing = posted_for_key("Delivery Trip", key)
+	if existing:
+		return existing
+
+	notes = [name for name in (delivery_notes or []) if name]
+	if not notes:
+		return None
+
+	if not (vehicle and departure_time):
+		frappe.throw(frappe._(
+			"A delivery trip needs a vehicle and a departure time. ERPNext will not save one "
+			"without them, and neither should we - a trip without either is a list of "
+			"addresses."))
+
+	from erpnext.stock.doctype.delivery_note.delivery_note import make_delivery_trip as _from_dn
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		trip = _from_dn(notes[0])
+		for extra in notes[1:]:
+			other = _from_dn(extra)
+			for stop in other.get("delivery_stops") or []:
+				trip.append("delivery_stops", stop.as_dict(no_default_fields=True))
+		trip.set(column, key)
+		trip.vehicle = vehicle
+		trip.departure_time = departure_time
+		for field, value in fields.items():
+			if value:
+				trip.set(field, value)
+		trip.flags.ignore_permissions = True
+		trip.insert()
+	finally:
+		frappe.set_user(was)
+
+	return trip.name
+
+
+# --------------------------------------------------------------------------------------
+# stock reservation — ERPNext holds the stock, we only say who gets it
+# --------------------------------------------------------------------------------------
+#
+# A season's allocation is a FieldMate decision; the **record** of it is ERPNext's. There is no
+# FieldMate Allocation doctype and there should not be one: a second table of who-gets-what would
+# be a second answer to a question the warehouse already answers, and the two would disagree the
+# first time somebody delivered something. The Stock Reservation Entry is the record, reverting
+# is cancelling it, and a figure nobody can tie back to a reservation is not an allocation.
+#
+# Everything below is guarded on the feature being switched on. `enable_stock_reservation` is off
+# on a fresh ERPNext, and a site that has not switched it on should be told that plainly rather
+# than find allocation quietly doing nothing.
+
+
+def stock_reservation_enabled() -> bool:
+	"""Is ERPNext's stock reservation switched on for this site?"""
+	try:
+		return bool(cint(frappe.db.get_single_value("Stock Settings", "enable_stock_reservation")))
+	except Exception:
+		# A version of ERPNext without the setting at all. Treated as off rather than as an
+		# error: the rest of the app has nothing to do with reservation and must keep working.
+		return False
+
+
+def available_to_reserve(item_code: str, warehouse: str) -> float:
+	"""Actual qty less what is already reserved, for one item in one warehouse.
+
+	ERPNext's own figure, not a count of our own. What is physically there and what is already
+	promised are both its business, and a second opinion about either is how an allocation comes
+	to promise stock twice.
+	"""
+	if not (item_code and warehouse) or not stock_reservation_enabled():
+		return 0.0
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		get_available_qty_to_reserve,
+	)
+
+	return flt(get_available_qty_to_reserve(item_code, warehouse))
+
+
+def reserve_for_sales_order(sales_order: str, lines: list[dict]) -> int:
+	"""Reserve stock against named Sales Order lines. Returns how many entries were made.
+
+	`lines` is `[{"sales_order_item": ..., "warehouse": ..., "qty": ...}]`. ERPNext decides
+	whether each one can be met; a line it cannot meet is simply not reserved, which is the
+	right behaviour for an allocation - the point of allocating short stock is that somebody
+	gets less than they asked for.
+
+	Posted as Administrator for the same reason a Sales Order is: reserving stock is a warehouse
+	action and no field role holds write on it (ADR-004).
+	"""
+	if not lines or not stock_reservation_enabled():
+		return 0
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		create_stock_reservation_entries_for_so_items,
+	)
+
+	details = [
+		{"sales_order_item": row["sales_order_item"], "warehouse": row["warehouse"],
+		 "qty_to_reserve": flt(row["qty"])}
+		for row in lines if flt(row.get("qty")) > 0
+	]
+	if not details:
+		return 0
+
+	before = len(reserved_for_sales_order(sales_order))
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		doc = frappe.get_doc("Sales Order", sales_order)
+		doc.flags.ignore_permissions = True
+		create_stock_reservation_entries_for_so_items(doc, items_details=details, notify=False)
+	finally:
+		frappe.set_user(was)
+
+	return len(reserved_for_sales_order(sales_order)) - before
+
+
+def reserved_for_sales_order(sales_order: str) -> list[dict]:
+	"""What is reserved against this Sales Order right now, per line."""
+	if not sales_order or not stock_reservation_enabled():
+		return []
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		get_sre_details_for_voucher,
+	)
+
+	return get_sre_details_for_voucher("Sales Order", sales_order) or []
+
+
+def release_reservations(sales_order: str) -> int:
+	"""Cancel every reservation against this Sales Order. Returns how many went.
+
+	Safe to call on an order with none - reverting an allocation that was never applied is the
+	ordinary state of a Desk button somebody pressed twice, not an error worth raising.
+
+	Anything already delivered is left alone: ERPNext excludes a Delivered entry from the list,
+	and stock that has gone out of the door is not something an allocation can take back.
+	"""
+	if not sales_order or not stock_reservation_enabled():
+		return 0
+
+	from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+		cancel_stock_reservation_entries,
+	)
+
+	held = reserved_for_sales_order(sales_order)
+	if not held:
+		return 0
+
+	was = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		cancel_stock_reservation_entries(
+			voucher_type="Sales Order", voucher_no=sales_order, notify=False)
+	finally:
+		frappe.set_user(was)
+
+	return len(held)
 
 
 def cancel_sales_order(name: str) -> None:

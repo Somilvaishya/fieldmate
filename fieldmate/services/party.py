@@ -41,13 +41,19 @@ def credit_days(customer: str | None) -> int | None:
 		fields=["payment_term", "credit_days", "credit_months", "due_date_based_on"],
 		limit_page_length=0,
 	)
-	latest = None
-	for row in rows:
-		days = _days_in(row)
-		if days is None:
-			continue
-		latest = days if latest is None else max(latest, days)
-	return latest
+	if not rows:
+		return None
+
+	# Zero is an answer, not an absence. `credit_days` is an Int column and so cannot tell a
+	# deliberate zero from an empty field - but a Payment Terms Template row only exists because
+	# somebody configured one, and a row reading "100% of it, zero days after the invoice date"
+	# is how ERPNext spells payable on delivery. It puts the invoice date in `due_date` for that
+	# row, so this says nothing different. None is kept for the one case that really is an
+	# absence: no template anywhere in the chain.
+	#
+	# Found on testerp2, where a template named "15 Days" had nothing in its Credit Days field.
+	# Answering None there hid the misconfiguration; answering 0 shows it.
+	return max(_days_in(row) for row in rows)
 
 
 def payment_terms_template(customer: str | None) -> str | None:
@@ -144,11 +150,13 @@ def _template_for(customer: str | None) -> str | None:
 	return frappe.db.get_value("Company", company, "payment_terms") if company else None
 
 
-def _days_in(row) -> int | None:
-	"""One template row restated as days from the invoice date.
+def _days_in(row) -> int:
+	"""One template row restated as days from the invoice date. Zero is a valid answer.
 
-	A blank row falls back to the Payment Term master it names: ERPNext copies the master's values
-	into the row when you pick one, but a row written by an import or a patch may not have been.
+	A row holding neither falls back to the Payment Term master it names: ERPNext copies the
+	master's values into the row when you pick one, but a row written by an import or a patch may
+	not have been. The fallback cannot tell a deliberate zero from an empty row either, and reads
+	the master in both cases - which costs one query and answers the same zero.
 	"""
 	days, months, basis = row.get("credit_days"), row.get("credit_months"), \
 		row.get("due_date_based_on")
@@ -160,7 +168,7 @@ def _days_in(row) -> int | None:
 		basis = basis or master.get("due_date_based_on")
 
 	if basis == "Month(s) after the end of the invoice month":
-		return cint(months) * DAYS_IN_MONTH or None
+		return cint(months) * DAYS_IN_MONTH
 	# Both remaining bases count in days. "After the end of the invoice month" adds however many
 	# days are left in that month, which depends on an invoice date we do not have here.
-	return cint(days) or None
+	return cint(days)

@@ -47,6 +47,12 @@ import Icon from '../components/Icon.vue'
 const route = useRoute()
 const router = useRouter()
 const outlet = computed(() => String(route.params.outlet || ''))
+// The kind of party, from the query string. Absent means a shop, which is every link this app
+// wrote before primary orders existed.
+const partyType = computed(() => route.query.party || null)
+// What to put back on the next link. An empty object for a shop, so every URL this app
+// already writes stays exactly as it was.
+const keepParty = computed(() => (partyType.value ? { party: partyType.value } : {}))
 
 // Top-level bindings so the template unwraps them. A module namespace (`cart.totals`) is not
 // unwrapped by Vue's template compiler and renders as "[object Object]".
@@ -72,9 +78,9 @@ const refreshing = ref(false)
 const adding = ref(null)
 const actionError = ref('')
 
-const cartRoute = computed(() => ({ name: 'order-cart', params: { outlet: outlet.value } }))
-const catalogueRoute = computed(() => ({ name: 'order-catalogue', params: { outlet: outlet.value } }))
-const reviewRoute = computed(() => ({ name: 'order-review', params: { outlet: outlet.value } }))
+const cartRoute = computed(() => ({ name: 'order-cart', params: { outlet: outlet.value }, query: keepParty.value }))
+const catalogueRoute = computed(() => ({ name: 'order-catalogue', params: { outlet: outlet.value }, query: keepParty.value }))
+const reviewRoute = computed(() => ({ name: 'order-review', params: { outlet: outlet.value }, query: keepParty.value }))
 
 // -------------------------------------------------------------------------------------- money
 
@@ -340,7 +346,7 @@ onMounted(async () => {
   // Already open on this shop: the rep walked in from the cart and everything is priced. Opening
   // again would spend a round trip and re-read a cart that is already on the screen.
   if (cart.outlet.value !== outlet.value || !catalogue.value) {
-    await cart.openOutlet(outlet.value)
+    await cart.openOutlet(outlet.value, { type: partyType.value })
   }
   const shop = await db.records.get(['FieldMate Outlet', outlet.value])
   tier.value = (shop && shop.outlet_class) || null

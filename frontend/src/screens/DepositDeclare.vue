@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
+import { pdcStatus } from '../lib/season'
 import Icon from '../components/Icon.vue'
 
 const CHANNELS = [
@@ -30,6 +31,26 @@ const selected = computed(() => rows.value.filter((r) => picked.value.has(r.name
 const selectedTotal = computed(() => selected.value.reduce((t, r) => t + r.amount, 0))
 const cheques = computed(() => selected.value.filter((r) => ['Cheque', 'DD'].includes(r.mode)))
 const cash = computed(() => selected.value.filter((r) => !['Cheque', 'DD'].includes(r.mode)))
+
+/**
+ * The post-dated ones, kept apart from the rest of the envelope.
+ *
+ * A cheque dated three weeks out still goes in - the office holds it until it falls due - but it
+ * is not money, and lumping it in with the ordinary cheques told the rep two untrue things at
+ * once: that it was bankable today, and, for three weeks afterwards, nothing at all about why it
+ * had not cleared. It is also the figure that decides whether a season booking is released, which
+ * is the reason the rep is the person who has to know.
+ *
+ * `is_pdc` is the server's own verdict, against the server's own date. A handset whose clock is a
+ * week out would otherwise call a cheque bankable when the bank will refuse it.
+ */
+function pdc(row) {
+  return pdcStatus(row)
+}
+
+const pdcs = computed(() => selected.value.filter((r) => pdc(r).isPdc))
+const bankable = computed(() => cheques.value.filter((r) => !pdc(r).isPdc))
+const pdcTotal = computed(() => pdcs.value.reduce((t, r) => t + r.amount, 0))
 
 const ready = computed(() => selected.value.length > 0 && referenceNo.value.trim().length > 0)
 
@@ -121,6 +142,12 @@ async function submit() {
       <div class="card tiles tnum">
         <div><span class="label">Cash</span><b>{{ formatRupees(inHand.cash_amount) }}</b></div>
         <div><span class="label">Cheques</span><b>{{ formatRupees(inHand.cheque_amount) }}</b></div>
+        <!-- Part of the cheque figure beside it, not on top: the money is in the envelope
+             either way, it simply will not clear until its date. -->
+        <div v-if="inHand.pdc_amount">
+          <span class="label">Post-dated</span>
+          <b class="late">{{ formatRupees(inHand.pdc_amount) }}</b>
+        </div>
         <div><span class="label">In hand</span><b>{{ formatRupees(inHand.total_amount) }}</b></div>
       </div>
 
@@ -136,6 +163,12 @@ async function submit() {
             {{ row.collection_date }} · {{ row.mode }}
             <template v-if="row.instrument_no">· {{ row.instrument_no }}</template>
             · {{ row.receipt_no }}
+          </span>
+          <!-- Said on the row itself, not only in a tally at the bottom. The rep is ticking
+               these one at a time and this is the one they must not read as cash. -->
+          <span v-if="pdc(row).isPdc" class="pdc tnum">
+            <Icon name="timer" size="14" />
+            Dated {{ pdc(row).dueOn }} — not bankable yet
           </span>
         </div>
         <b class="tnum amt">{{ formatRupees(row.amount) }}</b>
@@ -162,12 +195,31 @@ async function submit() {
         <input id="where" v-model="depositedAt" placeholder="SBI Main Market CDM #02" />
       </div>
 
-      <div v-if="cheques.length" class="card">
+      <div v-if="bankable.length" class="card">
         <span class="label">Cheques in the envelope</span>
-        <div v-for="c in cheques" :key="c.name" class="chq tnum">
+        <div v-for="c in bankable" :key="c.name" class="chq tnum">
           <span>{{ c.instrument_no || 'no number' }} · {{ c.party }}</span>
           <b>{{ formatRupees(c.amount) }}</b>
         </div>
+      </div>
+
+      <!-- Its own block, with what it is waiting for on every line. These still go in - the
+           office holds them - and a rep who hands one over believing it is money will tell a
+           party their booking is released when it is not. -->
+      <div v-if="pdcs.length" class="card late-card">
+        <span class="label">Post-dated cheques</span>
+        <div v-for="c in pdcs" :key="c.name" class="chq tnum">
+          <span>
+            {{ c.instrument_no || 'no number' }} · {{ c.party }}
+            <em>due {{ c.instrument_date }}</em>
+          </span>
+          <b>{{ formatRupees(c.amount) }}</b>
+        </div>
+        <p class="small">
+          <Icon name="info" size="15" />
+          Hand these in with the rest. The office holds each one until its date — nothing clears,
+          and no booking is released, before then.
+        </p>
       </div>
 
       <p v-if="error" class="err" role="alert"><Icon name="alert" size="18" /> {{ error }}</p>
@@ -176,6 +228,9 @@ async function submit() {
         <p class="muted note tnum">
           Declaring {{ formatRupees(selectedTotal) }} ·
           {{ cash.length }} cash, {{ cheques.length }} cheque{{ cheques.length === 1 ? '' : 's' }}
+          <template v-if="pdcTotal">
+            <br />of which {{ formatRupees(pdcTotal) }} is post-dated and will not clear yet
+          </template>
         </p>
         <button class="btn-primary" :disabled="busy || !ready" @click="submit">
           {{ busy ? 'Recording…' : 'Declare ' + formatRupees(selectedTotal) }}
@@ -231,6 +286,15 @@ h1 { margin: 0; font-size: 20px; }
 
 .chq { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
 .chq + .chq { border-top: 1px solid var(--line); }
+.chq em { font-style: normal; color: var(--muted); }
+
+/* Post-dated money. Marked in the warning colour everywhere it appears, because what is wrong
+   about it is not an error - it is a date. */
+.late { color: var(--warn); }
+.late-card { border-color: var(--warn); }
+.late-card .label { color: var(--warn); }
+.pdc { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--warn);
+       font-weight: 600; }
 
 .bottom { padding-top: 18px; }
 .note { text-align: center; margin: 0 0 8px; font-size: 14px; }

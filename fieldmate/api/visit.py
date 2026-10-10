@@ -30,7 +30,12 @@ def check_in(device_uuid: str | None = None, _device=None, **kwargs):
 	"""Arrive at a shop. Idempotent on client_uuid."""
 	payload = parse_json(kwargs.get("payload"), "payload") or kwargs
 	payload.setdefault("device_id", _device.name)
-	return ok(visit_service.check_in(_me(), payload))
+	try:
+		return ok(visit_service.check_in(_me(), payload))
+	except visit_service.OpenVisitError as e:
+		# Translated here, as every service error is: the service stays free of the API layer and
+		# the client still gets a code it can branch on, with the open visit beside it.
+		raise FieldMateError(Err.VISIT_OPEN_ELSEWHERE, str(e), open_visit=e.visit) from e
 
 
 @frappe.whitelist()

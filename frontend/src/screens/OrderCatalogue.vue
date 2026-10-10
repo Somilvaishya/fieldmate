@@ -63,6 +63,13 @@ const notice = ref(null)
 const busy = ref(false)
 
 const outlet = computed(() => route.params.outlet)
+// The kind of party, from the query string. Absent means a shop, which is every link this
+// app wrote before primary orders existed.
+const partyType = computed(() => route.query.party || null)
+// What to put back on the next link. An empty object for a shop, so every URL this app
+// already writes stays exactly as it was.
+const keepParty = computed(() => (partyType.value ? { party: partyType.value } : {}))
+
 const currency = computed(() => catalogue.value?.currency || null)
 const symbol = computed(() => symbolFor(currency.value))
 
@@ -76,7 +83,7 @@ async function open(name) {
   // three round trips on a market uplink.
   const held = cart.outlet.value === name && !!cart.catalogue.value
   shownCount.value = PAGE
-  await Promise.all([cart.openOutlet(name, { refresh: !held }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
 }
 
 onMounted(() => open(outlet.value))
@@ -435,7 +442,7 @@ async function repeatLastOrder() {
       )
       return
     }
-    router.push({ name: 'order-cart', params: { outlet: outlet.value } })
+    router.push({ name: 'order-cart', params: { outlet: outlet.value }, query: keepParty.value })
   } catch (e) {
     say(e.message || 'The last order could not be loaded.', 'crit')
   } finally {
@@ -511,10 +518,15 @@ const emptyReason = computed(() => {
         </div>
       </header>
 
-      <!-- Credit before the cart, never as a rejection after it. -->
+      <!-- Credit before the cart, never as a rejection after it.
+
+           Named, not anonymous. These are the **distributor's** figures with us, and this header
+           called them "Credit headroom" on a shop's own screen - so a rep standing in a kirana
+           read the distributor's limit as that kirana's. The shop's own debt to its distributor
+           is a different number and sits on the line below. -->
       <div class="credit" :class="creditView.tone">
         <div class="crow">
-          <span>Credit headroom</span>
+          <span>{{ creditView.party_name || 'The distributor' }} owes us</span>
           <b v-if="creditView.state === 'within' || creditView.state === 'breach'" class="tnum">
             {{ money(creditView.headroom_paise) }}
           </b>
@@ -531,8 +543,17 @@ const emptyReason = computed(() => {
         </p>
         <p v-else class="cnote">
           {{ creditOffline
-            ? 'This shop’s credit has not reached this phone yet. You can still take the order.'
-            : 'No credit limit is recorded for this shop.' }}
+            ? 'The distributor’s credit has not reached this phone yet. You can still take the order.'
+            : 'No credit limit is recorded for this distributor.' }}
+        </p>
+
+        <!-- This shop's own debt, where somebody has set it a limit. A zero limit cannot be told
+             from no limit at all, so a shop nobody has given one is not shown as having no room.
+             Our own count, and it says so. -->
+        <p v-if="creditView.shop_has_limit" class="cnote tnum shop">
+          This shop owes {{ money(creditView.shop_outstanding_paise) }}
+          of {{ money(creditView.shop_limit_paise) }} &middot;
+          <em>our own count</em>
         </p>
       </div>
 
@@ -666,6 +687,10 @@ const emptyReason = computed(() => {
               <p v-if="item.unpriceable" class="noprice">
                 <Icon name="alert" size="18" /> No price on this shop's list yet
               </p>
+              <p v-else-if="item.above_mrp" class="noprice">
+                <Icon name="alert" size="18" />
+                Priced above its MRP of {{ money(toPaise(item.mrp)) }}
+              </p>
               <template v-else>
                 <p class="price">
                   <b class="tnum">{{ money(item.order_uom_rate_paise) }}</b>
@@ -708,6 +733,11 @@ const emptyReason = computed(() => {
           <!-- Quantity. Nothing here awaits the network: each tap re-prices the cart in memory. -->
           <div v-if="item.unpriceable" class="blocked">
             Ask your manager to have this priced. It cannot be ordered until it is.
+          </div>
+
+          <div v-else-if="item.above_mrp" class="blocked">
+            The list price is over the MRP on the pack, so this cannot be ordered. Ask your
+            manager to correct it.
           </div>
 
           <div v-else-if="!heldQty(item.item_code)" class="quick">
@@ -806,7 +836,7 @@ const emptyReason = computed(() => {
             No offer has fired on this order yet.
           </span>
         </div>
-        <RouterLink class="btn-primary" :to="{ name: 'order-cart', params: { outlet } }">
+        <RouterLink class="btn-primary" :to="{ name: 'order-cart', params: { outlet }, query: keepParty }">
           <Icon name="cart" size="22" /> Review order
         </RouterLink>
       </template>
@@ -857,6 +887,8 @@ h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
 .crow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
         font-size: 16px; }
 .crow b { font-size: 20px; }
+.cnote.shop { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.cnote.shop em { font-style: normal; color: var(--muted); }
 .cnote { margin: 4px 0 0; font-size: 16px; }
 .credit:not(.ok):not(.warn):not(.crit) .cnote { color: var(--muted); }
 

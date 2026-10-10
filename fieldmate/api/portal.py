@@ -17,6 +17,7 @@ from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import claim as claim_service
 from fieldmate.services import party as party_service
 from fieldmate.services import portal as portal_service
+from fieldmate.services import secondary_sales as secondary_sales_service
 
 
 def _session():
@@ -142,6 +143,44 @@ def claimable(from_date: str, to_date: str, scheme: str | None = None):
 	row = _session()
 	portal_service.may(row, "claim")
 	return ok(claim_service.claimable(row.distributor, from_date, to_date, scheme=scheme))
+
+
+# --------------------------------------------------------------------------------------
+# secondary sales — the distributor's own book, sent by the distributor
+# --------------------------------------------------------------------------------------
+
+
+@frappe.whitelist(methods=["POST"])
+@endpoint()
+def upload_secondary_sales(from_date: str, to_date: str, content: str,
+                           file_name: str | None = None):
+	"""A depot sends its own sales file.
+
+	Until now there was no way for them to. The reader, the per-distributor column mapping and
+	the bad-row tolerance have all existed since Phase 5 and were reachable only from Desk, so a
+	distributor emailed a file and somebody at this end imported it - which is a step that gets
+	skipped in a busy week, and the data that depends on it simply stops arriving.
+
+	**The distributor is taken from the session, never from the payload.** A depot sending a file
+	for somebody else's sales is the one thing this endpoint must not allow, and the only way to
+	be sure is not to accept the name at all.
+
+	Posting nothing is unchanged (ADR-023): these are the distributor's sales, and FieldMate is
+	recording them, not billing them.
+	"""
+	row = _session()
+	portal_service.may(row, "secondary_sales")
+	return ok(secondary_sales_service.import_file(
+		row.distributor, content, from_date, to_date, file_name=file_name,
+	))
+
+
+@frappe.whitelist()
+@endpoint()
+def secondary_sales_template():
+	"""The column names this reader understands, so a depot does not have to guess the header."""
+	_session()
+	return ok(secondary_sales_service.template())
 
 
 @frappe.whitelist(methods=["POST"])

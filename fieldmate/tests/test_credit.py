@@ -91,7 +91,9 @@ class TestBillingParty(CreditFixture):
 		outlet = self.make_outlet()
 		party = credit_service.billing_party(outlet.name, self.rep.name)
 		self.assertEqual(party["party"], outlet.distributor)
-		self.assertEqual(party["mode"], settings_service.ORDER_BOOKING)
+		self.assertEqual(party["kind"], settings_service.ORDER_BOOKING)
+		self.assertEqual(party["mode"], party["kind"],
+		                 "the old name, kept for a phone that has not updated")
 		self.assertEqual(party["company"], self.company)
 	def test_the_outlet_document_asks_the_same_question(self):
 		"""The controller delegates, so there is one branch and not two that drift apart."""
@@ -164,3 +166,171 @@ class TestCreditCheck(CreditFixture):
 		self.assertIn("credit limit", message)
 		self.assertTrue(message.endswith("."))
 		self.assertNotIn("FieldMate", message)
+
+class TestTheShopsOwnCreditIsMeasuredToo(CreditFixture):
+	"""A secondary sale has two debts behind it: the shop owes its distributor, and the
+	distributor owes us. Only the second was ever measured, so a kirana ten thousand overdue with
+	its distributor read as perfectly clear - and the distributor, the one who would refuse,
+	found out when the order reached their queue."""
+
+	def setUp(self):
+		super().setUp()
+		self.outlet = self.make_outlet()
+		self.set_credit_limit(self.outlet.distributor, 1_000_000)
+
+	def owes_its_distributor(self, outstanding, overdue=0):
+		"""Stand in for the soft ledger. What it counts is `test_collection`'s business."""
+		return patch.object(
+			credit_service, "_shop_position",
+			return_value={"outlet": self.outlet.name, "outlet_name": self.outlet.outlet_name,
+			              "outstanding": flt(outstanding), "overdue": flt(overdue),
+			              "credit_limit": flt(self.outlet.credit_limit), "headroom": None})
+
+	def set_shop_limit(self, amount):
+		frappe.db.set_value("FieldMate Outlet", self.outlet.name, "credit_limit", amount,
+		                    update_modified=False)
+		frappe.clear_document_cache("FieldMate Outlet", self.outlet.name)
+		self.outlet.reload()
+
+	def test_a_shop_with_no_limit_is_not_measured(self):
+		"""A Currency column is NOT NULL DEFAULT 0, so a zero cannot be told from a blank, and
+		treating the default as a ceiling would put every shop over its limit on day one."""
+		self.set_shop_limit(0)
+		with self.owing(0), self.owes_its_distributor(50_000):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+		self.assertEqual(answer["shop"]["status"], credit_service.NO_LIMIT_SET)
+		self.assertNotEqual(answer["status"], credit_service.BREACH)
+
+	def test_a_shop_within_its_limit_passes(self):
+		self.set_shop_limit(10_000)
+		with self.owing(0), self.owes_its_distributor(2_000):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+		self.assertEqual(answer["shop"]["status"], credit_service.WITHIN_LIMIT)
+		self.assertEqual(answer["shop"]["exposure"], 3_000)
+
+	def test_a_shop_over_its_limit_breaches_even_when_the_distributor_is_clear(self):
+		"""The whole point. The distributor has a million of headroom with us and the shop is
+		still over with them."""
+		self.set_shop_limit(5_000)
+		with self.owing(0), self.owes_its_distributor(4_500):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+
+		self.assertEqual(answer["shop"]["status"], credit_service.BREACH)
+		self.assertEqual(answer["status"], credit_service.BREACH,
+		                 "a caller reading one field must not be told 'within limit'")
+		self.assertIn("over the limit their distributor allows", answer["message"])
+
+	def test_the_message_says_whose_number_it_is(self):
+		"""The distributor's figure comes out of a ledger; this one is our own arithmetic over
+		orders and collections, and a rep arguing it across a counter has to know which."""
+		self.set_shop_limit(5_000)
+		with self.owing(0), self.owes_its_distributor(4_500):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+		self.assertIn("our own count", answer["message"])
+		self.assertTrue(answer["shop"]["is_our_own_count"])
+
+	def test_the_distributors_own_breach_still_wins_the_message(self):
+		"""Both over: the top-level answer stays the one ERPNext can prove."""
+		# Edited rather than appended. ERPNext allows one credit-limit row per company, and
+		# `set_credit_limit` appends - setUp has already put one there.
+		doc = frappe.get_doc("Customer", self.outlet.distributor)
+		doc.credit_limits[0].credit_limit = 1_000
+		doc.save(ignore_permissions=True)
+		self.set_shop_limit(5_000)
+		with self.owing(900), self.owes_its_distributor(4_500):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+		self.assertEqual(answer["status"], credit_service.BREACH)
+		self.assertEqual(answer["shop"]["status"], credit_service.BREACH)
+		self.assertNotIn("our own count", answer["message"],
+		                 "the provable breach is the one to read out")
+
+	def test_a_primary_sale_has_no_second_level(self):
+		"""There is only one debt there: the party we bill is the party being sold to."""
+		customer = self.outlet.distributor
+		frappe.db.set_value("Customer", customer, {"fm_tier": "Distributor",
+		                                           "fm_buys_from": "Company"},
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", customer)
+		with self.owing(0):
+			answer = credit_service.check(customer, self.rep.name, 1_000, "Customer")
+		self.assertIsNone(answer["shop"])
+
+
+class TestOneCreditAnswerForTheWholeApp(CreditFixture):
+	"""There were three ways of asking - `credit.check` for the order path,
+	`collection.outstanding_for` for the money screens, and `compat.get_credit_status` for the
+	shop screen - and they disagreed by construction: the third measured the distributor and the
+	screen labelled it as the shop's. `outlet.detail` now reads the same verdict as the order."""
+
+	def setUp(self):
+		super().setUp()
+		self.outlet = self.make_outlet()
+		self.set_credit_limit(self.outlet.distributor, 50_000)
+
+	def test_the_shop_screen_and_the_order_path_answer_with_the_same_figures(self):
+		from fieldmate.services import outlet as outlet_service
+
+		with self.owing(12_000):
+			detail = outlet_service.detail(self.outlet.name)
+			verdict = credit_service.check(self.outlet.name, self.rep.name, 0)
+
+		self.assertEqual(detail["credit"]["credit_limit"], verdict["limit"])
+		self.assertEqual(detail["credit"]["outstanding"], verdict["outstanding"])
+		self.assertEqual(detail["credit"]["status"], verdict["status"])
+
+	def test_the_keys_three_screens_already_read_are_still_there(self):
+		"""Additive on purpose. A phone that has not been updated goes on working."""
+		from fieldmate.services import outlet as outlet_service
+
+		with self.owing(12_000):
+			credit = outlet_service.detail(self.outlet.name)["credit"]
+		for key in ("credit_limit", "outstanding", "headroom", "unlimited"):
+			self.assertIn(key, credit)
+		self.assertFalse(credit["unlimited"], "a limit is set, so this is not unlimited")
+
+	def test_the_shop_screen_can_now_see_the_shops_own_debt(self):
+		"""The figure no screen could reach before: what this shop owes its distributor."""
+		from fieldmate.services import outlet as outlet_service
+
+		with self.owing(0):
+			credit = outlet_service.detail(self.outlet.name)["credit"]
+		self.assertIn("shop", credit)
+		self.assertEqual(credit["shop"]["outlet"], self.outlet.name)
+		self.assertTrue(credit["shop"]["is_our_own_count"],
+		                "said plainly wherever it is shown")
+
+
+class TestWhichSideBreached(CreditFixture):
+	"""`status` is the worse of the two levels, so on its own it cannot say which party is over -
+	and "the distributor is over" and "the shop is over" are different problems with different
+	remedies. The party's own verdict is kept beside it."""
+
+	def setUp(self):
+		super().setUp()
+		self.outlet = self.make_outlet()
+		self.set_credit_limit(self.outlet.distributor, 1_000_000)
+		frappe.db.set_value("FieldMate Outlet", self.outlet.name, "credit_limit", 5_000,
+		                    update_modified=False)
+		frappe.clear_document_cache("FieldMate Outlet", self.outlet.name)
+
+	def shop_owes(self, amount):
+		return patch.object(credit_service, "_shop_position", return_value={
+			"outlet": self.outlet.name, "outlet_name": self.outlet.outlet_name,
+			"outstanding": flt(amount), "overdue": 0.0, "credit_limit": 5_000.0,
+			"headroom": None})
+
+	def test_the_distributors_own_verdict_survives_the_merge(self):
+		with self.owing(0), self.shop_owes(9_000):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+
+		self.assertEqual(answer["status"], credit_service.BREACH, "the verdict is the worse one")
+		self.assertNotEqual(answer["party_status"], credit_service.BREACH,
+		                    "but the distributor is not the one over")
+		self.assertEqual(answer["shop"]["status"], credit_service.BREACH)
+
+	def test_the_partys_own_message_survives_too(self):
+		"""A screen that wants to name the distributor's position still can."""
+		with self.owing(0), self.shop_owes(9_000):
+			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
+		self.assertNotIn("our own count", answer["party_message"])
+		self.assertIn("our own count", answer["message"])
