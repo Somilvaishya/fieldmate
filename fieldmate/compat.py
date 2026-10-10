@@ -885,11 +885,22 @@ def make_delivery_note(sales_order: str, key: str, posting_date=None) -> str | N
 	return note.name
 
 
-def make_sales_invoice(delivery_note: str, key: str) -> str | None:
+def make_sales_invoice(delivery_note: str, key: str, allocate_advances: bool = False) -> str | None:
 	"""Bill a Delivery Note. Safe to call twice with one key.
 
 	Submitted, because an invoice sitting in draft is a sale nobody has recorded - and the
 	whole reason a primary sale is ours is that it reaches the ledger.
+
+	`allocate_advances` sets **ERPNext's own switch**, which makes it run `set_advances()` during
+	validate and put the party's outstanding advance Payment Entries against this invoice. Off by
+	default, so nothing that bills without asking changes behaviour; a season dispatch asks,
+	because a party that paid an advance in November and is billed in February would otherwise
+	receive an invoice for the whole amount with their own money sitting unallocated on their
+	account - an overstated receivable that somebody has to journal by hand.
+
+	Deliberately ERPNext's switch rather than advance rows of our own: which advance covers which
+	invoice, in which currency, to what exchange gain, is accounting ERPNext already does, and a
+	second implementation of it here would be a second answer to reconcile.
 	"""
 	column = _assert_keyed("Sales Invoice")
 
@@ -906,6 +917,8 @@ def make_sales_invoice(delivery_note: str, key: str) -> str | None:
 		if not invoice.get("items"):
 			return None
 		invoice.set(column, key)
+		if allocate_advances:
+			invoice.allocate_advances_automatically = 1
 		invoice.flags.ignore_permissions = True
 		invoice.insert()
 		invoice.submit()

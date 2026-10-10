@@ -54,6 +54,18 @@ def targets(prefix: str = "G_"):
         # apart from the top or Frappe refuses at the first back-link it meets.
         ("Sales Invoice", {"fm_source_key": ["like", "CLAIM:%"],
                            "customer": ["like", f"{prefix}-DIST-%"]}),
+        # Phase 2 next, and strictly in this order. A Payment Entry references an invoice, an
+        # invoice is made against a Delivery Note, a note ships a Sales Order, and ERPNext
+        # refuses to cancel a Sales Order while a reservation is still holding stock for it -
+        # so a list in any other order stops at the first back-link and leaks the rest.
+        ("Payment Entry", {"party": ["like", f"{prefix}-DIST-%"]}),
+        ("Sales Invoice", {"customer": ["like", f"{prefix}-DIST-%"]}),
+        ("Delivery Note", {"customer": ["like", f"{prefix}-DIST-%"]}),
+        # Matched on the item, which is the only field on a reservation that carries a gate
+        # prefix. The gate reverts its own allocation first; this is for the run that died
+        # before it got there.
+        ("Stock Reservation Entry", {"item_code": ["like", f"{prefix}-ITEM-%"]}),
+
         # A primary order posts one of these, so a gate that books one leaves it behind.
         ("Sales Order", {"customer": ["like", f"{prefix}-DIST-%"]}),
         ("FieldMate Order Ingest Log", {"acted_by": ["like", f"{prefix.lower()}%@fieldmate.test"]}),
@@ -86,9 +98,22 @@ def targets(prefix: str = "G_"):
         ("Holiday List", {"name": ["like", f"{prefix}-HOL-%"]}),
         # No FieldMate Distributor Profile above this any more - the Customer IS the distributor.
         ("Customer", {"customer_name": ["like", f"{prefix}-DIST-%"]}),
+        # A booking links to its season, so the season goes after the orders above.
+        ("FieldMate Season", {"season_name": ["like", f"{prefix}-SEASON-%"]}),
+        ("FieldMate Share Link", {"token": ["is", "set"], "catalogue": ["like", f"{prefix}-CAT-%"]}),
+        # Named on the Sales Order, so it cannot go before one.
+        ("Payment Terms Template", {"name": ["like", f"{prefix}-PTT-%"]}),
+        # A Stock Entry has no name of its own to match, so the gate stamps its remarks. The
+        # receipt can only go once the Delivery Note that consumed it has, which is why it sits
+        # here and not with the documents above.
+        ("Stock Entry", {"remarks": ["like", f"{prefix}-%"]}),
         ("Item Price", {"item_code": ["like", f"{prefix}-ITEM-%"]}),
         ("FieldMate Product Catalogue", {"catalogue_name": ["like", f"{prefix}-CAT-%"]}),
         ("Item", {"item_code": ["like", f"{prefix}-ITEM-%"]}),
+        # After every Item Price on it. A season prices from a list of its own, so each run
+        # leaves one behind - and a stray selling list is not harmless: the gates resolve "the"
+        # selling list and a second one moves the answer.
+        ("Price List", {"name": ["like", f"{prefix}-SEASON-PL-%"]}),
         ("Territory", {"name": ["like", f"{prefix}-TERR-%"]}),
     ]
 

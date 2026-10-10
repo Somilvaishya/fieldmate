@@ -126,13 +126,21 @@ def invoice(season: str, delivery_notes: list[str] | None = None) -> dict:
 
 	A note already invoiced is returned as it is rather than billed again - the key is on the
 	note, so a run restarted after a timeout finds the invoices it already made.
+
+	**The advance is put against the invoice.** A season is bought months before it is delivered,
+	so by the time this runs the party has already paid - and an invoice raised without their
+	advance on it bills them for money they have handed over. The receivable is overstated, the
+	Payment Entry sits unallocated on their account, and the correction is a journal somebody
+	does by hand in February. ERPNext allocates it itself once asked; see
+	`compat.make_sales_invoice`.
 	"""
 	notes = delivery_notes or notes_for(season)
 
 	invoices, skipped = [], []
 	for note in notes:
 		try:
-			name = compat.make_sales_invoice(note, _invoice_key(note))
+			name = compat.make_sales_invoice(note, _invoice_key(note),
+			                                 allocate_advances=True)
 		except Exception as e:
 			frappe.log_error(title=f"fieldmate: invoicing {note}")
 			skipped.append({"delivery_note": note, "reason": str(e)[:200]})

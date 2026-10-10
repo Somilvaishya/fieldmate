@@ -11,7 +11,7 @@ nobody re-reads the plan in six months and 'fixes' it.
 """
 
 import frappe
-from frappe.utils import now_datetime, today
+from frappe.utils import flt, now_datetime, today
 
 from fieldmate import compat
 from fieldmate.services import allocation as allocation_service
@@ -310,3 +310,115 @@ class TestWhereTheSeasonHasGotTo(DispatchFixture):
 		invoice = dispatch_service.invoice(self.season)["invoiced"][0]["sales_invoice"]
 		self.track("Sales Invoice", invoice)
 		self.assertEqual(dispatch_service.position(self.season)["billed"], 1)
+
+
+class TestTheAdvanceOnTheBill(DispatchFixture):
+	"""A season is bought months before it is delivered, so by the time the invoice goes out the
+	party has already paid part of it.
+
+	**The invoice has to carry that advance.** Without it the party is billed for money they
+	handed over in November, their Payment Entry sits unallocated on their account, and the
+	receivable is overstated until somebody finds it and journals it by hand in February. It is
+	also the plan's own criterion for this phase - "a released dispatch plan produces Delivery
+	Notes and invoices with advances allocated" - and the gate script found it missing.
+
+	ERPNext allocates it itself once asked, through `allocate_advances_automatically`. That is
+	deliberately its switch and not advance rows of ours: which advance covers which invoice, in
+	which currency, to what exchange gain, is accounting ERPNext already does, and a second
+	implementation here would be a second answer to reconcile.
+	"""
+
+	def manager(self):
+		"""Somebody other than the rep: a deposit cannot be confirmed by whoever declared it."""
+		user = frappe.get_doc({
+			"doctype": "User", "email": f"{self.uid('mgr')}@fieldmate.test".lower(),
+			"first_name": "Manager", "send_welcome_email": 0,
+			"roles": [{"role": "FieldMate Area Manager"}],
+		}).insert(ignore_permissions=True)
+		self.track("User", user.name)
+		return user.name
+
+	def advance(self, order, amount):
+		"""Money in, declared and confirmed, so there is a Payment Entry for ERPNext to find.
+
+		All three steps, because the first two post nothing (ADR-004). An advance that has only
+		been collected is money the rep says they took; it becomes something ERPNext can allocate
+		when somebody at the office agrees it arrived.
+		"""
+		result = self.as_rep(collection_service.create, {
+			"party_type": "Distributor", "distributor": self.party, "amount": amount,
+			"mode": "Cash", "client_uuid": self.uid("COL"),
+			"allocations": [{"reference_type": "FieldMate Order", "reference_name": order,
+			                 "allocated_amount": amount}],
+		}, self.rep.name)
+		collection = self.track("FieldMate Collection", result["name"])
+
+		deposit = self.as_rep(collection_service.declare_deposit, {
+			"collections": [collection], "channel": "Bank Branch",
+			"reference_no": self.uid("SLIP")[:20], "client_uuid": self.uid("DEP"),
+		}, self.rep.name)
+		self.track("FieldMate Collection Deposit", deposit["name"])
+		collection_service.confirm_deposit(deposit["name"], confirmed_by=self.manager())
+
+		entry = frappe.db.get_value("FieldMate Collection", collection, "payment_entry")
+		self.assertTrue(entry, "confirming the deposit posted no Payment Entry")
+		self.track("Payment Entry", entry)
+		return entry
+
+	def bill(self):
+		invoice = dispatch_service.invoice(self.season)["invoiced"][0]["sales_invoice"]
+		return self.track("Sales Invoice", invoice)
+
+	def allocated_on(self, invoice, entry):
+		return sum(flt(row.allocated_amount) for row in frappe.get_all(
+			"Sales Invoice Advance",
+			filters={"parent": invoice, "reference_name": entry},
+			fields=["allocated_amount"]))
+
+	def test_the_advance_is_put_against_the_invoice(self):
+		order, _ = self.allocated()
+		entry = self.advance(order, 300)
+		note = dispatch_service.deliver(self.season)["delivered"][0]["delivery_note"]
+		self.track("Delivery Note", note)
+
+		invoice = self.bill()
+		self.assertEqual(self.allocated_on(invoice, entry), 300)
+
+	def test_what_is_still_owed_is_what_is_left(self):
+		"""The figure the party is chased for, and the one that was wrong: billed in full against
+		an advance already paid."""
+		order, _ = self.allocated()
+		self.advance(order, 300)
+		note = dispatch_service.deliver(self.season)["delivered"][0]["delivery_note"]
+		self.track("Delivery Note", note)
+
+		invoice = self.bill()
+		doc = frappe.get_doc("Sales Invoice", invoice)
+		self.assertEqual(flt(doc.outstanding_amount, 2),
+		                 flt(flt(doc.grand_total) - 300, 2))
+
+	def test_an_invoice_with_no_advance_behind_it_carries_none(self):
+		"""Asking ERPNext to allocate is not the same as it inventing something to allocate."""
+		self.allocated()
+		note = dispatch_service.deliver(self.season)["delivered"][0]["delivery_note"]
+		self.track("Delivery Note", note)
+
+		invoice = self.bill()
+		self.assertEqual(
+			frappe.db.count("Sales Invoice Advance", {"parent": invoice}), 0)
+		doc = frappe.get_doc("Sales Invoice", invoice)
+		self.assertEqual(flt(doc.outstanding_amount, 2), flt(doc.grand_total, 2))
+
+	def test_an_advance_bigger_than_the_bill_is_not_over_allocated(self):
+		"""A party that paid for the whole season up front, delivered in two lorries. The first
+		invoice may take what it is worth and no more - allocating the rest would credit them
+		twice when the second one goes out."""
+		order, _ = self.allocated()
+		entry = self.advance(order, 100_000)
+		note = dispatch_service.deliver(self.season)["delivered"][0]["delivery_note"]
+		self.track("Delivery Note", note)
+
+		invoice = self.bill()
+		doc = frappe.get_doc("Sales Invoice", invoice)
+		self.assertLessEqual(self.allocated_on(invoice, entry), flt(doc.grand_total))
+		self.assertEqual(flt(doc.outstanding_amount, 2), 0.0)
