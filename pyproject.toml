@@ -15,6 +15,23 @@ dependencies = [
 requires = ["flit_core >=3.4,<4"]
 build-backend = "flit_core.buildapi"
 
+# Which host this app may be installed on. Frappe Cloud reads this to decide whether the app
+# fits a bench, and refuses to add it without the section at all.
+#
+# **erpnext only**, because that is the one app FieldMate genuinely cannot run without - it is
+# `required_apps` in hooks.py and `compat.REQUIRED_APPS` agrees. `hrms` and `india_compliance` are
+# deliberately NOT here: both are probed at runtime and the app installs and works without them
+# (`compat.OPTIONAL_APPS`, and `make_expense_claim` answers None where HRMS is absent). Listing
+# them would make Frappe Cloud demand apps that are optional by design.
+#
+# Pinned **below 16** on purpose. The minimums in `compat.MIN_VERSIONS` are 15.0, and v16/v17
+# compatibility is designed for and unverified (ADR-015) - so it is not claimed here either. When
+# a v16 bench is actually tested, this bound is the deliberate decision that has to be made,
+# rather than an app silently installing onto a host nobody has run it on.
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<16.0.0"
+erpnext = ">=15.0.0,<16.0.0"
+
 # These dependencies are only installed when developer mode is enabled
 [tool.bench.dev-dependencies]
 # package_name = "~=1.1.0"
