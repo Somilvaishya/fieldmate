@@ -704,6 +704,61 @@ def sales_order_for_key(key: str) -> str | None:
 	return frappe.db.get_value("Sales Order", {column: key, "docstatus": ["<", 2]}, "name")
 
 
+def apply_dimension_defaults(doc) -> None:
+	"""Fill the accounting dimensions a person's browser would have filled.
+
+	**ERPNext applies a dimension's per-company default in the form, and nowhere else.**
+	`dimension_tree_filter.js` calls `frm.set_value(fieldname, default_dimension)` when a document
+	is opened in Desk; no server-side path does the same. So every document this app creates is
+	missing defaults that the identical document typed into Desk would carry - the company's
+	Location, its Branch, whatever dimensions that site has configured.
+
+	That is invisible until something depends on it, and then it is not invisible at all. A bench
+	carrying `location_based_series` makes `location` mandatory on every Sales Order, Sales Invoice
+	and Delivery Note and refuses the save without it; every primary order FieldMate posted on such
+	a site failed with "Select Location before Saving", a message about a field the rep has never
+	heard of, on a screen that offers no way to supply it.
+
+	**Nothing here is invented and nothing is site-specific.** It reads the dimensions the site
+	itself enabled and the defaults the site itself set, fills only fields the document actually
+	has, and only where they are empty - so a caller that already decided a dimension keeps its
+	answer. On a site with no dimensions configured it does nothing at all.
+
+	Header only. ERPNext reads an item row's dimension where one is set and falls back to the
+	header, so the header is the faithful minimum; pushing values onto every child row would be
+	this layer deciding more than the browser does.
+	"""
+	company = doc.get("company")
+	if not company:
+		return
+
+	try:
+		from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+			get_dimensions,
+		)
+
+		dimensions, defaults = get_dimensions()
+	except Exception:
+		# A site mid-migration can have the DocType without its table, and an older ERPNext may
+		# not export this at all. A missing default is not worth failing a sale over.
+		frappe.log_error(title="fieldmate: reading accounting dimension defaults")
+		return
+
+	for_company = (defaults or {}).get(company) or {}
+	if not for_company:
+		return
+
+	meta = doc.meta
+	for dimension in dimensions or []:
+		field = dimension.get("fieldname")
+		value = for_company.get(field)
+		if not field or not value:
+			continue
+		if not meta.has_field(field) or doc.get(field):
+			continue
+		doc.set(field, value)
+
+
 def make_sales_order(payload: dict) -> str:
 	"""Turn a field order into a real company commitment. Safe to call twice with one key.
 
@@ -743,6 +798,16 @@ def make_sales_order(payload: dict) -> str:
 	for field in ("currency", "selling_price_list", "po_no", "set_warehouse", "taxes_and_charges",
 	              "payment_terms_template"):
 		if payload.get(field):
+			doc.set(field, payload[field])
+
+	# Accounting dimensions the caller settled itself, written only where the site actually has
+	# the column. A dimension is a Custom Field that exists because somebody enabled it, so on a
+	# site that never did, `location` is not a field at all - setting it would put a stray key on
+	# the document and say nothing, which is the quiet kind of wrong.
+	#
+	# Set before `apply_dimension_defaults` runs, so a choice always beats a default.
+	for field in ("location",):
+		if payload.get(field) and doc.meta.has_field(field):
 			doc.set(field, payload[field])
 
 	# Naming a tax template does not fill the tax rows. The Desk form fetches them when somebody
@@ -796,6 +861,7 @@ def make_sales_order(payload: dict) -> str:
 	try:
 		frappe.set_user("Administrator")
 		doc.flags.ignore_permissions = True
+		apply_dimension_defaults(doc)
 		doc.insert()
 		doc.submit()
 	finally:
@@ -877,6 +943,7 @@ def make_delivery_note(sales_order: str, key: str, posting_date=None) -> str | N
 			note.set_posting_time = 1
 			note.posting_date = posting_date
 		note.flags.ignore_permissions = True
+		apply_dimension_defaults(note)
 		note.insert()
 		note.submit()
 	finally:
@@ -920,6 +987,7 @@ def make_sales_invoice(delivery_note: str, key: str, allocate_advances: bool = F
 		if allocate_advances:
 			invoice.allocate_advances_automatically = 1
 		invoice.flags.ignore_permissions = True
+		apply_dimension_defaults(invoice)
 		invoice.insert()
 		invoice.submit()
 	finally:
@@ -974,6 +1042,7 @@ def make_delivery_trip(delivery_notes: list[str], key: str, vehicle: str, depart
 			if value:
 				trip.set(field, value)
 		trip.flags.ignore_permissions = True
+		apply_dimension_defaults(trip)
 		trip.insert()
 	finally:
 		frappe.set_user(was)
@@ -1255,6 +1324,7 @@ def make_expense_claim(payload: dict) -> str | None:
 	})
 
 	doc.flags.ignore_permissions = True
+	apply_dimension_defaults(doc)
 	doc.insert()
 	# Left as a draft on purpose. Submitting an Expense Claim books a liability and, on many
 	# sites, runs an approval workflow of its own that this app has no business short-circuiting.
@@ -1366,6 +1436,7 @@ def make_credit_note(payload: dict) -> str:
 	doc.append("items", line)
 
 	doc.flags.ignore_permissions = True
+	apply_dimension_defaults(doc)
 	doc.insert()
 	doc.submit()
 	return doc.name
@@ -1481,6 +1552,7 @@ def make_payment_entry(payload: dict) -> str:
 		doc.target_exchange_rate = doc.target_exchange_rate or 1
 
 	doc.flags.ignore_permissions = True
+	apply_dimension_defaults(doc)
 	doc.insert()
 	doc.submit()
 	return doc.name

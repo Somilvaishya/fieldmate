@@ -29,9 +29,29 @@ const busy = ref(false)
 const error = ref('')
 const photos = ref(0)
 
-const needsReason = computed(() => outcome.value && outcome.value !== 'Order Taken')
+const noOrder = computed(() => !!outcome.value && outcome.value !== 'Order Taken')
+
+/**
+ * A reason is required only when there is one to pick.
+ *
+ * **A rep standing in a shop must never be unable to leave.** Where a site has no No Order Reason
+ * master — which is most sites on day one — every outcome but "Order Taken" left the check-out
+ * button dead for ever, with nothing on the screen saying why. The rep cannot create the master,
+ * cannot check out, and the visit stays open until the next check-in closes it as something it
+ * was not.
+ *
+ * The server never asked for one: `visit.check_out` records the reason if it is sent, the field is
+ * not mandatory, and the auto-close path falls back to whatever reason exists or to none. This was
+ * a gate the app invented and then could not satisfy.
+ *
+ * With no reasons on the phone a **note** takes the reason's place, because a visit that recorded
+ * no order and no explanation is a visit nobody can act on.
+ */
+const canPickReason = computed(() => reasons.value.length > 0)
+const needsReason = computed(() => noOrder.value && canPickReason.value)
+const needsWords = computed(() => noOrder.value && !canPickReason.value)
 const reason = computed(() => reasons.value.find((r) => r.name === reasonName.value))
-const needsNote = computed(() => !!reason.value?.requires_note)
+const needsNote = computed(() => !!reason.value?.requires_note || needsWords.value)
 
 // A shop that was never open cannot be surveyed, so its unanswered questions are not a block.
 const shopWasOpen = computed(
@@ -41,12 +61,29 @@ const missing = computed(
   () => (shopWasOpen.value ? visitStore.unansweredRequired(visit.value) : [])
 )
 
-const ready = computed(() => {
-  if (!outcome.value) return false
-  if (needsReason.value && !reasonName.value) return false
-  if (needsNote.value && !note.value.trim()) return false
-  return missing.value.length === 0
+/**
+ * Why the button will not go, in the rep's own words — or an empty string when it will.
+ *
+ * A disabled button that says nothing is the worst control on a phone: the rep taps it, nothing
+ * happens, and they have no idea what the app is waiting for. The order review screen already
+ * says what it wants above its send button; this is the same rule in the other place a rep is
+ * stopped at a counter.
+ */
+const blocker = computed(() => {
+  if (!outcome.value) return 'Pick what came of this visit.'
+  if (needsReason.value && !reasonName.value) return 'Pick why there was no order.'
+  if (needsWords.value && !note.value.trim()) {
+    return 'No reasons have reached this phone yet, so write what happened in the note instead.'
+  }
+  if (needsNote.value && !note.value.trim()) return 'This reason needs a note.'
+  if (missing.value.length) {
+    const n = missing.value.length
+    return 'Answer ' + n + ' required ' + (n === 1 ? 'question' : 'questions') + ' in the checklist.'
+  }
+  return ''
 })
+
+const ready = computed(() => !blocker.value)
 
 const minutes = computed(() => {
   if (!visit.value?.checkInTime) return null
@@ -124,10 +161,11 @@ async function finish() {
       </button>
     </div>
 
-    <template v-if="needsReason">
+    <template v-if="noOrder">
       <h3>Why no order?</h3>
       <p v-if="!reasons.length" class="muted">
-        No reasons on this phone yet. Sync once to load them.
+        No reasons have reached this phone. Say what happened in the note below instead &mdash; you
+        can still check out.
       </p>
       <div class="chips">
         <button v-for="r in reasons" :key="r.name" type="button"
@@ -157,6 +195,7 @@ async function finish() {
     <p v-if="error" class="err">{{ error }}</p>
 
     <div class="bottom">
+      <p v-if="blocker && !busy" class="gate">{{ blocker }}</p>
       <button class="btn-primary" :disabled="!ready || busy" @click="finish">
         {{ busy ? 'Finishing…' : 'Check out' }}
       </button>
@@ -202,5 +241,8 @@ textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var
 .blocked a { color: var(--primary); }
 .err { color: var(--crit); margin-top: 14px; }
 .bottom { margin-top: auto; padding-top: 16px; display: grid; gap: 8px; }
+/* What the button is waiting for. Holds the 16px floor like every other line that gates an
+   action — a rep reads this one in a shop, standing, in bad light. */
+.gate { margin: 0; text-align: center; font-size: 16px; color: var(--muted); }
 .btn-plain { background: none; border: 1px solid var(--line); color: var(--ink); width: 100%; }
 </style>

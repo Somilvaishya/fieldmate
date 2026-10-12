@@ -57,6 +57,23 @@ const outletName = cart.outletName
 const activeVisit = visitStore.activeVisit
 const season = cart.season
 const orderKind = cart.orderKind
+const locations = cart.locations
+
+/**
+ * Which of our own branches is making this sale.
+ *
+ * ERPNext models it as an Accounting Dimension, and a site that has enabled one makes it mandatory
+ * on the Sales Order, the Delivery Note and the invoice — the document's naming series, the
+ * company address and the GSTIN can all hang off it. Nothing fills it server-side: ERPNext applies
+ * a dimension's default in the Desk form and nowhere else, so an order posted from a phone arrived
+ * with it blank and was refused with "Select Location before Saving", a message naming a field the
+ * rep has never heard of and had no way to supply.
+ *
+ * Asked only where there is something to ask. An empty list means the site has no Locations, and
+ * then nothing downstream wants the field either.
+ */
+const location = ref(null)
+const needsLocation = computed(() => weBill.value && locations.value.length > 0)
 
 const shop = ref(null)
 const distributor = ref(null)
@@ -376,6 +393,7 @@ const ready = computed(
     !isEmpty.value &&
     !stoppers.value.length &&
     !badDates.value.length &&
+    !(needsLocation.value && !location.value) &&
     readBack.value &&
     !busy.value
 )
@@ -467,6 +485,8 @@ onMounted(async () => {
   // The window's first day. Most lines of most bookings are wanted as early as they can be had,
   // which is also what the server fills a blank line with.
   bookingDate.value = defaultDeliveryDate(season.value) || ''
+  // The branch that usually serves this party. A rep covering one branch never touches this.
+  location.value = cart.defaultLocation.value || null
   if (creditDays.value === null) paymentTerm.value = 'Cash on Delivery'
   queued.value = await pendingCount()
   runCheck()
@@ -529,6 +549,7 @@ async function send() {
       deliveryInstructions: instructions.value.trim() || null,
       confirmedWith: confirmedWith.value.trim() || null,
       deliveryDates: deliveryDates.value,
+      location: location.value,
     })
     queued.value = await pendingCount()
     // `stores/order.js` reads the new order's name off `data.order`, but `fieldmate.api.order
@@ -973,6 +994,22 @@ function finish() {
           </label>
         </fieldset>
 
+        <!-- ------------------------------------------------------------ our branch -->
+        <!-- Only where the site has Locations. On every other site this is not drawn at all,
+             because a picker over nothing is a question with no answer. -->
+        <div v-if="needsLocation" class="card">
+          <label class="lbl" for="location">Which of our branches is this sale from</label>
+          <select id="location" v-model="location">
+            <option :value="null">Choose one</option>
+            <option v-for="l in locations" :key="l.name" :value="l.name">
+              {{ l.location_name || l.name }}
+            </option>
+          </select>
+          <p class="muted small">
+            It decides the branch on the order and on the bill that follows it.
+          </p>
+        </div>
+
         <!-- --------------------------------------------------------------- dispatch -->
         <div class="card slot">
           <Icon name="timer" size="22" />
@@ -1049,7 +1086,10 @@ function finish() {
         </button>
       </template>
       <template v-else>
-        <p v-if="!readBack" class="gate tnum">
+        <p v-if="needsLocation && !location" class="gate tnum">
+          Pick which of our branches this sale is from.
+        </p>
+        <p v-else-if="!readBack" class="gate tnum">
           Read the order back to the shopkeeper, then tick the box above.
         </p>
         <p v-else-if="!online" class="gate tnum">

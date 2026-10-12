@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import frappe
 
 from fieldmate import compat
@@ -169,3 +171,94 @@ class TestTheErpnextTaxDependency(FieldMateTestCase):
 		"""The fast path that most ERPNext sites take. `company=None` cannot resolve anything,
 		so it must return empty rather than query for items that were never going to be taxed."""
 		self.assertEqual(compat.item_tax_rates(["NO-SUCH-ITEM"], company=None), {})
+
+
+class TestAccountingDimensionDefaults(FieldMateTestCase):
+	"""ERPNext applies a dimension's per-company default in the **form** and nowhere else.
+
+	`dimension_tree_filter.js` calls `frm.set_value(fieldname, default_dimension)` when a document
+	is opened in Desk; no server-side path does the same. Every document this app creates is
+	therefore missing defaults that the identical document typed into Desk would carry.
+
+	That is invisible until something depends on it. A bench carrying `location_based_series`
+	makes `location` mandatory on every Sales Order, Sales Invoice and Delivery Note — and every
+	primary order FieldMate posted on such a site was refused with "Select Location before
+	Saving", a message naming a field the rep has never heard of and cannot supply.
+
+	The dimensions themselves are ERPNext's to define, so what is tested here is ours: which
+	fields get filled, which are left exactly as the caller set them, and that a site with
+	nothing configured is left completely alone.
+	"""
+
+	COMPANY = "Dimension Test Co"
+
+	def doc(self, **values):
+		"""A document stand-in with the two fields a Sales Order would have."""
+		doc = frappe.get_doc({"doctype": "Sales Order"})
+		doc.company = values.pop("company", self.COMPANY)
+		for field, value in values.items():
+			doc.set(field, value)
+		return doc
+
+	def patched(self, dimensions, defaults):
+		return patch(
+			"erpnext.accounts.doctype.accounting_dimension.accounting_dimension.get_dimensions",
+			return_value=(dimensions, defaults),
+		)
+
+	def test_an_empty_dimension_is_filled_from_the_company_default(self):
+		dimensions = [{"fieldname": "cost_center", "document_type": "Cost Center"}]
+		with self.patched(dimensions, {self.COMPANY: {"cost_center": "Main - DT"}}):
+			doc = self.doc()
+			compat.apply_dimension_defaults(doc)
+		self.assertEqual(doc.cost_center, "Main - DT")
+
+	def test_a_value_the_caller_already_chose_is_left_alone(self):
+		"""Only what a person's browser would have filled, and the browser fills blanks."""
+		dimensions = [{"fieldname": "cost_center", "document_type": "Cost Center"}]
+		with self.patched(dimensions, {self.COMPANY: {"cost_center": "Main - DT"}}):
+			doc = self.doc(cost_center="Chosen - DT")
+			compat.apply_dimension_defaults(doc)
+		self.assertEqual(doc.cost_center, "Chosen - DT")
+
+	def test_a_field_this_doctype_does_not_have_is_skipped(self):
+		"""A dimension is a custom field, and a site can enable one on some doctypes and not
+		others. Writing it blind would throw on a document that never had the column."""
+		dimensions = [{"fieldname": "fm_not_a_real_dimension", "document_type": "Location"}]
+		with self.patched(dimensions, {self.COMPANY: {"fm_not_a_real_dimension": "X"}}):
+			doc = self.doc()
+			compat.apply_dimension_defaults(doc)  # must not raise
+		self.assertFalse(doc.get("fm_not_a_real_dimension"))
+
+	def test_another_companys_default_is_not_used(self):
+		dimensions = [{"fieldname": "cost_center", "document_type": "Cost Center"}]
+		with self.patched(dimensions, {"Somebody Else": {"cost_center": "Theirs - SE"}}):
+			doc = self.doc()
+			compat.apply_dimension_defaults(doc)
+		self.assertFalse(doc.cost_center)
+
+	def test_a_site_with_no_dimensions_is_left_alone(self):
+		"""Which is most sites. Doing nothing has to be the quiet, ordinary outcome."""
+		with self.patched([], {}):
+			doc = self.doc(cost_center="Chosen - DT")
+			compat.apply_dimension_defaults(doc)
+		self.assertEqual(doc.cost_center, "Chosen - DT")
+
+	def test_a_document_with_no_company_is_left_alone(self):
+		"""Defaults are per company, so without one there is nothing to look up."""
+		dimensions = [{"fieldname": "cost_center", "document_type": "Cost Center"}]
+		with self.patched(dimensions, {self.COMPANY: {"cost_center": "Main - DT"}}):
+			doc = self.doc(company=None)
+			compat.apply_dimension_defaults(doc)
+		self.assertFalse(doc.cost_center)
+
+	def test_erpnext_failing_to_answer_does_not_fail_the_sale(self):
+		"""A site mid-migration can have the DocType without its table. A missing default is not
+		worth refusing an order over - the document is posted without it, as it was before."""
+		with patch(
+			"erpnext.accounts.doctype.accounting_dimension.accounting_dimension.get_dimensions",
+			side_effect=Exception("table is gone"),
+		):
+			doc = self.doc()
+			compat.apply_dimension_defaults(doc)  # must not raise
+		self.assertFalse(doc.cost_center)

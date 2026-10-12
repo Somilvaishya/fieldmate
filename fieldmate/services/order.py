@@ -117,6 +117,9 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 	doc.payment_term = data.get("payment_term") or "Credit"
 	doc.credit_days = cint(data.get("credit_days"))
 	doc.expected_delivery_date = data.get("expected_delivery_date")
+	# Which branch of ours is selling. The rep's choice wins; the party's usual branch is the
+	# fallback, so a site with one branch per party never asks anybody anything.
+	doc.location = data.get("location") or default_location_for(customer)
 	doc.delivery_instructions = data.get("delivery_instructions")
 	doc.confirmed_with = data.get("confirmed_with")
 	doc.remarks = data.get("remarks")
@@ -723,6 +726,45 @@ def _warehouse_for(customer: str | None) -> str | None:
 	return None if cint(frappe.get_cached_value("Warehouse", warehouse, "is_group")) else warehouse
 
 
+def default_location_for(customer: str | None) -> str | None:
+	"""Which of our branches normally sells to this party, from `Customer.fm_location`.
+
+	The default the rep is offered, not the answer: a party covered by two branches is the whole
+	reason the order carries its own `location`. Read the same way `_warehouse_for` reads the
+	depot, and a group node is refused for the same reason - a Location tree's branches are
+	folders, and posting against one is not a place.
+
+	`None` on a site that has no Locations, which is most of them.
+	"""
+	if not customer or not frappe.get_meta("Customer").has_field("fm_location"):
+		return None
+	location = frappe.db.get_value("Customer", customer, "fm_location")
+	if not location:
+		return None
+	return None if cint(frappe.get_cached_value("Location", location, "is_group")) else location
+
+
+def locations_for(company: str | None = None) -> list[dict]:
+	"""The branches a rep may book an order against.
+
+	Leaves only. A Location is a tree and its groups are folders - "Delhi" holding "Khari Baoli"
+	and "Azadpur" is a shape somebody made to tidy a list, not a place a sale happens at.
+
+	Empty where the site has no Locations at all, and the phone reads that as "do not ask": there
+	is no sense in making a rep choose from nothing, and on such a site nothing downstream wants
+	the field.
+	"""
+	if not frappe.db.table_exists("Location"):
+		return []
+	return frappe.get_all(
+		"Location",
+		filters={"is_group": 0},
+		fields=["name", "location_name"],
+		order_by="location_name asc",
+		limit_page_length=0,
+	)
+
+
 def _earliest_delivery(doc):
 	"""The header delivery date: the soonest any line is wanted, falling back to the order's own.
 
@@ -762,6 +804,15 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		# Blank leaves ERPNext to default per line from the Item, which is its ordinary
 		# behaviour and the right fallback for a company running one warehouse.
 		"set_warehouse": _warehouse_for(seller.get("party")),
+		# The branch this sale is made from. On a site that has enabled Location as an Accounting
+		# Dimension this is mandatory on the Sales Order and on everything made from it, and
+		# nothing server-side fills it - ERPNext applies a dimension's default in the form only.
+		#
+		# `doc.get`, not `doc.location`. Code and schema arrive separately: an app deployed but not
+		# yet migrated has this line and no such column, and reading the attribute off a document
+		# loaded from that database raises - so every primary order would crash in the window
+		# between a deploy and its migrate. `get` answers None there and the order posts as before.
+		"location": doc.get("location"),
 		"items": [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate,
 			 # Per line, because that is the whole point of booking a season: a party asks for

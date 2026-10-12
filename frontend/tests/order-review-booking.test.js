@@ -59,6 +59,9 @@ vi.mock('../src/stores/order', () => ({
   catalogue: state.catalogue,
   orderKind: state.orderKind,
   season: state.season,
+  // Read off the same catalogue payload the real store reads them off.
+  locations: computed(() => state.catalogue.value?.locations || []),
+  defaultLocation: computed(() => state.catalogue.value?.location || null),
   lines: computed(() =>
     state.rawLines.value.map((l) => ({
       ...l,
@@ -397,5 +400,90 @@ describe('after it is booked', () => {
       advance: { required: 10000, in_hand: 10000, short: 0, held: false, pdc_total: 0 },
     })
     expect(w.text()).toContain('goes forward to be planned')
+  })
+})
+
+describe('which of our branches is making the sale', () => {
+  // ERPNext models this as an Accounting Dimension. A site that has enabled one makes it
+  // mandatory on the Sales Order, the Delivery Note and the invoice — and **nothing fills it
+  // server-side**: the default is applied in the Desk form and nowhere else. So an order posted
+  // from a phone arrived blank and was refused with "Select Location before Saving", a message
+  // naming a field the rep has never heard of, on a screen with no way to supply it.
+
+  const BRANCHES = [
+    { name: 'LOC-KB', location_name: 'KGOPL Khari Baoli, Delhi' },
+    { name: 'LOC-AZ', location_name: 'KGOPL Azadpur, Delhi' },
+  ]
+
+  function withBranches(list, chosen = null) {
+    state.catalogue.value = {
+      price_list: 'Holi 2026 - Selling',
+      currency: 'INR',
+      locations: list,
+      location: chosen,
+    }
+  }
+
+  it('asks for one on a sale we invoice', async () => {
+    asPrimary()
+    withBranches(BRANCHES)
+    const w = await screen()
+    expect(w.find('#location').exists()).toBe(true)
+    expect(w.text()).toContain('KGOPL Khari Baoli, Delhi')
+  })
+
+  it('does not ask on a shop order, which is the distributor&apos;s sale', async () => {
+    asRetailer()
+    withBranches(BRANCHES)
+    const w = await screen()
+    expect(w.find('#location').exists()).toBe(false)
+  })
+
+  it('does not ask where the site has no branches at all', async () => {
+    // Most sites. A picker over nothing is a question with no answer.
+    asPrimary()
+    withBranches([])
+    const w = await screen()
+    expect(w.find('#location').exists()).toBe(false)
+  })
+
+  it('offers the branch that usually serves this party', async () => {
+    asPrimary()
+    withBranches(BRANCHES, 'LOC-AZ')
+    const w = await screen()
+    expect(w.find('#location').element.value).toBe('LOC-AZ')
+  })
+
+  it('will not send until one is picked, and says so', async () => {
+    asPrimary()
+    withBranches(BRANCHES)
+    const w = await screen()
+    await w.find('.attest input').setValue(true)
+    await flushPromises()
+    expect(w.find('.bottom .btn-primary').attributes('disabled')).toBeDefined()
+    expect(w.text()).toContain('Pick which of our branches')
+  })
+
+  it('sends the branch the rep chose', async () => {
+    asPrimary()
+    withBranches(BRANCHES, 'LOC-KB')
+    const w = await screen()
+    submitted.mockResolvedValue({ order: 'FM-ORD-9', offline: false, server: {} })
+    await w.find('#location').setValue('LOC-AZ')
+    await w.find('.attest input').setValue(true)
+    await w.find('.bottom .btn-primary').trigger('click')
+    await flushPromises()
+    expect(submitted.mock.calls.at(-1)[0].location).toBe('LOC-AZ')
+  })
+
+  it('sends nothing about branches on a shop order', async () => {
+    asRetailer()
+    withBranches([])
+    const w = await screen()
+    submitted.mockResolvedValue({ order: 'FM-ORD-10', offline: false, server: {} })
+    await w.find('.attest input').setValue(true)
+    await w.find('.bottom .btn-primary').trigger('click')
+    await flushPromises()
+    expect(submitted.mock.calls.at(-1)[0].location).toBeNull()
   })
 })

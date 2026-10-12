@@ -462,6 +462,20 @@ export const season = computed(() => catalogue.value?.season || null)
 /** Secondary, Primary or Booking, as the channel resolved it for this party today. */
 export const orderKind = computed(() => catalogue.value?.order_kind || null)
 
+/**
+ * Which of our own branches may make this sale, and which one usually does.
+ *
+ * ERPNext calls it an Accounting Dimension; a site that has enabled one makes it mandatory on the
+ * Sales Order and on everything built from it, and nothing fills it server-side - the default is
+ * applied in the Desk form and nowhere else. So the rep is asked, and the party's usual branch is
+ * what they are offered.
+ *
+ * An **empty list is the instruction not to ask**. Most sites have no Locations at all, and a
+ * picker over nothing is a question with no answer.
+ */
+export const locations = computed(() => catalogue.value?.locations || [])
+export const defaultLocation = computed(() => catalogue.value?.location || null)
+
 export const isBookingCart = computed(() => isBooking(orderKind.value))
 
 /**
@@ -996,6 +1010,7 @@ export function buildOrderDoc({
   visit = null,
   deliveryDates = null,
   topsUp = null,
+  location = null,
   clientUuid = null,
   createdOffline = 0,
   deviceId = null,
@@ -1027,6 +1042,11 @@ export function buildOrderDoc({
     // The booking this one adds to, when the rep said so. The server checks it is the same party
     // and the same season; this only carries the answer.
     tops_up: topsUp,
+
+    // Which branch of ours is selling. `undefined` rather than null on a shop order, so nothing
+    // about branches appears in a secondary order's payload at all - that sale is the
+    // distributor's and no branch of ours is in it.
+    location: location || undefined,
 
     // The number the rep read out. Rupees, because every Currency column downstream is rupees.
     proposed_net_total: fromPaise(p.net_paise),

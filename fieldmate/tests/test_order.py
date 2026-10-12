@@ -13,6 +13,8 @@ Everything that a rep does is exercised **as the rep**. Every gate before Phase 
 Administrator, which hid a defect that made the whole app unusable in the field.
 """
 
+from unittest.mock import patch
+
 import frappe
 from frappe.utils import add_days, today
 
@@ -523,3 +525,127 @@ class TestAnOrderOnAPartyWeBill(OrderFixture):
 		self.as_rep(order_service.submit_order, created["name"])
 		self.assertEqual(
 			frappe.db.get_value("FieldMate Order", created["name"], "sales_order"), first)
+
+
+class TestWhichBranchIsSelling(OrderFixture):
+	"""`location` — which of our own branches makes a primary sale.
+
+	ERPNext models it as an Accounting Dimension. A site that has enabled one makes it mandatory
+	on the Sales Order, the Delivery Note and the invoice, and the document's naming series, the
+	company address and the GSTIN can all hang off it.
+
+	**Nothing fills it server-side.** `dimension_tree_filter.js` applies a dimension's per-company
+	default in the Desk form with `frm.set_value`, and no server path does the same — so every
+	order this app posted onto such a site was refused with "Select Location before Saving", a
+	message naming a field the rep had never heard of and no screen offered.
+
+	So the rep chooses, and the party's usual branch is what they are offered.
+	"""
+
+	SETTINGS = ("enable_secondary_sales", "enable_primary_sales")
+
+	def setUp(self):
+		super().setUp()
+		self._before = {k: self.fresh_settings().get(k) for k in self.SETTINGS}
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=1)
+		self.party = self.outlet.distributor
+		frappe.db.set_value("Customer", self.party, {
+			"fm_tier": "Super Stockist", "fm_buys_from": "Company",
+			"default_price_list": default_selling_price_list(),
+		}, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+
+	def tearDown(self):
+		self.apply_settings(**self._before)
+		super().tearDown()
+
+	def branch(self, is_group=0, parent=None):
+		doc = frappe.get_doc({
+			"doctype": "Location", "location_name": self.uid("BRANCH"),
+			"is_group": is_group, "parent_location": parent,
+		}).insert(ignore_permissions=True)
+		return self.track("Location", doc.name)
+
+	def book_party(self, **extra):
+		payload = {"party_type": "Customer", "customer": self.party,
+		           "lines": self.cart(10), "client_uuid": self.uid("PORD")}
+		payload.update(extra)
+		created = self.as_rep(order_service.create, payload, self.rep.name)
+		return self.track("FieldMate Order", created["name"])
+
+	# ------------------------------------------------------------------ what the phone is told
+
+	def test_only_the_leaves_are_offered(self):
+		"""A Location is a tree and its groups are folders. "Delhi" holding two depots is a shape
+		somebody made to tidy a list, not a place a sale happens at."""
+		group = self.branch(is_group=1)
+		leaf = self.branch(parent=group)
+		offered = [row["name"] for row in order_service.locations_for()]
+		self.assertIn(leaf, offered)
+		self.assertNotIn(group, offered)
+
+	def test_the_partys_usual_branch_is_the_default(self):
+		branch = self.branch()
+		frappe.db.set_value("Customer", self.party, "fm_location", branch, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+		self.assertEqual(order_service.default_location_for(self.party), branch)
+
+	def test_a_party_with_no_branch_defaults_to_nothing(self):
+		"""Which is every party on a site that does not use Locations."""
+		self.assertIsNone(order_service.default_location_for(self.party))
+
+	def test_a_group_is_never_offered_as_a_default(self):
+		"""Posting against a folder is not posting against a place, and ERPNext would take it."""
+		group = self.branch(is_group=1)
+		frappe.db.set_value("Customer", self.party, "fm_location", group, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+		self.assertIsNone(order_service.default_location_for(self.party))
+
+	# ------------------------------------------------------------------ what the order carries
+
+	def test_the_rep_choice_is_recorded(self):
+		branch = self.branch()
+		doc = frappe.get_doc("FieldMate Order", self.book_party(location=branch))
+		self.assertEqual(doc.location, branch)
+
+	def test_it_falls_back_to_the_partys_branch(self):
+		branch = self.branch()
+		frappe.db.set_value("Customer", self.party, "fm_location", branch, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+		doc = frappe.get_doc("FieldMate Order", self.book_party())
+		self.assertEqual(doc.location, branch)
+
+	def test_the_rep_beats_the_party_default(self):
+		"""The whole reason it is a choice on the order rather than copied off the Customer: a
+		party served by two branches."""
+		usual, today = self.branch(), self.branch()
+		frappe.db.set_value("Customer", self.party, "fm_location", usual, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+		doc = frappe.get_doc("FieldMate Order", self.book_party(location=today))
+		self.assertEqual(doc.location, today)
+
+	def test_a_shop_order_carries_no_branch(self):
+		"""A retailer order is the distributor's own sale and posts nothing, so no branch of ours
+		is involved in it at all."""
+		created = self.as_rep(order_service.create, {
+			"outlet": self.outlet.name, "lines": self.cart(10),
+			"client_uuid": self.uid("ORD"),
+		}, self.rep.name)
+		self.track("FieldMate Order", created["name"])
+		self.assertFalse(frappe.db.get_value("FieldMate Order", created["name"], "location"))
+
+	# ------------------------------------------------------------------ what ERPNext is sent
+
+	def test_it_reaches_the_sales_order(self):
+		"""Asserted on the payload rather than the posted document: this bench has no Location
+		dimension, so a Sales Order here has no such column to read back. What matters is that
+		the adapter is handed the branch - `compat.make_sales_order` writes it only where the
+		site actually has the field, which is the site that needs it."""
+		branch = self.branch()
+		name = self.book_party(location=branch)
+
+		with patch("fieldmate.compat.make_sales_order", return_value=None) as posted:
+			self.as_rep(order_service.submit_order, name)
+
+		self.assertTrue(posted.called, "a primary order posted no Sales Order at all")
+		self.assertEqual(posted.call_args[0][0]["location"], branch)

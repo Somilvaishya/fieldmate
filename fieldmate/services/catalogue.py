@@ -68,6 +68,12 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 	# order was actually written on.
 	price_list = price_list or channel.get("price_list") or resolve_price_list(doc, field_user)
 
+	# Imported here, not at the top: `order` reaches this module through `scheme_compile`, so a
+	# module-level import the other way would close the circle.
+	from fieldmate.services import order as order_service
+
+	we_bill = settings_service.is_primary(channel["kind"])
+
 	catalogues = matching_masters("FieldMate Product Catalogue", doc, on)
 	rows = catalogue_rows(catalogues)
 	must_sell = must_sell_rows(matching_masters("FieldMate Must Sell List", doc, on))
@@ -115,6 +121,17 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 		# Price List, and nothing in its name says the order carries an advance, a delivery
 		# window and a change cutoff. `None` here is the ordinary order, which is most of them.
 		"order_kind": channel["kind"],
+		# Which of our own branches may make this sale, and which one usually does.
+		#
+		# Only for a party we bill. A retailer order is the distributor's sale and posts nothing,
+		# so no branch of ours is involved in it at all. An empty list is how the phone knows not
+		# to ask - a site with no Locations has no question to put to a rep.
+		#
+		# Carried in the catalogue payload rather than fetched when the review screen opens,
+		# because a rep books primary orders in a godown with one bar of signal and this has to be
+		# on the handset before they get there.
+		"locations": order_service.locations_for() if we_bill else [],
+		"location": order_service.default_location_for(party) if we_bill else None,
 		"season": season_service.describe(channel.get("season")),
 		"catalogues": [c.name for c in catalogues],
 		"item_count": len(items),
