@@ -430,5 +430,40 @@ async function finish(visit) {
 
 export async function todaysVisits() {
   const today = todayStamp()
+  await reconcileToday(today)
   return db.visits.where('visitDate').equals(today).toArray()
+}
+
+/**
+ * Drop local visits the server no longer has.
+ *
+ * This list is read straight out of IndexedDB and never asked the server anything, so a visit
+ * cancelled in the office stayed on the phone for ever. A rep whose day was cancelled and who
+ * started again saw every shop still marked visited, the route showed as done, and the next shop
+ * the app offered was the wrong one. Reported from the field exactly that way.
+ *
+ * **Only rows this phone has already sent.** A visit created offline has no server name: the
+ * server has never heard of it, so its absence from the answer says nothing, and deleting it would
+ * throw away the rep's own unsent work — which is the one thing this app must never do.
+ *
+ * Offline, what the phone holds stands. That is the whole point of holding it, and a dropped link
+ * is not evidence that anything was cancelled.
+ */
+async function reconcileToday(date) {
+  let known
+  try {
+    const answer = await api.visitHistory(date)
+    // `visit.history` names the id `visit`, and it leaves cancelled visits out — which is what
+    // makes this reconcile work at all.
+    known = new Set((answer.visits || answer || []).map((row) => row.visit || row.name))
+  } catch {
+    return
+  }
+
+  const mine = await db.visits.where('visitDate').equals(date).toArray()
+  for (const visit of mine) {
+    if (!visit.serverName) continue
+    if (known.has(visit.serverName)) continue
+    await db.visits.delete(visit.clientUuid)
+  }
 }

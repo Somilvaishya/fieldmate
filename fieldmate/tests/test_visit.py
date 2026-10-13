@@ -1159,3 +1159,56 @@ class TestALiveVisitSurvivesTheDayClosing(VisitFixture):
 		self.assertTrue(closed["created"])
 		self.assertTrue(
 			frappe.db.get_value("FieldMate Visit", first["visit"], "check_out_time"))
+
+
+class TestTheDaysHistory(VisitFixture):
+	"""What `visit.history` answers, which is now read twice over.
+
+	It draws the rep's home screen, and since the phone began reconciling against it, it also
+	decides which rows survive on the handset. Both readings want the same thing: **a cancelled
+	visit did not happen.** Somebody in the office took it back, and a rep's day showing it as a
+	shop they covered is simply false.
+
+	Before this, nothing filtered `docstatus`. A day cancelled in Desk left every visit sitting on
+	the phone - the route read as done, the progress bar was full, and "next shop" pointed past
+	shops nobody had been to. It was reported from the field in exactly those words.
+	"""
+
+	def closed_visit(self):
+		opened = self.check_in()
+		self.check_out(opened["visit"])
+		return opened["visit"]
+
+	def names_in_history(self):
+		return [row["visit"] for row in visit_service.history(self.rep.name, today())]
+
+	def test_a_visit_that_happened_is_in_it(self):
+		self.assertIn(self.closed_visit(), self.names_in_history())
+
+	def test_a_cancelled_visit_is_not(self):
+		name = self.closed_visit()
+		doc = frappe.get_doc("FieldMate Visit", name)
+		doc.flags.ignore_permissions = True
+		doc.cancel()
+		self.assertNotIn(name, self.names_in_history())
+
+	def test_cancelling_one_leaves_the_others_alone(self):
+		"""The phone deletes its local row for anything missing from this answer, so an answer
+		that lost a visit it should have kept would wipe a rep's day."""
+		kept = self.closed_visit()
+		gone = self.closed_visit()
+		doc = frappe.get_doc("FieldMate Visit", gone)
+		doc.flags.ignore_permissions = True
+		doc.cancel()
+
+		names = self.names_in_history()
+		self.assertIn(kept, names)
+		self.assertNotIn(gone, names)
+
+	def test_it_answers_under_the_key_the_phone_reads(self):
+		"""`name as visit`. The phone matches on that key; reading `name` instead would match
+		nothing, every synced row would look cancelled, and the reconcile would delete the lot."""
+		self.closed_visit()
+		rows = visit_service.history(self.rep.name, today())
+		self.assertTrue(rows)
+		self.assertIn("visit", rows[0])

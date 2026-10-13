@@ -542,8 +542,14 @@ def assert_owner(doc) -> None:
 
 
 def history(field_user: str, date=None, limit: int = 50) -> list[dict]:
-	"""A day's visits, for the app's home screen."""
-	filters = {"field_user": field_user}
+	"""A day's visits, for the app's home screen.
+
+	**Cancelled visits are not in it.** A cancelled visit did not happen: somebody in the office
+	took it back, and a rep's home screen showing it as a shop they covered is simply false. It
+	also has a second job now - the phone reconciles its own list against this one, and a
+	cancelled visit left in the answer would keep a stale row on the handset for ever.
+	"""
+	filters = {"field_user": field_user, "docstatus": ["!=", 2]}
 	if date:
 		filters["visit_date"] = getdate(date)
 	rows = frappe.get_list(

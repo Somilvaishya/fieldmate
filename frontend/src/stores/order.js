@@ -605,6 +605,9 @@ export async function openOutlet(name, { refresh = true, type = null } = {}) {
     if (token !== loadToken) return null
     rawLines.value = cached?.lines || []
     outletName.value = cached?.outletName || null
+    // The identity comes back with the lines. A rep who closed the app mid-send and reopened it
+    // must resend as the same order, not a second one.
+    cartUuid.value = cached?.clientUuid || null
     // The cart remembers what kind of party it was for, and that wins when the caller does not
     // say. A rep reopening an unsent cart from a link with no type on it would otherwise have a
     // primary order re-priced as a shop order - off a different list, against a different credit
@@ -747,14 +750,45 @@ export async function refreshAll() {
 
 // ---------------------------------------------------------------------------------- the basket
 
+/**
+ * This cart's identity, which is the order's identity.
+ *
+ * **Minted once per cart and kept until the cart is gone, never per attempt.** A fresh id on a
+ * retry is how one order becomes two: the first send reaches the server on a market uplink, the
+ * answer does not, the rep taps again, and the server - which dedupes on exactly this id - sees a
+ * second order it has never heard of. Two FieldMate Orders, two Sales Orders, two commitments.
+ *
+ * It is written into the cart record, so it survives the screen being closed, the app being
+ * killed and the phone being restarted. `clear()` drops it with the lines, because the next cart
+ * at the same shop is a different order.
+ *
+ * `Money.vue` has done this since it was written, and says why in a comment about collecting a
+ * depot's money twice. The order path did the opposite.
+ */
+const cartUuid = ref(null)
+
+async function orderIdentity() {
+  if (!cartUuid.value) {
+    cartUuid.value = crypto.randomUUID()
+    await persist()
+  }
+  return cartUuid.value
+}
+
 async function persist() {
   if (!outlet.value) return
+  // A cart with lines in it has an identity, from the moment it has them. Minting at send time
+  // instead would leave the one case this exists for uncovered: an app killed between the request
+  // going out and its answer coming back must resend as the same order, and by then there is no
+  // code running to mint anything.
+  if (!cartUuid.value && rawLines.value.length) cartUuid.value = crypto.randomUUID()
   await db.carts.put(
     plain({
       outlet: outlet.value,
       party_type: partyType.value,
       outletName: outletName.value,
       lines: rawLines.value,
+      clientUuid: cartUuid.value,
       updatedAt: Date.now(),
     })
   )
@@ -864,6 +898,8 @@ export async function removeItem(itemCode) {
 export async function clear() {
   rawLines.value = []
   pricing.value = emptyPricing()
+  // The next cart at this shop is a different order, so it gets a different identity.
+  cartUuid.value = null
   if (outlet.value) await db.carts.delete(outlet.value)
 }
 
@@ -1150,7 +1186,8 @@ export async function submit(options = {}) {
   if (stopper) throw new CartError(stopper.code, stopper.message)
 
   const device = await deviceUuid()
-  const clientUuid = crypto.randomUUID()
+  // The cart's own id, not a new one for this attempt. See `orderIdentity`.
+  const clientUuid = await orderIdentity()
 
   // The visit this order came out of. Its server name once it has one, its client id while it has
   // not - `sync._apply` resolves the second through `depends_on` when the batch lands.
