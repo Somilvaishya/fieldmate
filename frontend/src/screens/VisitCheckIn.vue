@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../api/client'
 import { getPosition } from '../lib/geo'
+import { compress } from '../lib/image'
+import { getMeta } from '../db'
 import * as outletStore from '../stores/outlets'
 import * as dayStore from '../stores/day'
 import * as visitStore from '../stores/visit'
@@ -24,6 +26,22 @@ const locating = ref(true)
 const busy = ref(false)
 const error = ref('')
 const note = ref('')
+
+/**
+ * A photo at the counter, where the site has asked for one.
+ *
+ * **Off unless somebody switched it on.** It is one more thing to do at sixty shops a day and the
+ * geo-fence already records where the rep stood, so this is for a territory genuinely in doubt
+ * rather than for every site. The visit has carried the field and its storage since Phase 3;
+ * nothing ever asked the rep for the photo, so nothing ever sent one.
+ *
+ * `!== false`, not a truthy test. The server sends a JSON boolean and the day-start screen was
+ * once comparing one against 0 - `false !== 0` - so a site that had switched its selfie off still
+ * demanded one. Same shape, same trap.
+ */
+const photo = ref(null)
+const photoKb = ref(0)
+const requirePhoto = ref(false)
 
 // Checked before the rep touches anything, not after they tap. The old screen let them take a
 // fix, type a note and press a live button that silently refused - the one reading of a dead
@@ -79,6 +97,8 @@ onMounted(async () => {
   // Read from the mirror, not the network: a rep standing at the counter with no bars must
   // still be able to check in.
   outlet.value = await outletStore.localOutlet(route.params.name)
+  const settings = (await getMeta('profile'))?.settings || {}
+  requirePhoto.value = settings.require_visit_selfie === true
   // Ask for the day as well as the shop. Locating takes a second or two anyway, so this costs
   // the rep nothing and removes the window in which the screen could be confidently wrong.
   dayStore.ensure().catch(() => {})
@@ -101,15 +121,39 @@ function backToOpenVisit() {
   router.replace({ name: 'visit', params: { uuid: openElsewhere.value.clientUuid } })
 }
 
+async function onPhoto(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  error.value = ''
+  try {
+    const settings = (await getMeta('profile'))?.settings || {}
+    const out = await compress(file, {
+      maxKb: settings.photo_max_kb || 120,
+      maxPx: settings.photo_max_dimension_px || 1280,
+    })
+    photo.value = out.dataUrl
+    photoKb.value = out.kb
+  } catch {
+    error.value = 'Could not read that photo. Try taking it again.'
+  } finally {
+    event.target.value = ''
+  }
+}
+
 async function begin({ closeOpen = false } = {}) {
   error.value = ''
   if (!dayOpen.value) return router.push('/day/start')
+  if (requirePhoto.value && !photo.value) {
+    error.value = 'Take the photo at the shop before you check in.'
+    return
+  }
   if (openElsewhere.value && !closeOpen) return backToOpenVisit()
   busy.value = true
   try {
     const visit = await visitStore.checkIn(outlet.value, {
       fix: fix.value || {},
       deviationNote: note.value || null,
+      checkInPhoto: photo.value || null,
       closeOpen,
     })
     router.replace({ name: 'visit', params: { uuid: visit.clientUuid } })
@@ -139,6 +183,16 @@ async function begin({ closeOpen = false } = {}) {
         <span v-if="fix" class="muted tnum">±{{ fix.accuracy_m }} m</span>
         <span v-else-if="!locating" class="muted">Tap to try again</span>
       </button>
+
+      <!-- Only where the site asked for it. Drawn at all is the signal that it is wanted; a tile
+           offering an optional photo at sixty counters a day is sixty chances to be slowed down
+           by something nobody reads. -->
+      <label v-if="requirePhoto" class="tile photo" :class="{ done: photo }">
+        <b v-if="photo" class="tnum">Photo taken · {{ photoKb }} KB</b>
+        <b v-else>Take the photo at this shop</b>
+        <span class="muted">{{ photo ? 'Tap to retake' : 'Required here' }}</span>
+        <input type="file" accept="image/*" capture="environment" hidden @change="onPhoto" />
+      </label>
 
       <!-- Being far away is recorded, never refused. This card has to read as a fact being
            logged, not a door being closed - a rep who reads it as a rejection stops checking
@@ -238,6 +292,9 @@ h2 { margin: 8px 0 4px; }
         min-height: 48px; cursor: pointer; }
 .tile b { display: block; }
 .tile.done { border-color: var(--ok); }
+/* A label, not a button, because it wraps the file input. Same furniture either way, and the
+   48px floor every control on this screen holds. */
+.photo { cursor: pointer; min-height: 48px; }
 .dist { margin-top: 12px; padding: 12px; border-radius: 6px; background: var(--surface);
         border: 1px solid var(--line); }
 .dist.far { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }

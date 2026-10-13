@@ -110,9 +110,12 @@ onMounted(load)
         <span class="dim">Selling as</span>
         <b>{{ profile.sales_mode || 'Order Booking' }}</b>
       </div>
+      <!-- The number and where it came from. "25 calls" and "25 shops are on your route today"
+           are different claims, and only the second is something a rep can walk. -->
       <div class="fact">
-        <span class="dim">Calls a day</span>
+        <span class="dim">{{ profile.daily_target_basis === 'route' ? 'On today\'s route' : 'Calls a day' }}</span>
         <b class="tnum">{{ profile.daily_target_calls || '—' }}</b>
+        <em v-if="profile.daily_target_beat" class="dim">{{ profile.daily_target_beat }}</em>
       </div>
     </div>
 
@@ -174,6 +177,9 @@ onMounted(load)
 .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
         padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+/* Which beat the figure came off. Small, because it answers a question only a rep who doubts
+   the number thinks to ask. */
+.fact em { font-style: normal; font-size: 12px; }
 
 .row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px;
        background: var(--surface); border: 1px solid var(--line); border-radius: 10px;

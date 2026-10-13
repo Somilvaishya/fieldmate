@@ -158,7 +158,7 @@ async function reconcileOpen() {
 }
 
 export async function checkIn(outlet, { fix = {}, deviationNote = null,
-                                        closeOpen = false } = {}) {
+                                        checkInPhoto = null, closeOpen = false } = {}) {
   // Checking out is the way a visit ends. A second check-in used to close the first one on the
   // server, silently, stamped "No Order" and short - so a rep could walk a row of shops from the
   // list leaving empty visits behind that still counted towards coverage.
@@ -185,6 +185,9 @@ export async function checkIn(outlet, { fix = {}, deviationNote = null,
     checkInLatitude: fix.latitude ?? null,
     checkInLongitude: fix.longitude ?? null,
     accuracyM: fix.accuracy_m ?? null,
+    // Held on the phone too, so a visit taken with no signal still carries its photo when the
+    // outbox finally sends it.
+    checkInPhoto,
     locationProvider: fix.location_provider ?? null,
     isMockLocation: fix.is_mock_location ? 1 : 0,
     deviationNote,
@@ -212,6 +215,9 @@ export async function checkIn(outlet, { fix = {}, deviationNote = null,
       location_provider: local.locationProvider,
       is_mock_location: local.isMockLocation,
       deviation_note: deviationNote,
+      // A photo at the counter, where the site asks for one. A data URL on the way out; the
+      // server turns it into a real file and keeps the path.
+      check_in_photo: checkInPhoto,
       // Only ever set after the rep has been told on screen what it closes.
       close_open_visit: closeOpen ? 1 : 0,
     })
@@ -398,6 +404,7 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
     check_in_accuracy_m: visit.accuracyM,
     location_provider: visit.locationProvider,
     is_mock_location: visit.isMockLocation,
+    check_in_photo: visit.checkInPhoto || undefined,
     check_out_time: visit.checkOutTime,
     check_out_latitude: visit.checkOutLatitude,
     check_out_longitude: visit.checkOutLongitude,

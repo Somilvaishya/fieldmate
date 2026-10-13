@@ -230,6 +230,15 @@ def check_in(field_user: str, payload: dict) -> dict:
 	if not day:
 		frappe.throw(frappe._("Start your day before visiting a shop."))
 
+	# A photo at the counter, where a site has asked for one. Off by default: it is one more thing
+	# to do at sixty shops a day, and the geo-fence already records where the rep stood. The field
+	# and its storage have been here since Phase 3 - nothing ever asked for the photo, so nothing
+	# ever sent one.
+	#
+	# Checked before anything is written, so a refusal leaves no half-made visit behind.
+	if cint(settings_service.value("require_visit_selfie")) and not payload.get("check_in_photo"):
+		frappe.throw(frappe._("Take the photo at the shop before you check in."))
+
 	# An open visit elsewhere. This used to be closed, always and silently: one tap from the shop
 	# list ended the visit the rep was standing in, stamped it "No Order" and short, and told
 	# nobody. A rep could walk down a row of shops leaving a trail of empty visits that count

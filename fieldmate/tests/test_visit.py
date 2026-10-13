@@ -1212,3 +1212,72 @@ class TestTheDaysHistory(VisitFixture):
 		rows = visit_service.history(self.rep.name, today())
 		self.assertTrue(rows)
 		self.assertIn("visit", rows[0])
+
+
+class TestThePhotoAtTheShop(VisitFixture):
+	"""A photo at check-in, where a site has asked for one.
+
+	**Off by default, and that is the decision rather than an oversight.** It is one more thing to
+	do at sixty counters a day, it costs a rep seconds and the office storage, and the geo-fence
+	already records where they stood. It is for a territory genuinely in doubt.
+
+	The field and its storage have been on the visit since Phase 3. Nothing ever asked a rep for
+	the photo, so nothing ever sent one - the column existed and was always empty.
+	"""
+
+	# The same one-pixel PNG `TestVisitPhotos` uses. A real data URL, because what is being tested
+	# is that it becomes a file rather than being written into a varchar.
+	PIXEL = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+	         "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+
+	def tearDown(self):
+		self.apply_settings(require_visit_selfie=0)
+		super().tearDown()
+
+	def test_nothing_is_asked_for_by_default(self):
+		"""Every site that has not thought about this gets the behaviour it had before."""
+		self.assertFalse(settings_service.value("require_visit_selfie"))
+		opened = self.check_in()
+		self.assertTrue(opened["visit"])
+
+	def test_a_site_that_asks_for_one_refuses_without_it(self):
+		self.apply_settings(require_visit_selfie=1)
+		with self.assertRaises(frappe.ValidationError) as caught:
+			self.check_in()
+		self.assertIn("photo", str(caught.exception).lower())
+
+	def test_it_goes_through_with_one(self):
+		self.apply_settings(require_visit_selfie=1)
+		opened = self.check_in(check_in_photo=self.PIXEL)
+		self.assertTrue(opened["visit"])
+
+	def test_the_photo_is_stored_as_a_file_not_a_blob(self):
+		"""`check_in_photo` is an Attach Image - a varchar holding a path. Writing the image into
+		it fails at the database, which is how the day-start selfie broke once."""
+		self.apply_settings(require_visit_selfie=1)
+		opened = self.check_in(check_in_photo=self.PIXEL)
+		stored = frappe.db.get_value("FieldMate Visit", opened["visit"], "check_in_photo")
+		self.assertTrue(stored)
+		self.assertTrue(stored.startswith(("/files/", "/private/files/")), stored[:40])
+
+	def test_refusing_leaves_no_half_made_visit(self):
+		"""Checked before anything is written. A refusal that had already inserted the visit
+		would leave a shop looking visited and the rep unable to check in again."""
+		self.apply_settings(require_visit_selfie=1)
+		before = frappe.db.count("FieldMate Visit", {"outlet": self.outlet.name})
+		with self.assertRaises(frappe.ValidationError):
+			self.check_in()
+		self.assertEqual(frappe.db.count("FieldMate Visit", {"outlet": self.outlet.name}), before)
+
+	def test_a_photo_is_kept_even_where_it_was_not_required(self):
+		"""A rep who takes one anyway has it recorded. The setting governs whether it is
+		demanded, not whether it is wanted."""
+		opened = self.check_in(check_in_photo=self.PIXEL)
+		self.assertTrue(frappe.db.get_value(
+			"FieldMate Visit", opened["visit"], "check_in_photo"))
+
+	def test_the_phone_is_told_which_way_the_switch_is_set(self):
+		"""The rep's handset reads this out of the bootstrap payload; without it the screen
+		cannot know whether to ask."""
+		self.apply_settings(require_visit_selfie=1)
+		self.assertIs(settings_service.client_settings()["require_visit_selfie"], True)

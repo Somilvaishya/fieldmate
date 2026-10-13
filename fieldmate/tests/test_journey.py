@@ -1,6 +1,7 @@
 import frappe
 from frappe.utils import add_days, getdate
 
+from fieldmate.services import field_user as field_user_service
 from fieldmate.services import journey as journey_service
 from fieldmate.tests.test_beat import BeatFixture
 
@@ -162,3 +163,90 @@ class TestPlanGeneration(JourneyFixture):
 	def test_backwards_window_is_refused(self):
 		with self.assertRaises((ValueError, frappe.ValidationError)):
 			journey_service.generate(self.rep.name, self.to_date, self.from_date)
+
+
+class TestHowManyCallsAreExpected(JourneyFixture):
+	"""`field_user.call_target` — the number on the rep's own screen.
+
+	**The route answers first.** A journey plan already says which beat is walked today and how
+	many shops are on it, so on a planned day the target is a fact rather than a figure somebody
+	typed once. It moves with the plan: a short Thursday beat asks for less than a long Monday one,
+	which a flat number can never say.
+
+	It used to be a single Int on the Field User, shipped with a default of **25**. Every rep on
+	every site was therefore asked for 25 calls a day whether their beat held 12 shops or 60, and
+	nobody had ever chosen that number.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.territory = self.make_territory()
+		self.rep = self.make_field_user(territory=self.territory)
+		self.shops = [self.make_outlet(territory=self.territory).name for _ in range(4)]
+		self.beat_doc = self.make_beat(
+			territory=self.territory, assigned_to=self.rep.name, outlets=self.shops
+		)
+		self.from_date = getdate("2026-10-01")
+		self.to_date = getdate("2026-10-31")
+
+	def plan(self):
+		name = journey_service.generate(self.rep.name, self.from_date, self.to_date)
+		self.track("FieldMate Journey Plan", name)
+		doc = frappe.get_doc("FieldMate Journey Plan", name)
+		doc.flags.ignore_permissions = True
+		doc.submit()
+		return doc
+
+	def typed(self, calls):
+		frappe.db.set_value("FieldMate Field User", self.rep.name,
+		                    "daily_target_calls", calls, update_modified=False)
+		frappe.clear_document_cache("FieldMate Field User", self.rep.name)
+
+	def test_a_planned_day_asks_for_the_shops_on_that_route(self):
+		self.plan()
+		answer = field_user_service.call_target(self.rep.name, self.monday())
+		self.assertEqual(answer["daily_target_calls"], 4)
+		self.assertEqual(answer["daily_target_basis"], "route")
+
+	def test_it_names_the_beat_so_the_rep_can_check_it(self):
+		self.plan()
+		answer = field_user_service.call_target(self.rep.name, self.monday())
+		self.assertTrue(answer["daily_target_beat"])
+
+	def test_the_route_beats_a_number_typed_on_the_profile(self):
+		"""Otherwise the dynamic figure would never be seen: the field shipped with a default, so
+		every rep had one whether anybody meant it or not."""
+		self.plan()
+		self.typed(25)
+		answer = field_user_service.call_target(self.rep.name, self.monday())
+		self.assertEqual(answer["daily_target_calls"], 4)
+
+	def test_a_day_with_no_route_falls_back_to_the_profile(self):
+		"""Tuesday has no beat in this plan. A rep still gets an expectation where somebody has
+		set one."""
+		self.plan()
+		self.typed(12)
+		answer = field_user_service.call_target(self.rep.name, add_days(self.monday(), 1))
+		self.assertEqual(answer["daily_target_calls"], 12)
+		self.assertEqual(answer["daily_target_basis"], "profile")
+
+	def test_neither_is_an_honest_dash(self):
+		"""Better a dash on the screen than a number nobody stands behind."""
+		self.plan()
+		self.typed(0)
+		answer = field_user_service.call_target(self.rep.name, add_days(self.monday(), 1))
+		self.assertIsNone(answer["daily_target_calls"])
+		self.assertIsNone(answer["daily_target_basis"])
+
+	def test_a_rep_with_no_plan_at_all_still_gets_an_answer(self):
+		self.typed(20)
+		answer = field_user_service.call_target(self.rep.name, self.monday())
+		self.assertEqual(answer["daily_target_calls"], 20)
+
+	def test_the_profile_payload_carries_it(self):
+		"""This is what the phone reads; a number with no basis beside it is the old flat
+		figure wearing a new name."""
+		self.plan()
+		payload = field_user_service.profile(self.rep.user)
+		self.assertIn("daily_target_calls", payload)
+		self.assertIn("daily_target_basis", payload)
