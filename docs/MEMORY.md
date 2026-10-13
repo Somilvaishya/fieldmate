@@ -501,6 +501,42 @@ the field · #12 dynamic UOM · #13 Hindi/English · #16 and #18 Day Start+End m
 doctype cull - *waiting on the user*; recommended against doing it inside this batch, offered as
 its own phase · #17 scheme simplification (high risk).
 
+## #1 — what an admin should not have to type twice
+
+Narrower than it first looked, and the useful half of the work was deciding what must **not**
+autofill.
+
+**Filled now.** The rep's mobile number, from the login and then the Employee's `cell_number`
+(two sources, hence the controller rather than `fetch_from`), and only ever into a blank. Joining
+Date from `employee.date_of_joining` with `fetch_if_empty`. Company from the Employee **on every
+save** - asked for explicitly: HR owns which company somebody is employed by, so a rep whose
+Employee record moves follows it. The cost is on the field's own description, because it is real:
+while an Employee is linked, a company chosen by hand does not survive the next save, and an
+admin who needs a different one clears the Employee link. `company_from_the_employee` corrects
+the reps who already existed; a rep with no Employee is left alone.
+
+**Deliberately left alone, with the reason written on the field.** Scheme Item's `item_group` and
+`brand` are not copies of the item's own - they are a pick-one selector (`if item_code / elif
+item_group` in `scheme_compile`), so filling the group from the item would read as covering every
+item in that group, and clearing the item later would silently make it do exactly that. The
+Merchandising Line `mrp` is what is printed on the pack on the shelf; the only reason to record it
+is to find packs that disagree with the master, and a copy of the master can never disagree.
+Item `uom` is blank on every child table and belongs to #12, not here.
+
+**Two things the tests caught, both of the same kind - a pass that meant nothing.** `company` was
+first built as `fetch_from=employee.company, fetch_if_empty=1`, and a test showed company arriving
+set with **no employee at all**: Frappe fills a Link from the session default during `insert`, so
+the field is never empty by the time a fetch runs and the configuration would have looked right
+and done nothing. And `test_company_and_joining_date_come_off_the_employee` passed while that
+config was dead, because the employee's company was `get_value("Company", {})` - the same string
+as the session default on a single-company site, so the assertion could not tell them apart. Both
+sites on this bench have exactly one company, which is why the real test now builds a second one
+(five seconds, commits, and cleans up after itself).
+
+Also worth keeping: `fetch_from` **does** apply server-side - checked against a real insert, not
+assumed, because Accounting Dimension defaults in this same app turned out to be client-only.
+Without `fetch_if_empty` it overwrites on every save.
+
 ## #8 — the GPS toggle, and the day nobody recorded
 
 Two halves. The toggle is the asked-for part; the second half is the bug it exposed.
@@ -612,9 +648,10 @@ The plan's "do first" list, as it stands today:
 Phase 2 steps 9, 10 and 11 are done, including the manual sheet
 `docs/MANUAL_TESTS_PHASE2_SEASON.md`. Work is now in the **18-point review batch** above.
 
-Next in the user's stated risk order: **#1, autofill from the master doctypes** (Employee, User,
-Item), then the items waiting on a decision (#10, #16/#18), then the two high-risk ones (#9
-approval rules, #17 schemes).
+Next in the user's stated risk order: **#12 dynamic UOM** and **#13 Hindi/English**, then the
+items waiting on a decision (#10, #16/#18), then the two high-risk ones (#9 approval rules, #17
+schemes). #12 needs `business_needed_solutions` read first - the user pointed at its
+`enable_uom_restriction` and `enable_conversion_tags`.
 
 The season sheet still has to say **what testerp2 does not have**: no season, no booking and no
 showcase catalogue exist there, so the step 9 screens have nothing to draw until somebody creates

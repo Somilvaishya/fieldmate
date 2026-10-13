@@ -19,3 +19,6 @@ fieldmate.patches.stamp_order_kind
 # some sites and as None on others - so the default has to be written, or a deploy that only
 # adds a switch silently switches the trail off.
 fieldmate.patches.switch_on_the_gps_trail
+# #1. The controller now takes a rep's company from their Employee record on every save, which
+# only reaches a record when somebody saves it. This corrects the ones already there.
+fieldmate.patches.company_from_the_employee
