@@ -63,6 +63,24 @@ class CatalogueFixture(MasterFixture):
 		self.make_item_price(item, rate)
 		return item
 
+	def packs_of(self, item: str, **conversions) -> dict:
+		"""Give an item real UOM conversions, the way the Item master carries them.
+
+		`packs_of(item, Box=12)` makes one Box twelve of the item's stock UOM. Returns the units
+		in play so a test can name them without re-reading the master.
+		"""
+		doc = frappe.get_doc("Item", item)
+		for uom, factor in conversions.items():
+			doc.append("uoms", {"uom": uom, "conversion_factor": factor})
+		doc.save(ignore_permissions=True)
+		return {"base": doc.stock_uom, **{u: u for u in conversions}}
+
+	def two_more_uoms(self) -> list:
+		"""Two UOMs that are not the one `make_item` picks for a stock UOM."""
+		base = frappe.db.get_value("UOM", {}, "name")
+		return frappe.get_all(
+			"UOM", filters={"name": ["!=", base]}, pluck="name", limit=2, order_by="name")
+
 	def make_channel(self) -> str:
 		doc = frappe.get_doc({
 			"doctype": "FieldMate Outlet Channel",
@@ -546,3 +564,173 @@ class TestRepeatOrderPrefill(CatalogueFixture):
 			self.rep.user, catalogue_service.last_order_for, self.outlet.name, self.rep.name
 		)
 		self.assertFalse(payload["has_order_history"])
+
+
+class TestTheUnitsAnOrderMayBeTakenIn(CatalogueFixture):
+	"""#12. A rep gets a choice of unit, and the choice comes from the item master.
+
+	The set is the item's own: its stock UOM plus whatever is on its UOM Conversion table. Not a
+	list kept beside it, because a unit the item cannot convert is a unit nothing can price -
+	`cart_for` refuses one - so offering it would be offering a mistake.
+
+	A catalogue can narrow that. It is on the catalogue **header** and not per item, because a
+	Table MultiSelect inside a child table is accepted by Frappe's DocType validator and then
+	stores nothing at all: checked against a real save, twice, and the grandchild table comes
+	back empty with no error anywhere.
+	"""
+
+	def units_for(self, item):
+		row = next(r for r in self.catalogue_for()["items"] if r["item_code"] == item)
+		return row, {u["uom"]: u["conversion_factor"] for u in row["order_uoms"]}
+
+	def test_an_item_with_no_conversions_offers_only_its_own_unit(self):
+		"""Most items on most sites. One choice is not a choice, and the phone shows no dropdown."""
+		item = self.priced_item()
+		self.make_catalogue(items=[item])
+
+		row, units = self.units_for(item)
+		self.assertEqual(units, {row["stock_uom"]: 1.0})
+
+	def test_every_unit_the_item_converts_is_offered(self):
+		item = self.priced_item()
+		box, case = self.two_more_uoms()
+		self.packs_of(item, **{box: 12, case: 24})
+		self.make_catalogue(items=[item])
+
+		row, units = self.units_for(item)
+		self.assertEqual(units, {row["stock_uom"]: 1.0, box: 12.0, case: 24.0})
+
+	def test_the_choices_come_smallest_first(self):
+		"""The base unit leads, so the dropdown reads from singles upwards."""
+		item = self.priced_item()
+		box, case = self.two_more_uoms()
+		self.packs_of(item, **{case: 24, box: 12})
+		self.make_catalogue(items=[item])
+
+		row, _ = self.units_for(item)
+		self.assertEqual([u["uom"] for u in row["order_uoms"]], [row["stock_uom"], box, case])
+
+	def test_a_conversion_of_zero_is_not_a_unit(self):
+		"""A Float column is NOT NULL DEFAULT 0. Offering it would divide a quantity by nothing."""
+		item = self.priced_item()
+		box, _ = self.two_more_uoms()
+		self.packs_of(item, **{box: 0})
+		self.make_catalogue(items=[item])
+
+		row, units = self.units_for(item)
+		self.assertEqual(units, {row["stock_uom"]: 1.0})
+
+	def test_the_catalogue_can_narrow_the_choice(self):
+		"""A catalogue that only takes cases."""
+		item = self.priced_item()
+		box, case = self.two_more_uoms()
+		self.packs_of(item, **{box: 12, case: 24})
+		self.make_catalogue(items=[item], uoms=[{"uom": case}])
+
+		_, units = self.units_for(item)
+		self.assertEqual(units, {case: 24.0})
+
+	def test_narrowing_to_units_this_item_cannot_convert_leaves_the_base_unit(self):
+		"""Otherwise a rep has nothing to type a number against and simply cannot order it.
+
+		Ordering in pieces is an inconvenience. Being unable to order at all is a lost sale, and
+		a case booked at a piece price is a loss - which is why this falls back rather than
+		inventing a conversion.
+		"""
+		item = self.priced_item()
+		_box, case = self.two_more_uoms()
+		self.make_catalogue(items=[item], uoms=[{"uom": case}])
+
+		row, units = self.units_for(item)
+		self.assertEqual(units, {row["stock_uom"]: 1.0})
+
+	def test_an_empty_narrowing_is_not_a_narrowing(self):
+		"""No units named on the catalogue means "whatever the item supports", not "none"."""
+		item = self.priced_item()
+		box = self.two_more_uoms()[0]
+		self.packs_of(item, **{box: 12})
+		self.make_catalogue(items=[item], uoms=[])
+
+		row, units = self.units_for(item)
+		self.assertEqual(units, {row["stock_uom"]: 1.0, box: 12.0})
+
+	def test_the_default_unit_is_one_of_the_offered_ones(self):
+		"""A catalogue narrowed to cases must not still pre-select pieces."""
+		item = self.priced_item()
+		box, case = self.two_more_uoms()
+		self.packs_of(item, **{box: 12, case: 24})
+		self.make_catalogue(items=[{"item_code": item, "uom": box}], uoms=[{"uom": case}])
+
+		row, units = self.units_for(item)
+		# The point of the test: whatever is pre-selected has to be in the dropdown. Falling back
+		# to the stock UOM here would name a unit this catalogue does not offer.
+		self.assertIn(row["order_uom"], units)
+		self.assertEqual(row["order_uom"], case)
+		self.assertEqual(row["conversion_factor"], 24.0)
+		# And it says it fell back, so the screen can tell the rep why it is not what the
+		# catalogue row asked for.
+		self.assertTrue(row["order_uom_fallback"])
+
+	def test_the_default_still_wins_when_it_is_allowed(self):
+		item = self.priced_item()
+		box, case = self.two_more_uoms()
+		self.packs_of(item, **{box: 12, case: 24})
+		self.make_catalogue(items=[{"item_code": item, "uom": box}],
+		                    uoms=[{"uom": box}, {"uom": case}])
+
+		row, _ = self.units_for(item)
+		self.assertEqual(row["order_uom"], box)
+		self.assertEqual(row["conversion_factor"], 12.0)
+		self.assertFalse(row["order_uom_fallback"])
+
+	def test_a_primary_order_takes_its_unit_from_the_item_master(self):
+		"""#12 asked for this separately; it is what happens with nothing set on the catalogue.
+
+		No default on the row, no narrowing on the catalogue: the unit is the item's own Sales
+		UOM, and its stock UOM where there is no sales UOM.
+		"""
+		item = self.priced_item()
+		box, _ = self.two_more_uoms()
+		self.packs_of(item, **{box: 12})
+		frappe.db.set_value("Item", item, "sales_uom", box)
+		self.make_catalogue(items=[item])
+
+		row, _ = self.units_for(item)
+		self.assertEqual(row["order_uom"], box)
+		self.assertEqual(row["conversion_factor"], 12.0)
+		self.assertFalse(row["order_uom_fallback"])
+
+	def test_whatever_is_pre_selected_is_always_on_offer(self):
+		"""The invariant behind the bug above, asserted across every shape at once.
+
+		`order_uom` is what the phone pre-selects and `order_uoms` is the dropdown it draws. A
+		unit in the first and not the second means the rep's typed quantity is counted against a
+		conversion the screen never showed them.
+		"""
+		box, case = self.two_more_uoms()
+		shapes = [
+			# no conversions, no narrowing
+			(None, {}, []),
+			# a default the item cannot convert
+			(box, {}, []),
+			# narrowed away from the default
+			(box, {box: 12, case: 24}, [{"uom": case}]),
+			# narrowed to a unit the item cannot convert
+			(None, {}, [{"uom": case}]),
+			# everything agrees
+			(box, {box: 12}, [{"uom": box}]),
+		]
+
+		for default, conversions, narrowing in shapes:
+			item = self.priced_item()
+			if conversions:
+				self.packs_of(item, **conversions)
+			self.make_catalogue(
+				items=[{"item_code": item, "uom": default} if default else {"item_code": item}],
+				uoms=narrowing)
+
+			row, units = self.units_for(item)
+			with self.subTest(default=default, conversions=conversions, narrowing=narrowing):
+				self.assertTrue(units, "a line with no units at all cannot be ordered")
+				self.assertIn(row["order_uom"], units)
+				self.assertEqual(row["conversion_factor"], units[row["order_uom"]])

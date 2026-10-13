@@ -178,6 +178,15 @@ function newLine(item) {
     base_uom: item.stock_uom,
     display_uom: item.order_uom || item.stock_uom,
     conversion_factor: factor,
+    // Every unit this item may be ordered in, with what one of them is worth in base units.
+    // Carried on the line so the dropdown works with no signal: a rep in a market cannot ask
+    // the server what a case is at the moment they change their mind about the unit.
+    order_uoms: Array.isArray(item.order_uoms) && item.order_uoms.length
+      ? item.order_uoms.map((u) => ({
+          uom: u.uom,
+          conversion_factor: Number(u.conversion_factor) || 1,
+        }))
+      : [{ uom: item.stock_uom, conversion_factor: 1 }],
     // Recorded so a screen can say why a case order fell back to pieces rather than silently
     // booking twelve times less than the rep meant.
     uom_fallback: !!item.order_uom_fallback,
@@ -869,6 +878,45 @@ export async function setQty(itemCode, value, { unit = 'display' } = {}) {
   if (base <= 0) return removeItem(itemCode)
 
   line.qty = base
+  reprice()
+  await persist()
+  return decorate(line)
+}
+
+/**
+ * Change the unit a line is ordered in.
+ *
+ * **The number the rep typed is what they meant; the unit is what they are correcting.** Somebody
+ * who typed 5 and then reaches for the dropdown wanted five cases, not the five pieces they
+ * already have restated as four tenths of a case. So the displayed figure is kept and the base
+ * quantity is recomputed from the new factor - which does multiply the order, visibly, in the
+ * same tap: the quantity and the line total both change on screen in front of the rep.
+ *
+ * `rate_paise` is per base unit and deliberately untouched. A case costs twelve times a piece
+ * because it holds twelve of them, not because its rate is a different number, and storing a
+ * second rate per unit would be a second place for the price to be wrong.
+ */
+export async function setUnit(itemCode, uom) {
+  const line = rawLines.value.find((l) => l.item_code === itemCode)
+  if (!line) return null
+
+  const choice = (line.order_uoms || []).find((u) => u.uom === uom)
+  // Not on the list this item offers. Ignored rather than invented: without a conversion from
+  // the item master there is no honest number to put here, and guessing one is how a case gets
+  // booked at a piece price.
+  if (!choice) return decorate(line)
+
+  const factor = Number(choice.conversion_factor) || 1
+  const typed = line.qty / (Number(line.conversion_factor) || 1)
+
+  line.display_uom = uom
+  line.conversion_factor = factor
+  // Whole base units, and never below one: a rep who picked a unit has not asked to remove the
+  // line, and rounding a small quantity down to zero would do exactly that.
+  line.qty = Math.max(1, Math.round(typed * factor))
+  // They have chosen a unit, so there is nothing left to warn them was chosen for them.
+  line.uom_fallback = false
+
   reprice()
   await persist()
   return decorate(line)

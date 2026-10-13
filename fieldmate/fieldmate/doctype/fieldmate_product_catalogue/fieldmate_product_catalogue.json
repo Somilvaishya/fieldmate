@@ -5,6 +5,7 @@
    "section_validity", "valid_from", "column_validity", "valid_to",
    "section_showcase", "is_showcase", "season", "column_showcase", "cover_image",
    "blurb",
+   "section_units", "uoms",
    "section_items", "items", "item_count"],
  "fields": [
   {"fieldname": "catalogue_name", "fieldtype": "Data", "label": "Catalogue Name", "reqd": 1, "unique": 1, "in_list_view": 1},
@@ -24,6 +25,9 @@
   {"fieldname": "cover_image", "fieldtype": "Attach Image", "label": "Cover Image", "depends_on": "eval:doc.is_showcase", "description": "The one picture at the top of the shared page. Every other image comes from the Item master, because that is where somebody already maintains them and a second copy would be a second thing to keep in step."},
   {"fieldname": "blurb", "fieldtype": "Small Text", "label": "Blurb", "depends_on": "eval:doc.is_showcase", "description": "A line or two under the cover. Shown to the customer, so write it for them."},
   {"fieldname": "section_items", "fieldtype": "Section Break", "label": "Items"},
+  {"fieldname": "section_units", "fieldtype": "Section Break", "label": "Units Orders May Be Taken In",
+   "description": "Leave empty and a rep may order in any unit the item itself converts - its stock UOM plus whatever is on the item's UOM Conversion table. Name units here to narrow that, for a catalogue that should only take cases. A unit named here that an item cannot convert simply does not appear for that item; it is never guessed at, because a case booked against a per-piece rate bills a twelfth of what was sold and looks entirely normal on screen."},
+  {"fieldname": "uoms", "fieldtype": "Table MultiSelect", "label": "Units", "options": "FieldMate Catalogue UOM"},
   {"fieldname": "items", "fieldtype": "Table", "label": "Items", "options": "FieldMate Catalogue Item"},
   {"fieldname": "item_count", "fieldtype": "Int", "label": "Items", "read_only": 1}
  ],

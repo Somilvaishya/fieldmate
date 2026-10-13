@@ -501,6 +501,51 @@ the field · #12 dynamic UOM · #13 Hindi/English · #16 and #18 Day Start+End m
 doctype cull - *waiting on the user*; recommended against doing it inside this batch, offered as
 its own phase · #17 scheme simplification (high risk).
 
+## #12 — a choice of unit, and where the choice comes from
+
+**The request could not be built as asked, and the reason is worth keeping.** It asked for a
+multiselect of UOMs on each Product Catalogue **item**. Those items are rows in
+`FieldMate Catalogue Item`, which is `istable: 1`, and a Table MultiSelect inside a child table is
+**accepted by Frappe's DocType validator and then stores nothing at all** - checked against a real
+save, twice, including saving in two steps so every row had a real name, and the grandchild table
+comes back empty with no error anywhere. An admin would have ticked units, saved, and lost them
+silently. So the multiselect is on the catalogue **header**: `FieldMate Product Catalogue.uoms`,
+rows of the new `FieldMate Catalogue UOM`.
+
+The shape that came out of that:
+
+- **The choices are the item master's**: its stock UOM plus whatever is on its UOM Conversion
+  table, which `compat.get_item_details` already carried as `uom_conversions`. A unit the item
+  cannot convert is a unit nothing can price - `cart_for` refuses one - so offering it would be
+  offering a mistake.
+- **The catalogue's Units narrow that**, for a catalogue that should only take cases. Empty means
+  no narrowing. Narrowing to units a particular item cannot convert leaves that item its base
+  unit, because being unable to order at all is worse than ordering in pieces.
+- **The per-row `uom` is now the default**, relabelled "Default Unit": what the phone pre-selects.
+- **A primary order's unit already came from the item master** (`sales_uom`, then `stock_uom`,
+  through `order_unit`). Verified with a test rather than rebuilt.
+- `catalogue.order_units()` is the one place the set is decided; `order_unit()` picks the default
+  out of it, so the two cannot disagree.
+
+**The bug a test caught**: with a catalogue narrowed to cases and a default the narrowing excluded,
+`order_unit` fell back to the **stock UOM** - which that catalogue does not offer. `order_uom`
+then named a unit absent from `order_uoms`, so the phone would pre-select something missing from
+its own dropdown and count the rep's typed quantity against a conversion nobody showed them. It
+now falls back to the smallest unit on offer, and
+`test_whatever_is_pre_selected_is_always_on_offer` asserts the invariant across five shapes.
+
+**On the phone**, `order.setUnit()`: the number the rep typed is kept and the unit is reinterpreted
+- somebody who typed 5 and then reaches for the dropdown meant five cases, not their five pieces
+restated as four tenths of a case. That multiplies the order, visibly, and the cart says so.
+`rate_paise` is per base unit and never touched: a case costs twelve times a piece because it
+holds twelve of them. The choices travel on the cart line so the dropdown works with no signal.
+
+**Deliberately not enforced server-side.** The rate is per base unit and the factor comes from the
+item master, so whatever unit the rep picks the money is right - the narrowing is a selling policy,
+not a safety rail. And `cart_for` reprices submitted bookings on every save, so enforcing it would
+make old orders start throwing the day an admin narrowed a catalogue. The narrowing decides what
+the phone offers.
+
 ## #1 — what an admin should not have to type twice
 
 Narrower than it first looked, and the useful half of the work was deciding what must **not**
@@ -648,10 +693,14 @@ The plan's "do first" list, as it stands today:
 Phase 2 steps 9, 10 and 11 are done, including the manual sheet
 `docs/MANUAL_TESTS_PHASE2_SEASON.md`. Work is now in the **18-point review batch** above.
 
-Next in the user's stated risk order: **#12 dynamic UOM** and **#13 Hindi/English**, then the
-items waiting on a decision (#10, #16/#18), then the two high-risk ones (#9 approval rules, #17
-schemes). #12 needs `business_needed_solutions` read first - the user pointed at its
-`enable_uom_restriction` and `enable_conversion_tags`.
+Next in the user's stated risk order: **#13 Hindi/English**, then the items waiting on a decision
+(#10, #16/#18), then the two high-risk ones (#9 approval rules, #17 schemes).
+
+`business_needed_solutions` was read for #12, since the user pointed at its
+`enable_uom_restriction`. Its source of truth is the right one - `Item.stock_uom` plus `item.uoms`
+- and nothing was taken from it: the implementation is a Desk-only `frm.set_query` holding a
+**synchronous** `frappe.call` per dropdown open, which solves nothing for a rep offline in a
+market.
 
 The season sheet still has to say **what testerp2 does not have**: no season, no booking and no
 showcase catalogue exist there, so the step 9 screens have nothing to draw until somebody creates

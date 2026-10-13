@@ -76,6 +76,7 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 
 	catalogues = matching_masters("FieldMate Product Catalogue", doc, on)
 	rows = catalogue_rows(catalogues)
+	units_by_catalogue = catalogue_units(catalogues)
 	must_sell = must_sell_rows(matching_masters("FieldMate Must Sell List", doc, on))
 
 	# One call, whatever the length of the list. This is the line the whole module is built
@@ -104,7 +105,8 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 			# nobody tidied, not something to put in front of a shopkeeper.
 			continue
 		items.append(item_payload(item_code, row, catalogue, detail, must_sell.get(item_code),
-		                          tax_bps=tax_rates.get(item_code, 0)))
+		                          tax_bps=tax_rates.get(item_code, 0),
+		                          allowed_uoms=units_by_catalogue.get(catalogue)))
 
 	items.sort(key=lambda row: (row["sort_order"], row["item_name"] or row["item_code"]))
 
@@ -144,9 +146,10 @@ def for_outlet(outlet, field_user: str | None = None, price_list: str | None = N
 
 
 def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell,
-                 tax_bps: int = 0) -> dict:
+                 tax_bps: int = 0, allowed_uoms: list | None = None) -> dict:
 	"""One catalogue line as the phone receives it."""
-	order_uom, conversion_factor, fell_back = order_unit(row, detail)
+	order_uom, conversion_factor, fell_back = order_unit(row, detail, allowed_uoms)
+	units = order_units(detail, allowed_uoms)
 	rate = detail["price_list_rate"]
 
 	return {
@@ -163,6 +166,18 @@ def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell,
 		"order_uom": order_uom,
 		"conversion_factor": conversion_factor,
 		"order_uom_fallback": fell_back,
+		# Every unit this item may be booked in, with what one of them is worth in base units,
+		# so the phone can offer the choice and do its own arithmetic **offline**. A rep in a
+		# market cannot ask the server what a case is when they switch the dropdown.
+		#
+		# Sorted smallest first, so the base unit leads and the dropdown reads from singles
+		# upwards the way a shopkeeper talks about it.
+		# No per-unit rate here on purpose: the phone holds `rate` per base unit and the factor,
+		# and two places holding the same number is two places that can disagree.
+		"order_uoms": [
+			{"uom": uom, "conversion_factor": factor}
+			for uom, factor in sorted(units.items(), key=lambda pair: pair[1])
+		],
 
 		# Per base unit, which is the unit every other number here agrees with, and the unit the
 		# scheme engine measures in. None means nobody has priced it - never 0.00.
@@ -196,8 +211,8 @@ def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell,
 	}
 
 
-def order_unit(row, detail: dict) -> tuple[str, float, bool]:
-	"""The unit the rep books in, and how many base units one of them is.
+def order_unit(row, detail: dict, allowed: list | None = None) -> tuple[str, float, bool]:
+	"""The unit the rep books in by default, and how many base units one of them is.
 
 	A catalogue may ask for orders in cases while the price list quotes pieces, which is ordinary
 	and fine as long as the item carries the conversion. Where it does not, we drop back to the
@@ -205,15 +220,64 @@ def order_unit(row, detail: dict) -> tuple[str, float, bool]:
 	twelfth of what was sold, and unlike a missing price it would look entirely normal on the
 	screen. Ordering in pieces is an inconvenience; a case sold at a piece price is a loss.
 	"""
+	units = order_units(detail, allowed)
 	base = detail["stock_uom"]
 	wanted = row.uom or detail["sales_uom"] or base
-	if wanted == base:
-		return base, 1.0, False
 
-	factor = flt(detail["uom_conversions"].get(wanted))
-	if not factor:
-		return base, 1.0, True
-	return wanted, factor, False
+	factor = units.get(wanted)
+	if factor:
+		return wanted, factor, False
+
+	# Either the item carries no conversion for the unit asked for, or the catalogue has narrowed
+	# the choice and the default is no longer one of them. Same safe failure either way: the
+	# smallest unit on offer.
+	#
+	# **Not the base unit.** A catalogue narrowed to cases does not offer pieces, so falling back
+	# to the base unit put a unit in `order_uom` that was not in `order_uoms` - the phone would
+	# pre-select something absent from its own dropdown, and the quantity the rep typed would be
+	# counted against a conversion nobody offered. Caught by a test, not by reasoning.
+	fallback, fallback_factor = min(units.items(), key=lambda pair: pair[1])
+	return fallback, fallback_factor, wanted != fallback
+
+
+def order_units(detail: dict, allowed: list | None = None) -> dict:
+	"""Every unit this item may be booked in, mapped to its conversion into base units.
+
+	The set comes from the **item master** - its stock UOM, plus whatever is on its UOM
+	Conversion table - and not from a list kept beside it. A unit the item cannot convert is a
+	unit nothing can safely price, so offering it would be offering a mistake; `cart_for` refuses
+	one for the same reason.
+
+	`allowed` narrows that, from the catalogue's own Units. A catalogue that names units this
+	particular item cannot convert would leave the rep with nothing to type a number against, so
+	the base unit survives a narrowing that empties the list - the rep orders in pieces, which is
+	an inconvenience, rather than being unable to order at all.
+	"""
+	base = detail["stock_uom"]
+	units = {base: 1.0}
+	for uom, factor in (detail.get("uom_conversions") or {}).items():
+		if uom != base and flt(factor):
+			units[uom] = flt(factor)
+
+	if not allowed:
+		return units
+
+	narrowed = {uom: factor for uom, factor in units.items() if uom in set(allowed)}
+	return narrowed or {base: 1.0}
+
+
+def catalogue_units(catalogues: list) -> dict:
+	"""Per catalogue, the units it will take orders in. An empty list means no narrowing.
+
+	Read off the catalogue header. It is **not** per item, because a Table MultiSelect inside a
+	child table is accepted by Frappe and then stores nothing at all - checked against a real
+	save, twice, and the grandchild table comes back empty with no error. A per-item version
+	through that shape would have looked right in the form and lost every tick.
+	"""
+	return {
+		catalogue.name: [row.uom for row in (catalogue.get("uoms") or []) if row.uom]
+		for catalogue in catalogues
+	}
 
 
 # --------------------------------------------------------------------------------------
@@ -359,7 +423,9 @@ def prices_for(outlet, lines, field_user: str | None = None,
 		if code:
 			wanted[code] = flt(wanted.get(code)) + flt(line.get("qty"))
 
-	sellable = catalogue_rows(matching_masters("FieldMate Product Catalogue", doc, on))
+	catalogues = matching_masters("FieldMate Product Catalogue", doc, on)
+	sellable = catalogue_rows(catalogues)
+	units_by_catalogue = catalogue_units(catalogues)
 	off_catalogue = sorted(code for code in wanted if code not in sellable)
 	codes = [code for code in wanted if code in sellable]
 
@@ -379,8 +445,11 @@ def prices_for(outlet, lines, field_user: str | None = None,
 		detail = details.get(code)
 		if not detail:
 			continue
-		row = sellable[code][0]
-		order_uom, conversion_factor, _ = order_unit(row, detail)
+		row, catalogue = sellable[code]
+		# The same narrowing `for_outlet` applies, or this would answer a different default unit
+		# than the screen the rep is looking at.
+		order_uom, conversion_factor, _ = order_unit(
+			row, detail, units_by_catalogue.get(catalogue))
 		rate = detail["price_list_rate"]
 		priced[code] = {
 			"rate": rate,
