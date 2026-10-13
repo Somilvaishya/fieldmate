@@ -388,6 +388,8 @@ def summary(field_user: str, date=None) -> dict:
 	counts = day_counts(field_user, date)
 	planned = journey_service.day_for(field_user, date) or {}
 
+	measured = trail_service.measure(field_user, date)
+
 	minutes = None
 	if open_day and open_day.get("started_at"):
 		minutes = max(0, round(
@@ -402,7 +404,11 @@ def summary(field_user: str, date=None) -> dict:
 		"minutes_on_route": minutes,
 		"beat": planned.get("beat"),
 		"beat_name": planned.get("beat_name"),
-		"distance_km": round(trail_service.distance_for(field_user, date), 1),
+		"distance_km": round(measured["km"], 1),
+		# "trail", "route", or nothing measured. The day end screen names the figure's source,
+		# and a route figure captioned "from your GPS trail" is a claim about data that is not
+		# there - the app only reports its position while it is open.
+		"distance_basis": measured["basis"],
 		"pending_shops": pending_shops(field_user, date, planned.get("beat")),
 		**counts,
 	}

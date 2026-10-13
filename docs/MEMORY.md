@@ -478,6 +478,57 @@ book, the deposit screen's PDC block, the share screen, and the review screen on
 scheme engine's JS half against the Python parity corpus, the sync outbox, and the Dexie
 migrations.
 
+## The 18-point review batch (from the user and Sagar)
+
+Worked in the order the user set: bug fixes first, then the easy and risk-free items, then the
+risky ones; the doctype-merge questions are held for a decision.
+
+**Done:** #14 (one primary order creating several FieldMate Orders - the cart had no identity
+until submit, so a retried submit made a second order), #15 (the phone still showed shops as
+visited after the office cancelled the day - `todaysVisits` asked the server nothing),
+#2 (Sales Person described rather than renamed), #3 (the daily call target comes off the beat the
+journey plan names for that day, so a short Thursday asks for less than a long Monday; the typed
+figure is the fallback and its default of 25 is gone), #4 (Activity), #11
+(`expected_duration_min` described against the quality floor it was being confused with),
+#5 (visit selfie behind a settings toggle), #7 (WebP where the device can encode it - the trap being that a canvas asked for a type it cannot encode returns a
+**PNG** silently, which would have made photos *larger* on old WebViews), #8 (below).
+
+**Answered, no work needed:** #6 (Flag Mock Location - it already does what it says).
+
+**Outstanding:** #1 autofill from master doctypes · #9 approval-rule simplification (high risk) ·
+#10 `geo_accuracy_m` - *waiting on the user*: flag a loose pin to the approving manager, or drop
+the field · #12 dynamic UOM · #13 Hindi/English · #16 and #18 Day Start+End merge and the wider
+doctype cull - *waiting on the user*; recommended against doing it inside this batch, offered as
+its own phase · #17 scheme simplification (high risk).
+
+## #8 — the GPS toggle, and the day nobody recorded
+
+Two halves. The toggle is the asked-for part; the second half is the bug it exposed.
+
+- `FieldMate Settings.track_gps_trail` (Check, default 1), in `client_settings()` so it reaches the
+  handset. `gps_ping_interval_seconds` now `depends_on` it. Off means the phone takes **no** fixes
+  - `pinger.start()` returns early - rather than taking them and discarding them, which costs the
+  same battery.
+- **The figure was zero for any day the app stayed closed.** A PWA only reports its position while
+  it is open, and a rep works a day with the phone in a pocket. `trail.distance_for` returned the
+  trail and nothing else, so that day showed no travel on the Day End and an expense claim worth
+  nothing for a day somebody drove. `trail.route_distance_for` now measures day start, then each
+  shop in the order it was **actually visited** (not the beat that was planned - a rep who skipped
+  two shops did not travel the planned route). Straight-line, so it under-reports road travel,
+  which is the right direction for a figure a claim is paid against.
+- Each stop is the check-in fix, falling back to the shop's own pin. A shop with neither is
+  skipped, not counted as (0, 0), which is in the Atlantic.
+- **The basis travels with the number.** `trail.measure()` returns `{km, basis}` where basis is
+  `trail`, `route`, or nothing. Three places printed "GPS trail" unconditionally - the Day End
+  tile and its odometer hint, the claim screen's badge and its over-tolerance sentence, and the
+  Day End DocType's own field description. A route figure under that caption is a claim about
+  data that is not there, read by the rep claiming and the manager approving.
+
+Two traps worth keeping: a **missing** `track_gps_trail` is not an opt-out (an older bootstrap or
+a cached profile has no such key, and reading it as off would silently stop recording for everyone
+on an app that had simply not refreshed), and `resumeIfDayOpen()` runs **before** bootstrap
+answers, so it reads the cached settings itself and `configure()` stops a run already under way.
+
 ## Field findings fixed this week
 
 All on testerp2, all found by the user rather than by a test:
@@ -558,13 +609,16 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 11: the manual test sheet, `docs/MANUAL_TESTS_PHASE2_SEASON.md`. The gate already
-points at it. It covers what the gate cannot: the phone's season screens from step 9, the two Desk
-pages (allocation and cockpit), the showcase as a party actually sees it, and the e-way bill.
+Phase 2 steps 9, 10 and 11 are done, including the manual sheet
+`docs/MANUAL_TESTS_PHASE2_SEASON.md`. Work is now in the **18-point review batch** above.
 
-It also has to say **what testerp2 does not have**: no season, no booking and no showcase catalogue
-exist there, so the step 9 screens have nothing to draw until somebody creates them. The sheet's
-first section is that setup.
+Next in the user's stated risk order: **#1, autofill from the master doctypes** (Employee, User,
+Item), then the items waiting on a decision (#10, #16/#18), then the two high-risk ones (#9
+approval rules, #17 schemes).
+
+The season sheet still has to say **what testerp2 does not have**: no season, no booking and no
+showcase catalogue exist there, so the step 9 screens have nothing to draw until somebody creates
+them. The sheet's first section is that setup.
 
 **Open, and waiting on a decision rather than on work:** the tax head (step 10 above). A primary
 order on this site quotes a figure with GST and the invoice goes out with none.

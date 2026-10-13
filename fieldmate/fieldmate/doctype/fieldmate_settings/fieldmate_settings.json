@@ -25,10 +25,11 @@
   "min_visit_duration_minutes",
   "flag_mock_location",
   "section_day",
-  "require_day_start_selfie",
+  "require_day_start_selfie", "require_visit_selfie",
   "day_start_alert_time",
   "column_day",
   "auto_close_day_after_hours",
+  "track_gps_trail",
   "gps_ping_interval_seconds",
   "tab_money",
   "section_credit",
@@ -130,7 +131,10 @@
   },
 
   {"fieldname": "section_day", "fieldtype": "Section Break", "label": "Working Day"},
-  {"fieldname": "require_day_start_selfie", "fieldtype": "Check", "label": "Require Day Start Selfie", "default": "1"},
+  {"fieldname": "require_day_start_selfie", "fieldtype": "Check", "label": "Require Day Start Selfie", "default": "1",
+   "description": "A photo of the rep before the day begins. Proof the person who signed in is the person who went out."},
+  {"fieldname": "require_visit_selfie", "fieldtype": "Check", "label": "Require A Photo At Every Shop", "default": "0",
+   "description": "A photo taken at check-in, at every shop, all day. **Off by default and worth leaving off unless somebody has a reason.** It is one more thing to do at sixty counters a day, it costs a rep seconds they do not have and the office storage it has to keep, and the geo-fence already says where they stood. Switch it on where a territory is genuinely in doubt; the photo is already stored and shown on the visit either way when a rep takes one."},
   {
    "fieldname": "day_start_alert_time",
    "fieldtype": "Time",
@@ -147,10 +151,18 @@
    "description": "Close a day the rep forgot to end, so the next day can start cleanly."
   },
   {
+   "fieldname": "track_gps_trail",
+   "fieldtype": "Check",
+   "label": "Track The GPS Trail",
+   "default": "1",
+   "description": "Record where a rep went through the day. Switch it off and the phone stops reporting its position; travel is then measured along the route actually visited - day start, then each shop - instead of the path walked."
+  },
+  {
    "fieldname": "gps_ping_interval_seconds",
    "fieldtype": "Int",
    "label": "GPS Ping Interval (s)",
    "default": "90",
+   "depends_on": "track_gps_trail",
    "description": "Lower values drain the battery. Budget is under 20% over a nine hour day."
   },
 

@@ -33,6 +33,13 @@ const isTravel = computed(() => type.value === 'Travel')
 const trailKm = computed(() => estimate.value?.trail_distance_km || 0)
 const rate = computed(() => estimate.value?.rate_per_km || 0)
 
+// Where the figure came from: 'trail' is the recorded path, 'route' is day start through the
+// shops actually visited, and nothing means nothing was measured. The app only reports its
+// position while it is open, so a rep who kept the phone in a pocket has a route and no trail -
+// and the badge has to say which, because a route badged as a GPS trail is simply untrue.
+const basis = computed(() => estimate.value?.distance_basis || null)
+const fromRoute = computed(() => basis.value === 'route')
+
 // What the rule gives, recomputed on the phone as the rep edits so the button can carry the
 // figure. The server computes it again and its answer is the one that counts - this is a
 // preview, and the two agreeing is what makes the preview worth showing.
@@ -53,10 +60,11 @@ const overPct = computed(() =>
 const willWait = computed(() => {
   const tolerance = estimate.value?.tolerance_pct ?? 10
   if (isTravel.value && overTrail.value > 0 && overPct.value > tolerance) {
-    return `${overTrail.value.toFixed(1)} km more than your trail recorded — your manager will see this before it is paid.`
+    const measured = fromRoute.value ? 'than your route comes to' : 'than your trail recorded'
+    return `${overTrail.value.toFixed(1)} km more ${measured} — your manager will see this before it is paid.`
   }
   if (isTravel.value && !trailKm.value && distance.value > 0) {
-    return 'No GPS trail was recorded for that day, so this needs your manager.'
+    return 'Nothing was recorded for that day, so this needs your manager.'
   }
   if (payable.value > computedAmount.value + 0.005) {
     return 'More than the rule allows — your manager will see this before it is paid.'
@@ -168,8 +176,16 @@ onMounted(async () => {
           <div class="dist">
             <Icon name="route" />
             <div>
-              <div class="big tnum">{{ trailKm.toFixed(1) }} km <span class="badge">GPS trail</span></div>
-              <div class="dim">
+              <div class="big tnum">
+                {{ trailKm.toFixed(1) }} km
+                <span class="badge">{{ fromRoute ? 'Your route' : 'GPS trail' }}</span>
+              </div>
+              <div class="dim" v-if="fromRoute">
+                Shop to shop across {{ estimate.check_ins }} check-in<span v-if="estimate.check_ins !== 1">s</span>.
+                No GPS trail that day, so this is the straight line between them — usually less
+                than the road.
+              </div>
+              <div class="dim" v-else>
                 Recorded across {{ estimate.check_ins }} check-in<span v-if="estimate.check_ins !== 1">s</span>
                 · {{ estimate.trail_ping_count }} pings
               </div>
@@ -183,7 +199,11 @@ onMounted(async () => {
         <div v-if="editingDistance" class="edit">
           <label for="km">Distance you actually travelled (km)</label>
           <input id="km" v-model.number="distance" type="number" step="0.5" min="0" inputmode="decimal" />
-          <p class="dim fine">
+          <p class="dim fine" v-if="fromRoute">
+            This is the straight line between your shops, so the road is almost always longer.
+            A little more is normal. A lot more waits for your manager.
+          </p>
+          <p class="dim fine" v-else>
             The trail misses pings in basements and in markets with no signal, so a little more
             is normal. A lot more waits for your manager.
           </p>

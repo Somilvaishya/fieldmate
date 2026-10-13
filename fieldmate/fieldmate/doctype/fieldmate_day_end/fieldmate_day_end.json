@@ -35,7 +35,7 @@
   {"fieldname": "collection_amount", "fieldtype": "Currency", "label": "Collected", "read_only": 1},
   {"fieldname": "section_travel", "fieldtype": "Section Break", "label": "Travel & Coverage"},
   {"fieldname": "distance_km", "fieldtype": "Float", "label": "Distance (km)", "read_only": 1, "precision": "2",
-   "description": "From the GPS trail, not from what was typed. Expense claims read this."},
+   "description": "Measured, not typed. From the GPS trail where there is one; otherwise along the route actually visited - day start, then each shop - because the app only reports its position while it is open. Expense claims read this."},
   {"fieldname": "column_travel", "fieldtype": "Column Break"},
   {"fieldname": "coverage_pct", "fieldtype": "Percent", "label": "Coverage", "read_only": 1},
   {"fieldname": "section_sync", "fieldtype": "Section Break", "label": "Sync", "collapsible": 1},
