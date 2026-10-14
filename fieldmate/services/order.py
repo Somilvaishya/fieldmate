@@ -260,13 +260,30 @@ def _write_items(doc, result: dict, source: list | None = None) -> None:
 		if (line.get("item") or line.get("item_code")) and line.get("delivery_date")
 	}
 
+	# Every item this rebuild will touch, read once. It used to be two single-row lookups per
+	# line - name and stock UOM - and `price` runs on **every save** of the order, so a
+	# forty-line order spent eighty round trips restating what one query answers. Same values,
+	# same fallbacks; only the number of queries changes.
+	codes = {line["item"] for line in (result.get("lines") or [])}
+	codes.update(
+		code for line in (source or [])
+		if (code := line.get("item") or line.get("item_code"))
+	)
+	items = {
+		row.name: row
+		for row in frappe.get_all(
+			"Item", filters={"name": ["in", list(codes)]},
+			fields=["name", "item_name", "stock_uom"])
+	} if codes else {}
+
 	doc.set("items", [])
 	for line in result.get("lines") or []:
+		master = items.get(line["item"]) or frappe._dict()
 		row = doc.append("items", {})
 		row.item_code = line["item"]
-		row.item_name = line.get("item_name") or frappe.db.get_value("Item", line["item"], "item_name")
+		row.item_name = line.get("item_name") or master.item_name
 		row.qty = line["qty"]
-		stock_uom = frappe.db.get_value("Item", line["item"], "stock_uom")
+		stock_uom = master.stock_uom
 		row.stock_uom = stock_uom
 		row.uom = line.get("uom") or stock_uom
 		row.conversion_factor = flt(line.get("conversion_factor") or 1)
@@ -289,10 +306,11 @@ def _write_items(doc, result: dict, source: list | None = None) -> None:
 		code = line.get("item") or line.get("item_code")
 		if not code or code in priced or flt(line.get("qty")) > 0:
 			continue
+		master = items.get(code) or frappe._dict()
 		row = doc.append("items", {})
 		row.item_code = code
-		row.item_name = frappe.db.get_value("Item", code, "item_name")
-		stock_uom = frappe.db.get_value("Item", code, "stock_uom")
+		row.item_name = master.item_name
+		stock_uom = master.stock_uom
 		row.qty = 0
 		row.qty_display = 0
 		row.stock_uom = stock_uom

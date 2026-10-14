@@ -1174,21 +1174,29 @@ def release_reservations(sales_order: str) -> int:
 	return len(held)
 
 
+def _cancel_if_submitted(doctype: str, name: str) -> None:
+	"""Cancel a submitted ERPNext document, and say nothing if there is nothing to cancel.
+
+	A cancel that has already happened is the ordinary state after a retried sync, not an error
+	worth raising at anybody - so a missing document and a draft or already-cancelled one are
+	both answered with silence.
+	"""
+	if not name or not frappe.db.exists(doctype, name):
+		return
+	if frappe.db.get_value(doctype, name, "docstatus") != 1:
+		return
+
+	doc = frappe.get_doc(doctype, name)
+	doc.flags.ignore_permissions = True
+	doc.cancel()
+
+
 def cancel_sales_order(name: str) -> None:
 	"""Cancel the commitment behind a cancelled field order. Safe to call twice.
 
-	Gate 4 asks that cancelling a FieldMate Order leaves no orphan Sales Order behind, and a
-	cancel that has already happened is the ordinary state after a retried sync rather than an
-	error worth raising at anybody.
+	Gate 4 asks that cancelling a FieldMate Order leaves no orphan Sales Order behind.
 	"""
-	if not name or not frappe.db.exists("Sales Order", name):
-		return
-	if frappe.db.get_value("Sales Order", name, "docstatus") != 1:
-		return
-
-	doc = frappe.get_doc("Sales Order", name)
-	doc.flags.ignore_permissions = True
-	doc.cancel()
+	_cancel_if_submitted("Sales Order", name)
 
 
 # --------------------------------------------------------------------------------------
@@ -1444,14 +1452,7 @@ def make_credit_note(payload: dict) -> str:
 
 def cancel_credit_note(name: str) -> None:
 	"""Reverse a settled claim. Safe to call twice."""
-	if not name or not frappe.db.exists("Sales Invoice", name):
-		return
-	if frappe.db.get_value("Sales Invoice", name, "docstatus") != 1:
-		return
-
-	doc = frappe.get_doc("Sales Invoice", name)
-	doc.flags.ignore_permissions = True
-	doc.cancel()
+	_cancel_if_submitted("Sales Invoice", name)
 
 
 # --------------------------------------------------------------------------------------

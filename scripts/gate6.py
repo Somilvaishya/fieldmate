@@ -13,7 +13,7 @@ Entry ever, confirmed or not.
 import sys
 
 import frappe
-from frappe.utils import add_days, flt, today
+from frappe.utils import add_days, today
 
 from _guard import hsn_code, require_test_site, selling_price_list
 

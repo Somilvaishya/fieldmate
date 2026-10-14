@@ -20,7 +20,6 @@ from frappe.utils import (
 )
 
 from fieldmate import compat
-from fieldmate.services import field_user as field_user_service
 from fieldmate.services import files as file_service
 from fieldmate.services import journey as journey_service
 from fieldmate.services import settings as settings_service

@@ -16,10 +16,9 @@ Administrator, which hid a defect that made the whole app unusable in the field.
 from unittest.mock import patch
 
 import frappe
-from frappe.utils import add_days, today
+from frappe.utils import today
 
 from fieldmate.services import order as order_service
-from fieldmate.services import settings as settings_service
 from fieldmate.tests.test_scheme_compile import SchemeFixture, default_selling_price_list
 
 
@@ -649,3 +648,89 @@ class TestWhichBranchIsSelling(OrderFixture):
 
 		self.assertTrue(posted.called, "a primary order posted no Sales Order at all")
 		self.assertEqual(posted.call_args[0][0]["location"], branch)
+
+
+class TestPricingDoesNotQueryPerLine(OrderFixture):
+	"""The item master is read once per pricing pass, not twice per line.
+
+	`price` runs from the controller's `validate`, so it happens on **every save** of an order -
+	drafting, submitting, cancelling, amending. It used to call `frappe.db.get_value("Item", ...)`
+	twice for every line to fetch the name and the stock UOM, and twice more for every line the
+	rep had zeroed. A forty-line order therefore spent eighty round trips restating what one
+	query answers, every time anybody touched it.
+
+	**Measured around `price` alone, not around `create`.** A first attempt counted the whole
+	create path and failed at eight lookups for eight lines - which turned out to be Frappe's own
+	Link validation on `doc.insert()`, one per `item_code`, and nothing to do with this code. The
+	test was wrong, not the fix. Counting the framework's queries would have made this a test of
+	Frappe.
+	"""
+
+	def item_lookups_pricing(self, lines):
+		"""How many single-row Item reads one pricing pass makes, ours only."""
+		doc = frappe.get_doc({
+			"doctype": "FieldMate Order",
+			"outlet": self.outlet.name,
+			"field_user": self.rep.name,
+			"order_date": today(),
+			"client_uuid": self.uid("ORD"),
+		})
+
+		seen = []
+		real = frappe.db.get_value
+
+		def counting(doctype, *args, **kwargs):
+			if doctype == "Item":
+				seen.append(args[0] if args else kwargs.get("filters"))
+			return real(doctype, *args, **kwargs)
+
+		frappe.db.get_value = counting
+		try:
+			self.as_rep(order_service.price, doc, lines)
+		finally:
+			frappe.db.get_value = real
+		return len(seen), doc
+
+	def test_the_count_does_not_grow_with_the_order(self):
+		"""The property that matters, asserted as a property rather than a magic number."""
+		small = [self.make_item() for _ in range(2)]
+		big = [self.make_item() for _ in range(8)]
+		for code in small + big:
+			self.price_item(code, 50)
+
+		few, _ = self.item_lookups_pricing([{"item": c, "qty": 4} for c in small])
+		many, doc = self.item_lookups_pricing([{"item": c, "qty": 4} for c in big])
+
+		self.assertEqual(len(doc.items), 8, "the pass must still build every line")
+		# Four times the lines, and the figure must not follow. Before the batch this was two
+		# per line: 4 against 16.
+		self.assertLessEqual(many, few + 2)
+
+	def test_the_values_are_the_ones_the_master_holds(self):
+		"""The batch has to answer exactly what the per-line lookups answered."""
+		code = self.make_item()
+		self.price_item(code, 50)
+		name, uom = frappe.db.get_value("Item", code, ["item_name", "stock_uom"])
+
+		_, doc = self.item_lookups_pricing([{"item": code, "qty": 3}])
+
+		row = doc.items[0]
+		self.assertEqual(row.item_name, name)
+		self.assertEqual(row.stock_uom, uom)
+		self.assertEqual(row.uom, uom)
+
+	def test_a_line_the_rep_zeroed_is_still_named(self):
+		"""The second loop reads the same batch - it used to make two lookups of its own."""
+		kept = self.make_item()
+		declined = self.make_item()
+		for code in (kept, declined):
+			self.price_item(code, 50)
+
+		_, doc = self.item_lookups_pricing(
+			[{"item": kept, "qty": 4}, {"item": declined, "qty": 0}])
+
+		rows = {row.item_code: row for row in doc.items}
+		self.assertIn(declined, rows)
+		self.assertEqual(rows[declined].qty, 0)
+		self.assertEqual(rows[declined].item_name,
+		                 frappe.db.get_value("Item", declined, "item_name"))

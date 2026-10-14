@@ -15,11 +15,8 @@ from __future__ import annotations
 import frappe
 from frappe.utils import cint, flt, now_datetime
 
-from fieldmate import compat
-from fieldmate.services import catalogue as catalogue_service
 from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
-from fieldmate.services import settings as settings_service
 
 # What a rep is allowed to change from the app. Anything else is ignored silently on update
 # rather than rejected, so a newer app build sending an extra field never breaks an old server.

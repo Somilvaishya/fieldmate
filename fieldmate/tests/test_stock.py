@@ -12,7 +12,6 @@ anything of ours moving would be recording a sale we did not make.
 import frappe
 from frappe.utils import add_days, today
 
-from fieldmate.services import order as order_service
 from fieldmate.services import stock as stock_service
 from fieldmate.tests.test_order import OrderFixture
 

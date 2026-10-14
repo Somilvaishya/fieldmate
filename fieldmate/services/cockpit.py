@@ -72,11 +72,27 @@ def _rows(season: str) -> list[dict]:
 			"booked_value": flt(booking.grand_total) or flt(booking.net_total),
 			"paid": flt(in_hand.get(booking.name) or 0),
 			"reserved_qty": flt(sum(flt(r.get("reserved_qty")) for r in held), 3),
+			# The Sales Order and the reservation rows behind it, carried rather than looked up
+			# again: `by_sku` needs the per-item breakdown and used to re-ask the stock ledger
+			# for every booking a second time.
+			"sales_order": booking.sales_order,
+			"held": held,
 			"delivery_note": note,
 			"sales_invoice": invoice,
 			"state": _state_of(booking, bool(held), note, invoice),
 		})
 	return rows
+
+
+def _names_of(doctype: str, names: set, field: str) -> dict:
+	"""The display name of each record, in one query. Empty set, no query."""
+	if not names:
+		return {}
+	return {
+		row.name: row.get(field)
+		for row in frappe.get_all(
+			doctype, filters={"name": ["in", list(names)]}, fields=["name", field])
+	}
 
 
 def dispatch_service_note(order: str) -> str | None:
@@ -88,13 +104,13 @@ def dispatch_service_note(order: str) -> str | None:
 	return compat.posted_for_key("Delivery Note", dispatch_service._note_key(order))
 
 
-def by_state(season: str) -> list[dict]:
+def by_state(season: str, rows: list[dict] | None = None) -> list[dict]:
 	"""How many bookings are at each point, and what they are worth.
 
 	Every state is listed even where it holds nothing. A row missing from a summary reads as a
 	state that does not exist, and "nothing has been delivered yet" is an answer somebody needs.
 	"""
-	rows = _rows(season)
+	rows = _rows(season) if rows is None else rows
 	tally = {state: {"state": state, "bookings": 0, "value": 0.0, "paid": 0.0}
 	         for state in STATES}
 
@@ -107,18 +123,22 @@ def by_state(season: str) -> list[dict]:
 	return [tally[state] for state in STATES]
 
 
-def by_party(season: str) -> list[dict]:
+def by_party(season: str, rows: list[dict] | None = None) -> list[dict]:
 	"""One line per distributor: what they booked, what they have paid, where they have got to.
 
 	Sorted by what they owe, largest first. A cockpit is opened to find out who to telephone.
 	"""
-	rows = _rows(season)
+	rows = _rows(season) if rows is None else rows
 	parties: dict[str, dict] = {}
+	# One query for every name. `setdefault` evaluates its default on **every** iteration, not
+	# only when the key is missing, so this used to read the Customer once per booking rather
+	# than once per party.
+	names = _names_of("Customer", {row["customer"] for row in rows}, "customer_name")
 
 	for row in rows:
 		party = parties.setdefault(row["customer"], {
 			"customer": row["customer"],
-			"customer_name": frappe.db.get_value("Customer", row["customer"], "customer_name"),
+			"customer_name": names.get(row["customer"]),
 			"bookings": 0, "value": 0.0, "paid": 0.0, "owing": 0.0,
 			"states": [],
 		})
@@ -136,14 +156,14 @@ def by_party(season: str) -> list[dict]:
 	return sorted(parties.values(), key=lambda p: (-p["owing"], p["customer"]))
 
 
-def by_sku(season: str) -> list[dict]:
+def by_sku(season: str, rows: list[dict] | None = None) -> list[dict]:
 	"""One line per item: booked, reserved, delivered. The "what are we short of" view.
 
 	Quantities in stock units throughout, because that is what the warehouse counts in and what
 	a reservation is held in. Mixing an order's own UOM into this is how two people reading the
 	same screen disagree about whether there is enough.
 	"""
-	rows = _rows(season)
+	rows = _rows(season) if rows is None else rows
 	if not rows:
 		return []
 
@@ -155,29 +175,36 @@ def by_sku(season: str) -> list[dict]:
 	)
 
 	items: dict[str, dict] = {}
+	names = _names_of("Item", {line.item_code for line in booked}, "item_name")
 	for line in booked:
 		item = items.setdefault(line.item_code, {
 			"item_code": line.item_code,
-			"item_name": frappe.db.get_value("Item", line.item_code, "item_name"),
+			"item_name": names.get(line.item_code),
 			"uom": line.stock_uom,
 			"booked_qty": 0.0, "reserved_qty": 0.0, "delivered_qty": 0.0,
 		})
 		item["booked_qty"] = flt(item["booked_qty"] + flt(line.qty), 3)
 
+	# Every delivery note's lines in one query, grouped by note. Still walked per row below, so a
+	# note that somehow covered two bookings counts exactly the way it used to.
+	notes = [row["delivery_note"] for row in rows if row["delivery_note"]]
+	shipped: dict[str, list] = {}
+	if notes:
+		for line in frappe.get_all(
+			"Delivery Note Item",
+			filters={"parent": ["in", notes], "parenttype": "Delivery Note"},
+			fields=["parent", "item_code", "stock_qty"],
+		):
+			shipped.setdefault(line.parent, []).append(line)
+
 	for row in rows:
-		sales_order = frappe.db.get_value("FieldMate Order", row["order"], "sales_order")
-		for entry in (compat.reserved_for_sales_order(sales_order) if sales_order else []):
+		# `_rows` already asked the stock ledger what is held against this booking's Sales Order.
+		for entry in row["held"]:
 			item = items.get(entry.get("item_code"))
 			if item:
 				item["reserved_qty"] = flt(item["reserved_qty"] + flt(entry.get("reserved_qty")), 3)
 
-		if not row["delivery_note"]:
-			continue
-		for line in frappe.get_all(
-			"Delivery Note Item",
-			filters={"parent": row["delivery_note"], "parenttype": "Delivery Note"},
-			fields=["item_code", "stock_qty"],
-		):
+		for line in shipped.get(row["delivery_note"]) or []:
 			item = items.get(line.item_code)
 			if item:
 				item["delivered_qty"] = flt(item["delivered_qty"] + flt(line.stock_qty), 3)
@@ -200,6 +227,9 @@ def summary(season: str) -> dict:
 	if not doc:
 		frappe.throw(frappe._("{0} is not a season.").format(season))
 
+	# One walk, handed to all three views. Each of them used to call `_rows` itself, so opening
+	# the cockpit repeated the whole thing four times - and `_rows` asks the stock ledger and the
+	# dispatch keys once per booking.
 	rows = _rows(season)
 	value = flt(sum(row["booked_value"] for row in rows), 2)
 	paid = flt(sum(row["paid"] for row in rows), 2)
@@ -213,9 +243,9 @@ def summary(season: str) -> dict:
 		"value": value,
 		"paid": paid,
 		"owing": flt(max(0.0, value - paid), 2),
-		"by_state": by_state(season),
-		"by_party": by_party(season),
-		"by_sku": by_sku(season),
+		"by_state": by_state(season, rows),
+		"by_party": by_party(season, rows),
+		"by_sku": by_sku(season, rows),
 	}
 
 

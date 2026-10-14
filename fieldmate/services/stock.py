@@ -11,7 +11,6 @@ from __future__ import annotations
 import frappe
 from frappe.utils import cint, flt, nowdate
 
-from fieldmate import compat
 from fieldmate.services import catalogue as catalogue_service
 from fieldmate.services import field_user as field_user_service
 
