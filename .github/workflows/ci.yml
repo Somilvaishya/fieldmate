@@ -5,7 +5,9 @@ name: CI
 # customers do. See docs/DECISIONS.md ADR-005.
 on:
   push:
-    branches: [main, "feature/**"]
+    # `fix/**` as well as `feature/**`: the work actually branches both ways, and a fix branch
+    # that matched neither got no CI at all until somebody opened a pull request for it.
+    branches: [main, "feature/**", "fix/**"]
   pull_request:
   workflow_dispatch:
 
@@ -130,8 +132,12 @@ jobs:
         working-directory: ci-bench
         run: bench --site ci.localhost run-tests --app fieldmate
 
-      - name: Frontend build
+      - name: Frontend tests and build
         working-directory: ci-bench/apps/fieldmate/frontend
+        # The PWA suite ran on developer machines and nowhere else. The cart's arithmetic, the
+        # offline queue and the sync reconciliation all live here, and a build succeeding says
+        # only that the files parse.
         run: |
           npm ci
+          npm test
           npm run build
