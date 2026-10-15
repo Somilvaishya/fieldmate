@@ -4,10 +4,11 @@ name: CI
 # but its result is recorded and triaged — that is how we learn about a v17 break weeks before
 # customers do. See docs/DECISIONS.md ADR-005.
 on:
+  # Only main on push. Every other branch is covered by `pull_request`, and listing branches here
+  # as well meant a branch with a pull request open ran the whole matrix twice for one commit -
+  # two identical runs, seconds apart.
   push:
-    # `fix/**` as well as `feature/**`: the work actually branches both ways, and a fix branch
-    # that matched neither got no CI at all until somebody opened a pull request for it.
-    branches: [main, "feature/**", "fix/**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -27,12 +28,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Each lane gets the Python its Frappe asks for. This is not a detail: frappe
+        # version-16 declares `requires-python = ">=3.14,<3.15"` and uses PEP 695 type aliases
+        # (`type X = ...`), which are a syntax error before 3.12 - so pinning one Python for the
+        # whole matrix meant the v16 and develop lanes could never get past `bench init`. Nobody
+        # knew, because no run of this workflow had ever started a job.
         include:
           - branch: version-15
+            python: "3.11"
             experimental: false
           - branch: version-16
+            python: "3.14"
             experimental: false
           - branch: develop
+            python: "3.14"
             experimental: true
 
     services:
@@ -56,7 +65,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
 
       - uses: actions/setup-node@v4
         with:
@@ -103,7 +112,14 @@ jobs:
         run: |
           cp -r "$GITHUB_WORKSPACE/fieldmate" apps/fieldmate
           ./env/bin/pip install -e apps/fieldmate
-          grep -qx fieldmate sites/apps.txt || echo fieldmate >> sites/apps.txt
+          # apps.txt does not always end in a newline, and `echo fieldmate >>` then glues the
+          # name onto the last one. That is how the site tried to import `erpnextfieldmate`
+          # and the whole lane died on a ModuleNotFoundError nobody could place.
+          if ! grep -qx fieldmate sites/apps.txt; then
+            if [ -n "$(tail -c1 sites/apps.txt)" ]; then echo >> sites/apps.txt; fi
+            echo fieldmate >> sites/apps.txt
+          fi
+          echo "apps.txt is now:"; cat sites/apps.txt
 
       - name: Create site and install apps
         working-directory: ci-bench
