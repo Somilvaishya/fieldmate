@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { deviceUuid, setMeta } from '../db'
+import { startLanguage } from '../lib/i18n'
 import Icon from '../components/Icon.vue'
 
 const router = useRouter()
@@ -46,6 +47,8 @@ async function submit() {
       device_name: navigator.userAgent.slice(0, 60),
     })
     await setMeta('profile', data)
+    // What this login's User record says, unless this handset has already been set otherwise.
+    startLanguage(data?.language)
     router.push('/today')
   } catch (e) {
     // Errors say what happened in plain words - a rep reads this in a market with no

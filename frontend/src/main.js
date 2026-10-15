@@ -14,7 +14,15 @@ import Visit from './screens/Visit.vue'
 import VisitChecklist from './screens/VisitChecklist.vue'
 import VisitMerchandising from './screens/VisitMerchandising.vue'
 import VisitCheckOut from './screens/VisitCheckOut.vue'
+import { startLanguage } from './lib/i18n'
+import { getMeta } from './db'
 import './style.css'
+
+// The language before the first screen draws. A rep who set Hindi must not watch the app render
+// in English and then switch - and `getMeta` is the cached profile, so this works with no signal.
+getMeta('profile')
+  .then((profile) => startLanguage(profile?.language))
+  .catch(() => startLanguage(null))
 
 const router = createRouter({
   // Hash routing: every deep link is still a request for /fieldmate/ itself, so no

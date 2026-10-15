@@ -6,6 +6,7 @@ import { getPosition } from '../lib/geo'
 import { compress } from '../lib/image'
 import { getMeta } from '../db'
 import * as dayStore from '../stores/day'
+import { t } from '../lib/i18n'
 import Icon from '../components/Icon.vue'
 
 const router = useRouter()
@@ -73,7 +74,7 @@ async function onSelfie(event) {
     selfieAt.value = new Date().toLocaleTimeString('en-IN',
       { hour: '2-digit', minute: '2-digit' })
   } catch {
-    error.value = 'Could not read that photo. Try taking it again.'
+    error.value = t('Could not read that photo. Try taking it again.')
   } finally {
     event.target.value = ''
   }
@@ -81,9 +82,9 @@ async function onSelfie(event) {
 
 async function begin() {
   error.value = ''
-  if (!fix.value) return (error.value = 'Capture your location first.')
+  if (!fix.value) return (error.value = t('Capture your location first.'))
   if (requireSelfie.value && !selfie.value) {
-    return (error.value = 'Take the start-of-day photo first.')
+    return (error.value = t('Take the start-of-day photo first.'))
   }
   busy.value = true
   try {
@@ -96,7 +97,7 @@ async function begin() {
   } catch (e) {
     error.value = e instanceof ApiError
       ? e.message
-      : 'Could not start your day. Try again in a moment.'
+      : t('Could not start your day. Try again in a moment.')
   } finally {
     busy.value = false
   }
@@ -108,8 +109,8 @@ async function begin() {
     <div class="top">
       <div class="head">
         <div>
-          <span class="eyebrow">Today's assignment</span>
-          <h2>{{ planned?.beat_name || planned?.beat || 'No route planned' }}</h2>
+          <span class="eyebrow">{{ t("Today's assignment") }}</span>
+          <h2>{{ planned?.beat_name || planned?.beat || t('No route planned') }}</h2>
         </div>
         <span class="date tnum">{{ today }}</span>
       </div>
@@ -120,13 +121,13 @@ async function begin() {
               @click="locate">
         <span class="badge"><Icon :name="fix ? 'check' : 'pin'" size="22" /></span>
         <span class="tile-text">
-          <b v-if="locating">Getting a fix…</b>
+          <b v-if="locating">{{ t('Getting a fix…') }}</b>
           <b v-else-if="fix" class="tnum">Location captured · ±{{ fix.accuracy_m }} m</b>
-          <b v-else>Capture your location</b>
+          <b v-else>{{ t('Capture your location') }}</b>
           <span class="muted tnum" v-if="fix">
             {{ fix.latitude }}, {{ fix.longitude }} · {{ fix.location_provider }}
           </span>
-          <span class="muted" v-else-if="!locating">Tap to try again</span>
+          <span class="muted" v-else-if="!locating">{{ t('Tap to try again') }}</span>
         </span>
         <Icon v-if="fix" name="refresh" size="20" class="go" />
       </button>
@@ -135,30 +136,30 @@ async function begin() {
         <span class="badge"><Icon :name="selfie ? 'check' : 'camera'" size="22" /></span>
         <span class="tile-text">
           <b v-if="selfie" class="tnum">Photo taken · {{ selfieKb }} KB</b>
-          <b v-else>Take the start-of-day photo</b>
+          <b v-else>{{ t('Take the start-of-day photo') }}</b>
           <span class="muted tnum" v-if="selfie">Taken at {{ selfieAt }} · tap to retake</span>
-          <span class="muted" v-else>{{ requireSelfie ? 'Required' : 'Optional' }}</span>
+          <span class="muted" v-else>{{ requireSelfie ? t('Required') : t('Optional') }}</span>
         </span>
         <input type="file" accept="image/*" capture="user" hidden @change="onSelfie" />
       </label>
 
       <div class="card">
         <label class="lbl" for="odo">
-          Odometer reading <span class="muted">(optional)</span>
+          {{ t('Odometer reading') }} <span class="muted">{{ t('(optional)') }}</span>
         </label>
         <div class="odo">
           <input id="odo" v-model="odometer" inputmode="numeric" class="tnum"
-                 placeholder="e.g. 14250" />
+                 :placeholder="t('e.g. 14250')" />
           <span class="unit">km</span>
         </div>
-        <p class="muted hint">Recorded with your day.</p>
+        <p class="muted hint">{{ t('Recorded with your day.') }}</p>
       </div>
 
       <!-- What the day asks of them, before they commit to it. Only what the route
            actually records - a made-up estimate is worse than none. -->
       <div class="card" v-if="planned?.beat">
         <div class="row">
-          <b>Today's route</b>
+          <b>{{ t("Today's route") }}</b>
           <span class="pill tnum" v-if="planned.outlet_count">
             {{ planned.outlet_count }} shops
           </span>
@@ -167,21 +168,21 @@ async function begin() {
           <div class="fact" v-if="planned.outlet_count">
             <Icon name="store" size="20" />
             <span>
-              <span class="muted">Shops planned</span>
+              <span class="muted">{{ t('Shops planned') }}</span>
               <b class="tnum">{{ planned.outlet_count }}</b>
             </span>
           </div>
           <div class="fact" v-if="planned.estimated_travel_km">
             <Icon name="directions" size="20" />
             <span>
-              <span class="muted">Route distance</span>
+              <span class="muted">{{ t('Route distance') }}</span>
               <b class="tnum">about {{ planned.estimated_travel_km }} km</b>
             </span>
           </div>
           <div class="fact" v-if="duration">
             <Icon name="refresh" size="20" />
             <span>
-              <span class="muted">Expected time</span>
+              <span class="muted">{{ t('Expected time') }}</span>
               <b class="tnum">about {{ duration }}</b>
             </span>
           </div>
@@ -193,10 +194,10 @@ async function begin() {
 
     <div class="bottom">
       <button class="btn-primary" :disabled="busy || !ready" @click="begin">
-        {{ busy ? 'Starting…' : 'Start day' }}
+        {{ busy ? t('Starting…') : t('Start day') }}
       </button>
       <p class="muted foot" v-if="!ready && !busy">
-        {{ !fix ? 'Capture your location to continue.' : 'Take the photo to continue.' }}
+        {{ !fix ? t('Capture your location to continue.') : t('Take the photo to continue.') }}
       </p>
       <p class="muted foot" v-else>
         Your location is recorded through the day and stops when you finish.
