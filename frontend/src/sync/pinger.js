@@ -6,6 +6,11 @@ import { tryPosition } from '../lib/geo'
 let PING_SECONDS = 90
 let UPLOAD_EVERY = 10 * 60 * 1000
 
+// Whether this company tracks the trail at all. Default on, because that is the DocType's
+// default and because a phone that has not reached bootstrap yet must not quietly stop
+// recording a day somebody is already working.
+let TRACKING = true
+
 // Never two uploads inside this window, whoever asks for one. Check-in, check-out and the
 // app coming back to the foreground all land within seconds of each other, and each upload
 // is a radio wake-up - which is the expensive part, not the fixes.
@@ -17,6 +22,20 @@ let lastFlushAt = 0
 
 export function configure(settings = {}) {
   if (settings.gps_ping_interval_seconds) PING_SECONDS = settings.gps_ping_interval_seconds
+  // Only an explicit `false` turns it off. An absent key is a bootstrap that predates the
+  // setting, not a company that opted out.
+  if (settings.track_gps_trail === false) {
+    TRACKING = false
+    // It may already be running: the day resumed on a cached bootstrap and the live one
+    // arrived a moment later saying not to.
+    if (isRunning()) stop()
+  } else if (settings.track_gps_trail === true) {
+    TRACKING = true
+  }
+}
+
+export function isTracking() {
+  return TRACKING
 }
 
 /** Record one fix. Cheap, silent, and never interrupts what the rep is doing. */
@@ -89,6 +108,10 @@ function onWake() {
 
 export function start() {
   stop()
+  // Switched off: no fixes are taken, so there is nothing to upload and nothing to drain the
+  // battery for. The server measures the day along the route visited instead - day start, then
+  // each shop - so travel and the expense claim it is paid against still have a figure.
+  if (!TRACKING) return
   // The first fix goes up on its own rather than waiting out the batch window. One small
   // request at the start of a day, or when the app is reopened, against a budget measured
   // over nine hours.
@@ -113,8 +136,15 @@ export function isRunning() {
   return pingTimer !== null
 }
 
-/** Resume pinging after a reload if a day is still open. */
+/** Resume pinging after a reload if a day is still open.
+ *
+ * This runs before bootstrap answers - a reload mid-day must not wait on a signal to carry on
+ * recording - so the cached settings are read here. Without them a company that switched the
+ * trail off would still collect a morning of fixes on every reload of a phone with no signal.
+ */
 export async function resumeIfDayOpen() {
+  const cached = await getMeta('profile')
+  if (cached) configure(cached.settings || {})
   const open = await getMeta('openDay')
   if (open) start()
 }

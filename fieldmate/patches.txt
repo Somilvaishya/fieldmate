@@ -15,3 +15,10 @@ fieldmate.patches.stamp_scheme_applies_to
 # Phase 2, step 1. Every order written before `order_kind` existed is secondary or primary by
 # its party; no season exists yet, so none of them can be a booking.
 fieldmate.patches.stamp_order_kind
+# #8. A Check added to a Single gets no row in `tabSingles`, and that absence reads as 0 on
+# some sites and as None on others - so the default has to be written, or a deploy that only
+# adds a switch silently switches the trail off.
+fieldmate.patches.switch_on_the_gps_trail
+# #1. The controller now takes a rep's company from their Employee record on every save, which
+# only reaches a record when somebody saves it. This corrects the ones already there.
+fieldmate.patches.company_from_the_employee

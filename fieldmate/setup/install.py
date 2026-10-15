@@ -186,8 +186,19 @@ CUSTOMER_FIELDS = (
 		"label": "Distributor Code",
 		"fieldtype": "Data",
 		"insert_after": "fm_channel_section",
+		# Unique, because the whole point of a code is that it names one party. Two distributors
+		# sharing one is a reconciliation somebody does by hand at month end, and nothing in the
+		# app would have noticed.
+		#
+		# **Blank is still fine, and that is not an accident of MariaDB.** A unique index rejects a
+		# second empty string, but Frappe converts a blank value on a `unique` field to NULL before
+		# it writes (`base_document.get_valid_dict`), and a unique index allows any number of
+		# NULLs. So every party that has no code - which is all of them until somebody fills one
+		# in - saves exactly as before.
+		"unique": 1,
 		"description": "What this party calls itself in their own books. Shown in the distributor "
-		               "portal header so they can see they are looking at their own account.",
+		               "portal header so they can see they are looking at their own account. "
+		               "Must be unique across parties; leave it empty if there is none.",
 	},
 	{
 		"fieldname": "fm_tier",
@@ -247,10 +258,27 @@ CUSTOMER_FIELDS = (
 		"insert_after": "fm_ptr_price_list",
 	},
 	{
+		"fieldname": "fm_location",
+		"label": "Sold From",
+		"fieldtype": "Link",
+		"options": "Location",
+		"insert_after": "fm_warehouse",
+		# Which of our own branches normally serves this party, so the rep is offered the right
+		# answer rather than asked a question they have no way to settle at a counter. They can
+		# still change it: a party covered by two branches is the reason this is a choice on the
+		# order and not simply copied from here.
+		#
+		# Only used on a site that has enabled Location as an Accounting Dimension, which is what
+		# makes it mandatory on the Sales Order, the Delivery Note and the invoice.
+		"description": "Which branch of ours usually sells to this party. Offered as the default "
+		               "when a rep books a primary order; they can pick another. Leave it empty "
+		               "where this site does not use Locations.",
+	},
+	{
 		"fieldname": "fm_min_order_value",
 		"label": "Minimum Order Value",
 		"fieldtype": "Currency",
-		"insert_after": "fm_warehouse",
+		"insert_after": "fm_location",
 	},
 	{
 		"fieldname": "fm_max_open_invoices",

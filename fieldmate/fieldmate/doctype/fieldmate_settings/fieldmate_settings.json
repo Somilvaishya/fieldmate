@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "issingle": 1,
  "field_order": [
+  "tab_selling",
   "section_sales_model",
   "enable_secondary_sales",
   "column_sales_model",
@@ -15,6 +16,7 @@
   "default_price_list",
   "column_general",
   "support_contact",
+  "tab_field",
   "section_visit",
   "enforce_geo_fence",
   "default_geo_fence_radius_m",
@@ -23,11 +25,13 @@
   "min_visit_duration_minutes",
   "flag_mock_location",
   "section_day",
-  "require_day_start_selfie",
+  "require_day_start_selfie", "require_visit_selfie",
   "day_start_alert_time",
   "column_day",
   "auto_close_day_after_hours",
+  "track_gps_trail",
   "gps_ping_interval_seconds",
+  "tab_money",
   "section_credit",
   "block_order_on_credit_breach",
   "allow_credit_override",
@@ -43,6 +47,7 @@
   "daily_stay_allowance",
   "expense_receipt_required_above",
   "expense_distance_tolerance_pct",
+  "tab_data",
   "section_sync",
   "sync_batch_size",
   "sync_max_retries",
@@ -56,6 +61,8 @@
   "visit_photo_retention_days"
  ],
  "fields": [
+  {"fieldname": "tab_selling", "fieldtype": "Tab Break", "label": "Selling",
+   "description": "What this company sells and to whom. Set once, by whoever owns the commercial setup."},
   {
    "fieldname": "section_sales_model",
    "fieldtype": "Section Break",
@@ -89,6 +96,8 @@
    "description": "Shown in the app when a rep is stuck. A number a rep can actually reach."
   },
 
+  {"fieldname": "tab_field", "fieldtype": "Tab Break", "label": "Field work",
+   "description": "What the app asks of a rep on the ground - where they may check in, how long a visit counts for, and when a day closes itself."},
   {"fieldname": "section_visit", "fieldtype": "Section Break", "label": "Visit & Location"},
   {
    "fieldname": "enforce_geo_fence",
@@ -122,7 +131,10 @@
   },
 
   {"fieldname": "section_day", "fieldtype": "Section Break", "label": "Working Day"},
-  {"fieldname": "require_day_start_selfie", "fieldtype": "Check", "label": "Require Day Start Selfie", "default": "1"},
+  {"fieldname": "require_day_start_selfie", "fieldtype": "Check", "label": "Require Day Start Selfie", "default": "1",
+   "description": "A photo of the rep before the day begins. Proof the person who signed in is the person who went out."},
+  {"fieldname": "require_visit_selfie", "fieldtype": "Check", "label": "Require A Photo At Every Shop", "default": "0",
+   "description": "A photo taken at check-in, at every shop, all day. **Off by default and worth leaving off unless somebody has a reason.** It is one more thing to do at sixty counters a day, it costs a rep seconds they do not have and the office storage it has to keep, and the geo-fence already says where they stood. Switch it on where a territory is genuinely in doubt; the photo is already stored and shown on the visit either way when a rep takes one."},
   {
    "fieldname": "day_start_alert_time",
    "fieldtype": "Time",
@@ -139,13 +151,23 @@
    "description": "Close a day the rep forgot to end, so the next day can start cleanly."
   },
   {
+   "fieldname": "track_gps_trail",
+   "fieldtype": "Check",
+   "label": "Track The GPS Trail",
+   "default": "1",
+   "description": "Record where a rep went through the day. Switch it off and the phone stops reporting its position; travel is then measured along the route actually visited - day start, then each shop - instead of the path walked."
+  },
+  {
    "fieldname": "gps_ping_interval_seconds",
    "fieldtype": "Int",
    "label": "GPS Ping Interval (s)",
    "default": "90",
+   "depends_on": "track_gps_trail",
    "description": "Lower values drain the battery. Budget is under 20% over a nine hour day."
   },
 
+  {"fieldname": "tab_money", "fieldtype": "Tab Break", "label": "Money",
+   "description": "Credit at the counter, how a scheme claim is settled, and what the company pays a rep back for. Finance owns this tab."},
   {"fieldname": "section_credit", "fieldtype": "Section Break", "label": "Credit"},
   {
    "fieldname": "block_order_on_credit_breach",
@@ -217,6 +239,8 @@
    "description": "How far above the recorded trail a rep may claim without a manager. A trail drops pings in a basement car park and in a market with no signal, so a claim a little over the recording is ordinary rather than suspicious. Beyond this, the claim still goes in - it just waits for somebody to agree."
   },
 
+  {"fieldname": "tab_data", "fieldtype": "Tab Break", "label": "Sync & data",
+   "description": "How much a handset sends at a time, and how long what it sent is kept. Nothing here changes what a rep sees."},
   {"fieldname": "section_sync", "fieldtype": "Section Break", "label": "Sync"},
   {"fieldname": "sync_batch_size", "fieldtype": "Int", "label": "Sync Batch Size", "default": "50"},
   {"fieldname": "sync_max_retries", "fieldtype": "Int", "label": "Max Retries", "default": "6"},

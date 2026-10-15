@@ -218,7 +218,18 @@ has_permission = {
 # Testing
 # -------
 
-# before_tests = "fieldmate.install.before_tests"
+# Set a site up before its first test runs. ERPNext's own does the work: it completes the setup
+# wizard when there is no Company, which is what creates `All Territories`, `All Item Groups`, a
+# fiscal year and a chart of accounts - every one of which this suite's fixtures link to.
+#
+# Frappe calls the hook belonging to **the app being tested**, so `--app fieldmate` looks here and
+# nowhere else. Without this line a fresh site runs 1272 tests and 906 of them die in setUp on
+# "Could not find Parent Territory: All Territories". It never showed on a developer machine
+# because those sites were set up by hand months ago.
+#
+# Note that ERPNext's version also clears `tabItem Price` before every run. That is fine on a site
+# kept for tests, and it is one more reason not to point a test run at anything else.
+before_tests = "erpnext.setup.utils.before_tests"
 
 # Overriding Methods
 # ------------------------------
@@ -316,6 +327,10 @@ scheduler_events = {
 		# read of one stored row rather than a count over a month of orders on every open
 		# (Gate 7 criterion 5).
 		"fieldmate.tasks.measure_targets",
+		# What every shop owed at the end of the day, frozen before the rollup reads it. The
+		# rollup answers "what is owed" as this figure plus what was billed today, so running
+		# it the other way round would report yesterday's position as today's.
+		"fieldmate.tasks.snapshot_outstanding",
 		# Phase 8. The KPI snapshot is what every chart, report and screen reads, so it is
 		# rebuilt before anybody looks at it, and the alerts run after - they read the rows the
 		# rollup just wrote, and running them first would judge yesterday on the day before's

@@ -150,12 +150,93 @@ def append(field_user: str, pings: list[dict], day_start: str | None = None,
 
 
 def distance_for(field_user: str, date) -> float:
-	"""Kilometres travelled, for Day End and for expense claims."""
-	return flt(frappe.db.get_value(
+	"""Kilometres travelled, for Day End and for expense claims.
+
+	The trail is the better answer when there is one: it is where the rep actually was, minute by
+	minute. But **a PWA only reports its position while it is open**, and a rep works a day with
+	the phone in a pocket. That day has no trail, and this used to answer zero - a day end showing
+	no travel at all and an expense claim worth nothing for a day somebody drove forty kilometres.
+
+	So where there is no trail, the route is used instead: day start, then the shops in the order
+	they were actually visited. It is straight-line and so under-reports road travel, which is the
+	right direction for a figure a claim is paid against.
+	"""
+	return measure(field_user, date)["km"]
+
+
+def measure(field_user: str, date) -> dict:
+	"""The figure and **where it came from**, for anything that puts it in front of a person.
+
+	The basis has to travel with the number. The claim screen used to badge it "GPS trail" and
+	say "more than your trail recorded", and a route figure badged that way is simply false -
+	the rep would be reading a sentence about a trail that does not exist, and the manager
+	approving it would be told the same thing.
+	"""
+	trail = flt(frappe.db.get_value(
 		"FieldMate Location Trail",
 		{"field_user": field_user, "trail_date": getdate(date)},
 		"total_distance_km",
 	))
+	if trail:
+		return {"km": trail, "basis": "trail"}
+
+	# The stop count, not the distance, decides whether anything was measured. A rep who started
+	# the day at the shop downstairs and walked back has a real route that comes to zero km, and
+	# "nothing recorded" would be the wrong thing to tell them - and the wrong thing to show the
+	# manager reading their claim. Two located stops is a measurement; fewer is not.
+	points = _route_points(field_user, date)
+	return {"km": _distance_along(points), "basis": "route" if len(points) > 1 else None}
+
+
+def route_distance_for(field_user: str, date) -> float:
+	"""Kilometres along the day's own route: day start, then each shop in visiting order.
+
+	Read from the **visits that happened**, not the beat that was planned. A rep who skipped two
+	shops and added one did not travel the planned route, and the plan is not evidence of anything.
+
+	Each stop is the check-in fix where there is one and the shop's own pin where there is not: a
+	visit always records a position, and a shop that has been pinned always has one, so a stop with
+	neither is a shop nobody has ever located and is skipped rather than counted as the equator.
+	"""
+	return _distance_along(_route_points(field_user, date))
+
+
+def _route_points(field_user: str, date) -> list[tuple[float, float]]:
+	"""The day's stops in the order they were visited, skipping any that have no position."""
+	date = getdate(date)
+	start = frappe.db.get_value(
+		"FieldMate Day Start",
+		{"field_user": field_user, "day_date": date, "docstatus": 1},
+		["latitude", "longitude"], as_dict=True)
+
+	visits = frappe.get_all(
+		"FieldMate Visit",
+		filters={"field_user": field_user, "visit_date": date, "docstatus": 1},
+		fields=["outlet", "check_in_latitude", "check_in_longitude"],
+		order_by="check_in_time asc",
+	)
+
+	points = []
+	if start and start.latitude and start.longitude:
+		points.append((flt(start.latitude), flt(start.longitude)))
+
+	for visit in visits:
+		lat, lon = flt(visit.check_in_latitude), flt(visit.check_in_longitude)
+		if not (lat and lon):
+			pinned = frappe.db.get_value(
+				"FieldMate Outlet", visit.outlet, ["latitude", "longitude"], as_dict=True) or {}
+			lat, lon = flt(pinned.get("latitude")), flt(pinned.get("longitude"))
+		if lat and lon:
+			points.append((lat, lon))
+
+	return points
+
+
+def _distance_along(points: list[tuple[float, float]]) -> float:
+	total = 0.0
+	for before, after in itertools.pairwise(points):
+		total += haversine_km(before[0], before[1], after[0], after[1])
+	return flt(total, 2)
 
 
 def purge_older_than(days: int) -> int:

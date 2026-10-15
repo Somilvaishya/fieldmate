@@ -11,6 +11,27 @@ import Icon from '../components/Icon.vue'
 
 const router = useRouter()
 const summary = ref(null)
+
+// The app only reports its position while it is open, so a day worked with the phone in a
+// pocket has no trail and the server measures the route instead - day start, then each shop.
+// Both are honest figures; captioning the second one "from your GPS trail" is not, and the
+// odometer hint is the line a rep reads before typing a number against it.
+const distanceSource = computed(() => ({
+  trail: 'from your GPS trail',
+  route: 'shop to shop',
+}[summary.value?.distance_basis] || 'nothing recorded'))
+
+const distanceNote = computed(() => {
+  const km = summary.value?.distance_km
+  if (summary.value?.distance_basis === 'trail') {
+    return `Your GPS trail recorded ${km} km today.`
+  }
+  if (summary.value?.distance_basis === 'route') {
+    return `No GPS trail today, so ${km} km is the straight line from where you started through `
+      + 'the shops you visited. The road is usually longer.'
+  }
+  return 'Nothing was recorded for today, so your odometer is the only figure there is.'
+})
 const odometer = ref('')
 const busy = ref(false)
 const error = ref('')
@@ -144,7 +165,7 @@ async function finish() {
           <div class="tile">
             <span class="muted">Distance</span>
             <b class="tnum">{{ summary.distance_km }} <small>km</small></b>
-            <span class="muted">from your GPS trail</span>
+            <span class="muted">{{ distanceSource }}</span>
           </div>
           <!-- Orders and collections arrive in later phases. Shown once they exist rather
                than as a permanent row of zeros, which reads as a bad day, not a missing one. -->
@@ -174,9 +195,7 @@ async function finish() {
                    placeholder="e.g. 14272" />
             <span class="unit">km</span>
           </div>
-          <p class="muted hint tnum">
-            Your GPS trail recorded {{ summary.distance_km }} km today.
-          </p>
+          <p class="muted hint tnum">{{ distanceNote }}</p>
         </div>
       </template>
 

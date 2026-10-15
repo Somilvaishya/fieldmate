@@ -179,6 +179,29 @@ function floorFor(line) {
   return Math.max(1, Number(line.min_order_qty) || 1)
 }
 
+/** The units this line may be ordered in. One choice is not a choice, so no dropdown appears. */
+function unitChoices(line) {
+  return (line.order_uoms || []).length > 1 ? line.order_uoms : []
+}
+
+async function onUnit(line, event) {
+  const uom = event.target.value
+  notice.value = null
+  try {
+    const before = line.display_qty
+    const after = await cart.setUnit(line.item_code, uom)
+    // Said out loud, because changing the unit changes the quantity: the number the rep typed is
+    // kept and reinterpreted, so five pieces becomes five cases and the total jumps twelvefold.
+    // They can see both figures change, but a rep reading a total to a shopkeeper should be told
+    // rather than left to notice.
+    if (after && after.qty !== Math.round(before * (Number(line.conversion_factor) || 1))) {
+      say(`Now ${qtyWords(after.display_qty, uom)} — ${qtyWords(after.qty, line.base_uom)}.`)
+    }
+  } catch (e) {
+    say(e.message || 'That unit could not be set.', 'crit')
+  }
+}
+
 // ------------------------------------------------------------------------------- the schemes
 
 const specIndex = computed(() => new Map((specs.value || []).map((s) => [s.scheme, s])))
@@ -553,7 +576,18 @@ function blockerLines(blocker) {
                 <input class="qty tnum" type="text" inputmode="decimal" :value="line.display_qty"
                        :aria-label="`${line.display_uom} of ${line.item_name}`"
                        @change="onTyped(line, $event)" />
-                <span class="qtyuom">{{ uomLabel(line.display_qty, line.display_uom) }}</span>
+                <!-- A unit the rep can change, where the item converts into more than one. The
+                     plain label stays wherever there is nothing to choose between, so the common
+                     case does not grow a control that does nothing. -->
+                <select v-if="unitChoices(line).length" class="qtyuom unitpick"
+                        :value="line.display_uom"
+                        :aria-label="`Unit for ${line.item_name}`"
+                        @change="onUnit(line, $event)">
+                  <option v-for="u in unitChoices(line)" :key="u.uom" :value="u.uom">
+                    {{ uomLabel(line.display_qty, u.uom) }}
+                  </option>
+                </select>
+                <span v-else class="qtyuom">{{ uomLabel(line.display_qty, line.display_uom) }}</span>
               </label>
               <button type="button" class="step" :aria-label="`One more ${line.display_uom}`"
                       @click="bump(line, 1)">
@@ -790,6 +824,16 @@ h3 { margin: 0; font-size: 16px; }
 .qty { width: 72px; min-height: 48px; text-align: center; font-size: 18px; font-weight: 600;
        padding: 0 4px; }
 .qtyuom { font-size: 16px; color: var(--muted); }
+/* A dropdown that has to read as part of the quantity box rather than as a form control bolted
+   beside it, and still be big enough for a thumb - 44px, the same floor as the steppers. */
+.unitpick { border: 0; background: none; padding: 0 18px 0 0; min-height: 44px;
+            font: inherit; font-size: 16px; color: var(--ink); appearance: none;
+            background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                              linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+            background-position: right 6px center, right 1px center;
+            background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+.unitpick:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px;
+                          border-radius: 4px; }
 .amounts { margin-left: auto; display: grid; justify-items: end; gap: 1px; }
 .amount { font-size: 18px; }
 

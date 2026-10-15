@@ -38,11 +38,22 @@ def claimable(distributor: str, from_date, to_date, scheme: str | None = None) -
 	disagree about what the window holds.
 	"""
 	rows = eligible_rows(distributor, from_date, to_date, scheme=scheme)
+	# One query for the names. `setdefault` evaluates its default on **every** iteration, not
+	# only when the key is missing, so this read the Scheme once per eligible ledger row rather
+	# than once per scheme - and a quarter's claim window holds thousands of rows across a
+	# handful of schemes.
+	names = {}
+	wanted = {row.scheme for row in rows if row.scheme}
+	if wanted:
+		names = {r.name: r.scheme_name for r in frappe.get_all(
+			"FieldMate Scheme", filters={"name": ["in", list(wanted)]},
+			fields=["name", "scheme_name"])}
+
 	by_scheme: dict[str, dict] = {}
 	for row in rows:
 		bucket = by_scheme.setdefault(row.scheme, {
 			"scheme": row.scheme,
-			"scheme_name": frappe.db.get_value("FieldMate Scheme", row.scheme, "scheme_name"),
+			"scheme_name": names.get(row.scheme),
 			"lines": 0, "outlets": set(), "amount": 0.0, "free_qty": 0.0,
 		})
 		bucket["lines"] += 1

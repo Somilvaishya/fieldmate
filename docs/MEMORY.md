@@ -478,6 +478,138 @@ book, the deposit screen's PDC block, the share screen, and the review screen on
 scheme engine's JS half against the Python parity corpus, the sync outbox, and the Dexie
 migrations.
 
+## The 18-point review batch (from the user and Sagar)
+
+Worked in the order the user set: bug fixes first, then the easy and risk-free items, then the
+risky ones; the doctype-merge questions are held for a decision.
+
+**Done:** #14 (one primary order creating several FieldMate Orders - the cart had no identity
+until submit, so a retried submit made a second order), #15 (the phone still showed shops as
+visited after the office cancelled the day - `todaysVisits` asked the server nothing),
+#2 (Sales Person described rather than renamed), #3 (the daily call target comes off the beat the
+journey plan names for that day, so a short Thursday asks for less than a long Monday; the typed
+figure is the fallback and its default of 25 is gone), #4 (Activity), #11
+(`expected_duration_min` described against the quality floor it was being confused with),
+#5 (visit selfie behind a settings toggle), #7 (WebP where the device can encode it - the trap being that a canvas asked for a type it cannot encode returns a
+**PNG** silently, which would have made photos *larger* on old WebViews), #8 (below).
+
+**Answered, no work needed:** #6 (Flag Mock Location - it already does what it says).
+
+**Outstanding:** #1 autofill from master doctypes · #9 approval-rule simplification (high risk) ·
+#10 `geo_accuracy_m` - *waiting on the user*: flag a loose pin to the approving manager, or drop
+the field · #12 dynamic UOM · #13 Hindi/English · #16 and #18 Day Start+End merge and the wider
+doctype cull - *waiting on the user*; recommended against doing it inside this batch, offered as
+its own phase · #17 scheme simplification (high risk).
+
+## #12 — a choice of unit, and where the choice comes from
+
+**The request could not be built as asked, and the reason is worth keeping.** It asked for a
+multiselect of UOMs on each Product Catalogue **item**. Those items are rows in
+`FieldMate Catalogue Item`, which is `istable: 1`, and a Table MultiSelect inside a child table is
+**accepted by Frappe's DocType validator and then stores nothing at all** - checked against a real
+save, twice, including saving in two steps so every row had a real name, and the grandchild table
+comes back empty with no error anywhere. An admin would have ticked units, saved, and lost them
+silently. So the multiselect is on the catalogue **header**: `FieldMate Product Catalogue.uoms`,
+rows of the new `FieldMate Catalogue UOM`.
+
+The shape that came out of that:
+
+- **The choices are the item master's**: its stock UOM plus whatever is on its UOM Conversion
+  table, which `compat.get_item_details` already carried as `uom_conversions`. A unit the item
+  cannot convert is a unit nothing can price - `cart_for` refuses one - so offering it would be
+  offering a mistake.
+- **The catalogue's Units narrow that**, for a catalogue that should only take cases. Empty means
+  no narrowing. Narrowing to units a particular item cannot convert leaves that item its base
+  unit, because being unable to order at all is worse than ordering in pieces.
+- **The per-row `uom` is now the default**, relabelled "Default Unit": what the phone pre-selects.
+- **A primary order's unit already came from the item master** (`sales_uom`, then `stock_uom`,
+  through `order_unit`). Verified with a test rather than rebuilt.
+- `catalogue.order_units()` is the one place the set is decided; `order_unit()` picks the default
+  out of it, so the two cannot disagree.
+
+**The bug a test caught**: with a catalogue narrowed to cases and a default the narrowing excluded,
+`order_unit` fell back to the **stock UOM** - which that catalogue does not offer. `order_uom`
+then named a unit absent from `order_uoms`, so the phone would pre-select something missing from
+its own dropdown and count the rep's typed quantity against a conversion nobody showed them. It
+now falls back to the smallest unit on offer, and
+`test_whatever_is_pre_selected_is_always_on_offer` asserts the invariant across five shapes.
+
+**On the phone**, `order.setUnit()`: the number the rep typed is kept and the unit is reinterpreted
+- somebody who typed 5 and then reaches for the dropdown meant five cases, not their five pieces
+restated as four tenths of a case. That multiplies the order, visibly, and the cart says so.
+`rate_paise` is per base unit and never touched: a case costs twelve times a piece because it
+holds twelve of them. The choices travel on the cart line so the dropdown works with no signal.
+
+**Deliberately not enforced server-side.** The rate is per base unit and the factor comes from the
+item master, so whatever unit the rep picks the money is right - the narrowing is a selling policy,
+not a safety rail. And `cart_for` reprices submitted bookings on every save, so enforcing it would
+make old orders start throwing the day an admin narrowed a catalogue. The narrowing decides what
+the phone offers.
+
+## #1 — what an admin should not have to type twice
+
+Narrower than it first looked, and the useful half of the work was deciding what must **not**
+autofill.
+
+**Filled now.** The rep's mobile number, from the login and then the Employee's `cell_number`
+(two sources, hence the controller rather than `fetch_from`), and only ever into a blank. Joining
+Date from `employee.date_of_joining` with `fetch_if_empty`. Company from the Employee **on every
+save** - asked for explicitly: HR owns which company somebody is employed by, so a rep whose
+Employee record moves follows it. The cost is on the field's own description, because it is real:
+while an Employee is linked, a company chosen by hand does not survive the next save, and an
+admin who needs a different one clears the Employee link. `company_from_the_employee` corrects
+the reps who already existed; a rep with no Employee is left alone.
+
+**Deliberately left alone, with the reason written on the field.** Scheme Item's `item_group` and
+`brand` are not copies of the item's own - they are a pick-one selector (`if item_code / elif
+item_group` in `scheme_compile`), so filling the group from the item would read as covering every
+item in that group, and clearing the item later would silently make it do exactly that. The
+Merchandising Line `mrp` is what is printed on the pack on the shelf; the only reason to record it
+is to find packs that disagree with the master, and a copy of the master can never disagree.
+Item `uom` is blank on every child table and belongs to #12, not here.
+
+**Two things the tests caught, both of the same kind - a pass that meant nothing.** `company` was
+first built as `fetch_from=employee.company, fetch_if_empty=1`, and a test showed company arriving
+set with **no employee at all**: Frappe fills a Link from the session default during `insert`, so
+the field is never empty by the time a fetch runs and the configuration would have looked right
+and done nothing. And `test_company_and_joining_date_come_off_the_employee` passed while that
+config was dead, because the employee's company was `get_value("Company", {})` - the same string
+as the session default on a single-company site, so the assertion could not tell them apart. Both
+sites on this bench have exactly one company, which is why the real test now builds a second one
+(five seconds, commits, and cleans up after itself).
+
+Also worth keeping: `fetch_from` **does** apply server-side - checked against a real insert, not
+assumed, because Accounting Dimension defaults in this same app turned out to be client-only.
+Without `fetch_if_empty` it overwrites on every save.
+
+## #8 — the GPS toggle, and the day nobody recorded
+
+Two halves. The toggle is the asked-for part; the second half is the bug it exposed.
+
+- `FieldMate Settings.track_gps_trail` (Check, default 1), in `client_settings()` so it reaches the
+  handset. `gps_ping_interval_seconds` now `depends_on` it. Off means the phone takes **no** fixes
+  - `pinger.start()` returns early - rather than taking them and discarding them, which costs the
+  same battery.
+- **The figure was zero for any day the app stayed closed.** A PWA only reports its position while
+  it is open, and a rep works a day with the phone in a pocket. `trail.distance_for` returned the
+  trail and nothing else, so that day showed no travel on the Day End and an expense claim worth
+  nothing for a day somebody drove. `trail.route_distance_for` now measures day start, then each
+  shop in the order it was **actually visited** (not the beat that was planned - a rep who skipped
+  two shops did not travel the planned route). Straight-line, so it under-reports road travel,
+  which is the right direction for a figure a claim is paid against.
+- Each stop is the check-in fix, falling back to the shop's own pin. A shop with neither is
+  skipped, not counted as (0, 0), which is in the Atlantic.
+- **The basis travels with the number.** `trail.measure()` returns `{km, basis}` where basis is
+  `trail`, `route`, or nothing. Three places printed "GPS trail" unconditionally - the Day End
+  tile and its odometer hint, the claim screen's badge and its over-tolerance sentence, and the
+  Day End DocType's own field description. A route figure under that caption is a claim about
+  data that is not there, read by the rep claiming and the manager approving.
+
+Two traps worth keeping: a **missing** `track_gps_trail` is not an opt-out (an older bootstrap or
+a cached profile has no such key, and reading it as off would silently stop recording for everyone
+on an app that had simply not refreshed), and `resumeIfDayOpen()` runs **before** bootstrap
+answers, so it reads the cached settings itself and `configure()` stops a run already under way.
+
 ## Field findings fixed this week
 
 All on testerp2, all found by the user rather than by a test:
@@ -521,10 +653,12 @@ All on testerp2, all found by the user rather than by a test:
   this repo.
 - **Insights is not installed on testerp2**, so `setup/insights.py` has only ever been observed to
   no-op (Phase 8.4). The two datasets that need no Insights work today.
-- **GitHub Actions blocked** by an account billing lock unrelated to this repo.
-  `scripts/ci-local.sh` covers the gates meanwhile.
+- **GitHub Actions runs again** (15 Oct 2026). The billing lock is cleared, and the first run
+  that ever started a job found five things no local run could - see ADR-015's update. The
+  version-15 lane is green and required; version-16 reports only; the develop lane is gone with
+  v17 (ADR-034).
 - `developer_mode` is off on testerp2. Not needed while DocTypes are authored as JSON on disk.
-- v16/v17 compatibility is **unverified** (ADR-015). Do not claim it.
+- v17 is **out of the plan** (ADR-034). v16 is deferred and unverified - do not claim either.
 - Test accounts on testerp2: `rep1@fieldmate.test`, `mgr1@fieldmate.test`, `test@rep.com`, and the
   portal login `depot.one@fieldmate.test` (Mahalaxmi Distributors, all three rights).
   Test-site credentials, not for production.
@@ -558,13 +692,21 @@ The plan's "do first" list, as it stands today:
 
 ## Next step
 
-Phase 2, step 11: the manual test sheet, `docs/MANUAL_TESTS_PHASE2_SEASON.md`. The gate already
-points at it. It covers what the gate cannot: the phone's season screens from step 9, the two Desk
-pages (allocation and cockpit), the showcase as a party actually sees it, and the e-way bill.
+Phase 2 steps 9, 10 and 11 are done, including the manual sheet
+`docs/MANUAL_TESTS_PHASE2_SEASON.md`. Work is now in the **18-point review batch** above.
 
-It also has to say **what testerp2 does not have**: no season, no booking and no showcase catalogue
-exist there, so the step 9 screens have nothing to draw until somebody creates them. The sheet's
-first section is that setup.
+Next in the user's stated risk order: **#13 Hindi/English**, then the items waiting on a decision
+(#10, #16/#18), then the two high-risk ones (#9 approval rules, #17 schemes).
+
+`business_needed_solutions` was read for #12, since the user pointed at its
+`enable_uom_restriction`. Its source of truth is the right one - `Item.stock_uom` plus `item.uoms`
+- and nothing was taken from it: the implementation is a Desk-only `frm.set_query` holding a
+**synchronous** `frappe.call` per dropdown open, which solves nothing for a rep offline in a
+market.
+
+The season sheet still has to say **what testerp2 does not have**: no season, no booking and no
+showcase catalogue exist there, so the step 9 screens have nothing to draw until somebody creates
+them. The sheet's first section is that setup.
 
 **Open, and waiting on a decision rather than on work:** the tax head (step 10 above). A primary
 order on this site quotes a figure with GST and the invoice goes out with none.

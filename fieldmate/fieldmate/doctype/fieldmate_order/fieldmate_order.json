@@ -16,7 +16,7 @@
   "column_totals", "tax_total", "grand_total", "incentive_amount",
   "section_parity", "proposed_net_total", "column_parity", "totals_match",
   "section_payment", "payment_term", "credit_days",
-  "column_payment", "expected_delivery_date", "delivery_instructions",
+  "column_payment", "expected_delivery_date", "location", "delivery_instructions",
   "section_credit", "credit_status", "credit_limit_at_order", "column_credit", "outstanding_at_order",
   "section_approval", "approval_required", "approval_rule", "approval_status",
   "column_approval", "approved_by", "approved_on", "approval_remarks",
@@ -103,6 +103,7 @@
   {"fieldname": "column_payment", "fieldtype": "Column Break"},
   {"fieldname": "expected_delivery_date", "fieldtype": "Date", "label": "Expected Delivery",
    "description": "What the rep told the shopkeeper. The distributor delivers on fixed days, so a promise that ignores them is the fastest way to lose a shop's trust."},
+  {"fieldname": "location", "fieldtype": "Link", "label": "Location", "options": "Location", "depends_on": "eval:doc.party_type=='Customer'", "description": "Which of our own branches is making this sale. ERPNext models it as an Accounting Dimension, and a site that has enabled one makes it mandatory on the Sales Order, the Delivery Note and the invoice - naming series, company address and GSTIN can all hang off it. Only a sale WE bill has one: a retailer order is the distributor's sale and posts nothing, so there is no branch of ours involved. Blank where the site does not use locations at all, which is most of them."},
   {"fieldname": "delivery_instructions", "fieldtype": "Small Text", "label": "Delivery Instructions",
    "description": "Anything the driver needs and the address does not say - shutter closed before noon, deliver to the godown behind, ask for the son."},
 

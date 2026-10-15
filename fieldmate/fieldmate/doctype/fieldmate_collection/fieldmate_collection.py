@@ -1,6 +1,6 @@
 import frappe
 from frappe.model.document import Document
-from frappe.utils import cint, flt, getdate
+from frappe.utils import flt, getdate
 
 
 class FieldMateCollection(Document):

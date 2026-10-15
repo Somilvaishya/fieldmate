@@ -161,12 +161,22 @@ def _streak(rule, field_user: str, on_date, condition) -> int:
 	if wanted <= 1:
 		return 1
 
-	days = 0
+	# The whole window in one query rather than a round trip per day. The walk below still
+	# stops at the first day that does not qualify, so the answer is unchanged; only a rep who
+	# *is* on a streak costs more than one query now, and that is the case this exists to find.
 	day = getdate(on_date)
+	earliest = add_days(day, -(wanted - 1))
+	window = {
+		str(row.snapshot_date): row
+		for row in frappe.get_all(
+			"FieldMate KPI Snapshot",
+			filters={"field_user": field_user, "snapshot_date": ["between", [earliest, day]]},
+			fields=["*"])
+	}
+
+	days = 0
 	for _ in range(wanted):
-		row = frappe.db.get_value("FieldMate KPI Snapshot",
-		                          {"field_user": field_user, "snapshot_date": day},
-		                          "*", as_dict=True)
+		row = window.get(str(day))
 		if not row:
 			break
 		outcome = condition(rule, row)
@@ -312,9 +322,14 @@ def _notify(rule, row, message: str) -> int:
 	if not recipients:
 		return 0
 
+	# Who is actually enabled, asked once. A rule addressed to a role on a site with a hundred
+	# users made a hundred round trips to find out, every time it fired.
+	enabled = set(frappe.get_all(
+		"User", filters={"name": ["in", list(recipients)], "enabled": 1}, pluck="name"))
+
 	told = 0
 	for user in recipients:
-		if not frappe.db.get_value("User", user, "enabled"):
+		if user not in enabled:
 			continue
 		try:
 			frappe.get_doc({

@@ -311,3 +311,116 @@ class TestNothingElseCountsForItself(KpiFixture):
 		self.book_on(today())
 		live = kpi_service.today_for(self.rep.name, today())
 		self.assertEqual(live["orders_count"], 1, "today is counted fresh, on purpose")
+
+
+class TestWhatAShopAlreadyOwed(KpiFixture):
+	"""The other half of the collection base, which was always zero.
+
+	`_billable_base` is "what the shops already owed, plus what was billed today", and the first
+	half is read out of `FieldMate Outstanding Snapshot`. Nothing ever wrote that table:
+	`collection.snapshot_outstanding` existed, was tested, and was wired to no scheduler. So
+	collection efficiency has been measured against the day's own billing alone since it was
+	built - and no test noticed, because none of them looked at the figure.
+	"""
+
+	def tearDown(self):
+		self.wipe_since_setup("FieldMate Outstanding Snapshot")
+		super().tearDown()
+
+	def owed_before(self, outlet, amount, on):
+		"""A position frozen on an earlier day, the way the nightly job leaves one."""
+		doc = frappe.get_doc({
+			"doctype": "FieldMate Outstanding Snapshot",
+			"as_of": on, "party_type": "Outlet", "party": outlet, "outlet": outlet,
+			"distributor": frappe.db.get_value("FieldMate Outlet", outlet, "distributor"),
+			"outstanding_amount": amount, "source": "Soft Ledger",
+		})
+		doc.flags.ignore_permissions = True
+		doc.insert()
+		return doc.name
+
+	def test_the_scheduler_runs_it_before_the_rollup(self):
+		"""Order is the whole point: the rollup reads what this writes."""
+		from fieldmate import hooks
+
+		daily = hooks.scheduler_events["daily"]
+		self.assertIn("fieldmate.tasks.snapshot_outstanding", daily)
+		self.assertLess(daily.index("fieldmate.tasks.snapshot_outstanding"),
+		                daily.index("fieldmate.tasks.roll_up_kpis"),
+		                "the rollup would read yesterday's position as today's")
+
+	def test_the_task_exists_and_calls_the_service(self):
+		from fieldmate import tasks
+
+		self.assertTrue(callable(tasks.snapshot_outstanding))
+
+	def test_what_was_owed_before_is_part_of_the_base(self):
+		"""The bug, stated as a number. 600 owed yesterday, 2000 billed today, base 2600."""
+		day = today()
+		self.owed_before(self.outlet.name, 600, add_days(day, -1))
+		self.book_on(day, qty=20)  # 20 x 100
+
+		orders = frappe.get_all(
+			"FieldMate Order",
+			filters={"field_user": self.rep.name, "order_date": day, "docstatus": 1},
+			fields=["outlet", "net_total"])
+		base = kpi_service._billable_base(self.rep.name, day, orders)
+
+		billed = sum(flt(o.net_total) for o in orders)
+		self.assertEqual(billed, 2000)
+		self.assertEqual(base, 2600)
+
+	def test_the_newest_position_at_or_before_the_day_is_the_one_used(self):
+		"""Two snapshots for one shop. The later one is the position; they do not add up."""
+		day = today()
+		self.owed_before(self.outlet.name, 900, add_days(day, -5))
+		self.owed_before(self.outlet.name, 400, add_days(day, -1))
+		self.book_on(day, qty=20)
+
+		orders = frappe.get_all(
+			"FieldMate Order",
+			filters={"field_user": self.rep.name, "order_date": day, "docstatus": 1},
+			fields=["outlet", "net_total"])
+
+		self.assertEqual(kpi_service._billable_base(self.rep.name, day, orders), 2400)
+
+	def test_a_position_recorded_after_the_day_is_not_used(self):
+		"""Measuring last Tuesday must not read a figure frozen this morning."""
+		day = add_days(today(), -3)
+		self.owed_before(self.outlet.name, 700, add_days(today(), -1))
+		self.book_on(day, qty=20)
+
+		orders = frappe.get_all(
+			"FieldMate Order",
+			filters={"field_user": self.rep.name, "order_date": day, "docstatus": 1},
+			fields=["outlet", "net_total"])
+
+		self.assertEqual(kpi_service._billable_base(self.rep.name, day, orders), 2000)
+
+	def test_two_shops_each_bring_their_own_position(self):
+		"""And the batched read must not lose one of them."""
+		day = today()
+		other = self.another_shop()
+		self.owed_before(self.outlet.name, 300, add_days(day, -1))
+		self.owed_before(other.name, 500, add_days(day, -1))
+		self.book_on(day, qty=10)
+		self.book_on(day, outlet=other.name, qty=10)
+
+		orders = frappe.get_all(
+			"FieldMate Order",
+			filters={"field_user": self.rep.name, "order_date": day, "docstatus": 1},
+			fields=["outlet", "net_total"])
+
+		# 1000 + 1000 billed, 300 + 500 already owed.
+		self.assertEqual(kpi_service._billable_base(self.rep.name, day, orders), 2800)
+
+	def test_the_job_actually_writes_a_position(self):
+		"""End to end: an unpaid order, the nightly job, a row to read tomorrow."""
+		from fieldmate.services import collection as collection_service
+
+		self.book_on(today(), qty=20)
+		result = collection_service.snapshot_outstanding()
+
+		self.assertGreaterEqual(result["written"], 1)
+		self.assertTrue(frappe.db.exists("FieldMate Outstanding Snapshot", {
+			"outlet": self.outlet.name, "as_of": today()}))

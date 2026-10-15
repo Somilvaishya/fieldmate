@@ -14,6 +14,40 @@ import frappe
 MARKER = "FieldMate territory scope"
 
 
+def call_target(field_user: str, on=None) -> dict:
+	"""How many shops this rep is expected to reach today, and where that number came from.
+
+	**The route answers first.** A journey plan already says which beat is walked today and how
+	many shops are on it, so on a planned day the honest target is a fact rather than a figure
+	somebody typed once. It moves with the plan: a short beat on Thursday asks for less than a long
+	one on Monday, which a flat number can never say.
+
+	The field on the Field User is the fallback, for a day with no plan or a site that works to a
+	flat expectation. It used to be the only answer, and it shipped with a default of 25 - so every
+	rep on every site was asked for 25 calls a day whether their beat held 12 shops or 60, and
+	nobody had chosen that.
+
+	`None` where there is neither. Better a dash on the screen than a number nobody stands behind.
+	"""
+	from fieldmate.services import journey as journey_service
+
+	planned = journey_service.day_for(field_user, on or frappe.utils.nowdate()) or {}
+	if planned.get("is_working_day") and frappe.utils.cint(planned.get("outlet_count")):
+		return {
+			"daily_target_calls": frappe.utils.cint(planned["outlet_count"]),
+			"daily_target_basis": "route",
+			"daily_target_beat": planned.get("beat_name") or planned.get("beat"),
+		}
+
+	typed = frappe.utils.cint(
+		frappe.db.get_value("FieldMate Field User", field_user, "daily_target_calls"))
+	return {
+		"daily_target_calls": typed or None,
+		"daily_target_basis": "profile" if typed else None,
+		"daily_target_beat": None,
+	}
+
+
 def for_user(user: str | None = None) -> str | None:
 	"""The FieldMate Field User record for a login, if there is one."""
 	user = user or frappe.session.user
@@ -90,7 +124,9 @@ def profile(user: str | None = None) -> dict:
 		"sales_mode": settings_service.resolve_sales_mode(doc.name),
 		"can_create_outlet": bool(doc.can_create_outlet),
 		"can_collect_payment": bool(doc.can_collect_payment),
-		"daily_target_calls": doc.daily_target_calls,
+		# Both the number and where it came from, because "25 calls" and "25 shops are on your
+		# route today" are different claims and a rep can only act on the second.
+		**call_target(doc.name),
 	}
 
 

@@ -1159,3 +1159,125 @@ class TestALiveVisitSurvivesTheDayClosing(VisitFixture):
 		self.assertTrue(closed["created"])
 		self.assertTrue(
 			frappe.db.get_value("FieldMate Visit", first["visit"], "check_out_time"))
+
+
+class TestTheDaysHistory(VisitFixture):
+	"""What `visit.history` answers, which is now read twice over.
+
+	It draws the rep's home screen, and since the phone began reconciling against it, it also
+	decides which rows survive on the handset. Both readings want the same thing: **a cancelled
+	visit did not happen.** Somebody in the office took it back, and a rep's day showing it as a
+	shop they covered is simply false.
+
+	Before this, nothing filtered `docstatus`. A day cancelled in Desk left every visit sitting on
+	the phone - the route read as done, the progress bar was full, and "next shop" pointed past
+	shops nobody had been to. It was reported from the field in exactly those words.
+	"""
+
+	def closed_visit(self):
+		opened = self.check_in()
+		self.check_out(opened["visit"])
+		return opened["visit"]
+
+	def names_in_history(self):
+		return [row["visit"] for row in visit_service.history(self.rep.name, today())]
+
+	def test_a_visit_that_happened_is_in_it(self):
+		self.assertIn(self.closed_visit(), self.names_in_history())
+
+	def test_a_cancelled_visit_is_not(self):
+		name = self.closed_visit()
+		doc = frappe.get_doc("FieldMate Visit", name)
+		doc.flags.ignore_permissions = True
+		doc.cancel()
+		self.assertNotIn(name, self.names_in_history())
+
+	def test_cancelling_one_leaves_the_others_alone(self):
+		"""The phone deletes its local row for anything missing from this answer, so an answer
+		that lost a visit it should have kept would wipe a rep's day."""
+		kept = self.closed_visit()
+		gone = self.closed_visit()
+		doc = frappe.get_doc("FieldMate Visit", gone)
+		doc.flags.ignore_permissions = True
+		doc.cancel()
+
+		names = self.names_in_history()
+		self.assertIn(kept, names)
+		self.assertNotIn(gone, names)
+
+	def test_it_answers_under_the_key_the_phone_reads(self):
+		"""`name as visit`. The phone matches on that key; reading `name` instead would match
+		nothing, every synced row would look cancelled, and the reconcile would delete the lot."""
+		self.closed_visit()
+		rows = visit_service.history(self.rep.name, today())
+		self.assertTrue(rows)
+		self.assertIn("visit", rows[0])
+
+
+class TestThePhotoAtTheShop(VisitFixture):
+	"""A photo at check-in, where a site has asked for one.
+
+	**Off by default, and that is the decision rather than an oversight.** It is one more thing to
+	do at sixty counters a day, it costs a rep seconds and the office storage, and the geo-fence
+	already records where they stood. It is for a territory genuinely in doubt.
+
+	The field and its storage have been on the visit since Phase 3. Nothing ever asked a rep for
+	the photo, so nothing ever sent one - the column existed and was always empty.
+	"""
+
+	# The same one-pixel PNG `TestVisitPhotos` uses. A real data URL, because what is being tested
+	# is that it becomes a file rather than being written into a varchar.
+	PIXEL = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+	         "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+
+	def tearDown(self):
+		self.apply_settings(require_visit_selfie=0)
+		super().tearDown()
+
+	def test_nothing_is_asked_for_by_default(self):
+		"""Every site that has not thought about this gets the behaviour it had before."""
+		self.assertFalse(settings_service.value("require_visit_selfie"))
+		opened = self.check_in()
+		self.assertTrue(opened["visit"])
+
+	def test_a_site_that_asks_for_one_refuses_without_it(self):
+		self.apply_settings(require_visit_selfie=1)
+		with self.assertRaises(frappe.ValidationError) as caught:
+			self.check_in()
+		self.assertIn("photo", str(caught.exception).lower())
+
+	def test_it_goes_through_with_one(self):
+		self.apply_settings(require_visit_selfie=1)
+		opened = self.check_in(check_in_photo=self.PIXEL)
+		self.assertTrue(opened["visit"])
+
+	def test_the_photo_is_stored_as_a_file_not_a_blob(self):
+		"""`check_in_photo` is an Attach Image - a varchar holding a path. Writing the image into
+		it fails at the database, which is how the day-start selfie broke once."""
+		self.apply_settings(require_visit_selfie=1)
+		opened = self.check_in(check_in_photo=self.PIXEL)
+		stored = frappe.db.get_value("FieldMate Visit", opened["visit"], "check_in_photo")
+		self.assertTrue(stored)
+		self.assertTrue(stored.startswith(("/files/", "/private/files/")), stored[:40])
+
+	def test_refusing_leaves_no_half_made_visit(self):
+		"""Checked before anything is written. A refusal that had already inserted the visit
+		would leave a shop looking visited and the rep unable to check in again."""
+		self.apply_settings(require_visit_selfie=1)
+		before = frappe.db.count("FieldMate Visit", {"outlet": self.outlet.name})
+		with self.assertRaises(frappe.ValidationError):
+			self.check_in()
+		self.assertEqual(frappe.db.count("FieldMate Visit", {"outlet": self.outlet.name}), before)
+
+	def test_a_photo_is_kept_even_where_it_was_not_required(self):
+		"""A rep who takes one anyway has it recorded. The setting governs whether it is
+		demanded, not whether it is wanted."""
+		opened = self.check_in(check_in_photo=self.PIXEL)
+		self.assertTrue(frappe.db.get_value(
+			"FieldMate Visit", opened["visit"], "check_in_photo"))
+
+	def test_the_phone_is_told_which_way_the_switch_is_set(self):
+		"""The rep's handset reads this out of the bootstrap payload; without it the screen
+		cannot know whether to ask."""
+		self.apply_settings(require_visit_selfie=1)
+		self.assertIs(settings_service.client_settings()["require_visit_selfie"], True)

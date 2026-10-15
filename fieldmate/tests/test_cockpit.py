@@ -364,3 +364,78 @@ class TestThePageItself(CockpitFixture):
 		self.book()
 		rows = self.page().overdue(self.season)
 		self.assertTrue(all(row["season"] == self.season for row in rows))
+
+
+class TestTheCockpitWalksTheBookingsOnce(CockpitFixture):
+	"""Opening the cockpit reads each booking once, not four times.
+
+	`summary` built its own row set and then called `by_state`, `by_party` and `by_sku`, each of
+	which called `_rows` again. `_rows` asks the stock ledger what is reserved against every
+	booking's Sales Order and asks dispatch for its Delivery Note key, both **per booking** - so
+	a season with two hundred bookings did all of that four times over to draw one page.
+
+	`by_sku` then asked the ledger a fifth time, per booking, for the per-item breakdown that
+	`_rows` had already fetched and thrown away.
+	"""
+
+	def walks_during(self, fn):
+		"""How many times the booking walk runs, and how often the stock ledger is asked."""
+		from fieldmate.services import cockpit as module
+
+		walks, ledger = [], []
+		real_rows, real_reserved = module._rows, compat.reserved_for_sales_order
+
+		def counting_rows(season, *a, **kw):
+			walks.append(season)
+			return real_rows(season, *a, **kw)
+
+		def counting_reserved(name, *a, **kw):
+			ledger.append(name)
+			return real_reserved(name, *a, **kw)
+
+		module._rows = counting_rows
+		compat.reserved_for_sales_order = counting_reserved
+		try:
+			answer = fn()
+		finally:
+			module._rows = real_rows
+			compat.reserved_for_sales_order = real_reserved
+		return len(walks), len(ledger), answer
+
+	def test_the_summary_walks_the_bookings_once(self):
+		self.book()
+		self.book()
+
+		walks, _, answer = self.walks_during(lambda: cockpit_service.summary(self.season))
+
+		self.assertEqual(walks, 1, "four walks is four times the work for one page")
+		self.assertEqual(answer["bookings"], 2)
+
+	def test_the_stock_ledger_is_asked_once_per_booking(self):
+		self.book()
+		self.book()
+
+		_, ledger, _ = self.walks_during(lambda: cockpit_service.summary(self.season))
+
+		# One ask per booking, in `_rows`. It used to be one there and another in `by_sku`, and
+		# then all of it four times over because each view walked again.
+		self.assertLessEqual(ledger, 2)
+
+	def test_each_view_still_stands_on_its_own(self):
+		"""Called directly - by a test, a script or a console - they must still fetch for
+		themselves. The rows argument is a shortcut for `summary`, not a requirement."""
+		self.book()
+
+		for view in (cockpit_service.by_state, cockpit_service.by_party, cockpit_service.by_sku):
+			walks, _, rows = self.walks_during(lambda v=view: v(self.season))
+			self.assertEqual(walks, 1, f"{view.__name__} must fetch when given nothing")
+			self.assertTrue(rows)
+
+	def test_the_answers_are_the_same_either_way(self):
+		"""Handed rows or fetching its own, a view must produce the identical result."""
+		self.book()
+		self.book(qty=4)
+
+		rows = cockpit_service._rows(self.season)
+		for view in (cockpit_service.by_state, cockpit_service.by_party, cockpit_service.by_sku):
+			self.assertEqual(view(self.season), view(self.season, rows), view.__name__)

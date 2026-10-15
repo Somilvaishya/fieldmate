@@ -158,7 +158,7 @@ async function reconcileOpen() {
 }
 
 export async function checkIn(outlet, { fix = {}, deviationNote = null,
-                                        closeOpen = false } = {}) {
+                                        checkInPhoto = null, closeOpen = false } = {}) {
   // Checking out is the way a visit ends. A second check-in used to close the first one on the
   // server, silently, stamped "No Order" and short - so a rep could walk a row of shops from the
   // list leaving empty visits behind that still counted towards coverage.
@@ -185,6 +185,9 @@ export async function checkIn(outlet, { fix = {}, deviationNote = null,
     checkInLatitude: fix.latitude ?? null,
     checkInLongitude: fix.longitude ?? null,
     accuracyM: fix.accuracy_m ?? null,
+    // Held on the phone too, so a visit taken with no signal still carries its photo when the
+    // outbox finally sends it.
+    checkInPhoto,
     locationProvider: fix.location_provider ?? null,
     isMockLocation: fix.is_mock_location ? 1 : 0,
     deviationNote,
@@ -212,6 +215,9 @@ export async function checkIn(outlet, { fix = {}, deviationNote = null,
       location_provider: local.locationProvider,
       is_mock_location: local.isMockLocation,
       deviation_note: deviationNote,
+      // A photo at the counter, where the site asks for one. A data URL on the way out; the
+      // server turns it into a real file and keeps the path.
+      check_in_photo: checkInPhoto,
       // Only ever set after the rep has been told on screen what it closes.
       close_open_visit: closeOpen ? 1 : 0,
     })
@@ -398,6 +404,7 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
     check_in_accuracy_m: visit.accuracyM,
     location_provider: visit.locationProvider,
     is_mock_location: visit.isMockLocation,
+    check_in_photo: visit.checkInPhoto || undefined,
     check_out_time: visit.checkOutTime,
     check_out_latitude: visit.checkOutLatitude,
     check_out_longitude: visit.checkOutLongitude,
@@ -430,5 +437,40 @@ async function finish(visit) {
 
 export async function todaysVisits() {
   const today = todayStamp()
+  await reconcileToday(today)
   return db.visits.where('visitDate').equals(today).toArray()
+}
+
+/**
+ * Drop local visits the server no longer has.
+ *
+ * This list is read straight out of IndexedDB and never asked the server anything, so a visit
+ * cancelled in the office stayed on the phone for ever. A rep whose day was cancelled and who
+ * started again saw every shop still marked visited, the route showed as done, and the next shop
+ * the app offered was the wrong one. Reported from the field exactly that way.
+ *
+ * **Only rows this phone has already sent.** A visit created offline has no server name: the
+ * server has never heard of it, so its absence from the answer says nothing, and deleting it would
+ * throw away the rep's own unsent work — which is the one thing this app must never do.
+ *
+ * Offline, what the phone holds stands. That is the whole point of holding it, and a dropped link
+ * is not evidence that anything was cancelled.
+ */
+async function reconcileToday(date) {
+  let known
+  try {
+    const answer = await api.visitHistory(date)
+    // `visit.history` names the id `visit`, and it leaves cancelled visits out — which is what
+    // makes this reconcile work at all.
+    known = new Set((answer.visits || answer || []).map((row) => row.visit || row.name))
+  } catch {
+    return
+  }
+
+  const mine = await db.visits.where('visitDate').equals(date).toArray()
+  for (const visit of mine) {
+    if (!visit.serverName) continue
+    if (known.has(visit.serverName)) continue
+    await db.visits.delete(visit.clientUuid)
+  }
 }

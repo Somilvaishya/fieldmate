@@ -120,3 +120,27 @@ def resume_seasons(names: list[str]) -> None:
 		frappe.clear_document_cache("FieldMate Season", name)
 	if names:
 		frappe.db.commit()
+
+
+def run_setup(site: str, *, build, undo, show_state, undo_flag: bool, show_flag: bool) -> None:
+	"""Open the site, do one of the three things a setup script does, then show where it got to.
+
+	Four setup scripts had this written out identically. They differ in what `build`, `undo` and
+	`show_state` do, never in the shape around them - and the shape is the part that matters,
+	because `require_test_site` lives in it and a copy that forgot it would wipe a real site.
+	"""
+	frappe.init(site=site)
+	frappe.connect()
+	require_test_site(site)
+	frappe.set_user("Administrator")
+	print(f"Site: {site}")
+
+	if undo_flag:
+		undo()
+	elif show_flag:
+		pass
+	else:
+		build()
+
+	show_state()
+	frappe.destroy()

@@ -230,6 +230,15 @@ def check_in(field_user: str, payload: dict) -> dict:
 	if not day:
 		frappe.throw(frappe._("Start your day before visiting a shop."))
 
+	# A photo at the counter, where a site has asked for one. Off by default: it is one more thing
+	# to do at sixty shops a day, and the geo-fence already records where the rep stood. The field
+	# and its storage have been here since Phase 3 - nothing ever asked for the photo, so nothing
+	# ever sent one.
+	#
+	# Checked before anything is written, so a refusal leaves no half-made visit behind.
+	if cint(settings_service.value("require_visit_selfie")) and not payload.get("check_in_photo"):
+		frappe.throw(frappe._("Take the photo at the shop before you check in."))
+
 	# An open visit elsewhere. This used to be closed, always and silently: one tap from the shop
 	# list ended the visit the rep was standing in, stamped it "No Order" and short, and told
 	# nobody. A rep could walk down a row of shops leaving a trail of empty visits that count
@@ -542,8 +551,14 @@ def assert_owner(doc) -> None:
 
 
 def history(field_user: str, date=None, limit: int = 50) -> list[dict]:
-	"""A day's visits, for the app's home screen."""
-	filters = {"field_user": field_user}
+	"""A day's visits, for the app's home screen.
+
+	**Cancelled visits are not in it.** A cancelled visit did not happen: somebody in the office
+	took it back, and a rep's home screen showing it as a shop they covered is simply false. It
+	also has a second job now - the phone reconciles its own list against this one, and a
+	cancelled visit left in the answer would keep a stale row on the handset for ever.
+	"""
+	filters = {"field_user": field_user, "docstatus": ["!=", 2]}
 	if date:
 		filters["visit_date"] = getdate(date)
 	rows = frappe.get_list(

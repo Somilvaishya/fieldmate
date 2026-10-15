@@ -235,13 +235,23 @@ def _billable_base(field_user: str, on_date, orders: list) -> float:
 	if not shops:
 		return billed_today
 
-	owed = 0.0
-	for shop in shops:
-		owed += flt(frappe.db.get_value(
-			"FieldMate Outstanding Snapshot",
-			{"outlet": shop, "as_of": ["<=", on_date], "docstatus": ["<", 2]},
-			"outstanding_amount", order_by="as_of desc") or 0)
-	return owed + billed_today
+	# Every shop's latest position at or before the day, in one query. One read per shop was
+	# free while nothing wrote this table; now that something does, a rep with forty shops on
+	# their day would make forty round trips for one number.
+	#
+	# Newest first, so the first row seen for a shop is the one that counts - the same answer
+	# `order_by="as_of desc"` gave per shop.
+	latest: dict[str, float] = {}
+	for row in frappe.get_all(
+		"FieldMate Outstanding Snapshot",
+		filters={"outlet": ["in", list(shops)], "as_of": ["<=", on_date],
+		         "docstatus": ["<", 2]},
+		fields=["outlet", "outstanding_amount"],
+		order_by="as_of desc",
+	):
+		latest.setdefault(row.outlet, flt(row.outstanding_amount))
+
+	return sum(latest.values()) + billed_today
 
 
 def _distinct_skus(order_names: list[str]) -> int:

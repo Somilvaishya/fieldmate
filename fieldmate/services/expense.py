@@ -31,7 +31,8 @@ def estimate(field_user: str | None = None, claim_date=None,
     claim_date = claim_date or nowdate()
 
     if expense_type == "Travel":
-        distance = flt(trail_service.distance_for(field_user, claim_date), 2)
+        measured = trail_service.measure(field_user, claim_date)
+        distance = flt(measured["km"], 2)
         trail = frappe.db.get_value(
             "FieldMate Location Trail",
             {"field_user": field_user, "trail_date": claim_date},
@@ -45,6 +46,9 @@ def estimate(field_user: str | None = None, claim_date=None,
             "trail_distance_km": distance,
             "claimed_distance_km": distance,
             "trail_ping_count": cint(trail.ping_count) if trail else 0,
+            # "trail", "route", or nothing measured at all. The screen says which, because a
+            # route figure badged as a GPS trail is a sentence the rep cannot act on.
+            "distance_basis": measured["basis"],
             "check_ins": visits,
             "rate_per_km": rate,
             "amount": flt(distance * rate, 2) if rate else 0,

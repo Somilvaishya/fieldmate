@@ -12,7 +12,8 @@
   {"fieldname": "outlet", "fieldtype": "Link", "label": "Outlet", "options": "FieldMate Outlet", "reqd": 1, "in_list_view": 1, "columns": 3},
   {"fieldname": "outlet_name", "fieldtype": "Data", "label": "Name", "fetch_from": "outlet.outlet_name", "read_only": 1, "in_list_view": 1, "columns": 3},
   {"fieldname": "outlet_class", "fieldtype": "Link", "label": "Class", "options": "FieldMate Outlet Class", "fetch_from": "outlet.outlet_class", "read_only": 1, "in_list_view": 1, "columns": 1},
-  {"fieldname": "expected_duration_min", "fieldtype": "Int", "label": "Mins", "in_list_view": 1, "columns": 1},
+  {"fieldname": "expected_duration_min", "fieldtype": "Int", "label": "Planned Mins", "in_list_view": 1, "columns": 1,
+   "description": "How long this stop is expected to take, for planning the route. The beat adds these up into its Estimated Duration, which is what says whether a day's round is walkable at all. It is NOT the minimum a visit must last to count - that is Minimum Visit Duration, on the Outlet Class or in FieldMate Settings, and it is a quality floor rather than a plan. Two numbers in minutes that sound alike and answer different questions."},
   {"fieldname": "is_mandatory", "fieldtype": "Check", "label": "Must Visit", "in_list_view": 1, "columns": 1},
   {"fieldname": "monthly_potential", "fieldtype": "Currency", "label": "Potential", "fetch_from": "outlet.monthly_potential", "read_only": 1},
   {"fieldname": "last_visit_date", "fieldtype": "Date", "label": "Last Visit", "read_only": 1}

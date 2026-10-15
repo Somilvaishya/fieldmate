@@ -11,7 +11,7 @@ Two rules when adding an adapter:
    not. Only branch on version when a probe is impossible.
 
 Where a value is plain data rather than business logic, query it with `frappe.get_all` instead of
-importing an ERPNext helper — fewer imports is fewer things that can move in v16/v17.
+importing an ERPNext helper — fewer imports is fewer things that can move in a later version.
 """
 
 from __future__ import annotations
@@ -704,6 +704,61 @@ def sales_order_for_key(key: str) -> str | None:
 	return frappe.db.get_value("Sales Order", {column: key, "docstatus": ["<", 2]}, "name")
 
 
+def apply_dimension_defaults(doc) -> None:
+	"""Fill the accounting dimensions a person's browser would have filled.
+
+	**ERPNext applies a dimension's per-company default in the form, and nowhere else.**
+	`dimension_tree_filter.js` calls `frm.set_value(fieldname, default_dimension)` when a document
+	is opened in Desk; no server-side path does the same. So every document this app creates is
+	missing defaults that the identical document typed into Desk would carry - the company's
+	Location, its Branch, whatever dimensions that site has configured.
+
+	That is invisible until something depends on it, and then it is not invisible at all. A bench
+	carrying `location_based_series` makes `location` mandatory on every Sales Order, Sales Invoice
+	and Delivery Note and refuses the save without it; every primary order FieldMate posted on such
+	a site failed with "Select Location before Saving", a message about a field the rep has never
+	heard of, on a screen that offers no way to supply it.
+
+	**Nothing here is invented and nothing is site-specific.** It reads the dimensions the site
+	itself enabled and the defaults the site itself set, fills only fields the document actually
+	has, and only where they are empty - so a caller that already decided a dimension keeps its
+	answer. On a site with no dimensions configured it does nothing at all.
+
+	Header only. ERPNext reads an item row's dimension where one is set and falls back to the
+	header, so the header is the faithful minimum; pushing values onto every child row would be
+	this layer deciding more than the browser does.
+	"""
+	company = doc.get("company")
+	if not company:
+		return
+
+	try:
+		from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+			get_dimensions,
+		)
+
+		dimensions, defaults = get_dimensions()
+	except Exception:
+		# A site mid-migration can have the DocType without its table, and an older ERPNext may
+		# not export this at all. A missing default is not worth failing a sale over.
+		frappe.log_error(title="fieldmate: reading accounting dimension defaults")
+		return
+
+	for_company = (defaults or {}).get(company) or {}
+	if not for_company:
+		return
+
+	meta = doc.meta
+	for dimension in dimensions or []:
+		field = dimension.get("fieldname")
+		value = for_company.get(field)
+		if not field or not value:
+			continue
+		if not meta.has_field(field) or doc.get(field):
+			continue
+		doc.set(field, value)
+
+
 def make_sales_order(payload: dict) -> str:
 	"""Turn a field order into a real company commitment. Safe to call twice with one key.
 
@@ -743,6 +798,16 @@ def make_sales_order(payload: dict) -> str:
 	for field in ("currency", "selling_price_list", "po_no", "set_warehouse", "taxes_and_charges",
 	              "payment_terms_template"):
 		if payload.get(field):
+			doc.set(field, payload[field])
+
+	# Accounting dimensions the caller settled itself, written only where the site actually has
+	# the column. A dimension is a Custom Field that exists because somebody enabled it, so on a
+	# site that never did, `location` is not a field at all - setting it would put a stray key on
+	# the document and say nothing, which is the quiet kind of wrong.
+	#
+	# Set before `apply_dimension_defaults` runs, so a choice always beats a default.
+	for field in ("location",):
+		if payload.get(field) and doc.meta.has_field(field):
 			doc.set(field, payload[field])
 
 	# Naming a tax template does not fill the tax rows. The Desk form fetches them when somebody
@@ -796,6 +861,7 @@ def make_sales_order(payload: dict) -> str:
 	try:
 		frappe.set_user("Administrator")
 		doc.flags.ignore_permissions = True
+		apply_dimension_defaults(doc)
 		doc.insert()
 		doc.submit()
 	finally:
@@ -877,6 +943,7 @@ def make_delivery_note(sales_order: str, key: str, posting_date=None) -> str | N
 			note.set_posting_time = 1
 			note.posting_date = posting_date
 		note.flags.ignore_permissions = True
+		apply_dimension_defaults(note)
 		note.insert()
 		note.submit()
 	finally:
@@ -920,6 +987,7 @@ def make_sales_invoice(delivery_note: str, key: str, allocate_advances: bool = F
 		if allocate_advances:
 			invoice.allocate_advances_automatically = 1
 		invoice.flags.ignore_permissions = True
+		apply_dimension_defaults(invoice)
 		invoice.insert()
 		invoice.submit()
 	finally:
@@ -974,6 +1042,7 @@ def make_delivery_trip(delivery_notes: list[str], key: str, vehicle: str, depart
 			if value:
 				trip.set(field, value)
 		trip.flags.ignore_permissions = True
+		apply_dimension_defaults(trip)
 		trip.insert()
 	finally:
 		frappe.set_user(was)
@@ -1105,21 +1174,29 @@ def release_reservations(sales_order: str) -> int:
 	return len(held)
 
 
+def _cancel_if_submitted(doctype: str, name: str) -> None:
+	"""Cancel a submitted ERPNext document, and say nothing if there is nothing to cancel.
+
+	A cancel that has already happened is the ordinary state after a retried sync, not an error
+	worth raising at anybody - so a missing document and a draft or already-cancelled one are
+	both answered with silence.
+	"""
+	if not name or not frappe.db.exists(doctype, name):
+		return
+	if frappe.db.get_value(doctype, name, "docstatus") != 1:
+		return
+
+	doc = frappe.get_doc(doctype, name)
+	doc.flags.ignore_permissions = True
+	doc.cancel()
+
+
 def cancel_sales_order(name: str) -> None:
 	"""Cancel the commitment behind a cancelled field order. Safe to call twice.
 
-	Gate 4 asks that cancelling a FieldMate Order leaves no orphan Sales Order behind, and a
-	cancel that has already happened is the ordinary state after a retried sync rather than an
-	error worth raising at anybody.
+	Gate 4 asks that cancelling a FieldMate Order leaves no orphan Sales Order behind.
 	"""
-	if not name or not frappe.db.exists("Sales Order", name):
-		return
-	if frappe.db.get_value("Sales Order", name, "docstatus") != 1:
-		return
-
-	doc = frappe.get_doc("Sales Order", name)
-	doc.flags.ignore_permissions = True
-	doc.cancel()
+	_cancel_if_submitted("Sales Order", name)
 
 
 # --------------------------------------------------------------------------------------
@@ -1255,6 +1332,7 @@ def make_expense_claim(payload: dict) -> str | None:
 	})
 
 	doc.flags.ignore_permissions = True
+	apply_dimension_defaults(doc)
 	doc.insert()
 	# Left as a draft on purpose. Submitting an Expense Claim books a liability and, on many
 	# sites, runs an approval workflow of its own that this app has no business short-circuiting.
@@ -1366,6 +1444,7 @@ def make_credit_note(payload: dict) -> str:
 	doc.append("items", line)
 
 	doc.flags.ignore_permissions = True
+	apply_dimension_defaults(doc)
 	doc.insert()
 	doc.submit()
 	return doc.name
@@ -1373,14 +1452,7 @@ def make_credit_note(payload: dict) -> str:
 
 def cancel_credit_note(name: str) -> None:
 	"""Reverse a settled claim. Safe to call twice."""
-	if not name or not frappe.db.exists("Sales Invoice", name):
-		return
-	if frappe.db.get_value("Sales Invoice", name, "docstatus") != 1:
-		return
-
-	doc = frappe.get_doc("Sales Invoice", name)
-	doc.flags.ignore_permissions = True
-	doc.cancel()
+	_cancel_if_submitted("Sales Invoice", name)
 
 
 # --------------------------------------------------------------------------------------
@@ -1481,6 +1553,7 @@ def make_payment_entry(payload: dict) -> str:
 		doc.target_exchange_rate = doc.target_exchange_rate or 1
 
 	doc.flags.ignore_permissions = True
+	apply_dimension_defaults(doc)
 	doc.insert()
 	doc.submit()
 	return doc.name

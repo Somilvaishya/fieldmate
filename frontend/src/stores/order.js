@@ -178,6 +178,15 @@ function newLine(item) {
     base_uom: item.stock_uom,
     display_uom: item.order_uom || item.stock_uom,
     conversion_factor: factor,
+    // Every unit this item may be ordered in, with what one of them is worth in base units.
+    // Carried on the line so the dropdown works with no signal: a rep in a market cannot ask
+    // the server what a case is at the moment they change their mind about the unit.
+    order_uoms: Array.isArray(item.order_uoms) && item.order_uoms.length
+      ? item.order_uoms.map((u) => ({
+          uom: u.uom,
+          conversion_factor: Number(u.conversion_factor) || 1,
+        }))
+      : [{ uom: item.stock_uom, conversion_factor: 1 }],
     // Recorded so a screen can say why a case order fell back to pieces rather than silently
     // booking twelve times less than the rep meant.
     uom_fallback: !!item.order_uom_fallback,
@@ -462,6 +471,20 @@ export const season = computed(() => catalogue.value?.season || null)
 /** Secondary, Primary or Booking, as the channel resolved it for this party today. */
 export const orderKind = computed(() => catalogue.value?.order_kind || null)
 
+/**
+ * Which of our own branches may make this sale, and which one usually does.
+ *
+ * ERPNext calls it an Accounting Dimension; a site that has enabled one makes it mandatory on the
+ * Sales Order and on everything built from it, and nothing fills it server-side - the default is
+ * applied in the Desk form and nowhere else. So the rep is asked, and the party's usual branch is
+ * what they are offered.
+ *
+ * An **empty list is the instruction not to ask**. Most sites have no Locations at all, and a
+ * picker over nothing is a question with no answer.
+ */
+export const locations = computed(() => catalogue.value?.locations || [])
+export const defaultLocation = computed(() => catalogue.value?.location || null)
+
 export const isBookingCart = computed(() => isBooking(orderKind.value))
 
 /**
@@ -591,6 +614,9 @@ export async function openOutlet(name, { refresh = true, type = null } = {}) {
     if (token !== loadToken) return null
     rawLines.value = cached?.lines || []
     outletName.value = cached?.outletName || null
+    // The identity comes back with the lines. A rep who closed the app mid-send and reopened it
+    // must resend as the same order, not a second one.
+    cartUuid.value = cached?.clientUuid || null
     // The cart remembers what kind of party it was for, and that wins when the caller does not
     // say. A rep reopening an unsent cart from a link with no type on it would otherwise have a
     // primary order re-priced as a shop order - off a different list, against a different credit
@@ -733,14 +759,45 @@ export async function refreshAll() {
 
 // ---------------------------------------------------------------------------------- the basket
 
+/**
+ * This cart's identity, which is the order's identity.
+ *
+ * **Minted once per cart and kept until the cart is gone, never per attempt.** A fresh id on a
+ * retry is how one order becomes two: the first send reaches the server on a market uplink, the
+ * answer does not, the rep taps again, and the server - which dedupes on exactly this id - sees a
+ * second order it has never heard of. Two FieldMate Orders, two Sales Orders, two commitments.
+ *
+ * It is written into the cart record, so it survives the screen being closed, the app being
+ * killed and the phone being restarted. `clear()` drops it with the lines, because the next cart
+ * at the same shop is a different order.
+ *
+ * `Money.vue` has done this since it was written, and says why in a comment about collecting a
+ * depot's money twice. The order path did the opposite.
+ */
+const cartUuid = ref(null)
+
+async function orderIdentity() {
+  if (!cartUuid.value) {
+    cartUuid.value = crypto.randomUUID()
+    await persist()
+  }
+  return cartUuid.value
+}
+
 async function persist() {
   if (!outlet.value) return
+  // A cart with lines in it has an identity, from the moment it has them. Minting at send time
+  // instead would leave the one case this exists for uncovered: an app killed between the request
+  // going out and its answer coming back must resend as the same order, and by then there is no
+  // code running to mint anything.
+  if (!cartUuid.value && rawLines.value.length) cartUuid.value = crypto.randomUUID()
   await db.carts.put(
     plain({
       outlet: outlet.value,
       party_type: partyType.value,
       outletName: outletName.value,
       lines: rawLines.value,
+      clientUuid: cartUuid.value,
       updatedAt: Date.now(),
     })
   )
@@ -826,6 +883,45 @@ export async function setQty(itemCode, value, { unit = 'display' } = {}) {
   return decorate(line)
 }
 
+/**
+ * Change the unit a line is ordered in.
+ *
+ * **The number the rep typed is what they meant; the unit is what they are correcting.** Somebody
+ * who typed 5 and then reaches for the dropdown wanted five cases, not the five pieces they
+ * already have restated as four tenths of a case. So the displayed figure is kept and the base
+ * quantity is recomputed from the new factor - which does multiply the order, visibly, in the
+ * same tap: the quantity and the line total both change on screen in front of the rep.
+ *
+ * `rate_paise` is per base unit and deliberately untouched. A case costs twelve times a piece
+ * because it holds twelve of them, not because its rate is a different number, and storing a
+ * second rate per unit would be a second place for the price to be wrong.
+ */
+export async function setUnit(itemCode, uom) {
+  const line = rawLines.value.find((l) => l.item_code === itemCode)
+  if (!line) return null
+
+  const choice = (line.order_uoms || []).find((u) => u.uom === uom)
+  // Not on the list this item offers. Ignored rather than invented: without a conversion from
+  // the item master there is no honest number to put here, and guessing one is how a case gets
+  // booked at a piece price.
+  if (!choice) return decorate(line)
+
+  const factor = Number(choice.conversion_factor) || 1
+  const typed = line.qty / (Number(line.conversion_factor) || 1)
+
+  line.display_uom = uom
+  line.conversion_factor = factor
+  // Whole base units, and never below one: a rep who picked a unit has not asked to remove the
+  // line, and rounding a small quantity down to zero would do exactly that.
+  line.qty = Math.max(1, Math.round(typed * factor))
+  // They have chosen a unit, so there is nothing left to warn them was chosen for them.
+  line.uom_fallback = false
+
+  reprice()
+  await persist()
+  return decorate(line)
+}
+
 /** The + and - steppers. A tap adds one of whatever the rep is ordering in, usually a case. */
 export async function bumpQty(itemCode, delta, { unit = 'display' } = {}) {
   const line = rawLines.value.find((l) => l.item_code === itemCode)
@@ -850,6 +946,8 @@ export async function removeItem(itemCode) {
 export async function clear() {
   rawLines.value = []
   pricing.value = emptyPricing()
+  // The next cart at this shop is a different order, so it gets a different identity.
+  cartUuid.value = null
   if (outlet.value) await db.carts.delete(outlet.value)
 }
 
@@ -996,6 +1094,7 @@ export function buildOrderDoc({
   visit = null,
   deliveryDates = null,
   topsUp = null,
+  location = null,
   clientUuid = null,
   createdOffline = 0,
   deviceId = null,
@@ -1027,6 +1126,11 @@ export function buildOrderDoc({
     // The booking this one adds to, when the rep said so. The server checks it is the same party
     // and the same season; this only carries the answer.
     tops_up: topsUp,
+
+    // Which branch of ours is selling. `undefined` rather than null on a shop order, so nothing
+    // about branches appears in a secondary order's payload at all - that sale is the
+    // distributor's and no branch of ours is in it.
+    location: location || undefined,
 
     // The number the rep read out. Rupees, because every Currency column downstream is rupees.
     proposed_net_total: fromPaise(p.net_paise),
@@ -1130,7 +1234,8 @@ export async function submit(options = {}) {
   if (stopper) throw new CartError(stopper.code, stopper.message)
 
   const device = await deviceUuid()
-  const clientUuid = crypto.randomUUID()
+  // The cart's own id, not a new one for this attempt. See `orderIdentity`.
+  const clientUuid = await orderIdentity()
 
   // The visit this order came out of. Its server name once it has one, its client id while it has
   // not - `sync._apply` resolves the second through `depends_on` when the batch lands.

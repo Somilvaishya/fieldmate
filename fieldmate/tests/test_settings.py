@@ -5,6 +5,10 @@ import frappe
 from fieldmate.services import settings as svc
 from fieldmate.tests.base import FieldMateTestCase
 
+# Deliberately **not** including `track_gps_trail`: this class's restore goes through the
+# Document and saves, which would write a `tabSingles` row for a field that had none - and a
+# missing row reading as 0 on some sites is the bug `switch_on_the_gps_trail` exists to fix.
+# The two tests that touch it restore the row themselves.
 TRACKED = (
 	"enable_secondary_sales",
 	"enable_primary_sales",
@@ -14,6 +18,19 @@ TRACKED = (
 	"gps_trail_retention_days",
 	"photo_max_kb",
 )
+
+
+def stored_switch():
+	"""The trail switch's row in `tabSingles`, or None when there is no row.
+
+	Raw SQL because `frappe.db.get_value("Singles", ...)` appends `order by modified`, a column
+	that table does not have, and dies with "Unknown column 'modified' in 'ORDER BY'". The patch
+	had the same mistake, which would have broken `bench migrate` rather than a test.
+	"""
+	rows = frappe.db.sql(
+		"select value from tabSingles where doctype = %s and field = %s",
+		("FieldMate Settings", "track_gps_trail"))
+	return rows[0][0] if rows else None
 
 
 class TestSettings(FieldMateTestCase):
@@ -117,6 +134,77 @@ class TestSettings(FieldMateTestCase):
 
 	def test_client_settings_are_json_safe(self):
 		json.dumps(svc.client_settings())
+
+	def test_the_phone_is_told_whether_to_track_the_trail(self):
+		"""The switch has to reach the handset, or it is a switch that does nothing."""
+		payload = svc.client_settings()
+		self.assertIn("track_gps_trail", payload)
+
+	def test_the_trail_switch_is_on_even_with_no_stored_value(self):
+		"""A Check added to a **Single** gets no row in `tabSingles`, and that absence is not
+		read consistently: on one site `doc.get()` answered `None` and the service default of 1
+		applied, on another - same empty table - it answered `0`. `settings.get()` has to treat
+		0 as a choice somebody made, or a Check could never be switched off, so the second site
+		read **tracking off** and every rep on it would have quietly stopped recording after a
+		deploy that only meant to add a switch.
+
+		The first version of this test asserted `True` and passed on the site that answers
+		`None` - a pass that had nothing to do with the code being right. So this one removes
+		the stored value and runs the patch that is supposed to put it there.
+		"""
+		from fieldmate.patches.switch_on_the_gps_trail import execute
+
+		self._forget_the_switch()
+		execute()
+
+		stored = stored_switch()
+		self.assertEqual(stored, "1")
+		self.assertIs(svc.client_settings()["track_gps_trail"], True)
+
+	def test_switching_the_trail_off_survives_the_patch(self):
+		"""Re-run on a site whose admin has turned it off. Their answer stands."""
+		from fieldmate.patches.switch_on_the_gps_trail import execute
+
+		self._forget_the_switch()
+		frappe.db.sql(
+			"insert into tabSingles (doctype, field, value) values (%s, %s, %s)",
+			("FieldMate Settings", "track_gps_trail", "0"))
+		frappe.clear_document_cache("FieldMate Settings", "FieldMate Settings")
+		frappe.cache().delete_value("fieldmate_settings")
+
+		execute()
+
+		stored = stored_switch()
+		self.assertEqual(stored, "0")
+		self.assertIs(svc.client_settings()["track_gps_trail"], False)
+
+	def _forget_the_switch(self):
+		"""Back to a site that has never stored a value for it, which is what a deploy leaves.
+
+		The stored row is put back afterwards by hand. `tearDown` here **commits**, and this
+		class's snapshot/restore works through the Document - which would write a row where
+		there was none, leaving the test site in exactly the state whose misreading is the bug
+		under test.
+		"""
+		before = stored_switch()
+		self.addCleanup(self._restore_the_switch, before)
+		self._drop_switch_row()
+
+	def _drop_switch_row(self):
+		frappe.db.sql(
+			"delete from tabSingles where doctype = %s and field = %s",
+			("FieldMate Settings", "track_gps_trail"))
+		frappe.clear_document_cache("FieldMate Settings", "FieldMate Settings")
+		frappe.cache().delete_value("fieldmate_settings")
+
+	def _restore_the_switch(self, value):
+		self._drop_switch_row()
+		if value is not None:
+			frappe.db.sql(
+				"insert into tabSingles (doctype, field, value) values (%s, %s, %s)",
+				("FieldMate Settings", "track_gps_trail", value))
+		frappe.clear_document_cache("FieldMate Settings", "FieldMate Settings")
+		frappe.cache().delete_value("fieldmate_settings")
 
 	def test_defaults_apply_without_the_form_ever_being_opened(self):
 		"""A fresh site must behave sanely before anyone visits the settings page."""

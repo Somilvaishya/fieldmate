@@ -144,6 +144,7 @@ async function showCached() {
   if (cached) {
     boot.value = cached
     stale.value = true
+    configurePinger(cached.settings || {})
   }
 }
 

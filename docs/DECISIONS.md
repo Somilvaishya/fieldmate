@@ -224,6 +224,60 @@ custom fields ship as fixtures, and no core file is edited.
 - When a v16 bench appears, the work is: run `scripts/ci-local.sh` against it, fix `compat.py`,
   refresh fixtures.
 
+**Update, 15 October 2026.** The billing lock is cleared and Actions runs. The first run that ever
+started a job found that the workflow did not match this ADR: the matrix had `version-16` marked
+required, and the file's own header claimed v15 and v16 must pass. That is now corrected - v16 and
+develop report and gate nothing, as decided here.
+
+It also found three things no local run could have:
+
+- Each lane needs its own Python and Node. frappe `version-16` declares
+  `requires-python = ">=3.14,<3.15"` and wants Node 24; the matrix pinned 3.11 and 20 for
+  everything, so the v16 and develop lanes died inside `bench init` before reaching any code.
+- `sites/apps.txt` does not always end in a newline, so appending the app name glued it to the
+  previous one and the site tried to import `erpnextfieldmate`.
+- **The suite could not run on a site nobody had set up by hand.** `before_tests` was commented
+  out in `hooks.py`, so no Company, `All Territories` or `All Item Groups` existed and 906 of
+  1272 tests died in `setUp`. It passed on developer machines only because those sites had been
+  set up months earlier - the local test company is "Wind Power LLC", the name ERPNext's own
+  `before_tests` gives it.
+
+The last one is worth holding on to: a green local suite said less than it appeared to, for as
+long as CI was dark.
+
+---
+
+## ADR-034 — v17 comes out of the plan; v16 is deferred, not dropped
+
+**Decision.** Owner decision, 15 October 2026. The project targets **v15**. The `develop` CI lane
+is removed. The `version-16` lane stays, reports, and gates nothing; no v16 work is scheduled, and
+it will be planned when there is a reason to.
+
+**Reason.** v17 was never a commitment anybody was going to act on. The `develop` lane existed to
+give early warning, which only works if somebody reads it and does something - and on the day CI
+first ran, it failed exactly as v16 did and there was no plan for either. A permanently red check
+nobody acts on is worse than no check: people learn to skip past red crosses, and that habit is
+precisely what let this workflow sit broken from late September with nobody noticing.
+
+v16 is different: `compat.py`, the capability probes and the fixture-only custom fields all stay,
+so support remains cheap to add. The lane is kept because it costs nothing and will say when
+upstream has moved.
+
+**This amends ADR-005 and ADR-015.** ADR-005 described the facade as the v15/v16/v17 boundary.
+ADR-015 narrowed that to "unverified, not abandoned" and kept both lanes. This drops v17 from the
+plan outright and defers v16.
+
+**Consequences.**
+- Say "v15". Never claim v16 or v17.
+- The rules that keep v16 cheap are still binding: nothing outside `compat.py` imports `erpnext`,
+  no raw SQL against ERPNext tables, no core edits, additive schema only. They cost nothing to
+  keep and are the whole reason v16 stays a few days' work rather than a re-platform.
+- `pyproject.toml` stays pinned below 16. When somebody tests a v16 bench, that bound is the
+  deliberate decision to revisit.
+- As of today the v16 lane fails with 891 errors, all `Could not find Item Group: All Item
+  Groups` - ERPNext's `before_tests` does not set a v16 site up the way it does a v15 one. That
+  is the first thing to look at whenever v16 is picked up.
+
 ---
 
 ## ADR-016 — Both sales models ship, switched by FieldMate Settings

@@ -212,9 +212,7 @@ def cascade(plan_name: str, recurse: bool = True) -> dict:
 		if remainder_to is None and took:
 			remainder_to = kids[took[0]]
 
-	created = []
-	for kid in kids:
-		created.append(_upsert_child(plan, kid, per_child[kid]))
+	created = [_upsert_child(plan, kid, per_child[kid]) for kid in kids]
 
 	plan.db_set("child_count", len(created), update_modified=False)
 	plan.db_set("plan_status", "Cascaded", update_modified=False)

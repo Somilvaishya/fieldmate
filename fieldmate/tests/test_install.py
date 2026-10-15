@@ -169,3 +169,50 @@ class TestTheItemMrpField(FieldMateTestCase):
 		install.create_item_mrp_field()
 		priced = frappe.get_all("Item", filters={"fm_mrp": [">", 0]}, limit=1)
 		self.assertEqual(priced, [], "nothing on this site was given an MRP by the installer")
+
+
+class TestTheDistributorCodeIsUnique(FieldMateTestCase):
+	"""A code names one party, or it names nothing.
+
+	Two distributors sharing a code is a reconciliation somebody does by hand at month end, and
+	nothing in the app would have noticed. The portal header prints this code back to a depot so
+	they can see whose account they are looking at, which is the one place a collision is actively
+	misleading.
+
+	**Blank has to stay free, and that is not luck.** A unique index rejects a second empty
+	string, so a naive constraint would have refused every party after the first that had no code
+	- which is all of them until somebody fills one in. Frappe converts a blank on a `unique`
+	field to NULL before writing (`base_document.get_valid_dict`), and an index allows any number
+	of NULLs. The second test is there because that behaviour is the whole reason this is safe.
+	"""
+
+	def customer(self, **values):
+		doc = frappe.get_doc({
+			"doctype": "Customer",
+			"customer_name": self.uid("DIST"),
+			"customer_type": "Company",
+			"customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
+			"territory": frappe.db.get_value("Territory", {"is_group": 0}, "name"),
+			**values,
+		}).insert(ignore_permissions=True)
+		return self.track("Customer", doc.name)
+
+	def test_the_field_is_marked_unique(self):
+		self.assertTrue(frappe.db.get_value(
+			"Custom Field", {"dt": "Customer", "fieldname": "fm_distributor_code"}, "unique"))
+
+	def test_two_parties_cannot_share_a_code(self):
+		code = self.uid("CODE")[:20]
+		self.customer(fm_distributor_code=code)
+		with self.assertRaises(Exception):
+			self.customer(fm_distributor_code=code)
+
+	def test_any_number_of_parties_may_have_no_code(self):
+		"""The ordinary case on every site, and the one a unique index would have broken."""
+		self.customer()
+		self.customer()
+		self.customer(fm_distributor_code="")
+
+	def test_different_codes_are_fine(self):
+		self.customer(fm_distributor_code=self.uid("A")[:20])
+		self.customer(fm_distributor_code=self.uid("B")[:20])

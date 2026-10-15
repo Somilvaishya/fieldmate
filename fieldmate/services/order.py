@@ -117,6 +117,9 @@ def create(payload: dict, field_user: str | None = None) -> dict:
 	doc.payment_term = data.get("payment_term") or "Credit"
 	doc.credit_days = cint(data.get("credit_days"))
 	doc.expected_delivery_date = data.get("expected_delivery_date")
+	# Which branch of ours is selling. The rep's choice wins; the party's usual branch is the
+	# fallback, so a site with one branch per party never asks anybody anything.
+	doc.location = data.get("location") or default_location_for(customer)
 	doc.delivery_instructions = data.get("delivery_instructions")
 	doc.confirmed_with = data.get("confirmed_with")
 	doc.remarks = data.get("remarks")
@@ -257,13 +260,30 @@ def _write_items(doc, result: dict, source: list | None = None) -> None:
 		if (line.get("item") or line.get("item_code")) and line.get("delivery_date")
 	}
 
+	# Every item this rebuild will touch, read once. It used to be two single-row lookups per
+	# line - name and stock UOM - and `price` runs on **every save** of the order, so a
+	# forty-line order spent eighty round trips restating what one query answers. Same values,
+	# same fallbacks; only the number of queries changes.
+	codes = {line["item"] for line in (result.get("lines") or [])}
+	codes.update(
+		code for line in (source or [])
+		if (code := line.get("item") or line.get("item_code"))
+	)
+	items = {
+		row.name: row
+		for row in frappe.get_all(
+			"Item", filters={"name": ["in", list(codes)]},
+			fields=["name", "item_name", "stock_uom"])
+	} if codes else {}
+
 	doc.set("items", [])
 	for line in result.get("lines") or []:
+		master = items.get(line["item"]) or frappe._dict()
 		row = doc.append("items", {})
 		row.item_code = line["item"]
-		row.item_name = line.get("item_name") or frappe.db.get_value("Item", line["item"], "item_name")
+		row.item_name = line.get("item_name") or master.item_name
 		row.qty = line["qty"]
-		stock_uom = frappe.db.get_value("Item", line["item"], "stock_uom")
+		stock_uom = master.stock_uom
 		row.stock_uom = stock_uom
 		row.uom = line.get("uom") or stock_uom
 		row.conversion_factor = flt(line.get("conversion_factor") or 1)
@@ -286,10 +306,11 @@ def _write_items(doc, result: dict, source: list | None = None) -> None:
 		code = line.get("item") or line.get("item_code")
 		if not code or code in priced or flt(line.get("qty")) > 0:
 			continue
+		master = items.get(code) or frappe._dict()
 		row = doc.append("items", {})
 		row.item_code = code
-		row.item_name = frappe.db.get_value("Item", code, "item_name")
-		stock_uom = frappe.db.get_value("Item", code, "stock_uom")
+		row.item_name = master.item_name
+		stock_uom = master.stock_uom
 		row.qty = 0
 		row.qty_display = 0
 		row.stock_uom = stock_uom
@@ -723,6 +744,45 @@ def _warehouse_for(customer: str | None) -> str | None:
 	return None if cint(frappe.get_cached_value("Warehouse", warehouse, "is_group")) else warehouse
 
 
+def default_location_for(customer: str | None) -> str | None:
+	"""Which of our branches normally sells to this party, from `Customer.fm_location`.
+
+	The default the rep is offered, not the answer: a party covered by two branches is the whole
+	reason the order carries its own `location`. Read the same way `_warehouse_for` reads the
+	depot, and a group node is refused for the same reason - a Location tree's branches are
+	folders, and posting against one is not a place.
+
+	`None` on a site that has no Locations, which is most of them.
+	"""
+	if not customer or not frappe.get_meta("Customer").has_field("fm_location"):
+		return None
+	location = frappe.db.get_value("Customer", customer, "fm_location")
+	if not location:
+		return None
+	return None if cint(frappe.get_cached_value("Location", location, "is_group")) else location
+
+
+def locations_for(company: str | None = None) -> list[dict]:
+	"""The branches a rep may book an order against.
+
+	Leaves only. A Location is a tree and its groups are folders - "Delhi" holding "Khari Baoli"
+	and "Azadpur" is a shape somebody made to tidy a list, not a place a sale happens at.
+
+	Empty where the site has no Locations at all, and the phone reads that as "do not ask": there
+	is no sense in making a rep choose from nothing, and on such a site nothing downstream wants
+	the field.
+	"""
+	if not frappe.db.table_exists("Location"):
+		return []
+	return frappe.get_all(
+		"Location",
+		filters={"is_group": 0},
+		fields=["name", "location_name"],
+		order_by="location_name asc",
+		limit_page_length=0,
+	)
+
+
 def _earliest_delivery(doc):
 	"""The header delivery date: the soonest any line is wanted, falling back to the order's own.
 
@@ -762,6 +822,15 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		# Blank leaves ERPNext to default per line from the Item, which is its ordinary
 		# behaviour and the right fallback for a company running one warehouse.
 		"set_warehouse": _warehouse_for(seller.get("party")),
+		# The branch this sale is made from. On a site that has enabled Location as an Accounting
+		# Dimension this is mandatory on the Sales Order and on everything made from it, and
+		# nothing server-side fills it - ERPNext applies a dimension's default in the form only.
+		#
+		# `doc.get`, not `doc.location`. Code and schema arrive separately: an app deployed but not
+		# yet migrated has this line and no such column, and reading the attribute off a document
+		# loaded from that database raises - so every primary order would crash in the window
+		# between a deploy and its migrate. `get` answers None there and the order posts as before.
+		"location": doc.get("location"),
 		"items": [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom, "rate": row.rate,
 			 # Per line, because that is the whole point of booking a season: a party asks for
@@ -861,12 +930,12 @@ def reverse(doc) -> None:
 	somebody cancels an order from the desk - gives the budget back too. Doing it in both places
 	would hand it back twice.
 	"""
-	for entry in frappe.get_all(
+	for name in frappe.get_all(
 		"FieldMate Scheme Ledger",
 		filters={"order": doc.name, "docstatus": 1},
-		fields=["name"],
+		pluck="name",
 	):
-		row = frappe.get_doc("FieldMate Scheme Ledger", entry.name)
+		row = frappe.get_doc("FieldMate Scheme Ledger", name)
 		row.flags.ignore_permissions = True
 		row.cancel()
 
