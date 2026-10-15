@@ -18,6 +18,47 @@ class MasterFixture(OutletFixture):
 		self.track("Item", doc.name)
 		return doc.name
 
+	# Shared from here rather than written out in each module that wants one. Two identical
+	# copies of `make_price_list` and `make_item_price` lived in `test_catalogue` and
+	# `test_compat`, and `make_catalogue` existed twice in slightly different forms - the
+	# narrower of which could not take a row with any field but `item_code` on it.
+	#
+	# `make_item` is deliberately NOT here. There are three of those and they genuinely differ:
+	# stocked against not stocked, how the item group and UOM are resolved, and whether the
+	# site's own required fields are filled in. `test_scheme_compile`'s records why its items
+	# have to be stock items. Merging them would unify things that only look alike.
+	def make_price_list(self) -> str:
+		doc = frappe.get_doc({
+			"doctype": "Price List",
+			"price_list_name": self.uid("PL"),
+			"selling": 1,
+			"enabled": 1,
+			"currency": frappe.db.get_value("Currency", {"enabled": 1}, "name") or "INR",
+		}).insert(ignore_permissions=True)
+		self.track("Price List", doc.name)
+		return doc.name
+
+	def make_item_price(self, item_code: str, rate) -> str:
+		doc = frappe.get_doc({
+			"doctype": "Item Price",
+			"item_code": item_code,
+			"price_list": self.price_list,
+			"price_list_rate": rate,
+		}).insert(ignore_permissions=True)
+		self.track("Item Price", doc.name)
+		return doc.name
+
+	def make_catalogue(self, items=None, **kwargs):
+		data = {
+			"doctype": "FieldMate Product Catalogue",
+			"catalogue_name": self.uid("CAT"),
+			"items": [{"item_code": i} if isinstance(i, str) else i for i in (items or [])],
+		}
+		data.update(kwargs)
+		doc = frappe.get_doc(data).insert(ignore_permissions=True)
+		self.track("FieldMate Product Catalogue", doc.name)
+		return doc
+
 	def make_class(self, **kwargs):
 		data = {"doctype": "FieldMate Outlet Class", "class_name": self.uid("CLS")}
 		data.update(kwargs)
@@ -34,17 +75,6 @@ class MasterFixture(OutletFixture):
 
 
 class TestProductCatalogue(MasterFixture):
-	def make_catalogue(self, items=None, **kwargs):
-		data = {
-			"doctype": "FieldMate Product Catalogue",
-			"catalogue_name": self.uid("CAT"),
-			"items": [{"item_code": i} for i in (items or [])],
-		}
-		data.update(kwargs)
-		doc = frappe.get_doc(data).insert(ignore_permissions=True)
-		self.track("FieldMate Product Catalogue", doc.name)
-		return doc
-
 	def test_item_count_is_computed(self):
 		cat = self.make_catalogue(items=[self.make_item(), self.make_item()])
 		self.assertEqual(cat.item_count, 2)

@@ -70,27 +70,6 @@ class TestPricingAdapters(MasterFixture):
 		super().setUp()
 		self.price_list = self.make_price_list()
 
-	def make_price_list(self) -> str:
-		doc = frappe.get_doc({
-			"doctype": "Price List",
-			"price_list_name": self.uid("PL"),
-			"selling": 1,
-			"enabled": 1,
-			"currency": frappe.db.get_value("Currency", {"enabled": 1}, "name") or "INR",
-		}).insert(ignore_permissions=True)
-		self.track("Price List", doc.name)
-		return doc.name
-
-	def make_item_price(self, item_code: str, rate) -> str:
-		doc = frappe.get_doc({
-			"doctype": "Item Price",
-			"item_code": item_code,
-			"price_list": self.price_list,
-			"price_list_rate": rate,
-		}).insert(ignore_permissions=True)
-		self.track("Item Price", doc.name)
-		return doc.name
-
 	def test_an_unpriced_item_reads_as_none_and_not_as_zero(self):
 		"""0.0 would send the line out free. None stops it and makes somebody answer."""
 		self.assertIsNone(compat.get_item_price(self.make_item(), self.price_list))

@@ -37,27 +37,6 @@ class CatalogueFixture(MasterFixture):
 
 	# ---------------------------------------------------------------- fixtures
 
-	def make_price_list(self) -> str:
-		doc = frappe.get_doc({
-			"doctype": "Price List",
-			"price_list_name": self.uid("PL"),
-			"selling": 1,
-			"enabled": 1,
-			"currency": frappe.db.get_value("Currency", {"enabled": 1}, "name") or "INR",
-		}).insert(ignore_permissions=True)
-		self.track("Price List", doc.name)
-		return doc.name
-
-	def make_item_price(self, item_code: str, rate) -> str:
-		doc = frappe.get_doc({
-			"doctype": "Item Price",
-			"item_code": item_code,
-			"price_list": self.price_list,
-			"price_list_rate": rate,
-		}).insert(ignore_permissions=True)
-		self.track("Item Price", doc.name)
-		return doc.name
-
 	def priced_item(self, rate=100) -> str:
 		item = self.make_item()
 		self.make_item_price(item, rate)
@@ -88,17 +67,6 @@ class CatalogueFixture(MasterFixture):
 		}).insert(ignore_permissions=True)
 		self.track("FieldMate Outlet Channel", doc.name)
 		return doc.name
-
-	def make_catalogue(self, items=None, **kwargs):
-		data = {
-			"doctype": "FieldMate Product Catalogue",
-			"catalogue_name": self.uid("CAT"),
-			"items": [{"item_code": i} if isinstance(i, str) else i for i in (items or [])],
-		}
-		data.update(kwargs)
-		doc = frappe.get_doc(data).insert(ignore_permissions=True)
-		self.track("FieldMate Product Catalogue", doc.name)
-		return doc
 
 	def make_must_sell(self, items=None, **kwargs):
 		data = {
