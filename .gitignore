@@ -16,3 +16,6 @@ build/
 .env.local
 # built PWA output is committed on purpose - see docs/DECISIONS.md
 frontend/dist/
+
+# The testing manual is handed over as a file, deliberately not tracked here.
+docs/user-manual.html
