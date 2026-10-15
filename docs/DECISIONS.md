@@ -224,6 +224,27 @@ custom fields ship as fixtures, and no core file is edited.
 - When a v16 bench appears, the work is: run `scripts/ci-local.sh` against it, fix `compat.py`,
   refresh fixtures.
 
+**Update, 15 October 2026.** The billing lock is cleared and Actions runs. The first run that ever
+started a job found that the workflow did not match this ADR: the matrix had `version-16` marked
+required, and the file's own header claimed v15 and v16 must pass. That is now corrected - v16 and
+develop report and gate nothing, as decided here.
+
+It also found three things no local run could have:
+
+- Each lane needs its own Python and Node. frappe `version-16` declares
+  `requires-python = ">=3.14,<3.15"` and wants Node 24; the matrix pinned 3.11 and 20 for
+  everything, so the v16 and develop lanes died inside `bench init` before reaching any code.
+- `sites/apps.txt` does not always end in a newline, so appending the app name glued it to the
+  previous one and the site tried to import `erpnextfieldmate`.
+- **The suite could not run on a site nobody had set up by hand.** `before_tests` was commented
+  out in `hooks.py`, so no Company, `All Territories` or `All Item Groups` existed and 906 of
+  1272 tests died in `setUp`. It passed on developer machines only because those sites had been
+  set up months earlier - the local test company is "Wind Power LLC", the name ERPNext's own
+  `before_tests` gives it.
+
+The last one is worth holding on to: a green local suite said less than it appeared to, for as
+long as CI was dark.
+
 ---
 
 ## ADR-016 — Both sales models ship, switched by FieldMate Settings

@@ -1,8 +1,15 @@
 name: CI
 
-# Three lanes, every push. version-15 and version-16 must pass. develop is allowed to fail,
-# but its result is recorded and triaged — that is how we learn about a v17 break weeks before
-# customers do. See docs/DECISIONS.md ADR-005.
+# Three lanes. version-15 must pass; version-16 and develop are allowed to fail, and their
+# results are recorded and triaged — that is how we learn about a break weeks before customers do.
+# See docs/DECISIONS.md ADR-005.
+#
+# version-16 reports rather than blocks. That is **ADR-015**, decided 21 September: "the
+# version-16 and develop CI lanes stay in the workflow but gate nothing". This file said the
+# opposite until now - the matrix marked v16 as required and the line above claimed it must pass -
+# and nobody noticed, because the account's billing lock meant no job had started since before the
+# ADR was written. Getting v16 green is its own work on its own branch; flip `experimental` back
+# to false there.
 on:
   # Only main on push. Every other branch is covered by `pull_request`, and listing branches here
   # as well meant a branch with a pull request open ran the whole matrix twice for one commit -
@@ -41,7 +48,9 @@ jobs:
           - branch: version-16
             python: "3.14"
             node: "24"
-            experimental: false
+            # Reporting, not blocking - see the note at the top. Flip this back to false once
+            # the v16 branch has it passing.
+            experimental: true
           - branch: develop
             python: "3.14"
             node: "24"

@@ -579,10 +579,23 @@ class TestTheUnitsAnOrderMayBeTakenIn(CatalogueFixture):
 		self.assertEqual([u["uom"] for u in row["order_uoms"]], [row["stock_uom"], box, case])
 
 	def test_a_conversion_of_zero_is_not_a_unit(self):
-		"""A Float column is NOT NULL DEFAULT 0. Offering it would divide a quantity by nothing."""
+		"""A Float column is NOT NULL DEFAULT 0. Offering it would divide a quantity by nothing.
+
+		Written **underneath the Item form**, which refuses a factor of zero outright. The guard
+		is not about what the form allows: `UOM Conversion Detail.conversion_factor` is NOT NULL
+		DEFAULT 0, so a row can carry zero however it arrived - an import, an older ERPNext, a
+		direct write - and a catalogue that offered that unit would divide a rep's quantity by
+		nothing. Going through the form instead is what kept the CI lane red while passing here,
+		because this site's Items predate the check.
+		"""
 		item = self.priced_item()
 		box, _ = self.two_more_uoms()
-		self.packs_of(item, **{box: 0})
+		frappe.db.sql("""
+			insert into `tabUOM Conversion Detail`
+				(name, parent, parenttype, parentfield, idx, uom, conversion_factor)
+			values (%s, %s, 'Item', 'uoms', 1, %s, 0)
+		""", (frappe.generate_hash(length=10), item, box))
+		frappe.clear_document_cache("Item", item)
 		self.make_catalogue(items=[item])
 
 		row, units = self.units_for(item)
