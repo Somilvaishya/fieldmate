@@ -218,7 +218,18 @@ has_permission = {
 # Testing
 # -------
 
-# before_tests = "fieldmate.install.before_tests"
+# Set a site up before its first test runs. ERPNext's own does the work: it completes the setup
+# wizard when there is no Company, which is what creates `All Territories`, `All Item Groups`, a
+# fiscal year and a chart of accounts - every one of which this suite's fixtures link to.
+#
+# Frappe calls the hook belonging to **the app being tested**, so `--app fieldmate` looks here and
+# nowhere else. Without this line a fresh site runs 1272 tests and 906 of them die in setUp on
+# "Could not find Parent Territory: All Territories". It never showed on a developer machine
+# because those sites were set up by hand months ago.
+#
+# Note that ERPNext's version also clears `tabItem Price` before every run. That is fine on a site
+# kept for tests, and it is one more reason not to point a test run at anything else.
+before_tests = "erpnext.setup.utils.before_tests"
 
 # Overriding Methods
 # ------------------------------
