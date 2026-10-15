@@ -3,6 +3,7 @@
 import frappe
 
 from fieldmate.services import alerts as alerts_service
+from fieldmate.services import collection as collection_service
 from fieldmate.services import day as day_service
 from fieldmate.services import kpi as kpi_service
 from fieldmate.services import settings as settings_service
@@ -41,6 +42,23 @@ def measure_targets():
 		frappe.log_error(
 			title="fieldmate measure_targets",
 			message="These plans could not be measured:\n" + "\n".join(result["failed"]))
+
+
+def snapshot_outstanding():
+	"""Freeze what every shop owes, before the rollup reads it.
+
+	This has to run **before** `roll_up_kpis` in the daily list. The rollup answers "what is owed"
+	as the last recorded position plus what was billed today, and it reads that first half out of
+	this table.
+
+	It is listed here because it was not listed anywhere: the service function existed, the
+	DocType existed, `kpi` read it, and nothing wrote it - so the owed figure on every rep's day
+	has been the day's own billing and nothing else since the KPI was built.
+	"""
+	result = collection_service.snapshot_outstanding()
+	if result["written"]:
+		frappe.logger("fieldmate").info(
+			f"froze {result['written']} outlet position(s) as of {result['as_of']}")
 
 
 def roll_up_kpis():

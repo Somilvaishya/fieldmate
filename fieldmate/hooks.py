@@ -316,6 +316,10 @@ scheduler_events = {
 		# read of one stored row rather than a count over a month of orders on every open
 		# (Gate 7 criterion 5).
 		"fieldmate.tasks.measure_targets",
+		# What every shop owed at the end of the day, frozen before the rollup reads it. The
+		# rollup answers "what is owed" as this figure plus what was billed today, so running
+		# it the other way round would report yesterday's position as today's.
+		"fieldmate.tasks.snapshot_outstanding",
 		# Phase 8. The KPI snapshot is what every chart, report and screen reads, so it is
 		# rebuilt before anybody looks at it, and the alerts run after - they read the rows the
 		# rollup just wrote, and running them first would judge yesterday on the day before's
