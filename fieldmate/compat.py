@@ -11,7 +11,7 @@ Two rules when adding an adapter:
    not. Only branch on version when a probe is impossible.
 
 Where a value is plain data rather than business logic, query it with `frappe.get_all` instead of
-importing an ERPNext helper — fewer imports is fewer things that can move in v16/v17.
+importing an ERPNext helper — fewer imports is fewer things that can move in a later version.
 """
 
 from __future__ import annotations

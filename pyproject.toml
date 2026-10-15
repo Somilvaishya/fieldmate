@@ -24,10 +24,10 @@ build-backend = "flit_core.buildapi"
 # (`compat.OPTIONAL_APPS`, and `make_expense_claim` answers None where HRMS is absent). Listing
 # them would make Frappe Cloud demand apps that are optional by design.
 #
-# Pinned **below 16** on purpose. The minimums in `compat.MIN_VERSIONS` are 15.0, and v16/v17
-# compatibility is designed for and unverified (ADR-015) - so it is not claimed here either. When
-# a v16 bench is actually tested, this bound is the deliberate decision that has to be made,
-# rather than an app silently installing onto a host nobody has run it on.
+# Pinned **below 16** on purpose. The minimums in `compat.MIN_VERSIONS` are 15.0; v17 is out of
+# the plan and v16 is deferred and unverified (ADR-034), so neither is claimed here. When somebody
+# tests a v16 bench, this bound is the deliberate decision to revisit, rather than an app silently
+# installing onto a host nobody has run it on.
 [tool.bench.frappe-dependencies]
 frappe = ">=15.0.0,<16.0.0"
 erpnext = ">=15.0.0,<16.0.0"

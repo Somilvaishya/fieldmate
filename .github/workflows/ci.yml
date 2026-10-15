@@ -1,8 +1,11 @@
 name: CI
 
-# Three lanes. version-15 must pass; version-16 and develop are allowed to fail, and their
-# results are recorded and triaged — that is how we learn about a break weeks before customers do.
-# See docs/DECISIONS.md ADR-005.
+# Two lanes. version-15 must pass. version-16 reports and gates nothing. See ADR-015.
+#
+# There is no develop lane any more: v17 is out of the plan (owner decision, 15 October 2026). A
+# lane nobody is going to act on is not an early warning, it is a red cross people learn to skip
+# past - and the habit of skipping past red crosses is what let this workflow sit broken from
+# September without anyone noticing.
 #
 # version-16 reports rather than blocks. That is **ADR-015**, decided 21 September: "the
 # version-16 and develop CI lanes stay in the workflow but gate nothing". This file said the
@@ -38,8 +41,8 @@ jobs:
         # Each lane gets the Python its Frappe asks for. This is not a detail: frappe
         # version-16 declares `requires-python = ">=3.14,<3.15"` and uses PEP 695 type aliases
         # (`type X = ...`), which are a syntax error before 3.12 - so pinning one Python for the
-        # whole matrix meant the v16 and develop lanes could never get past `bench init`. Nobody
-        # knew, because no run of this workflow had ever started a job.
+        # whole matrix meant the v16 lane could never get past `bench init`. Nobody knew,
+        # because no run of this workflow had ever started a job.
         include:
           - branch: version-15
             python: "3.11"
@@ -50,10 +53,6 @@ jobs:
             node: "24"
             # Reporting, not blocking - see the note at the top. Flip this back to false once
             # the v16 branch has it passing.
-            experimental: true
-          - branch: develop
-            python: "3.14"
-            node: "24"
             experimental: true
 
     services:

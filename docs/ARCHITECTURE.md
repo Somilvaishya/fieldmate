@@ -106,8 +106,9 @@ apps/fieldmate/
 7. **No core edits.** Custom fields on ERPNext DocTypes ship as `fm_`-prefixed fixtures.
 8. **Reports read `FieldMate KPI Snapshot`, never raw `FieldMate Visit`.** 2.1 M visits/year makes live
    aggregation non-viable.
-9. **Additive schema only.** New capability is a new optional field with a safe default, so a v15
-   site and a v17 site run the same app version.
+9. **Additive schema only.** New capability is a new optional field with a safe default, so two
+   sites on different ERPNext versions can run the same app version. This is what keeps v16
+   support cheap to add later (ADR-034); it is not a claim that it works today.
 
 ## The version boundary
 

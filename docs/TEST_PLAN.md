@@ -237,8 +237,8 @@ accurate [ ] Keyboard/accessibility
 [ ] Cross-distributor denied [ ] No field role reaches accounting [ ] Input validated server-side
 [ ] Photos private [ ] GPS retention configured
 
-**Code** — [ ] Lint passes [ ] Tests pass on dev-15 [ ] CI green on version-15 and version-16
-[ ] develop lane recorded and triaged [ ] `bench migrate` clean on testerp2
+**Code** — [ ] Lint passes [ ] Tests pass on dev-15 [ ] CI green on version-15
+[ ] `bench migrate` clean on testerp2
 
 ## Reporting
 

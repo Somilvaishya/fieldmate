@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FieldMate — Testing Manual (0 se sab tak)</title>
+<style>
+/* Standalone on purpose: no fonts, no scripts, no CDN from outside this file. A tester opens
+   this on a phone in a market, and a manual that needs a signal is a manual nobody reads. */
+:root{
+  --ink:#191714; --ink-2:#4b453e; --ink-3:#7d756c;
+  --paper:#f8f6f1; --panel:#fffefb; --panel-2:#f0ece3; --line:#e3ddd2; --line-2:#efeae1;
+  --accent:#9a3412; --accent-soft:#fbeadf;
+  --ok:#17633f; --ok-soft:#e3f1e9;
+  --warn:#8a5600; --warn-soft:#fcf0d6;
+  --bad:#9b1c1c; --bad-soft:#fcebeb;
+  --code:#efeae0;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ink:#f2eee7; --ink-2:#c4bcb2; --ink-3:#938a80;
+    --paper:#15120f; --panel:#1e1b17; --panel-2:#262220; --line:#34302a; --line-2:#292521;
+    --accent:#f28a5c; --accent-soft:#3a1d11;
+    --ok:#63c293; --ok-soft:#133020;
+    --warn:#e0ac4d; --warn-soft:#332507;
+    --bad:#ef8484; --bad-soft:#3a1717;
+    --code:#262120;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ink:#f2eee7; --ink-2:#c4bcb2; --ink-3:#938a80;
+  --paper:#15120f; --panel:#1e1b17; --panel-2:#262220; --line:#34302a; --line-2:#292521;
+  --accent:#f28a5c; --accent-soft:#3a1d11;
+  --ok:#63c293; --ok-soft:#133020;
+  --warn:#e0ac4d; --warn-soft:#332507;
+  --bad:#ef8484; --bad-soft:#3a1717;
+  --code:#262120;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--sans);
+  font-size:16.5px; line-height:1.65; -webkit-text-size-adjust:100%;
+  padding-inline:18px; padding-block:28px 72px;
+}
+main{max-width:800px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+
+/* ------------------------------------------------------------------ type */
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+  color:var(--accent);margin:0}
+h1{font-size:clamp(30px,6.5vw,44px);line-height:1.08;letter-spacing:-.02em;margin:4px 0 0;
+  font-weight:800;text-wrap:balance}
+.lede{font-size:17.5px;color:var(--ink-2);margin:10px 0 0;max-width:40em}
+h2{font-size:25px;line-height:1.2;letter-spacing:-.01em;margin:46px 0 0;font-weight:750;
+  text-wrap:balance;padding-top:14px;border-top:2px solid var(--line)}
+h3{font-size:18px;margin:28px 0 0;font-weight:700;letter-spacing:-.005em}
+h4{font-size:15.5px;margin:18px 0 0;font-weight:700;color:var(--ink-2)}
+p,li{margin:0;max-width:66ch}
+p+p{margin-top:11px}
+h2+p,h3+p,h4+p{margin-top:9px}
+ul,ol{margin:9px 0 0;padding-left:21px;display:flex;flex-direction:column;gap:6px}
+li::marker{color:var(--ink-3)}
+strong{font-weight:700}
+code{font-family:var(--mono);font-size:.86em;background:var(--code);padding:1.5px 5px;
+  border-radius:4px;word-break:break-word}
+a{color:var(--accent)}
+
+/* ------------------------------------------------------------------ bits */
+pre{font-family:var(--mono);font-size:13.5px;line-height:1.55;background:var(--code);
+  border:1px solid var(--line);border-radius:10px;padding:13px 15px;margin:11px 0 0;
+  overflow-x:auto;white-space:pre}
+pre code{background:none;padding:0;font-size:inherit}
+
+.box{border-radius:11px;padding:14px 17px;margin-top:15px;border:1px solid var(--line);
+  background:var(--panel)}
+.box p{max-width:none}
+.box>:first-child{margin-top:0}
+.warn{background:var(--warn-soft);border-color:transparent;border-left:4px solid var(--warn)}
+.warn b{color:var(--warn)}
+.stop{background:var(--bad-soft);border-color:transparent;border-left:4px solid var(--bad)}
+.stop b{color:var(--bad)}
+.good{background:var(--ok-soft);border-color:transparent;border-left:4px solid var(--ok)}
+.good b{color:var(--ok)}
+.note{background:var(--panel-2);border-color:transparent;border-left:4px solid var(--accent)}
+
+.must{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--ok);
+  border-radius:0 11px 11px 0;padding:13px 17px;margin-top:13px}
+.must .t{font-size:12px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;
+  color:var(--ok);margin:0 0 5px}
+.must p,.must li{max-width:none}
+
+/* ------------------------------------------------------------------ tables */
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:11px;background:var(--panel);
+  margin-top:15px}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-bottom:1px solid var(--line-2)}
+th{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:700;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:650}
+td code{white-space:nowrap}
+
+/* ------------------------------------------------------------------ contents */
+.toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;
+  margin-top:22px}
+.toc h2{all:unset;font-size:12px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;
+  color:var(--ink-3);display:block;margin-bottom:9px}
+.toc ol{padding-left:0;list-style:none;gap:3px}
+.toc a{text-decoration:none;color:var(--ink);font-weight:600;font-size:15.5px}
+.toc a:hover{color:var(--accent)}
+.toc span{color:var(--ink-3);font-weight:400;font-size:14px}
+
+/* ------------------------------------------------------------------ steps */
+ol.steps{counter-reset:s;list-style:none;padding:0;margin-top:14px;gap:11px}
+ol.steps>li{counter-increment:s;position:relative;padding-left:38px;max-width:none}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:26px;height:26px;
+  border-radius:50%;background:var(--accent);color:#fff;font-size:13.5px;font-weight:700;
+  display:grid;place-items:center;font-variant-numeric:tabular-nums}
+
+/* ------------------------------------------------------------------ tick list */
+.tick{list-style:none;padding:0;margin-top:13px;gap:0}
+.tick li{max-width:none;border-bottom:1px solid var(--line-2)}
+.tick li:last-child{border-bottom:0}
+.tick label{display:flex;gap:11px;align-items:flex-start;padding:11px 2px;cursor:pointer}
+.tick input{margin:3px 0 0;width:19px;height:19px;flex:none;accent-color:var(--accent)}
+.tick label span{font-size:15.5px}
+.tick input:checked+span{color:var(--ink-3);text-decoration:line-through}
+
+.who{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  padding:2.5px 9px;border-radius:999px;white-space:nowrap;vertical-align:middle;
+  background:var(--panel-2);color:var(--ink-2);margin-left:7px}
+.who.phone{background:var(--accent-soft);color:var(--accent)}
+.who.desk{background:var(--ok-soft);color:var(--ok)}
+.who.term{background:var(--panel-2);color:var(--ink-3);font-family:var(--mono)}
+
+.bar{display:flex;gap:9px;flex-wrap:wrap;margin-top:20px}
+.bar button{font:inherit;font-size:14px;font-weight:650;padding:9px 15px;min-height:42px;
+  border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  cursor:pointer}
+.bar button:hover{border-color:var(--accent);color:var(--accent)}
+
+footer{margin-top:52px;padding-top:16px;border-top:2px solid var(--line);font-size:13.5px;
+  color:var(--ink-3)}
+footer p{max-width:66ch}
+
+@media (max-width:560px){
+  body{padding-inline:15px;font-size:16px}
+  h2{font-size:22px} h3{font-size:17px}
+  .box,.must,.toc{padding:13px 15px}
+  pre{font-size:12.5px}
+}
+@media print{
+  body{background:#fff;color:#000;font-size:11pt;padding:0}
+  .bar,.toc{display:none}
+  h2{page-break-before:auto;break-after:avoid}
+  .box,.must,.scroll,pre{break-inside:avoid}
+  a{color:#000;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<main>
+
+<p class="eyebrow">FieldMate · Testing manual</p>
+<h1>0 se sab tak — pura app test karne ka tareeka</h1>
+<p class="lede">
+  Site khaali karne se le kar rep ka pura din, distributor ka portal, paisa, season booking aur
+  manager ki screens — sab kuch, usi kram me jisme test karna chahiye.
+</p>
+
+<div class="bar">
+  <button type="button" onclick="window.print()">Print / PDF banao</button>
+  <button type="button" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')">Light / Dark</button>
+  <button type="button" onclick="if(confirm('Saare tick hata dein?')){document.querySelectorAll('.tick input').forEach(function(c){c.checked=false});try{localStorage.removeItem('fm:manual')}catch(e){}}">Tick reset karo</button>
+</div>
+
+<div class="box note">
+  <p><b>Ye doc kaise padhein.</b> Har kaam pe likha hai wo <b>kahan</b> karna hai:</p>
+  <p style="margin-top:8px">
+    <span class="who term">terminal</span> aap chalaoge &nbsp;
+    <span class="who desk">Desk</span> browser me, manager ki tarah &nbsp;
+    <span class="who phone">Phone</span> app me, rep ki tarah
+  </p>
+  <p style="margin-top:8px">
+    Jahan <b>"Ye hona chahiye"</b> likha hai — wahi asli test hai. Agar wo na ho, to wo bug hai,
+    aage na badhein; neeche <i>Bug kaise likhein</i> dekh lein.
+  </p>
+</div>
+
+<nav class="toc">
+  <h2>Isme kya hai</h2>
+  <ol>
+    <li><a href="#p0">Part 0 — Zero se site taiyaar karna</a> <span>· ek baar</span></li>
+    <li><a href="#p1">Part 1 — Rep ka pura din (phone)</a> <span>· sabse zaroori</span></li>
+    <li><a href="#p2">Part 2 — Distributor pe order (primary sale)</a></li>
+    <li><a href="#p3">Part 3 — Paisa: collection se ledger tak</a></li>
+    <li><a href="#p4">Part 4 — Season booking (Holi)</a></li>
+    <li><a href="#p5">Part 5 — Manager, Desk me</a></li>
+    <li><a href="#p6">Part 6 — Distributor ka portal</a></li>
+    <li><a href="#p7">Part 7 — Claim aur incentive</a></li>
+    <li><a href="#p8">Part 8 — Jo jaan ke nahi bana</a></li>
+    <li><a href="#p9">Part 9 — Fatafat tick-list</a></li>
+    <li><a href="#bug">Bug kaise likhein</a></li>
+  </ol>
+</nav>
+
+<!-- ===================================================================== PART 0 -->
+<h2 id="p0">Part 0 — Zero se site taiyaar karna</h2>
+<p>
+  Ye hissa ek baar ka hai aur <b>aap</b> karoge, rep nahi. Iske bina phone pe kuch nahi dikhega —
+  aur <b>khaali site bilkul toote hue app jaisi lagti hai</b>, is liye ise poora khatam karein tab
+  rep ko phone dein.
+</p>
+
+<h3>0.1 — Kaunsi site, aur test flag <span class="who term">terminal</span></h3>
+<p>
+  Do site rakhein: ek <b>test site</b> jo mitayi ja sakti hai, aur ek <b>pilot site</b> jo asli
+  data ke liye hai. Saare script test flag maangte hain aur uske bina chalte hi nahi.
+</p>
+<pre><code>bench --site &lt;test-site&gt; set-config fieldmate_test_site 1</code></pre>
+<div class="box stop">
+  <p><b>Ye flag pilot ya production site pe kabhi na lagayein.</b> Ye flag hi wo cheez hai jo
+  <code>reset_fieldmate.py</code> ko asli data mitane se rokti hai. Flag laga diya, to wo rakawat
+  khatam.</p>
+</div>
+
+<h3>0.2 — App install aur migrate <span class="who term">terminal</span></h3>
+<pre><code>bench get-app https://github.com/Somilvaishya/fieldmate --branch &lt;branch&gt;
+bench --site &lt;site&gt; install-app fieldmate
+bench --site &lt;site&gt; migrate</code></pre>
+<p>
+  ERPNext zaroori hai. <b>HRMS</b> (check-in aur expense ke liye) aur <b>India Compliance</b>
+  (GST, e-way bill) bhi install hone chahiye. Scheduler chaalu rakhein, warna KPI aur reminder ke
+  job nahi chalenge.
+</p>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p><code>bench migrate</code> bina error khatam ho. <b>Lekin migrate clean chalna iska matlab
+  nahi ki kuch kaam karta hai</b> — wo aage test karenge.</p>
+</div>
+
+<h3>0.3 — Sab mita ke sach me zero pe aayein <span class="who term">terminal</span></h3>
+<p>Agar site pe pehle ki testing ka kooda pada hai, to pehle dekho kitna hai:</p>
+<pre><code>cd sites
+../env/bin/python ../apps/fieldmate/scripts/reset_fieldmate.py            <span style="opacity:.6"># sirf ginti</span>
+../env/bin/python ../apps/fieldmate/scripts/reset_fieldmate.py --yes      <span style="opacity:.6"># sach me mitao</span>
+../env/bin/python ../apps/fieldmate/scripts/reset_fieldmate.py --yes --keep-masters</code></pre>
+<div class="box warn">
+  <p><b>Bina <code>--yes</code> ye sirf ginti karta hai.</b> Pehle aise hi dekhein. <code>--yes</code>
+  permanently mitata hai, undo nahi hai.</p>
+  <p>Ye <b>kabhi nahi</b> chhuta: Company, accounts, warehouse, UOM, Item Group, aur wo Customer /
+  Item / Item Price jo FieldMate ne nahi banaye. Doosre app (crm, trako waghairah) ko bhi nahi.</p>
+</div>
+
+<h3>0.4 — Company, GST aur Item Tax Template <span class="who desk">Desk</span></h3>
+<ol class="steps">
+  <li>Company banayein — <b>GSTIN aur poora address bharein</b>.</li>
+  <li>Tax account aur <b>Sales Taxes and Charges Template</b> banayein (In-State / Out-State).</li>
+  <li>Jo item bechne hain, unke <b>Item Group</b> pe <b>Item Tax Template</b> lagayein.</li>
+</ol>
+<div class="box stop">
+  <p><b>Company ka GSTIN zaroor bharein — ye sabse zyada chhoota hua kaam hai.</b></p>
+  <p>GSTIN na ho to India Compliance place of supply tay nahi kar paata, koi GST template choose
+  nahi hota, aur phir: <b>order me GST dikhta hai par invoice bina GST ka jaata hai.</b> Rep
+  ₹3,360 bolega aur bill ₹3,000 ka banega. E-way bill bhi nahi banega. Template ka <b>rate</b> bhi
+  check karein — "GST 12%" naam ka template jiska rate zero ho, har jagah zero padhta hai aur bug
+  jaisa lagta hai.</p>
+</div>
+
+<h3>0.5 — FieldMate Settings <span class="who desk">Desk</span></h3>
+<p>Desk me <b>FieldMate Settings</b> kholein aur bharein:</p>
+<ul>
+  <li><b>Default company</b></li>
+  <li>Kaunsi sale chaalu hai — <b>primary</b> aur <b>secondary</b> (dono chaalu rakhein)</li>
+  <li>Credit ka bartaav, visit aur geo-fence ke figures, kaam ka din</li>
+  <li><b>MRP price list</b> ka naam</li>
+  <li>Satchel alert kitne din baad (cash in hand)</li>
+</ul>
+
+<h3>0.6 — Territory ka ped <span class="who desk">Desk</span></h3>
+<p>
+  State aur area ka tree banayein. Rep, party aur catalogue — sab isi pe tangte hain, is liye ye
+  galat hua to aage sab galat dikhega.
+</p>
+<div class="box warn">
+  <p><b>Territory khaali na chhodein.</b> Frappe khaali Link field me session ka default bhar deta
+  hai, aur tab ek master jo "sirf Delhi North" ke liye tha, root node pe chala jaata hai —
+  yaani har jagah. Yahi cheez chup-chaap galat catalogue aur galat credit limit dikha deti hai.</p>
+</div>
+
+<h3>0.7 — Price list <span class="who desk">Desk</span></h3>
+<p>Alag-alag ERPNext Price List banayein, aur unme item price load karein:</p>
+<div class="scroll"><table>
+<thead><tr><th>List</th><th>Kiske liye</th></tr></thead>
+<tbody>
+<tr><td>PTD / PTSS</td><td>Distributor ya super stockist humse kis rate pe khareedta hai</td></tr>
+<tr><td>PTR</td><td>Distributor apni shop ko kis rate pe bechta hai</td></tr>
+<tr><td>MRP</td><td>Settings me naam daalein. Isse upar wali line order me jaane se rukti hai</td></tr>
+</tbody></table></div>
+<div class="box warn">
+  <p><b>Selling Settings me "Selling Price List" ka naam zaroor bharein.</b> Jahan ye khaali hota
+  hai, wahan "jo list pehle mil jaaye" uthayi jaati hai — aur ek extra selling list banne par
+  jawab badal jaata hai. Isse pehle 89 test ek baar fail hue the aur message bas "in ka price
+  nahi hai" bolta tha, wajah chhupa deta tha.</p>
+</div>
+
+<h3>0.8 — Item, catalogue aur must-sell <span class="who desk">Desk</span></h3>
+<ol class="steps">
+  <li>Item banayein — <b>HSN code</b> (6 ya 8 digit), stock item, sales item.</li>
+  <li>Har item ka price kam se kam PTR aur PTD list pe daalein.</li>
+  <li><b>FieldMate Product Catalogue</b> banayein — territory aur channel ke hisaab se.</li>
+  <li><b>Must Sell List</b> banayein (optional) — jo har shop me rakhwana hai.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p>Catalogue ka <b>har</b> item kisi price list pe hona chahiye. Jiska price nahi hai, wo phone
+  pe <b>"no price yet"</b> dikhega — ye sahi bartaav hai (zero book karna ya andaaza lagana isse
+  bura hai), par rep ko ye toota hua lagta hai. Rep ko phone dene se pehle ye zero karein.</p>
+</div>
+
+<h3>0.9 — Distributor <span class="who desk">Desk</span></h3>
+<p>
+  <b>Distributor ek ERPNext Customer hai, aur uske alawa kuch nahi.</b> Koi alag distributor record
+  nahi hai. Har super stockist / distributor / wholesaler pe bharein:
+</p>
+<ul>
+  <li>ERPNext ka apna: <b>credit limit</b>, <b>payment terms</b>, <b>default price list</b>,
+    territory, GSTIN, address</li>
+  <li>FieldMate ka: <b>Channel Tier</b>, parent customer, humse ya parent se khareedta hai,
+    shops ke liye <b>PTR price list</b>, <b>warehouse</b>, assigned rep</li>
+</ul>
+<div class="box warn">
+  <p><b>Warehouse zaroor bharein.</b> Season allocation stock <i>kahin</i> reserve karta hai, aur
+  wo "kahin" yahi warehouse hai. Khaali chhoda to ERPNext item master se apna warehouse chun lega,
+  aur phir aap stock ek warehouse me rakhoge jab Sales Order doosra naam leta hai — allocation
+  kuch bhi reserve nahi karega aur wajah dikhegi nahi.</p>
+</div>
+
+<h3>0.10 — Log, role aur field user <span class="who desk">Desk</span><span class="who term">terminal</span></h3>
+<p>App ke apne role ye hain:</p>
+<div class="scroll"><table>
+<thead><tr><th>Role</th><th>Kya kar sakta hai</th></tr></thead>
+<tbody>
+<tr><td>FieldMate Field Rep</td><td>Phone app. Order, visit, collection — ledger me kuch nahi</td></tr>
+<tr><td>FieldMate Area Manager</td><td>Approve karna, team dekhna, deposit confirm karna</td></tr>
+<tr><td>FieldMate Regional Manager</td><td>Wahi, bade area pe</td></tr>
+<tr><td>FieldMate Sales Head</td><td>Target, scheme, poora reporting</td></tr>
+<tr><td>FieldMate Dispatch Planner</td><td>Season allocation aur dispatch</td></tr>
+<tr><td>FieldMate Distributor</td><td>Sirf portal — apna order queue aur claim</td></tr>
+<tr><td>FieldMate Admin</td><td>Sab kuch. Testing ke liye apne aap ko ye dein</td></tr>
+</tbody></table></div>
+<p>Phir har rep ke liye <b>FieldMate Field User</b> banayein: user, territory, company, status Active,
+aur kya wo primary order le sakta hai.</p>
+<pre><code>cd sites
+../env/bin/python ../apps/fieldmate/scripts/setup_managers.py</code></pre>
+<div class="box warn">
+  <p><b>"Reports To" khaali reh gaya to koi manager uska roka hua order release nahi kar payega.</b>
+  Upar ka script ye hi theek karta hai aur batata hai kiska khaali hai.</p>
+</div>
+
+<h3>0.11 — Shop, beat aur journey plan <span class="who desk">Desk</span></h3>
+<ol class="steps">
+  <li><b>FieldMate Outlet</b> import karein — distributor, territory, GST category, aur us
+    distributor ke saath shop ki credit limit.</li>
+  <li><b>FieldMate Beat</b> banayein — shops ka ek raasta.</li>
+  <li><b>Journey Plan</b> generate karein — kaunsa rep, kaunse din, kaunsa beat.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p><b>Journey plan ke bina phone pe koi route nahi dikhega.</b> Today screen "No route today"
+  bolegi. Ye sahi hai, par tab aap visit test nahi kar sakte — is liye plan pehle bana lein.</p>
+</div>
+
+<h3>0.12 — Scheme <span class="who desk">Desk</span></h3>
+<p>
+  Kam se kam do scheme banayein aur <b>Applies To</b> set karein — ek <b>Secondary</b> (shop ke
+  liye) aur ek <b>Primary</b> (distributor ke liye). Dono ko submit karein.
+</p>
+
+<h3>0.13 — Approval rule <span class="who desk">Desk</span></h3>
+<p><b>FieldMate Order Approval Rule</b> banayein, order kind ke hisaab se — kis haalat me order
+manager ke paas jaayega.</p>
+
+<h3>0.14 — Seeding script — chhota raasta <span class="who term">terminal</span></h3>
+<p>
+  Haath se sab banane ke bajaye, ye script wahi banate hain jo us hisse ke test ko chahiye. Sab
+  dobara chalane pe safe hain (pehle naam se dhoondhte hain).
+</p>
+<div class="scroll"><table>
+<thead><tr><th>Script</th><th>Kya banata hai</th></tr></thead>
+<tbody>
+<tr><td><code>setup_managers.py</code></td><td>Reps ko manager deta hai (Reports To)</td></tr>
+<tr><td><code>setup_manual_test.py</code></td><td>Checklist template, no-order reason, outlet class, journey plan — visit test ke liye</td></tr>
+<tr><td><code>setup_phase4.py</code></td><td>Order aur scheme test ke liye</td></tr>
+<tr><td><code>setup_phase7.py</code></td><td>Target aur incentive</td></tr>
+<tr><td><code>setup_phase8.py</code></td><td>Alert aur KPI</td></tr>
+<tr><td><code>setup_phase9.py</code></td><td>Distributor portal ke do login, aur claim ki settlement item</td></tr>
+<tr><td><code>setup_phase2_season.py</code></td><td>Season, uski price list, advance, stock, showcase</td></tr>
+</tbody></table></div>
+<pre><code>cd sites
+../env/bin/python ../apps/fieldmate/scripts/setup_manual_test.py
+../env/bin/python ../apps/fieldmate/scripts/setup_phase9.py
+../env/bin/python ../apps/fieldmate/scripts/setup_phase2_season.py</code></pre>
+<p>
+  <code>setup_phase2_season.py</code> ke paas <code>--show</code> (kya bana hai) aur
+  <code>--undo</code> bhi hai.
+</p>
+
+<h3>0.15 — Gate script chala lein <span class="who term">terminal</span></h3>
+<p>
+  Haath se test karne se <b>pehle</b> ye chala lein. Ye khud bata denge ki kya chalta hai, taki aap
+  apna waqt un cheezon pe lagayein jo sirf insaan check kar sakta hai.
+</p>
+<pre><code>cd sites
+for g in gate2 gate3 gate4 gate5 gate6 gate7 gate8 gate9 gate_phase1 gate_phase2; do
+  ../env/bin/python ../apps/fieldmate/scripts/$g.py
+done</code></pre>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p>Har gate "<b>N/N criteria passed</b>" bole. Kuch criteria "<b>not answerable on this
+  bench</b>" aa sakte hain — wo fail nahi hai, matlab is site pe wo cheez check hi nahi ho sakti
+  (jaise GSTIN na ho to e-way bill).</p>
+</div>
+
+<h3>0.16 — Phone pe app <span class="who phone">Phone</span></h3>
+<ol class="steps">
+  <li>Chrome me kholein: <code>https://&lt;site&gt;/fieldmate</code></li>
+  <li>Menu se <b>Add to Home screen</b> / Install karein.</li>
+  <li><b>Wi-Fi pe</b> ek baar login karein, taki pehla pura data utar jaaye.</li>
+</ol>
+<div class="box warn">
+  <p><b>Pehla login Wi-Fi pe hi karein.</b> Pehli baar me shop, catalogue, price aur scheme sab
+  phone pe utarta hai. Ye adhoora raha to rep ko aage khaali screen milegi.</p>
+</div>
+
+<!-- ===================================================================== PART 1 -->
+<h2 id="p1">Part 1 — Rep ka pura din (phone)</h2>
+<p>
+  Yahi asli product hai. Neeche ka sab kuch rep ki tarah karein, phone pe. App me paanch tab hain:
+  <b>Today · Shops · Orders · Collect · Me</b>.
+</p>
+
+<h3>1.1 — Login <span class="who phone">Phone</span></h3>
+<p>Rep ke apne login se sign in karein. Phone pehchana jaata hai, to doosre phone se wahi login
+karne pe app ko pata chalta hai.</p>
+
+<h3>1.2 — Day start</h3>
+<ol class="steps">
+  <li><b>Today</b> tab → <b>Start day</b>.</li>
+  <li>App location maangega. Dein.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>Day start hone ke baad Today pe <b>"Day running"</b> dikhta hai.</li>
+    <li>Niche <b>Today's route</b> aur aaj ke shop dikhte hain.</li>
+    <li>Chhutti wale din <b>Holiday</b> ya <b>"You are on leave"</b> dikhta hai — khaali screen
+      nahi.</li>
+  </ul>
+</div>
+
+<h3>1.3 — Shop me check-in</h3>
+<ol class="steps">
+  <li>Route me se ek shop pe tap karein → <b>check in</b>.</li>
+  <li>Shop ke <b>bahar</b> khade ho kar bhi try karein.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>Geo-fence ke bahar se <b>"Outside range"</b> dikhe.</li>
+    <li>Ek visit khula rehte hue doosri shop me check-in karne par app <b>roke</b> aur us shop pe
+      wapas jaane ka raasta de — <b>chup-chaap pehli visit band na kare</b>. (Ye ek asli bug tha:
+      pehle wo visit band ho jaati thi, chhoti stamp ho jaati thi, aur kisi ko pata nahi chalta
+      tha.)</li>
+  </ul>
+</div>
+
+<h3>1.4 — Visit ke andar ke kaam</h3>
+<p>Visit screen pe <b>"What to do here"</b> ke neeche ye milenge:</p>
+<div class="scroll"><table>
+<thead><tr><th>Kaam</th><th>Kya check karein</th></tr></thead>
+<tbody>
+<tr><td>Order</td><td>Niche 1.5 me poora</td></tr>
+<tr><td>Checklist</td><td>Sawaal us shop ke liye sahi aayein; jawab save ho</td></tr>
+<tr><td>Shelf check</td><td>Photo khinche aur bina signal bhi lag jaaye</td></tr>
+<tr><td>Stock check</td><td>Pichhli ginti saath aaye, taki "pichhli baar jitna" ho sake</td></tr>
+<tr><td>Collect payment</td><td>Shop ka outstanding dikhe (Part 3)</td></tr>
+<tr><td>Photos</td><td>Shelf, shop front, planogram, competitor, damage, expiry</td></tr>
+</tbody></table></div>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p>Photo <b>record ke baad</b> aati hai, apni line me. Signal jaane par bhi photo phone pe pakka
+  rakhi jaati hai aur baad me chali jaati hai.</p>
+</div>
+
+<h3>1.5 — Shop ka order (secondary sale)</h3>
+<ol class="steps">
+  <li>Visit → <b>Order</b>. Catalogue khulta hai.</li>
+  <li>Item daalein. <b>Cart</b> kholein.</li>
+  <li><b>Schemes</b> screen dekhein — kaunsa offer laga, kya chhoot gaya.</li>
+  <li><b>Review</b> → shopkeeper ko order padh kar sunayein → tick karein → <b>Send</b>.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>Cart me <b>GST ki line</b> aur <b>bill total</b> dono dikhein. Niche ke button pe <b>bill
+      total</b> ho, sirf goods ka nahi — rep jo number bolega wahi shaam ko invoice pe aayega.</li>
+    <li>MRP se upar wali line order me <b>na jaaye</b> — uska naam aur MRP dikhe.</li>
+    <li>Review ke neeche saaf likha ho ki order <b>distributor ki queue</b> me jaa raha hai, wahi
+      deliver aur bill karega. Yahan se koi invoice nahi banta.</li>
+    <li>Credit limit se upar jaane par order <b>phir bhi chala jaaye</b> — breach dikhe aur manager
+      ke paas jaaye. <b>Counter pe rep ko roka na jaaye.</b></li>
+    <li>Desk me dekhein: shop ke order ka <b>koi Sales Order aur koi GL Entry nahi</b> bana.</li>
+  </ul>
+</div>
+
+<h3>1.6 — Bina signal (sabse zaroori test)</h3>
+<ol class="steps">
+  <li>Signal ke saath cart banayein.</li>
+  <li>Phone ka <b>data band</b> karein (aeroplane mode).</li>
+  <li>Quantity badlein. Screen band kar ke phir kholein. Order <b>send</b> karein.</li>
+  <li>Collection bhi lein, photo bhi khinchein — sab offline.</li>
+  <li>Ab data <b>chaalu</b> karein aur intezaar karein.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>Quantity badalne pe <b>koi spinner nahi</b>, koi network nahi — total turant.</li>
+    <li>Order "saved on this phone" bole aur <b>outbox me jaaye</b>.</li>
+    <li>Signal aane par sab apne aap chala jaaye. <b>Ek bhi record do baar na bane.</b></li>
+    <li>Phone jo total bola aur server ka total — <b>paise tak same</b>.</li>
+  </ul>
+</div>
+<div class="box good">
+  <p><b>Yahi app ka asli imtihaan hai.</b> Rep ka pura 9 ghante ka din bina signal chale aur ek bhi
+  record na khoye — yahi poora design iske liye bana hai.</p>
+</div>
+
+<h3>1.7 — Check out aur Day end</h3>
+<ol class="steps">
+  <li>Visit → <b>finish</b>. Agar order nahi liya to <b>reason</b> maanga jaaye.</li>
+  <li>Din ke aakhir me Today → <b>Finish day</b>.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p>Day end pe distance, kitni call, strike rate — sab <b>khud banein</b>, rep type na kare.</p>
+</div>
+
+<h3>1.8 — Me tab</h3>
+<ul>
+  <li><b>My performance</b> — target aur kitna hua, incentive ka andaaza</li>
+  <li><b>Expense claim</b> — distance server ka, claim rep ka, farak manager ka</li>
+</ul>
+
+<!-- ===================================================================== PART 2 -->
+<h2 id="p2">Part 2 — Distributor pe order (primary sale)</h2>
+<p>
+  Ye shop ka order <b>nahi</b> hai. Ye wo sale hai jo <b>hum</b> karte hain aur <b>hum</b> bill
+  karte hain. Is liye iska asar seedha books pe padta hai.
+</p>
+<ol class="steps">
+  <li><b>Orders</b> tab → <b>Order on a distributor</b>.</li>
+  <li>Party chunein. Catalogue khulta hai.</li>
+  <li>Cart banayein → Review → Send.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>Catalogue <b>party ki apni price list</b> pe ho, kisi shop ki nahi.</li>
+    <li>Review pe likha ho ki ye <b>hum invoice karte hain</b> — "distributor shop ko bill karega"
+      <b>na likha ho</b>. (Ye line pehle har order pe aati thi, jo galat thi.)</li>
+    <li>Button pe <b>"Send to the office"</b> likha ho, "Send to distributor" nahi.</li>
+    <li>Desk me: <b>ek</b> Sales Order bana, usi party ke naam.</li>
+    <li>Dobara sync hone par <b>doosra</b> Sales Order na bane.</li>
+    <li>Party ki limit se upar wala order <b>roka jaaye</b>. Chhodne wale sirf ye ho sakte hain:
+      <b>FieldMate Admin</b>, <b>Sales Head</b>, <b>System Manager</b>; ya <b>rep ka apna
+      manager</b> (Reports To ki chain pe, to area manager chhutti pe ho to regional kar sakta
+      hai); ya <b>wo depot</b> jiske paas order gaya. <b>Khud rep kabhi nahi</b>, aur
+      <b>doosre area ka manager bhi nahi</b> — teen territory door wale banda ka is shop ke paise
+      se koi lena-dena nahi.</li>
+  </ul>
+</div>
+<div class="box warn">
+  <p><b>Catalogue, cart aur review — teeno pe ek hi rate dikhna chahiye.</b> Aur Desk me Sales
+  Order ka rate bhi wahi. Agar catalogue ka rate aur book hua rate kisi round percentage se alag
+  hai, to ye wo bug hai jo season me milta tha — turant likhein.</p>
+</div>
+
+<!-- ===================================================================== PART 3 -->
+<h2 id="p3">Part 3 — Paisa: collection se ledger tak</h2>
+<p>
+  <b>Koi bhi field role ledger me kuch nahi daalta.</b> Rep collection likhta hai; Payment Entry
+  tab banta hai jab office deposit confirm karta hai. Yahi niyam finance ko is system pe sign
+  karne layak banata hai — is liye ise theek se test karein.
+</p>
+
+<h3>3.1 — Shop se paisa <span class="who phone">Phone</span></h3>
+<ol class="steps">
+  <li>Visit → <b>Collect payment</b>, ya <b>Collect</b> tab.</li>
+  <li>Outstanding bill dikhein. Amount daalein, mode chunein, receipt banayein.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p>Shop ka paisa <b>distributor ka</b> hai. Isse <b>koi Payment Entry aur koi GL Entry nahi</b>
+  banta — kabhi nahi, deposit confirm hone ke baad bhi nahi.</p>
+</div>
+
+<h3>3.2 — Depot se paisa <span class="who phone">Phone</span></h3>
+<ol class="steps">
+  <li><b>Collect</b> tab → <b>Take from a depot</b>.</li>
+  <li>Depot, amount, mode. Cheque ho to <b>cheque ki date</b> bhi.</li>
+  <li>Booking ke against ho to wo chunein (Part 4).</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p>Booking chunne par <b>depot apne aap us booking ka</b> ho jaaye. Kyunki ek depot ka paisa
+  doosri party ki booking pe lagana — galat account me credit aur kisi aur ka order release.</p>
+</div>
+
+<h3>3.3 — Deposit, aur tab ledger <span class="who phone">Phone</span><span class="who desk">Desk</span></h3>
+<ol class="steps">
+  <li>Phone: <b>Collect</b> → satchel → <b>Hand in the money</b>. Kya-kya de rahe hain tick
+    karein, slip number daalein, declare karein.</li>
+  <li>Desk: <b>doosra banda</b> (rep nahi) deposit confirm kare.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>Declare karne ke baad bhi <b>Payment Entry nahi</b> bana — screen saaf bole ki office
+      confirm karega.</li>
+    <li>Confirm hone par <b>sirf us paise ka</b> Payment Entry bane jo humara tha.</li>
+    <li><b>Jisne declare kiya wahi confirm na kar sake.</b></li>
+    <li>Cheque bounce karein → Payment Entry <b>cancel</b> ho aur invoice ka outstanding wapas
+      aaye.</li>
+  </ul>
+</div>
+
+<h3>3.4 — Post-dated cheque (PDC)</h3>
+<p>Aage ki date ka cheque lein, phir deposit screen kholein.</p>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>Us row pe <b>"Dated … — not bankable yet"</b> likha ho.</li>
+    <li>Wo <b>apne alag block</b> me ho — "Post-dated cheques" — aam cheque ke saath na ho.</li>
+    <li>Upar <b>Post-dated</b> ka column ho, jo cheque ke total ka <b>hissa</b> ho, uske upar
+      nahi.</li>
+    <li>Likha ho ki office use date tak rakhta hai aur <b>koi booking release nahi hoti</b>.</li>
+    <li>Phir bhi wo hand-in karne layak ho — rep use satchel me rakh le to kisi ke paas nahi
+      pahunchega.</li>
+  </ul>
+</div>
+
+<!-- ===================================================================== PART 4 -->
+<h2 id="p4">Part 4 — Season booking (Holi)</h2>
+<p>
+  Holi ka stock November me book hota hai aur February me jaata hai. Is liye season order ek aam
+  order nahi — uska rate pakka ho jaata hai, advance chahiye, aur line-wise delivery date hoti hai.
+</p>
+<div class="box note">
+  <p><b>Pehle seeding chalayein:</b></p>
+  <pre style="margin-top:7px"><code>cd sites
+../env/bin/python ../apps/fieldmate/scripts/setup_phase2_season.py</code></pre>
+  <p style="margin-top:9px">Iske bina season ki screens <b>khaali</b> dikhengi — aur khaali screen
+  toote hue app jaisi lagti hai.</p>
+</div>
+<p>Iska <b>poora</b> test alag doc me hai — <code>docs/MANUAL_TESTS_PHASE2_SEASON.md</code>, 11
+section. Yahan sirf chhota sa daur:</p>
+<ol class="steps">
+  <li>Distributor pe order banayein. Review pe <b>"Booking · &lt;season&gt;"</b> ka card dikhna
+    chahiye — rate pakka, kitna advance, delivery window.</li>
+  <li>Line ki delivery date window ke bahar karein → <b>button grey</b> ho aur saari galat line ka
+    naam dikhe.</li>
+  <li>Send karein. Order <b>Awaiting Advance</b> me ho aur <b>koi Sales Order na bane</b>.</li>
+  <li>Aage ki date ka cheque dein → booking <b>phir bhi ruki</b> rahe.</li>
+  <li>Cash me advance dein → Sales Order bane, aur uska <b>payment schedule</b> season ke terms se
+    aaye.</li>
+  <li><b>Orders → Season book</b>: kitna chahiye, kitna aaya, kitna baaki — aur PDC <b>alag</b>
+    dikhe, advance me juda hua nahi.</li>
+  <li>Desk → <b>Season Allocation</b>: teeno rule ka preview, apply, revert.</li>
+  <li>Desk → <b>⋯ menu</b>: deliver, invoice. Invoice pe <b>advance laga hua</b> ho aur outstanding
+    utna kam ho.</li>
+  <li>Desk → <b>Season Cockpit</b>: har figure ginti me sahi ho.</li>
+  <li><b>Orders → Share the range</b>: link banayein, usse <b>private window</b> me kholein, bhejein,
+    aur switch off karein.</li>
+</ol>
+
+<!-- ===================================================================== PART 5 -->
+<h2 id="p5">Part 5 — Manager, Desk me</h2>
+<div class="scroll"><table>
+<thead><tr><th>Kahan</th><th>Kya check karein</th></tr></thead>
+<tbody>
+<tr><td>FieldMate Outlet</td><td>Rep ki banayi nayi shop <b>approval</b> maange; approve karne par phone pe aaye</td></tr>
+<tr><td>FieldMate Order</td><td>Roka hua order dikhe; rep <b>apna</b> order approve na kar sake, aur <b>doosre area ka manager</b> bhi na kar sake</td></tr>
+<tr><td>Visit / Day Start</td><td>Aaj kaun chala, kitni call, kaun nahi nikla</td></tr>
+<tr><td>Target Plan</td><td>Area ka target reps me baant jaaye aur <b>wapas jod kar wahi bane</b></td></tr>
+<tr><td>KPI Snapshot</td><td>Coverage aur strike rate — haath ki ginti se milein</td></tr>
+<tr><td>Season Allocation</td><td>Preview → apply → revert</td></tr>
+<tr><td>Season Cockpit</td><td>State, party aur SKU ke hisaab se; <b>⋯ → Who is late</b></td></tr>
+<tr><td>Alert Log</td><td>Rep ka paisa zyada din ruke to manager ko khabar jaaye</td></tr>
+</tbody></table></div>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <p>Rep ke login se Desk me <b>Payment Entry banane ki koshish</b> karein. <b>Mana hona
+  chahiye.</b> Ye sabse zaroori "na" hai is poore system me.</p>
+</div>
+
+<!-- ===================================================================== PART 6 -->
+<h2 id="p6">Part 6 — Distributor ka portal</h2>
+<p>Distributor ke login se (rep ke nahi) — <code>setup_phase9.py</code> do login banata hai.</p>
+<ol class="steps">
+  <li><code>/distributor/orders</code> — apna order queue. Accept, invoice, deliver.</li>
+  <li><code>/distributor/sales</code> — apni sales ki CSV file bhejein.</li>
+</ol>
+<div class="must">
+  <p class="t">Ye hona chahiye</p>
+  <ul>
+    <li>File ka result <b>dono number</b> bole — kitni line padhi <b>aur</b> kitni nahi, row number
+      aur wajah ke saath. 347 me se 3 kharab ho to 344 jayein aur wo 3 naam se dikhein.</li>
+    <li>Phone pe us shop ka outstanding ab <b>distributor ke invoice</b> se bane, hamare order se
+      nahi. Dono ek saath na gine jaayein.</li>
+    <li><b>Ek depot doosre ka order queue na dekh sake.</b> Do login isi liye bante hain — ek se ye
+      test nahi hota.</li>
+  </ul>
+</div>
+
+<!-- ===================================================================== PART 7 -->
+<h2 id="p7">Part 7 — Claim aur incentive</h2>
+<ul>
+  <li><b>FieldMate Claim</b> — scheme claim distributor ke invoice ki line se bane; approve karne
+    pe <b>credit note</b> bane, trade spend ki tarah, bina stock movement.</li>
+  <li>Ek hi claim do baar approve karne pe <b>doosra credit note na bane</b>.</li>
+  <li><b>Incentive</b> — target achievement se bane; rep ke phone pe <b>My performance</b> me wahi
+    number dikhe jo Desk me hai.</li>
+</ul>
+
+<!-- ===================================================================== PART 8 -->
+<h2 id="p8">Part 8 — Jo jaan ke nahi bana</h2>
+<p>Ye bug nahi hain. Test karte waqt ye mile to time waste na karein:</p>
+<div class="scroll"><table>
+<thead><tr><th>Cheez</th><th>Kyun</th></tr></thead>
+<tbody>
+<tr><td>GST order me hai, invoice me nahi</td><td>Company ka GSTIN na ho to. <b>0.4 dekhein</b> — ye configuration ka kaam hai, aur isse pehle theek karein</td></tr>
+<tr><td>E-way bill nahi banta</td><td>Wahi wajah — GSTIN chahiye</td></tr>
+<tr><td>Hindi interface</td><td>Abhi nahi bana. Agle phase me</td></tr>
+<tr><td>Desk se primary order type karna</td><td>Nahi hai. Order phone, API ya service se banta hai</td></tr>
+<tr><td>Primary order me "pichhli baar jitna" prefill</td><td>Jaan ke nahi — party plan se khareedti hai, pichhle mahine ki aadat se nahi</td></tr>
+<tr><td>Phone se booking amend karna</td><td>Nahi hai. Desk se hota hai</td></tr>
+<tr><td>Showcase ka self-order phone se submit karna</td><td>Draft phone pe dikhta hai par submit Desk se hota hai</td></tr>
+<tr><td>"Credit Controller" role</td><td>Plan me tha, bana nahi. Hold chhodne wale upar Part 2 me likhe hain</td></tr>
+<tr><td>Van sales / DSD</td><td>Pura hata diya gaya</td></tr>
+<tr><td>Route optimisation, navigation</td><td>Scope me nahi — app batata hai rep kahan tha, le kar nahi jaata</td></tr>
+</tbody></table></div>
+
+<!-- ===================================================================== PART 9 -->
+<h2 id="p9">Part 9 — Fatafat tick-list</h2>
+<p>Jaise-jaise ho, tick karte jayein. Tick isi phone/browser me yaad rehta hai.</p>
+
+<h4>Setup</h4>
+<ul class="tick">
+  <li><label><input type="checkbox" data-k="s1"><span>Test flag laga, pilot site pe nahi</span></label></li>
+  <li><label><input type="checkbox" data-k="s2"><span>Install aur migrate clean</span></label></li>
+  <li><label><input type="checkbox" data-k="s3"><span>Company ka GSTIN aur address bhara</span></label></li>
+  <li><label><input type="checkbox" data-k="s4"><span>Item Tax Template laga, aur uska rate zero nahi</span></label></li>
+  <li><label><input type="checkbox" data-k="s5"><span>Selling Settings me price list ka naam bhara</span></label></li>
+  <li><label><input type="checkbox" data-k="s6"><span>Catalogue ka har item priced — "no price yet" ek bhi nahi</span></label></li>
+  <li><label><input type="checkbox" data-k="s7"><span>Distributor pe tier, PTR list aur warehouse bhara</span></label></li>
+  <li><label><input type="checkbox" data-k="s8"><span>Har rep ka Reports To bhara</span></label></li>
+  <li><label><input type="checkbox" data-k="s9"><span>Journey plan bana — phone pe route dikhta hai</span></label></li>
+  <li><label><input type="checkbox" data-k="s10"><span>Saare gate pass hue</span></label></li>
+</ul>
+
+<h4>Rep ka din</h4>
+<ul class="tick">
+  <li><label><input type="checkbox" data-k="r1"><span>Day start, route dikha</span></label></li>
+  <li><label><input type="checkbox" data-k="r2"><span>Bahar se check-in "Outside range" bola</span></label></li>
+  <li><label><input type="checkbox" data-k="r3"><span>Doosri shop me check-in ne pehli visit chup-chaap band nahi ki</span></label></li>
+  <li><label><input type="checkbox" data-k="r4"><span>Cart me GST line aur bill total — button pe bill total</span></label></li>
+  <li><label><input type="checkbox" data-k="r5"><span>MRP se upar wali line ruk gayi</span></label></li>
+  <li><label><input type="checkbox" data-k="r6"><span>Credit breach pe order gaya, rep ruka nahi</span></label></li>
+  <li><label><input type="checkbox" data-k="r7"><span>Shop order se koi Sales Order / GL Entry nahi bana</span></label></li>
+  <li><label><input type="checkbox" data-k="r8"><span>Pura offline chala, sab sync hua, kuch do baar nahi bana</span></label></li>
+  <li><label><input type="checkbox" data-k="r9"><span>Phone ka total aur server ka total paise tak same</span></label></li>
+  <li><label><input type="checkbox" data-k="r10"><span>Check out aur day end — figures khud bane</span></label></li>
+</ul>
+
+<h4>Primary, paisa, season</h4>
+<ul class="tick">
+  <li><label><input type="checkbox" data-k="p1"><span>Primary order ne ek Sales Order banaya, usi party ko</span></label></li>
+  <li><label><input type="checkbox" data-k="p2"><span>Review pe "hum invoice karte hain" likha, distributor wali line nahi</span></label></li>
+  <li><label><input type="checkbox" data-k="p3"><span>Catalogue, cart, review aur Sales Order — ek hi rate</span></label></li>
+  <li><label><input type="checkbox" data-k="p4"><span>Shop ka paisa ledger me nahi gaya</span></label></li>
+  <li><label><input type="checkbox" data-k="p5"><span>Deposit confirm hone par hi Payment Entry bana</span></label></li>
+  <li><label><input type="checkbox" data-k="p6"><span>Declare karne wale ne confirm nahi kar paya</span></label></li>
+  <li><label><input type="checkbox" data-k="p7"><span>Bounce ne Payment Entry cancel kiya, outstanding wapas aaya</span></label></li>
+  <li><label><input type="checkbox" data-k="p8"><span>PDC alag block me, "not bankable yet", booking ruki rahi</span></label></li>
+  <li><label><input type="checkbox" data-k="p9"><span>Booking Awaiting Advance me ruki, Sales Order nahi bana</span></label></li>
+  <li><label><input type="checkbox" data-k="p10"><span>Advance aane par Sales Order bana, schedule season ka</span></label></li>
+  <li><label><input type="checkbox" data-k="p11"><span>Teeno allocation rule ka split theek, revert chala</span></label></li>
+  <li><label><input type="checkbox" data-k="p12"><span>Invoice pe advance laga hua</span></label></li>
+  <li><label><input type="checkbox" data-k="p13"><span>Share link bina login khula, aur switch off karne pe band</span></label></li>
+</ul>
+
+<h4>Role aur portal</h4>
+<ul class="tick">
+  <li><label><input type="checkbox" data-k="m1"><span>Rep Payment Entry nahi bana saka</span></label></li>
+  <li><label><input type="checkbox" data-k="m2"><span>Rep apna order approve nahi kar saka</span></label></li>
+  <li><label><input type="checkbox" data-k="m2b"><span>Doosre area ka manager bhi approve nahi kar saka</span></label></li>
+  <li><label><input type="checkbox" data-k="m3"><span>Ek depot doosre ka queue nahi dekh saka</span></label></li>
+  <li><label><input type="checkbox" data-k="m4"><span>CSV ne dono number bataye — padhi aur chhodi gayi line</span></label></li>
+  <li><label><input type="checkbox" data-k="m5"><span>Target baant kar wapas wahi joda</span></label></li>
+  <li><label><input type="checkbox" data-k="m6"><span>Phone ka incentive Desk ke number se mila</span></label></li>
+</ul>
+
+<!-- ===================================================================== BUG -->
+<h2 id="bug">Bug kaise likhein</h2>
+<p>Jo bhi "Ye hona chahiye" galat nikle, usme ye chaar cheezein likhein — inke bina koi bug theek
+nahi hota:</p>
+<ol class="steps">
+  <li><b>Kahan</b> — phone, Desk ya portal; kaunsi screen; kis login se.</li>
+  <li><b>Kya kiya</b> — kadam-ba-kadam, jaise aapne kiya.</li>
+  <li><b>Kya hona chahiye tha</b> aur <b>kya hua</b>. Number ho to <b>dono number</b> likhein.</li>
+  <li><b>Kaunsa record</b> — order number, shop ka naam, receipt number. Screenshot sabse accha.</li>
+</ol>
+<div class="box good">
+  <p><b>Sabse kaam ka bug report:</b> "Nagpal Complex pe cart ₹981.80 bola, Desk me Sales Order
+  ₹1,099.62 nikla, order FM-ORD-000169, rep test@rep.com." Ye seedha wajah tak le jaata hai.
+  "Order kaam nahi kar raha" se kuch nahi hota.</p>
+</div>
+
+<footer>
+  <p>
+    FieldMate — Frappe app <code>fieldmate</code>, ERPNext ke upar. Ye doc testing ke liye hai.
+    Season ka poora test <code>docs/MANUAL_TESTS_PHASE2_SEASON.md</code> me, aur Phase 1 ka
+    <code>docs/MANUAL_TESTS_PHASE1.md</code> me hai. Gate script wo sab khud check karte hain jo
+    insaan ko nahi karna chahiye — pehle wahi chala lein.
+  </p>
+</footer>
+
+</main>
+
+<script>
+/* Tick list yaad rakhna. Sirf isi browser me rehta hai, kisi server pe nahi jaata.
+   Har read aur write try/catch me hai: private window, blocked storage ya cleared data me
+   localStorage phenk deta hai, aur doc ko tab bhi theek khulna chahiye. */
+(function () {
+  var KEY = 'fm:manual';
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.tick input[data-k]'));
+  var saved = {};
+
+  try {
+    saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+  } catch (e) {
+    saved = {};
+  }
+
+  boxes.forEach(function (box) {
+    if (saved[box.dataset.k]) box.checked = true;
+    box.addEventListener('change', save);
+  });
+
+  function save() {
+    var out = {};
+    boxes.forEach(function (box) { if (box.checked) out[box.dataset.k] = 1; });
+    try {
+      localStorage.setItem(KEY, JSON.stringify(out));
+    } catch (e) {
+      /* Storage refused. Ticks is session me kaam karte rahenge, bas yaad nahi rahenge. */
+    }
+  }
+}());
+</script>
+</body>
+</html>

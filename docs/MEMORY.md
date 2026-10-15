@@ -653,10 +653,12 @@ All on testerp2, all found by the user rather than by a test:
   this repo.
 - **Insights is not installed on testerp2**, so `setup/insights.py` has only ever been observed to
   no-op (Phase 8.4). The two datasets that need no Insights work today.
-- **GitHub Actions blocked** by an account billing lock unrelated to this repo.
-  `scripts/ci-local.sh` covers the gates meanwhile.
+- **GitHub Actions runs again** (15 Oct 2026). The billing lock is cleared, and the first run
+  that ever started a job found five things no local run could - see ADR-015's update. The
+  version-15 lane is green and required; version-16 reports only; the develop lane is gone with
+  v17 (ADR-034).
 - `developer_mode` is off on testerp2. Not needed while DocTypes are authored as JSON on disk.
-- v16/v17 compatibility is **unverified** (ADR-015). Do not claim it.
+- v17 is **out of the plan** (ADR-034). v16 is deferred and unverified - do not claim either.
 - Test accounts on testerp2: `rep1@fieldmate.test`, `mgr1@fieldmate.test`, `test@rep.com`, and the
   portal login `depot.one@fieldmate.test` (Mahalaxmi Distributors, all three rights).
   Test-site credentials, not for production.
