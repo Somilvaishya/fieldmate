@@ -6,6 +6,7 @@ import { getPosition } from '../lib/geo'
 import * as visitStore from '../stores/visit'
 import * as photoQueue from '../sync/photos'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 import { formatPaise } from '../lib/money'
 
 const router = useRouter()
@@ -141,7 +142,7 @@ async function finish() {
       In the shop {{ minutes }} min<span v-if="captured"> · {{ captured }}</span>
     </p>
 
-    <p class="lead">What came of this visit?</p>
+    <p class="lead">{{ t(t('What came of this visit?')) }}</p>
     <p v-if="visit?.order" class="booked">
       <Icon :name="visit.order.offline ? 'cloud-off' : 'check'" size="18" />
       <span>
@@ -150,7 +151,7 @@ async function finish() {
       </span>
     </p>
 
-    <div class="outcomes" role="radiogroup" aria-label="Visit outcome">
+    <div class="outcomes" role="radiogroup" :aria-label="t('Visit outcome')">
       <button v-for="o in OUTCOMES" :key="o.value" type="button" role="radio"
               class="outcome" :class="{ on: outcome === o.value }"
               :aria-checked="outcome === o.value"
@@ -162,7 +163,7 @@ async function finish() {
     </div>
 
     <template v-if="noOrder">
-      <h3>Why no order?</h3>
+      <h3>{{ t(t('Why no order?')) }}</h3>
       <p v-if="!reasons.length" class="muted">
         No reasons have reached this phone. Say what happened in the note below instead &mdash; you
         can still check out.

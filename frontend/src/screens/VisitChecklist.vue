@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { t } from '../lib/i18n'
 import * as visitStore from '../stores/visit'
 
 const router = useRouter()
@@ -75,7 +76,7 @@ async function done() {
   <div class="wrap screen" v-if="visit">
     <div class="head">
       <div>
-        <span class="eyebrow">Store checklist</span>
+        <span class="eyebrow">{{ t(t('Store checklist')) }}</span>
         <h2>{{ visit.outletName }}</h2>
       </div>
       <span class="state" :class="remaining.length ? 'warn' : 'ok'">
@@ -150,9 +151,9 @@ async function done() {
         </div>
       </div>
       <button class="btn-primary" @click="done">
-        {{ saving ? 'Saving…' : 'Back to visit' }}
+        {{ saving ? t('Saving…') : t('Back to visit') }}
       </button>
-      <p class="muted note">Every answer is saved on this phone as you go.</p>
+      <p class="muted note">{{ t(t('Every answer is saved on this phone as you go.')) }}</p>
     </div>
   </div>
 </template>

@@ -10,6 +10,7 @@ import { api } from '../api/client'
 import { formatPaise } from '../lib/money'
 import * as photoQueue from '../sync/photos'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const router = useRouter()
 const visit = visitStore.activeVisit
@@ -253,8 +254,8 @@ async function onPhoto(event) {
       <div class="head">
         <div class="who">
           <div class="badges">
-            <span v-if="visit.isGeoFenceBreach" class="tag warn">Outside range</span>
-            <span v-if="visit.createdOffline" class="tag">Saved on this phone</span>
+            <span v-if="visit.isGeoFenceBreach" class="tag warn">{{ t(t('Outside range')) }}</span>
+            <span v-if="visit.createdOffline" class="tag">{{ t(t('Saved on this phone')) }}</span>
           </div>
           <h2>{{ visit.outletName }}</h2>
           <p class="muted tnum">
@@ -273,7 +274,7 @@ async function onPhoto(event) {
       </div>
 
       <div class="section">
-        <h3>What to do here</h3>
+        <h3>{{ t(t('What to do here')) }}</h3>
         <span class="muted tnum">{{ finished }} of {{ jobs.length }} done</span>
       </div>
 
@@ -288,7 +289,7 @@ async function onPhoto(event) {
               <b>{{ job.title }}</b>
               <span class="pill" :class="job.tone">{{ job.pill }}</span>
             </span>
-            <span class="muted">{{ busy && job.photo ? 'Saving photo…' : job.sub }}</span>
+            <span class="muted">{{ busy && job.photo ? t('Saving photo…') : job.sub }}</span>
             <span class="track"><span class="fill" :style="{ width: job.pct + '%' }"></span></span>
           </span>
           <Icon v-if="!job.photo" name="chevron" size="20" class="go" />
@@ -299,7 +300,7 @@ async function onPhoto(event) {
 
       <!-- What the next photo will be filed as. Chosen before the camera opens, because after it
            closes the rep is already looking at the next thing. -->
-      <div class="purposes" role="group" aria-label="What the next photo shows">
+      <div class="purposes" role="group" :aria-label="t('What the next photo shows')">
         <button v-for="p in PURPOSES" :key="p.key" type="button"
                 class="chip" :class="{ on: purpose === p.key }" @click="purpose = p.key">
           {{ p.label }}
@@ -314,17 +315,17 @@ async function onPhoto(event) {
           <span v-else class="noimg"><Icon name="camera" size="20" /></span>
           <figcaption>
             <b>{{ s.purpose }}</b>
-            <em v-if="s.state === 'sent'">Sent</em>
-            <em v-else-if="s.state === 'blocked'" class="bad">Stuck</em>
-            <em v-else>Waiting</em>
+            <em v-if="s.state === 'sent'">{{ t(t('Sent')) }}</em>
+            <em v-else-if="s.state === 'blocked'" class="bad">{{ t(t('Stuck')) }}</em>
+            <em v-else>{{ t(t('Waiting')) }}</em>
           </figcaption>
         </figure>
       </div>
 
       <div class="card">
-        <label class="lbl" for="remarks">Remarks</label>
+        <label class="lbl" for="remarks">{{ t(t('Remarks')) }}</label>
         <textarea id="remarks" v-model="visit.remarks" rows="3"
-                  placeholder="Anything worth telling your manager"
+                  :placeholder="t('Anything worth telling your manager')"
                   @blur="visitStore.saveProgress()" />
         <div class="chips">
           <button v-for="n in QUICK_NOTES" :key="n" type="button" class="chip"

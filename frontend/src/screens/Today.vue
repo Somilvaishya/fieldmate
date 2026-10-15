@@ -10,6 +10,7 @@ import * as visitStore from '../stores/visit'
 import * as photoQueue from '../sync/photos'
 import { localOutlets } from '../stores/outlets'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const router = useRouter()
 const boot = ref(null)
@@ -242,7 +243,7 @@ onUnmounted(() => {
         </div>
       </div>
       <p v-if="error" class="err">{{ error }}</p>
-      <p v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</p>
+      <p v-if="stale" class="muted">{{ t(t('Showing your last saved details. Reconnect to refresh.')) }}</p>
 
       <!-- A visit left open. Top of the screen, because it is the only thing that matters
            until it is closed: an open visit blocks the next check-in. -->
@@ -252,15 +253,15 @@ onUnmounted(() => {
           <span class="dot live" aria-hidden="true"></span>
           <b>Still in {{ openVisit.outletName }}</b>
         </span>
-        <span class="muted">Tap to carry on, or to finish the visit.</span>
+        <span class="muted">{{ t(t('Tap to carry on, or to finish the visit.')) }}</span>
         <Icon class="go" name="chevron" size="26" />
       </RouterLink>
 
       <!-- Loading has its own state. Showing "Day not started" with a Start day button
            while the day is still being fetched told a rep the opposite of the truth. -->
       <div v-if="loading" class="card">
-        <b>Loading your day…</b>
-        <p class="muted">One moment.</p>
+        <b>{{ t(t('Loading your day…')) }}</b>
+        <p class="muted">{{ t(t('One moment.')) }}</p>
       </div>
 
       <!-- The day -->
@@ -268,14 +269,14 @@ onUnmounted(() => {
         <div class="row">
           <span class="line">
             <span class="dot live" aria-hidden="true"></span>
-            <b>Day running<span v-if="started" class="tnum"> since {{ started }}</span></b>
+            <b>{{ t(t('Day running')) }}<span v-if="started" class="tnum"> since {{ started }}</span></b>
           </span>
-          <span class="badge">Active</span>
+          <span class="badge">{{ t(t('Active')) }}</span>
         </div>
         <p class="muted" v-if="openDay.planned_beat">
           {{ openDay.planned_beat_name || openDay.planned_beat }}
         </p>
-        <p class="muted" v-else>No beat planned for today.</p>
+        <p class="muted" v-else>{{ t(t('No beat planned for today.')) }}</p>
 
         <template v-if="shops.length">
           <div class="row progress-head">
