@@ -23,7 +23,7 @@ import sys
 
 import frappe
 
-from _guard import hsn_code, require_test_site
+from _guard import hsn_code, run_setup
 
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
@@ -225,21 +225,8 @@ def show_state() -> None:
 
 
 def main() -> None:
-	frappe.init(site=SITE)
-	frappe.connect()
-	require_test_site(SITE)
-	frappe.set_user("Administrator")
-	print(f"Site: {SITE}")
-
-	if UNDO:
-		undo()
-	elif SHOW:
-		pass
-	else:
-		build()
-
-	show_state()
-	frappe.destroy()
+	run_setup(SITE, build=build, undo=undo, show_state=show_state,
+	          undo_flag=UNDO, show_flag=SHOW)
 
 
 if __name__ == "__main__":

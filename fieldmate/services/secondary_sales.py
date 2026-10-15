@@ -201,7 +201,7 @@ def parse_row(raw: list, mapping: dict, codes: dict, shops: dict, row_no: int):
 
 def known_item_codes() -> dict:
 	"""Item codes keyed lowercase, so a file that shouts SE-1000 still matches."""
-	return {row.name.lower(): row.name for row in frappe.get_all("Item", fields=["name"])}
+	return {code.lower(): code for code in frappe.get_all("Item", pluck="name")}
 
 
 def outlets_for(distributor: str) -> dict:

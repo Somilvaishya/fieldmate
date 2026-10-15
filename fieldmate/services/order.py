@@ -930,12 +930,12 @@ def reverse(doc) -> None:
 	somebody cancels an order from the desk - gives the budget back too. Doing it in both places
 	would hand it back twice.
 	"""
-	for entry in frappe.get_all(
+	for name in frappe.get_all(
 		"FieldMate Scheme Ledger",
 		filters={"order": doc.name, "docstatus": 1},
-		fields=["name"],
+		pluck="name",
 	):
-		row = frappe.get_doc("FieldMate Scheme Ledger", entry.name)
+		row = frappe.get_doc("FieldMate Scheme Ledger", name)
 		row.flags.ignore_permissions = True
 		row.cancel()
 

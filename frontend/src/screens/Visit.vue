@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getMeta, db } from '../db'
+import { getMeta } from '../db'
 import { compress } from '../lib/image'
 import { getPosition } from '../lib/geo'
 import * as visitStore from '../stores/visit'

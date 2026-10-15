@@ -40,7 +40,7 @@ import sys
 import frappe
 from frappe.utils import add_days, today
 
-from _guard import hsn_code, require_test_site, selling_price_list
+from _guard import hsn_code, run_setup, selling_price_list
 
 SITE = "testerp2.web.gargsystems.com"
 for arg in sys.argv[1:]:
@@ -318,21 +318,8 @@ def undo() -> None:
 
 
 def main() -> None:
-	frappe.init(site=SITE)
-	frappe.connect()
-	require_test_site(SITE)
-	frappe.set_user("Administrator")
-	print(f"Site: {SITE}")
-
-	if UNDO:
-		undo()
-	elif SHOW:
-		pass
-	else:
-		build()
-
-	show_state()
-	frappe.destroy()
+	run_setup(SITE, build=build, undo=undo, show_state=show_state,
+	          undo_flag=UNDO, show_flag=SHOW)
 
 
 if __name__ == "__main__":

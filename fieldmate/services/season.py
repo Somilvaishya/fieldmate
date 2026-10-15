@@ -46,7 +46,7 @@ def open_for(company: str | None, on=None) -> str | None:
 			"booking_from": ["<=", on],
 			"booking_to": [">=", on],
 		},
-		fields=["name"],
+		pluck="name",
 		limit=2,
 	)
 	if len(rows) > 1:
@@ -57,7 +57,7 @@ def open_for(company: str | None, on=None) -> str | None:
 			"{0} has more than one season booking on {1}. Close one before taking orders."
 		).format(company, on))
 
-	return rows[0].name if rows else None
+	return rows[0] if rows else None
 
 
 def kind_for(resolved: dict, on=None) -> tuple[str, str | None]:
