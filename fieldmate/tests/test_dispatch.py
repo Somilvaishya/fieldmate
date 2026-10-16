@@ -68,7 +68,22 @@ class DispatchFixture(SeasonFixture):
 			"address_type": "Shipping",
 			"address_line1": "1 Test Road",
 			"city": "Delhi",
-			"country": frappe.db.get_value("Country", {}, "name") or "India",
+			# An Indian address has to name its state, and india_compliance says so - the state
+			# is what decides CGST/SGST against IGST, so an address without one cannot be
+			# taxed. Pincode for the same reason: the e-way bill and the GSTR both want it.
+			"state": "Delhi",
+			"pincode": "110001",
+			# India, named. `get_value("Country", {}, "name")` answers with whichever row
+			# MariaDB hands back first, which is **Afghanistan** - so this was giving the party
+			# an Afghan address, india_compliance read it as an overseas party, and every
+			# invoice and delivery note was refused with "GST Category cannot be set to
+			# Overseas since it is disabled in GST Settings". The `or "India"` never fired,
+			# because the query always answered something.
+			#
+			# The same lesson `TestAnOrderOnAPartyWeBill` records about price lists: "whichever
+			# row MariaDB returns first" is not a rule, and the moment it matters it is wrong.
+			"country": "India" if frappe.db.exists("Country", "India")
+			           else frappe.db.get_value("Country", {}, "name"),
 			"links": [{"link_doctype": "Customer", "link_name": self.party}],
 		}).insert(ignore_permissions=True)
 		self.track("Address", address.name)
