@@ -157,6 +157,48 @@ describe('the catalogue keeps up with the screens', () => {
     expect(joined).toEqual([])
   })
 
+  it('never evaluates a label at import time', () => {
+    // The trap a rep found by hand. `Me.vue`'s `LINKS` was a module-level const, evaluated once
+    // when the file was first imported, so its titles held whichever language loaded first and
+    // never moved again. The switch then worked on the rest of the screen and not on those four
+    // rows - which reads worse than no translation, because it looks like a half-broken app.
+    //
+    // Anything holding a label has to be a `computed`, so it re-runs when the language ref
+    // changes. Walked line by line rather than matched with one regex: the first version of this
+    // check used a lookahead and reported all ten `computed(...)` consts as frozen, because one
+    // match's body ran over the next declaration.
+    const LAZY = ['computed(', 'ref(', 'reactive(', 'function', '(', 'async', 'new ']
+    const frozen = []
+
+    for (const name of readdirSync(SCREENS)) {
+      const script = /<script[^>]*>([\s\S]*?)<\/script>/.exec(
+        readFileSync(join(SCREENS, name), 'utf8'))
+      if (!script) continue
+      const lines = script[1].split('\n')
+
+      for (let i = 0; i < lines.length; i += 1) {
+        const decl = /^(?:const|let|var)\s+(\w+)\s*=\s*(.*)$/.exec(lines[i])
+        if (!decl) continue
+        const [, variable, rest] = decl
+        const body = [rest]
+        let j = i + 1
+        // Stop at the next top-level statement; anything indented belongs to this one.
+        while (j < lines.length && !/^(?:const|let|var|function|async|class|export|import|on[A-Z])/
+          .test(lines[j])) {
+          body.push(lines[j])
+          j += 1
+        }
+        const eager = !LAZY.some((start) => rest.startsWith(start))
+        if (eager && /(?<![\w.$])t\(\s*['"]/.test(body.join('\n'))) {
+          frozen.push(`${name}: ${variable}`)
+        }
+        i = j - 1
+      }
+    }
+
+    expect(frozen).toEqual([])
+  })
+
   it('holds each sentence once, and quotes it legally', () => {
     // Both faults were in the catalogue at once. The duplicate was older than this pass; the
     // bad quoting was mine, `'Today's route'`, and a syntax error in the catalogue takes out
