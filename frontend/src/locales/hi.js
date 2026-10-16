@@ -124,4 +124,5 @@ export default {
   Cancel: 'रद्द करें',
   Done: 'हो गया',
   Language: 'भाषा',
+  'Changes everything on this phone, straight away': 'इस फ़ोन में सब कुछ तुरंत बदल जाएगा',
 }

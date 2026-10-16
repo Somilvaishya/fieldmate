@@ -7,6 +7,7 @@ import * as outbox from '../sync/outbox'
 import * as photoQueue from '../sync/photos'
 import { pendingPings, flush as flushPings } from '../sync/pinger'
 import Icon from '../components/Icon.vue'
+import { t, language, setLanguage, LANGUAGES } from '../lib/i18n'
 
 const router = useRouter()
 const profile = ref(null)
@@ -119,6 +120,25 @@ onMounted(load)
       </div>
     </div>
 
+    <!-- Language. Changing it redraws every screen at once: `t()` reads a ref, so there is
+         nothing to reload and nothing to wait for. The choice is kept on this handset rather
+         than on the login, because a phone gets handed around. -->
+    <div class="row lang">
+      <!-- `chat` rather than a globe: there is no globe in the set, and a missing name
+           renders nothing at all. Language is what you speak, so this one fits. -->
+      <Icon name="chat" size="20" />
+      <span class="body">
+        <b>{{ t('Language') }}</b>
+        <em>{{ t('Changes everything on this phone, straight away') }}</em>
+      </span>
+      <span class="pick">
+        <button v-for="l in LANGUAGES" :key="l.code" type="button"
+                class="opt" :class="{ on: language === l.code }"
+                :aria-pressed="language === l.code"
+                @click="setLanguage(l.code)">{{ l.label }}</button>
+      </span>
+    </div>
+
     <RouterLink v-for="l in LINKS" :key="l.to" :to="l.to" class="row">
       <Icon :name="l.icon" size="20" />
       <span class="body">
@@ -180,6 +200,14 @@ onMounted(load)
 /* Which beat the figure came off. Small, because it answers a question only a rep who doubts
    the number thinks to ask. */
 .fact em { font-style: normal; font-size: 12px; }
+
+/* Not a link, so it does not get the chevron or the tap-through affordance. */
+.lang { cursor: default; }
+.pick { display: flex; gap: 6px; flex: none; }
+/* 44px minimum, like every other control a thumb has to find on a moving bus. */
+.opt { min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px;
+       background: var(--surface); color: var(--muted); font-size: 15px; font-weight: 600; }
+.opt.on { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
 
 .row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px;
        background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
