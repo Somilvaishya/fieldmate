@@ -1,4 +1,8 @@
-"""Gate 2 criterion 2: Day Start mirrors into HRMS attendance with the right coordinates.
+"""Gate 2 criterion 2: the day mirrors into HRMS attendance with the right coordinates.
+
+Both ends of it, and each into its own field: one `employee_checkin` held whichever log was
+written last, so a day's IN was overwritten by its OUT and HR could no longer see when the
+rep started.
 
 These skip cleanly when HRMS is absent, because FieldMate must run on a bench with no HR module
 and a missing mirror is not a reason to refuse a rep their day. When HRMS is present they are the
@@ -96,7 +100,7 @@ class TestHrmsAttendanceMirror(DayFixture):
 
 		# and the day records which checkin it produced, so the link is traceable both ways
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", result["day_start"], "employee_checkin"),
+			frappe.db.get_value("FieldMate Day", result["day"], "start_checkin"),
 			checkin.name,
 		)
 
@@ -108,7 +112,7 @@ class TestHrmsAttendanceMirror(DayFixture):
 		self.assertEqual([r.log_type for r in rows], ["IN", "OUT"])
 		self.assertAlmostEqual(float(rows[1].latitude), MODEL_TOWN[0], places=4)
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day End", end["day_end"], "employee_checkin"),
+			frappe.db.get_value("FieldMate Day", end["day"], "end_checkin"),
 			rows[1].name,
 		)
 
@@ -123,7 +127,7 @@ class TestHrmsAttendanceMirror(DayFixture):
 		self.assertTrue(result["created"])
 		self.assertEqual(self.checkins(), [])
 		self.assertFalse(
-			frappe.db.get_value("FieldMate Day Start", result["day_start"], "employee_checkin")
+			frappe.db.get_value("FieldMate Day", result["day"], "start_checkin")
 		)
 
 	def test_a_broken_hr_link_degrades_to_silence_not_garbage(self):
@@ -143,5 +147,5 @@ class TestHrmsAttendanceMirror(DayFixture):
 		)
 		self.assertEqual(orphans, [], "mirror created an untraceable attendance row")
 		self.assertFalse(
-			frappe.db.get_value("FieldMate Day Start", result["day_start"], "employee_checkin")
+			frappe.db.get_value("FieldMate Day", result["day"], "start_checkin")
 		)

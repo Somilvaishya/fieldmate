@@ -36,6 +36,23 @@ class Syncable:
 	# see a day's work recorded and a day's work uncounted.
 	submit_on_push: bool = False
 
+	# ---- records that are pushed twice: once when they open, once when they close.
+	#
+	# A day is the case. The rep starts it in the morning and finishes it at night, and with no
+	# signal both halves sit in the outbox - but there is only one day, so the second push has
+	# to update the first rather than insert anything. Without these three, `_apply` saw a
+	# record it already had and reported "duplicate", and the close was silently dropped.
+	#
+	# Key in the pushed data naming the record this push closes. Its presence is what marks a
+	# push as a close rather than a create.
+	closes_field: str = ""
+	# Field holding the closing push's own id. The close must be idempotent separately from the
+	# open, or a retry on a bad connection either applies twice or is lost.
+	update_uuid_field: str = ""
+	# The only fields a close may write. This allow-list, not the permission, is what makes
+	# updating an already-submitted record safe.
+	update_fields: tuple[str, ...] = ()
+
 
 _REGISTRY: dict[str, Syncable] = {}
 
@@ -71,7 +88,7 @@ def clear() -> None:
 # --------------------------------------------------------------------------------------
 # Phase 1 adds: FieldMate Outlet (push+pull), FieldMate Beat, FieldMate Field User,
 #               FieldMate Outlet Channel / Class, catalogues (pull only).
-# Phase 2 adds: FieldMate Journey Plan, Day Start, Day End, Location Trail.
+# Phase 2 adds: FieldMate Journey Plan, FieldMate Day, Location Trail.
 # Phase 3 adds: FieldMate Visit and its children.
 # Phase 4 adds: FieldMate Order (push) and the compiled scheme specs (pull) - not the scheme
 #               masters, see ADR-021. It also pulled FieldMate Distributor Profile, until the
@@ -120,34 +137,35 @@ register(Syncable(doctype="FieldMate Outlet Class", push=False, pull=True,
 
 # ---------------------------------------------------------------------------- the day
 #
-# A day captured with no signal has to land like anything else. Without these two entries a
-# rep who started their day in a village kept nothing: the API call failed, nothing was
-# queued, and every visit afterwards was refused because the server had no open day. The
-# visit's `day_start` link resolves through `depends_on`, so a queued day and the visits
-# that hang off it can travel in the same batch.
+# A day captured with no signal has to land like anything else. Without this entry a rep who
+# started their day in a village kept nothing: the API call failed, nothing was queued, and
+# every visit afterwards was refused because the server had no open day. The visit's `day`
+# link resolves through `depends_on`, so a queued day and the visits that hang off it can
+# travel in the same batch.
+#
+# One entry where there were two, because there is now one document. The close is the second
+# push of this same record - see `closes_field` above.
 register(
 	Syncable(
-		doctype="FieldMate Day Start",
+		doctype="FieldMate Day",
 		uuid_field="client_uuid",
 		push=True,
 		pull=False,
 		submit_on_push=True,
-		server_owned=("employee_checkin", "synced_at", "journey_plan", "planned_beat"),
-	)
-)
-
-register(
-	Syncable(
-		doctype="FieldMate Day End",
-		uuid_field="client_uuid",
-		push=True,
-		pull=False,
-		submit_on_push=True,
-		depends_on=("day_start",),
-		# Everything the day produced is counted from the records on the server. A phone
-		# that has been offline all day cannot know what finally synced.
+		closes_field="closes",
+		update_uuid_field="end_client_uuid",
+		update_fields=(
+			"end_time", "end_latitude", "end_longitude", "end_accuracy_m",
+			"odometer_end", "remarks",
+		),
+		# Everything the day produced is counted from the records on the server. A phone that
+		# has been offline all day cannot know what finally synced.
+		#
+		# `status` is here so a handset cannot push a day that is already Closed: the rep would
+		# then be told they had already finished a day they had just started.
 		server_owned=(
-			"employee_checkin", "synced_at", "duration_hours", "distance_km", "coverage_pct",
+			"status", "start_checkin", "end_checkin", "synced_at", "journey_plan",
+			"planned_beat", "duration_hours", "distance_km", "coverage_pct",
 			"planned_visits", "actual_visits", "productive_visits", "new_outlets",
 			"orders_count", "order_value", "collection_amount",
 		),
@@ -165,7 +183,7 @@ register(
 		push=True,
 		pull=False,
 		submit_on_push=True,
-		depends_on=("outlet", "day_start"),
+		depends_on=("outlet", "day"),
 		# Everything a device could use to flatter its own coverage numbers. The controller
 		# recomputes these on every save; listing them here means a push never even gets to
 		# propose a value.

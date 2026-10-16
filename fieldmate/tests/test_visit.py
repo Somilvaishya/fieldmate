@@ -1068,7 +1068,7 @@ class TestAForgottenDayClosesItsVisit(VisitFixture):
 
 		first = self.check_in()
 		day = day_service.current(self.rep.name)
-		frappe.db.set_value("FieldMate Day Start", day["day_start"], {
+		frappe.db.set_value("FieldMate Day", day["day"], {
 			"day_date": add_to_date(today(), days=-1),
 			"start_time": add_to_date(now_datetime(), days=-1),
 		}, update_modified=False)
@@ -1079,7 +1079,7 @@ class TestAForgottenDayClosesItsVisit(VisitFixture):
 			"visit_date": add_to_date(today(), days=-1),
 			"check_in_time": add_to_date(now_datetime(), days=-1),
 		}, update_modified=False)
-		frappe.clear_document_cache("FieldMate Day Start", day["day_start"])
+		frappe.clear_document_cache("FieldMate Day", day["day"])
 		frappe.clear_document_cache("FieldMate Visit", first["visit"])
 
 		self.assertIsNone(day_service.current(self.rep.name))
@@ -1104,12 +1104,12 @@ class TestALiveVisitSurvivesTheDayClosing(VisitFixture):
 	def stale_day(self):
 		from fieldmate.services import day as day_service
 		day = day_service.current(self.rep.name)
-		frappe.db.set_value("FieldMate Day Start", day["day_start"], {
+		frappe.db.set_value("FieldMate Day", day["day"], {
 			"day_date": add_to_date(today(), days=-1),
 			"start_time": add_to_date(now_datetime(), days=-1),
 		}, update_modified=False)
-		frappe.clear_document_cache("FieldMate Day Start", day["day_start"])
-		return day["day_start"]
+		frappe.clear_document_cache("FieldMate Day", day["day"])
+		return day["day"]
 
 	def test_a_visit_checked_in_today_is_not_closed_with_yesterdays_day(self):
 		from fieldmate.services import day as day_service
@@ -1140,10 +1140,10 @@ class TestALiveVisitSurvivesTheDayClosing(VisitFixture):
 		day_service.current(self.rep.name)
 
 		fresh = self.start_day()
-		self.assertNotEqual(fresh["day_start"], stale)
+		self.assertNotEqual(fresh["day"], stale)
 		row = frappe.db.get_value("FieldMate Visit", first["visit"],
-		                          ["day_start", "visit_date"], as_dict=True)
-		self.assertEqual(row.day_start, fresh["day_start"])
+		                          ["day", "visit_date"], as_dict=True)
+		self.assertEqual(row.day, fresh["day"])
 		self.assertEqual(str(row.visit_date), str(today()))
 
 	def test_the_rep_can_then_check_out_of_the_shop_they_are_in(self):

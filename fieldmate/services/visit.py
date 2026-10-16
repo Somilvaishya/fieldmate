@@ -277,7 +277,7 @@ def check_in(field_user: str, payload: dict) -> dict:
 		"outlet": outlet_name,
 		"field_user": field_user,
 		"beat": planned.get("beat"),
-		"day_start": day["day_start"],
+		"day": day["day"],
 		"journey_plan": planned.get("journey_plan"),
 		"visit_sequence": next_sequence(field_user, visit_date),
 		"is_planned": 1 if on_beat else 0,

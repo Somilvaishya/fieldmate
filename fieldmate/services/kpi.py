@@ -93,12 +93,13 @@ def measure(field_user: str, on_date) -> dict:
 		limit_page_length=0,
 	)
 
-	day_start = frappe.db.get_value(
-		"FieldMate Day Start", {"field_user": field_user, "day_date": on_date, "docstatus": 1},
-		["name", "planned_beat", "journey_plan"], as_dict=True)
-	day_end = frappe.db.get_value(
-		"FieldMate Day End", {"field_user": field_user, "day_date": on_date, "docstatus": 1},
-		["name", "duration_hours", "distance_km", "planned_visits"], as_dict=True)
+	day = frappe.db.get_value(
+		"FieldMate Day", {"field_user": field_user, "day_date": on_date, "docstatus": 1},
+		["name", "status", "planned_beat", "journey_plan", "duration_hours", "distance_km",
+		 "planned_visits"], as_dict=True)
+	# A day is open until the rep closes it, and an open day has not counted anything yet -
+	# so "did it close" is a status, where it used to be the presence of a second document.
+	closed = bool(day and day.status != "Open")
 
 	collections = frappe.get_all(
 		"FieldMate Collection",
@@ -121,7 +122,7 @@ def measure(field_user: str, on_date) -> dict:
 	timed = [flt(v.duration_minutes) for v in visits if flt(v.duration_minutes)]
 	stamps = sorted(v.check_in_time for v in visits if v.check_in_time)
 
-	planned = cint(day_end.planned_visits) if day_end else _planned_for(field_user, on_date)
+	planned = cint(day.planned_visits) if closed else _planned_for(field_user, on_date)
 	in_scope = _outlets_in_scope(rep.territory)
 	billable = _billable_base(field_user, on_date, orders)
 
@@ -131,13 +132,13 @@ def measure(field_user: str, on_date) -> dict:
 		"territory": rep.territory,
 		"sales_person": rep.sales_person,
 		"company": rep.company,
-		"beat": (day_start.planned_beat if day_start else None)
+		"beat": (day.planned_beat if day else None)
 		        or (visits[0].beat if visits else None),
 
-		"day_started": 1 if day_start else 0,
-		"day_closed": 1 if day_end else 0,
-		"duration_hours": flt(day_end.duration_hours) if day_end else 0,
-		"distance_km": flt(day_end.distance_km) if day_end else 0,
+		"day_started": 1 if day else 0,
+		"day_closed": 1 if closed else 0,
+		"duration_hours": flt(day.duration_hours) if closed else 0,
+		"distance_km": flt(day.distance_km) if closed else 0,
 		"first_visit_at": stamps[0] if stamps else None,
 		"last_visit_at": stamps[-1] if stamps else None,
 
@@ -190,8 +191,8 @@ def derive(row: dict) -> dict:
 def _planned_for(field_user: str, on_date) -> int:
 	"""How many shops the plan asked for, where the day was never closed.
 
-	Day End carries the figure once a day is finished. Before that - and on a day a rep forgot
-	to close - it comes from the journey plan, so a plan compliance figure exists for today as
+	The day carries the figure once it is finished. Before that - and on a day a rep forgot to
+	close - it comes from the journey plan, so a plan compliance figure exists for today as
 	well as for last Tuesday.
 	"""
 	plans = frappe.get_all("FieldMate Journey Plan",
@@ -296,7 +297,7 @@ def fingerprint(field_user: str, on_date) -> str:
 	for doctype, date_field in (("FieldMate Visit", "visit_date"),
 	                            ("FieldMate Order", "order_date"),
 	                            ("FieldMate Collection", "collection_date"),
-	                            ("FieldMate Day End", "day_date")):
+	                            ("FieldMate Day", "day_date")):
 		rows = frappe.get_all(doctype,
 		                      filters={"field_user": field_user, date_field: on_date},
 		                      fields=["count(name) as n", "max(modified) as last"],

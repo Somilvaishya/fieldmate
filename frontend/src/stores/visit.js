@@ -173,11 +173,11 @@ export async function checkIn(outlet, { fix = {}, deviationNote = null,
   const clientUuid = crypto.randomUUID()
   // Which day this visit belongs to. Offline that is the queued day's client id, which
   // sync._apply resolves through depends_on once the day itself lands.
-  const dayRef = dayStore.openDay.value?.day_start || null
+  const dayRef = dayStore.openDay.value?.day || null
   const local = {
     clientUuid,
     serverName: null,
-    dayStart: dayRef,
+    day: dayRef,
     outlet: outlet.name,
     outletName: outlet.outlet_name || outlet.name,
     visitDate: todayStamp(),
@@ -395,7 +395,7 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
   // that lands as a pile of drafts is a day of work that no report will count.
   await enqueue('FieldMate Visit', {
     docstatus: 1,
-    day_start: visit.dayStart || undefined,
+    day: visit.day || undefined,
     outlet: visit.outlet,
     visit_date: visit.visitDate,
     check_in_time: visit.checkInTime,
@@ -421,7 +421,7 @@ export async function checkOut({ outcome, noOrderReason = null, remarks = null, 
         answer_number: q.answer_number,
         is_answered: 1,
       })),
-  }, { clientUuid: visit.clientUuid, dependsOn: visit.dayStart || null })
+  }, { clientUuid: visit.clientUuid, dependsOn: visit.day || null })
 
   await finish(visit)
   return { offline: true }

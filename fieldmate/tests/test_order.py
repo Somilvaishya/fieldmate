@@ -306,7 +306,8 @@ class TestApproval(OrderFixture):
 class TestAnOfflineOrderLandsTheSameWay(OrderFixture):
 	"""An order captured with no signal arrives through sync.push, which inserts the document
 	directly and never calls the order service. Everything that matters therefore has to live on
-	the controller — which is exactly the bug that once landed Day End with every figure at zero.
+	the controller — which is exactly the bug that once landed a day close with every figure
+	at zero.
 	"""
 
 	def test_a_pushed_order_is_priced_routed_and_accrued(self):

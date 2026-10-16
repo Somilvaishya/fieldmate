@@ -18,7 +18,7 @@ def big_png(kilobytes: int) -> str:
 class TestDataUrlFiles(DayFixture):
 	def track_files(self):
 		for name in frappe.get_all(
-			"File", filters={"attached_to_doctype": "FieldMate Day Start"}, pluck="name"
+			"File", filters={"attached_to_doctype": "FieldMate Day"}, pluck="name"
 		):
 			self.track("File", name)
 
@@ -36,12 +36,12 @@ class TestDataUrlFiles(DayFixture):
 		"""An older app build that uploads separately keeps working against a newer server."""
 		path = "/private/files/already-there.jpg"
 		self.assertEqual(
-			file_service.attach_photo(path, "x", "FieldMate Day Start", "y", "selfie"), path
+			file_service.attach_photo(path, "x", "FieldMate Day", "y", "selfie"), path
 		)
 
 	def test_nothing_in_nothing_out(self):
 		self.assertIsNone(
-			file_service.attach_photo(None, "x", "FieldMate Day Start", "y", "selfie")
+			file_service.attach_photo(None, "x", "FieldMate Day", "y", "selfie")
 		)
 
 	def test_garbage_is_refused_in_words_a_rep_understands(self):
@@ -68,7 +68,7 @@ class TestDataUrlFiles(DayFixture):
 class TestDayStartSelfie(DayFixture):
 	def tearDown(self):
 		for name in frappe.get_all(
-			"File", filters={"attached_to_doctype": "FieldMate Day Start"}, pluck="name"
+			"File", filters={"attached_to_doctype": "FieldMate Day"}, pluck="name"
 		):
 			try:
 				frappe.delete_doc("File", name, force=True, ignore_permissions=True)
@@ -84,7 +84,7 @@ class TestDayStartSelfie(DayFixture):
 		only a generic error at the moment they were trying to begin work.
 		"""
 		result = self.start_day(selfie=PIXEL)
-		stored = frappe.db.get_value("FieldMate Day Start", result["day_start"], "selfie")
+		stored = frappe.db.get_value("FieldMate Day", result["day"], "selfie")
 
 		self.assertTrue(stored, "no selfie recorded")
 		self.assertFalse(stored.startswith("data:"), "raw image bytes stored in a path column")

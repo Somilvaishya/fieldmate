@@ -110,7 +110,7 @@ def summarise(pings: list[dict]) -> dict:
 	return summary
 
 
-def append(field_user: str, pings: list[dict], day_start: str | None = None,
+def append(field_user: str, pings: list[dict], day: str | None = None,
            device_id: str | None = None, trail_date=None) -> dict:
 	"""Add a batch of pings to today's trail, creating it if this is the first batch.
 
@@ -139,8 +139,8 @@ def append(field_user: str, pings: list[dict], day_start: str | None = None,
 	doc.trail = json.dumps(combined, separators=(",", ":"), default=str)
 	for key, value in summary.items():
 		doc.set(key, value)
-	if day_start:
-		doc.day_start = day_start
+	if day:
+		doc.day = day
 	if device_id:
 		doc.device_id = device_id
 
@@ -150,7 +150,7 @@ def append(field_user: str, pings: list[dict], day_start: str | None = None,
 
 
 def distance_for(field_user: str, date) -> float:
-	"""Kilometres travelled, for Day End and for expense claims.
+	"""Kilometres travelled, for closing the day and for expense claims.
 
 	The trail is the better answer when there is one: it is where the rep actually was, minute by
 	minute. But **a PWA only reports its position while it is open**, and a rep works a day with
@@ -205,9 +205,9 @@ def _route_points(field_user: str, date) -> list[tuple[float, float]]:
 	"""The day's stops in the order they were visited, skipping any that have no position."""
 	date = getdate(date)
 	start = frappe.db.get_value(
-		"FieldMate Day Start",
+		"FieldMate Day",
 		{"field_user": field_user, "day_date": date, "docstatus": 1},
-		["latitude", "longitude"], as_dict=True)
+		["start_latitude", "start_longitude"], as_dict=True)
 
 	visits = frappe.get_all(
 		"FieldMate Visit",
@@ -217,8 +217,8 @@ def _route_points(field_user: str, date) -> list[tuple[float, float]]:
 	)
 
 	points = []
-	if start and start.latitude and start.longitude:
-		points.append((flt(start.latitude), flt(start.longitude)))
+	if start and start.start_latitude and start.start_longitude:
+		points.append((flt(start.start_latitude), flt(start.start_longitude)))
 
 	for visit in visits:
 		lat, lon = flt(visit.check_in_latitude), flt(visit.check_in_longitude)

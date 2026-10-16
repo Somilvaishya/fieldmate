@@ -31,7 +31,7 @@ vi.mock('../src/api/client', () => ({
 vi.mock('../src/sync/outbox', () => ({ enqueue: vi.fn() }))
 vi.mock('../src/sync/photos', () => ({ pendingCount: async () => 0 }))
 vi.mock('../src/sync/pinger', () => ({ flushSoon: async () => {} }))
-vi.mock('../src/stores/day', () => ({ openDay: { value: { day_start: 'FM-DS-1' } } }))
+vi.mock('../src/stores/day', () => ({ openDay: { value: { day: 'FM-DAY-1' } } }))
 
 const visitStore = await import('../src/stores/visit')
 

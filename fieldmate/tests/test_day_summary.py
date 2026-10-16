@@ -10,7 +10,7 @@ class TestDaySummary(DayFixture):
 	"""The Finish Day screen shows a rep what they are about to close.
 
 	It reads the same figures `end()` writes, so the screen cannot show one number and the
-	Day End record keep another.
+	the day's own record keep another.
 	"""
 
 	def setUp(self):
@@ -39,7 +39,7 @@ class TestDaySummary(DayFixture):
 		started = self.start_day()
 		day_service.summary(self.rep.name)
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", started["day_start"], "status"), "Open"
+			frappe.db.get_value("FieldMate Day", started["day"], "status"), "Open"
 		)
 		self.assertTrue(day_service.current(self.rep.name))
 

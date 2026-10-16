@@ -44,7 +44,7 @@ SINGLE_LINKS = {
     "FieldMate Visit": [
         ("geo_fence_exception", "FieldMate Geo Fence Exception"),
         ("merchandising_audit", "FieldMate Merchandising Audit"),
-        ("day_start", "FieldMate Day Start"),
+        ("day", "FieldMate Day"),
         ("journey_plan", "FieldMate Journey Plan"),
         ("beat", "FieldMate Beat"),
         ("deviation_reason", "FieldMate Deviation Reason"),

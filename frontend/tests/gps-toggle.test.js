@@ -67,7 +67,7 @@ describe('the trail switch', () => {
   })
 
   it('does not resume a reloaded day when the cached settings say it is off', async () => {
-    await setMeta('openDay', { day_start: 'FM-DS-0001' })
+    await setMeta('openDay', { day: 'FM-DAY-0001' })
     await setMeta('profile', { settings: { track_gps_trail: false } })
     await pinger.resumeIfDayOpen()
     expect(pinger.isRunning()).toBe(false)
@@ -75,7 +75,7 @@ describe('the trail switch', () => {
   })
 
   it('resumes a reloaded day when tracking is on', async () => {
-    await setMeta('openDay', { day_start: 'FM-DS-0001' })
+    await setMeta('openDay', { day: 'FM-DAY-0001' })
     await setMeta('profile', { settings: { track_gps_trail: true } })
     await pinger.resumeIfDayOpen()
     expect(pinger.isRunning()).toBe(true)

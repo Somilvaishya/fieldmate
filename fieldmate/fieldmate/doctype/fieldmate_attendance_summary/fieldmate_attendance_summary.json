@@ -4,7 +4,7 @@
  "field_order": ["field_user", "summary_date", "column_head", "status", "is_late_start",
    "section_times", "start_time", "end_time", "column_times", "working_hours", "distance_km",
    "section_work", "planned_visits", "actual_visits", "column_work", "coverage_pct", "productive_visits",
-   "section_links", "day_start", "day_end", "remarks"],
+   "section_links", "day", "remarks"],
  "fields": [
   {"fieldname": "field_user", "fieldtype": "Link", "label": "Field User", "options": "FieldMate Field User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
   {"fieldname": "summary_date", "fieldtype": "Date", "label": "Date", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
@@ -25,8 +25,7 @@
   {"fieldname": "coverage_pct", "fieldtype": "Percent", "label": "Coverage", "read_only": 1},
   {"fieldname": "productive_visits", "fieldtype": "Int", "label": "Productive", "read_only": 1},
   {"fieldname": "section_links", "fieldtype": "Section Break", "label": "Source", "collapsible": 1},
-  {"fieldname": "day_start", "fieldtype": "Link", "label": "Day Start", "options": "FieldMate Day Start", "read_only": 1},
-  {"fieldname": "day_end", "fieldtype": "Link", "label": "Day End", "options": "FieldMate Day End", "read_only": 1},
+  {"fieldname": "day", "fieldtype": "Link", "label": "Day", "options": "FieldMate Day", "read_only": 1},
   {"fieldname": "remarks", "fieldtype": "Small Text", "label": "Remarks"}
  ],
  "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 09:00:00.000000",

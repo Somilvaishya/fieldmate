@@ -22,3 +22,6 @@ fieldmate.patches.switch_on_the_gps_trail
 # #1. The controller now takes a rep's company from their Employee record on every save, which
 # only reaches a record when somebody saves it. This corrects the ones already there.
 fieldmate.patches.company_from_the_employee
+# #16. A working day was two documents joined by a unique Link; it is now one. The days are
+# carried over keeping their Day Start name, so every record that belonged to one still finds it.
+fieldmate.patches.merge_the_day_into_one_document

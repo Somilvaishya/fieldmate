@@ -23,7 +23,7 @@ from frappe.utils.nestedset import get_ancestors_of
 
 # Minimum host versions, enforced at install time by fieldmate.setup.install.
 #
-# hrms is OPTIONAL by design. FieldMate mirrors Day Start / Day End into Employee Checkin when it
+# hrms is OPTIONAL by design. FieldMate mirrors the day's open and close into Employee Checkin when it
 # is present and skips that quietly when it is not (see create_employee_checkin). Making it a hard
 # dependency would contradict that and would block installs on benches that never use HR.
 REQUIRED_APPS = {"frappe": (15, 0), "erpnext": (15, 0)}
@@ -1212,7 +1212,7 @@ def create_employee_checkin(
 	longitude: float | None = None,
 	device_id: str | None = None,
 ) -> str | None:
-	"""Mirror a FieldMate Day Start / Day End into HRMS attendance.
+	"""Mirror the open or close of a FieldMate Day into HRMS attendance.
 
 	Returns the Employee Checkin name, or None when hrms is absent — FieldMate must keep working
 	on a bench without it.

@@ -90,7 +90,8 @@ def push(user: str, device, batch_uuid: str, records: list[dict], app_version: s
 	for record in records:
 		results.append(_apply(record, user, device, batch, resolved))
 
-	batch.accepted_count = sum(1 for r in results if r["status"] in ("created", "duplicate"))
+	batch.accepted_count = sum(
+		1 for r in results if r["status"] in ("created", "updated", "duplicate"))
 	batch.rejected_count = sum(1 for r in results if r["status"] in ("rejected", "held"))
 	batch.conflict_count = sum(1 for r in results if r["status"] == "conflict")
 	batch.complete()
@@ -117,12 +118,20 @@ def _apply(record: dict, user: str, device, batch, resolved: dict) -> dict:
 		return {**base, "status": "rejected", "code": "NOT_SYNCABLE",
 		        "message": f"{doctype} cannot be created from the field app."}
 
+	data = dict(record.get("data") or {})
+
+	# A record that opens and closes is pushed twice - a day the rep started in the morning and
+	# finished at night, both queued on a handset with no signal in between. The second push
+	# names what it closes and updates it; it cannot be another insert, because there is one
+	# day. Checked before the idempotency test below, which would otherwise see the record
+	# already there and drop the close on the floor.
+	if entry.closes_field and data.get(entry.closes_field):
+		return _apply_close(entry, data, client_uuid, base, resolved, batch, device, user)
+
 	# Idempotency: already here means already done.
 	existing = frappe.db.get_value(doctype, {entry.uuid_field: client_uuid}, "name")
 	if existing:
 		return {**base, "status": "duplicate", "name": existing}
-
-	data = dict(record.get("data") or {})
 
 	# Dependencies must already exist, either from an earlier batch or earlier in this one.
 	for link_field in entry.depends_on:
@@ -195,6 +204,79 @@ def _apply(record: dict, user: str, device, batch, resolved: dict) -> dict:
 	except Exception as e:
 		frappe.db.rollback(save_point=save_point)
 		conflict = record_conflict(batch, device, user, doctype, client_uuid,
+		                          "Validation Failed", data, str(e))
+		return {**base, "status": "conflict", "conflict": conflict, "code": "VALIDATION_FAILED",
+		        "message": str(e)[:200]}
+
+
+def _apply_close(entry, data: dict, client_uuid: str, base: dict, resolved: dict,
+                 batch, device, user: str) -> dict:
+	"""The second push for a record that opens and closes.
+
+	Restricted to the fields `entry.update_fields` names, and that allow-list - not the
+	permission - is what makes writing to an already-submitted record safe. A device that also
+	sent `distance_km`, or a colleague's `field_user`, is ignored rather than trusted: what the
+	day produced is counted on the server from the records.
+	"""
+	target = data.pop(entry.closes_field)
+
+	# Idempotent on the closing id, separately from the record's own. The outbox retries, so a
+	# close that already landed is the ordinary case on a bad connection rather than an error.
+	done = frappe.db.get_value(entry.doctype, {entry.update_uuid_field: client_uuid}, "name")
+	if done:
+		return {**base, "status": "duplicate", "name": done}
+
+	# The phone names the day by whatever it knows it as: the server name when the day was
+	# opened online, its own client id when the open is still in this same batch or landed in
+	# an earlier one.
+	name = (
+		resolved.get(target)
+		or frappe.db.get_value(entry.doctype, {entry.uuid_field: target}, "name")
+		or (target if frappe.db.exists(entry.doctype, target) else None)
+	)
+	if not name:
+		# Held, not failed: the opening half may simply not have landed yet.
+		return {**base, "status": "held", "code": "MISSING_PARENT",
+		        "message": f"Waiting for the {entry.doctype} this closes to sync first."}
+
+	values = {f: data[f] for f in entry.update_fields if f in data}
+	if not values:
+		return {**base, "status": "rejected", "code": "BAD_RECORD",
+		        "message": "The close carried none of the fields this record accepts."}
+	values[entry.update_uuid_field] = client_uuid
+
+	save_point = "fm_" + frappe.generate_hash(length=8)
+	frappe.db.savepoint(save_point)
+
+	try:
+		doc = frappe.get_doc(entry.doctype, name)
+		# Read, deliberately: a Field Rep's read is `if_owner`, so this is the check that a
+		# device cannot close a colleague's day. There is no `write` to test - a rep holds
+		# none, by ADR-004 - which is why the elevation below is needed at all.
+		if not frappe.has_permission(entry.doctype, "read", doc=doc):
+			raise frappe.PermissionError(f"{entry.doctype} {name}")
+		doc.update(values)
+		doc.flags.ignore_permissions = True
+		doc.save()
+		resolved[client_uuid] = doc.name
+		return {**base, "status": "updated", "name": doc.name,
+		        "docstatus": cint(doc.docstatus)}
+
+	except frappe.DuplicateEntryError:
+		frappe.db.rollback(save_point=save_point)
+		done = frappe.db.get_value(entry.doctype, {entry.update_uuid_field: client_uuid}, "name")
+		return {**base, "status": "duplicate", "name": done}
+
+	except frappe.PermissionError as e:
+		frappe.db.rollback(save_point=save_point)
+		conflict = record_conflict(batch, device, user, entry.doctype, client_uuid,
+		                          "Permission Denied", data, str(e))
+		return {**base, "status": "conflict", "conflict": conflict, "code": "PERMISSION_DENIED",
+		        "message": "You do not have access to close this."}
+
+	except Exception as e:
+		frappe.db.rollback(save_point=save_point)
+		conflict = record_conflict(batch, device, user, entry.doctype, client_uuid,
 		                          "Validation Failed", data, str(e))
 		return {**base, "status": "conflict", "conflict": conflict, "code": "VALIDATION_FAILED",
 		        "message": str(e)[:200]}
@@ -292,6 +374,11 @@ def _replay_results(records: list[dict]) -> list[dict]:
 			continue
 
 		name = frappe.db.get_value(doctype, {entry.uuid_field: client_uuid}, "name")
+		# A close carries its own id, held in a different field from the record's own. Without
+		# this the replay reported it as never applied, and the phone would queue it again.
+		if not name and entry.update_uuid_field:
+			name = frappe.db.get_value(
+				doctype, {entry.update_uuid_field: client_uuid}, "name")
 		if name:
 			results.append({**base, "status": "duplicate", "name": name,
 			                "docstatus": cint(frappe.db.get_value(doctype, name, "docstatus"))})

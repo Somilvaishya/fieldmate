@@ -2,7 +2,7 @@
  * What the phone shows as visited, after somebody in the office took it back.
  *
  * **The bug this pins.** `todaysVisits()` read IndexedDB and asked the server nothing. A day
- * cancelled in Desk — its Day Start, its visits, its orders — left every one of those rows sitting
+ * cancelled in Desk — its day, its visits, its orders — left every one of those rows sitting
  * on the handset. The rep started their day again and the route still showed every shop as
  * covered, the progress bar still read done, and "next shop" pointed past shops nobody had been
  * to. Reported from the field exactly that way.

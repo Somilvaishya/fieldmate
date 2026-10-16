@@ -1,0 +1,457 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-10-16 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "is_submittable": 1,
+ "field_order": [
+  "naming_series",
+  "field_user",
+  "day_date",
+  "column_head",
+  "status",
+  "section_start",
+  "start_time",
+  "journey_plan",
+  "planned_beat",
+  "start_latitude",
+  "start_longitude",
+  "start_accuracy_m",
+  "column_start",
+  "is_mock_location",
+  "location_provider",
+  "selfie",
+  "start_checkin",
+  "section_end",
+  "end_time",
+  "duration_hours",
+  "end_latitude",
+  "end_longitude",
+  "end_accuracy_m",
+  "column_end",
+  "end_checkin",
+  "remarks",
+  "section_meta",
+  "odometer_start",
+  "odometer_end",
+  "column_meta",
+  "device_id",
+  "section_work",
+  "planned_visits",
+  "actual_visits",
+  "productive_visits",
+  "column_work",
+  "new_outlets",
+  "orders_count",
+  "order_value",
+  "collection_amount",
+  "section_travel",
+  "distance_km",
+  "column_travel",
+  "coverage_pct",
+  "section_sync",
+  "client_uuid",
+  "end_client_uuid",
+  "created_offline",
+  "column_sync",
+  "sync_status",
+  "synced_at",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "FM-DAY-.#####",
+   "default": "FM-DAY-.#####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "field_user",
+   "fieldtype": "Link",
+   "label": "Field User",
+   "options": "FieldMate Field User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "day_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nClosed\nAuto Closed",
+   "default": "Open",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Auto Closed means the rep forgot to end the day and it was shut for them, so tomorrow can start cleanly. It is deliberately not the same as Closed.",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_start",
+   "fieldtype": "Section Break",
+   "label": "How The Day Began"
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Datetime",
+   "label": "Started At",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "journey_plan",
+   "fieldtype": "Link",
+   "label": "Journey Plan",
+   "options": "FieldMate Journey Plan"
+  },
+  {
+   "fieldname": "planned_beat",
+   "fieldtype": "Link",
+   "label": "Planned Beat",
+   "options": "FieldMate Beat"
+  },
+  {
+   "fieldname": "start_latitude",
+   "fieldtype": "Float",
+   "label": "Start Latitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "start_longitude",
+   "fieldtype": "Float",
+   "label": "Start Longitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "start_accuracy_m",
+   "fieldtype": "Float",
+   "label": "Start GPS Accuracy (m)"
+  },
+  {
+   "fieldname": "column_start",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "is_mock_location",
+   "fieldtype": "Check",
+   "label": "Mock Location",
+   "read_only": 1,
+   "description": "Recorded, not blocked. Blocking pushes a rep to stop using the app rather than to stop faking."
+  },
+  {
+   "fieldname": "location_provider",
+   "fieldtype": "Data",
+   "label": "Location Provider",
+   "read_only": 1
+  },
+  {
+   "fieldname": "selfie",
+   "fieldtype": "Attach Image",
+   "label": "Selfie"
+  },
+  {
+   "fieldname": "start_checkin",
+   "fieldtype": "Data",
+   "label": "HRMS Checkin (IN)",
+   "read_only": 1,
+   "description": "The HRMS record the morning mirrored into, when HRMS is installed. Blank is normal without it."
+  },
+  {
+   "fieldname": "section_end",
+   "fieldtype": "Section Break",
+   "label": "How The Day Ended"
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Datetime",
+   "label": "Ended At",
+   "in_list_view": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "duration_hours",
+   "fieldtype": "Float",
+   "label": "Hours Worked",
+   "precision": "2",
+   "in_list_view": 1,
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "end_latitude",
+   "fieldtype": "Float",
+   "label": "End Latitude",
+   "precision": "8",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "end_longitude",
+   "fieldtype": "Float",
+   "label": "End Longitude",
+   "precision": "8",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "end_accuracy_m",
+   "fieldtype": "Float",
+   "label": "End GPS Accuracy (m)",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_end",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "end_checkin",
+   "fieldtype": "Data",
+   "label": "HRMS Checkin (OUT)",
+   "read_only": 1,
+   "description": "Separate from the IN record: a rep clocks out wherever they finished, often a different town.",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_meta",
+   "fieldtype": "Section Break",
+   "label": "Vehicle & Device"
+  },
+  {
+   "fieldname": "odometer_start",
+   "fieldtype": "Float",
+   "label": "Odometer Start"
+  },
+  {
+   "fieldname": "odometer_end",
+   "fieldtype": "Float",
+   "label": "Odometer End",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Link",
+   "label": "Device",
+   "options": "FieldMate Device Registry"
+  },
+  {
+   "fieldname": "section_work",
+   "fieldtype": "Section Break",
+   "label": "The Day's Work"
+  },
+  {
+   "fieldname": "planned_visits",
+   "fieldtype": "Int",
+   "label": "Planned Visits",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "actual_visits",
+   "fieldtype": "Int",
+   "label": "Visits Made",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "productive_visits",
+   "fieldtype": "Int",
+   "label": "Productive Visits",
+   "description": "Visits that produced an order. The gap between this and visits made is the number managers actually act on.",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_work",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "new_outlets",
+   "fieldtype": "Int",
+   "label": "New Shops",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "orders_count",
+   "fieldtype": "Int",
+   "label": "Orders",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "order_value",
+   "fieldtype": "Currency",
+   "label": "Order Value",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "collection_amount",
+   "fieldtype": "Currency",
+   "label": "Collected",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_travel",
+   "fieldtype": "Section Break",
+   "label": "Travel & Coverage"
+  },
+  {
+   "fieldname": "distance_km",
+   "fieldtype": "Float",
+   "label": "Distance (km)",
+   "precision": "2",
+   "description": "Measured, not typed. From the GPS trail where there is one; otherwise along the route actually visited - day start, then each shop - because the app only reports its position while it is open. Expense claims read this.",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_travel",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "coverage_pct",
+   "fieldtype": "Percent",
+   "label": "Coverage",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_sync",
+   "fieldtype": "Section Break",
+   "label": "Sync",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "label": "Client UUID",
+   "unique": 1,
+   "description": "The id the phone gave this day when it opened it."
+  },
+  {
+   "fieldname": "end_client_uuid",
+   "fieldtype": "Data",
+   "label": "Closing Client UUID",
+   "unique": 1,
+   "description": "The closing carries its own id. A day is pushed twice - once when it opens and once when it closes - and each push has to be idempotent on its own, or a retried close is either lost or applied twice.",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "created_offline",
+   "fieldtype": "Check",
+   "label": "Created Offline"
+  },
+  {
+   "fieldname": "column_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "label": "Sync Status",
+   "options": "Synced\nPending\nConflict",
+   "default": "Synced"
+  },
+  {
+   "fieldname": "synced_at",
+   "fieldtype": "Datetime",
+   "label": "Synced At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "FieldMate Day",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-16 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Day",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1
+  },
+  {
+   "role": "FieldMate Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "report": 1
+  },
+  {
+   "role": "FieldMate Sales Head",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "FieldMate Regional Manager",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "FieldMate Area Manager",
+   "read": 1,
+   "write": 1,
+   "report": 1
+  },
+  {
+   "role": "FieldMate Field Rep",
+   "read": 1,
+   "create": 1,
+   "submit": 1,
+   "if_owner": 1
+  }
+ ],
+ "search_fields": "field_user,day_date,status",
+ "sort_field": "day_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
