@@ -6,6 +6,7 @@ import { enqueue } from '../sync/outbox'
 import { getPosition } from '../lib/geo'
 import { compress } from '../lib/image'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 // The real options on FieldMate Outlet.outlet_type. Chips rather than a select: a dropdown
 // on a phone is two taps and a scroll, and this is answered at a doorstep.
@@ -52,7 +53,7 @@ async function onPhoto(event) {
     photo.value = out.dataUrl
     photoKb.value = out.kb
   } catch {
-    error.value = 'Could not read that photo. Try taking it again.'
+    error.value = t('Could not read that photo. Try taking it again.')
   } finally {
     event.target.value = ''
   }
@@ -60,9 +61,9 @@ async function onPhoto(event) {
 
 async function save() {
   error.value = ''
-  if (!form.value.outlet_name.trim()) return (error.value = 'Enter the shop name.')
+  if (!form.value.outlet_name.trim()) return (error.value = t('Enter the shop name.'))
   if (!/^\d{10}$/.test(form.value.mobile_no.trim())) {
-    return (error.value = 'Enter the 10-digit mobile number.')
+    return (error.value = t('Enter the 10-digit mobile number.'))
   }
 
   busy.value = true
@@ -117,72 +118,79 @@ function again() {
 
 <template>
   <div class="wrap screen">
-    <RouterLink to="/outlets" class="back"><Icon name="back" size="20" /> Shops</RouterLink>
-    <h2>Add a shop</h2>
+    <RouterLink to="/outlets" class="back">
+      <Icon name="back" size="20" /> {{ t('Shops') }}
+    </RouterLink>
+    <h2>{{ t('Add a shop') }}</h2>
 
     <form id="newshop" class="top" @submit.prevent="save">
       <!-- The pin first. It is the one thing that cannot be filled in later from an office. -->
       <div class="field">
-        <label>Shop location</label>
+        <label>{{ t('Shop location') }}</label>
         <button type="button" class="tile" :class="{ done: coords }" :disabled="locating"
                 @click="locate">
           <span class="badge"><Icon name="pin" size="22" /></span>
           <span class="tile-text">
-            <b v-if="locating">Getting a fix…</b>
+            <b v-if="locating">{{ t('Getting a fix…') }}</b>
             <b v-else-if="coords" class="tnum">Pin saved · ±{{ accuracyM }} m</b>
-            <b v-else>Capture the shop's location</b>
+            <b v-else>{{ t("Capture the shop's location") }}</b>
             <span class="muted tnum" v-if="coords">
-              {{ coords.latitude }}, {{ coords.longitude }} · tap to re-take
+              {{ coords.latitude }}, {{ coords.longitude }} · {{ t('tap to re-take') }}
             </span>
-            <span class="muted" v-else>Stand at the shopfront for the best pin</span>
+            <span class="muted" v-else>{{ t('Stand at the shopfront for the best pin') }}</span>
           </span>
           <Icon v-if="coords" name="refresh" size="20" class="go" />
         </button>
       </div>
 
       <div class="field">
-        <label for="n">Shop name <span class="req">*</span></label>
-        <input id="n" v-model="form.outlet_name" placeholder="e.g. Laxmi General Store" />
+        <label for="n">{{ t('Shop name') }} <span class="req">*</span></label>
+        <input id="n" v-model="form.outlet_name" :placeholder="t('e.g. Laxmi General Store')" />
       </div>
 
       <div class="field">
-        <label for="m">Mobile number <span class="req">*</span></label>
+        <label for="m">{{ t('Mobile number') }} <span class="req">*</span></label>
         <div class="phone">
           <span class="prefix">+91</span>
           <input id="m" v-model="form.mobile_no" inputmode="numeric" maxlength="10"
-                 placeholder="10-digit number" />
+                 :placeholder="t('10-digit number')" />
         </div>
       </div>
 
       <div class="field">
-        <label for="o">Owner's name</label>
-        <input id="o" v-model="form.owner_name" placeholder="e.g. Rajesh Patel" />
+        <label for="o">{{ t("Owner's name") }}</label>
+        <input id="o" v-model="form.owner_name" :placeholder="t('e.g. Rajesh Patel')" />
       </div>
 
       <div class="field">
-        <label for="c">Area</label>
-        <input id="c" v-model="form.city" placeholder="e.g. South Market, Sector 2" />
+        <label for="c">{{ t('Area') }}</label>
+        <input id="c" v-model="form.city" :placeholder="t('e.g. South Market, Sector 2')" />
       </div>
 
       <div class="field">
-        <label id="typelabel">Shop type</label>
+        <label id="typelabel">{{ t('Shop type') }}</label>
         <div class="chips" role="radiogroup" aria-labelledby="typelabel">
           <button v-for="kind in TYPES" :key="kind" type="button" class="chip"
                   :class="{ on: form.outlet_type === kind }" role="radio"
                   :aria-checked="form.outlet_type === kind" @click="form.outlet_type = kind">
-            {{ kind }}
+            <!-- The value stays English; only what the rep reads goes through `t()`. -->
+            {{ t(kind) }}
           </button>
         </div>
       </div>
 
       <div class="field">
-        <label>Shopfront photo <span class="muted">(optional)</span></label>
+        <label>
+          {{ t('Shopfront photo') }} <span class="muted">{{ t('(optional)') }}</span>
+        </label>
         <label class="tile" :class="{ done: photo }">
           <span class="badge"><Icon name="camera" size="22" /></span>
           <span class="tile-text">
-            <b>{{ photo ? 'Photo taken' : 'Add a shopfront photo' }}</b>
-            <span class="muted tnum" v-if="photo">{{ photoKb }} KB · tap to retake</span>
-            <span class="muted" v-else>Helps your manager approve it faster</span>
+            <b>{{ photo ? t('Photo taken') : t('Add a shopfront photo') }}</b>
+            <span class="muted tnum" v-if="photo">
+              {{ t('{kb} KB · tap to retake', { kb: photoKb }) }}
+            </span>
+            <span class="muted" v-else>{{ t('Helps your manager approve it faster') }}</span>
           </span>
           <input type="file" accept="image/*" capture="environment" hidden @change="onPhoto" />
         </label>
@@ -193,9 +201,11 @@ function again() {
 
     <div class="bottom">
       <button form="newshop" class="btn-primary" :disabled="busy">
-        {{ busy ? 'Saving…' : 'Save shop' }}
+        {{ busy ? t('Saving…') : t('Save shop') }}
       </button>
-      <p class="muted foot">A manager approves new shops before orders can be booked.</p>
+      <p class="muted foot">
+        {{ t('A manager approves new shops before orders can be booked.') }}
+      </p>
     </div>
 
     <!-- A sheet, not a centred modal: a modal in the middle of the screen is out of
@@ -204,15 +214,17 @@ function again() {
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="donetitle">
         <span class="grab" aria-hidden="true"></span>
         <span class="tick"><Icon name="check" size="30" /></span>
-        <h3 id="donetitle">{{ form.outlet_name || 'Shop' }} added</h3>
+        <h3 id="donetitle">
+          {{ t('{name} added', { name: form.outlet_name || t('Shop') }) }}
+        </h3>
         <p class="muted" v-if="saved.offline">
-          Saved on this phone. It sends itself when you have signal.
+          {{ t('Saved on this phone. It sends itself when you have signal.') }}
         </p>
         <p class="muted" v-else>
-          Sent. A manager approves it before you can book an order.
+          {{ t('Sent. A manager approves it before you can book an order.') }}
         </p>
-        <button class="btn-primary" @click="again">Add another shop</button>
-        <RouterLink to="/outlets" class="ghost">Back to shops</RouterLink>
+        <button class="btn-primary" @click="again">{{ t('Add another shop') }}</button>
+        <RouterLink to="/outlets" class="ghost">{{ t('Back to shops') }}</RouterLink>
       </div>
     </div>
   </div>
