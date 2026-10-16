@@ -84,7 +84,12 @@ export async function drain({ appVersion = '0.0.1' } = {}) {
     for (const item of ready) {
       const r = byUuid.get(item.clientUuid)
       if (!r) continue
-      if (r.status === 'created' || r.status === 'duplicate') {
+      // `updated` is the answer to a close - the second push of a record that opens and
+      // closes, a day the rep started in the morning and finished at night. It applied, so it
+      // retires like any other success. Left out of this list it fell through to the `else`
+      // below and a close that had worked was marked blocked and shown to the rep as a sync
+      // failure, with the day correctly closed on the server the whole time.
+      if (r.status === 'created' || r.status === 'updated' || r.status === 'duplicate') {
         // The server name has to outlive the outbox row: a photo queued against this visit
         // still needs somewhere to look up what the visit ended up being called.
         await rememberName(item.clientUuid, item.doctype, r.name)
