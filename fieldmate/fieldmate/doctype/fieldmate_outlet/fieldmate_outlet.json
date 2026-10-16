@@ -44,7 +44,6 @@
   "section_geo",
   "latitude",
   "longitude",
-  "geo_accuracy_m",
   "column_geo",
   "geo_captured_on",
   "enable_geo_fence",
@@ -310,11 +309,6 @@
    "fieldtype": "Float",
    "label": "Longitude",
    "precision": "8"
-  },
-  {
-   "fieldname": "geo_accuracy_m",
-   "fieldtype": "Float",
-   "label": "GPS Accuracy (m)"
   },
   {
    "fieldname": "column_geo",

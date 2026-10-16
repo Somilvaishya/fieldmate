@@ -15,6 +15,10 @@ const form = ref({
   outlet_name: '', mobile_no: '', owner_name: '', city: '', outlet_type: 'Kirana',
 })
 const coords = ref(null)
+// On screen only. A loose fix is worth re-taking while the rep is still at the shop,
+// and nothing afterwards reads the number - so it is deliberately kept out of `coords`,
+// which is spread wholesale into the create payload below.
+const accuracyM = ref(null)
 const photo = ref(null)
 const photoKb = ref(0)
 const locating = ref(false)
@@ -27,9 +31,8 @@ async function locate() {
   locating.value = true
   try {
     const fix = await getPosition()
-    coords.value = {
-      latitude: fix.latitude, longitude: fix.longitude, geo_accuracy_m: fix.accuracy_m,
-    }
+    coords.value = { latitude: fix.latitude, longitude: fix.longitude }
+    accuracyM.value = fix.accuracy_m
   } catch (e) {
     error.value = e.message
   } finally {
@@ -106,6 +109,7 @@ async function save() {
 function again() {
   form.value = { outlet_name: '', mobile_no: '', owner_name: '', city: '', outlet_type: 'Kirana' }
   coords.value = null
+  accuracyM.value = null
   photo.value = null
   saved.value = null
 }
@@ -125,7 +129,7 @@ function again() {
           <span class="badge"><Icon name="pin" size="22" /></span>
           <span class="tile-text">
             <b v-if="locating">Getting a fix…</b>
-            <b v-else-if="coords" class="tnum">Pin saved · ±{{ coords.geo_accuracy_m }} m</b>
+            <b v-else-if="coords" class="tnum">Pin saved · ±{{ accuracyM }} m</b>
             <b v-else>Capture the shop's location</b>
             <span class="muted tnum" v-if="coords">
               {{ coords.latitude }}, {{ coords.longitude }} · tap to re-take
