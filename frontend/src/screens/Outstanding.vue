@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,12 +30,12 @@ const selectedTotal = computed(() => selected.value.reduce((t, b) => t + b.pendi
 const buckets = computed(() => {
   const a = position.value?.ageing || {}
   return [
-    { label: '0–7 days', amount: a.bucket_0_7 || 0, tone: 'ok' },
-    { label: '8–14 days', amount: a.bucket_8_14 || 0, tone: 'muted' },
-    { label: '15–30 days', amount: a.bucket_15_30 || 0, tone: 'warn' },
+    { label: t('0–7 days'), amount: a.bucket_0_7 || 0, tone: 'ok' },
+    { label: t('8–14 days'), amount: a.bucket_8_14 || 0, tone: 'muted' },
+    { label: t('15–30 days'), amount: a.bucket_15_30 || 0, tone: 'warn' },
     // Kept apart rather than folded into a total, because a total hides it and this is the
     // bucket that decides whether the rep pushes or walks away.
-    { label: 'Over 30 days', amount: a.bucket_30_plus || 0, tone: 'crit' },
+    { label: t('Over 30 days'), amount: a.bucket_30_plus || 0, tone: 'crit' },
   ]
 })
 
@@ -47,7 +48,7 @@ onMounted(async () => {
       if (bill.days_overdue > 0) picked.value.add(bill.reference_name)
     }
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not load what this shop owes.'
+    error.value = e instanceof ApiError ? e.message : t('Could not load what this shop owes.')
   } finally {
     loading.value = false
   }
@@ -71,39 +72,45 @@ function collect() {
 <template>
   <div class="wrap screen">
 
-    <div v-if="loading" class="muted pad">Loading what this shop owes…</div>
+    <div v-if="loading" class="muted pad">{{ t('Loading what this shop owes…') }}</div>
     <p v-else-if="error" class="err" role="alert"><Icon name="alert" size="18" /> {{ error }}</p>
 
     <template v-else>
       <div class="head">
         <h1>{{ position.outlet_name }}</h1>
-        <p class="muted">Owed to {{ position.distributor || 'its distributor' }}</p>
+        <p class="muted">
+          {{ t('Owed to {party}',
+               { party: position.distributor || t('its distributor') }) }}
+        </p>
       </div>
 
       <div class="card total">
         <div class="tline">
           <div>
-            <span class="label">Total outstanding</span>
+            <span class="label">{{ t('Total outstanding') }}</span>
             <b class="big tnum">{{ formatRupees(position.outstanding) }}</b>
           </div>
           <div v-if="position.overdue" class="overdue tnum">
-            <span>Overdue · {{ position.days_overdue }} days</span>
+            <span>{{ t('Overdue · {n} days', { n: position.days_overdue }) }}</span>
             <b>{{ formatRupees(position.overdue) }}</b>
           </div>
         </div>
 
         <div v-if="position.credit_limit" class="limit tnum">
-          <span>Limit {{ formatRupees(position.credit_limit) }}</span>
+          <span>{{ t('Limit {amount}',
+                       { amount: formatRupees(position.credit_limit) }) }}</span>
           <span :class="position.headroom > 0 ? 'ok' : 'crit'">
-            {{ position.headroom > 0 ? formatRupees(position.headroom) + ' left' : 'Over limit' }}
+            {{ position.headroom > 0
+                ? t('{amount} left', { amount: formatRupees(position.headroom) })
+                : t('Over limit') }}
           </span>
         </div>
         <!-- A shop nobody has given a limit is not a shop with no room. The two read identically
              as zero, so the difference is said in words. -->
-        <p v-else class="muted small">No credit limit set for this shop.</p>
+        <p v-else class="muted small">{{ t('No credit limit set for this shop.') }}</p>
       </div>
 
-      <h2 class="shead">Ageing</h2>
+      <h2 class="shead">{{ t('Ageing') }}</h2>
       <div class="card ageing tnum">
         <div v-for="b in buckets" :key="b.label" class="bline" :class="b.tone">
           <span>{{ b.label }}</span>
@@ -112,16 +119,16 @@ function collect() {
       </div>
 
       <div class="shead row">
-        <h2>Bills to collect</h2>
+        <h2>{{ t('Bills to collect') }}</h2>
         <button type="button" class="filter" :class="{ on: overdueOnly }"
                 @click="overdueOnly = !overdueOnly">
-          {{ overdueOnly ? 'Showing overdue' : 'Overdue only' }}
+          {{ overdueOnly ? t('Showing overdue') : t('Overdue only') }}
         </button>
       </div>
 
       <p v-if="!bills.length" class="card pad muted">
         <Icon name="check" size="18" />
-        {{ overdueOnly ? 'Nothing overdue here.' : 'This shop owes nothing.' }}
+        {{ overdueOnly ? t('Nothing overdue here.') : t('This shop owes nothing.') }}
       </p>
 
       <article v-for="bill in bills" :key="bill.reference_name"
@@ -133,20 +140,25 @@ function collect() {
           </span>
           <div class="bmain">
             <b class="tnum">{{ bill.bill_no }}</b>
-            <span class="muted tnum">Dated {{ bill.bill_date }} · {{ formatRupees(bill.amount) }}</span>
+            <span class="muted tnum">
+              {{ t('Dated {date} · {amount}',
+                   { date: bill.bill_date, amount: formatRupees(bill.amount) }) }}
+            </span>
           </div>
           <span class="age tnum" :class="bill.days_overdue > 0 ? 'crit' : 'muted'">
-            {{ bill.days_overdue > 0 ? bill.days_overdue + 'd overdue' : 'Due ' + bill.due_date }}
+            {{ bill.days_overdue > 0
+                ? t('{n}d overdue', { n: bill.days_overdue })
+                : t('Due {date}', { date: bill.due_date }) }}
           </span>
         </div>
         <div class="bfoot tnum">
-          <span class="muted">Pending</span>
+          <span class="muted">{{ t('Pending') }}</span>
           <b>{{ formatRupees(bill.pending) }}</b>
         </div>
       </article>
 
       <div v-if="position.last_payment" class="card last tnum">
-        <span class="label">Last payment</span>
+        <span class="label">{{ t('Last payment') }}</span>
         <div class="lline">
           <b>{{ formatRupees(position.last_payment.amount) }}</b>
           <span class="muted">{{ position.last_payment.collection_date }} ·
@@ -156,11 +168,16 @@ function collect() {
 
       <div class="bottom">
         <p class="muted note tnum" v-if="selected.length">
-          {{ selected.length }} bill{{ selected.length > 1 ? 's' : '' }} selected ·
-          {{ formatRupees(selectedTotal) }}
+          {{ selected.length === 1
+              ? t('{n} bill selected · {amount}',
+                  { n: selected.length, amount: formatRupees(selectedTotal) })
+              : t('{n} bills selected · {amount}',
+                  { n: selected.length, amount: formatRupees(selectedTotal) }) }}
         </p>
         <button class="btn-primary" :disabled="!position.outstanding" @click="collect">
-          {{ selected.length ? 'Collect ' + formatRupees(selectedTotal) : 'Record a collection' }}
+          {{ selected.length
+              ? t('Collect {amount}', { amount: formatRupees(selectedTotal) })
+              : t('Record a collection') }}
         </button>
       </div>
     </template>

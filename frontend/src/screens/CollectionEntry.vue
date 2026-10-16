@@ -6,14 +6,24 @@ import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
-const MODES = [
-  { value: 'Cash', label: 'Cash' },
-  { value: 'UPI', label: 'UPI' },
-  { value: 'Cheque', label: 'Cheque' },
-  { value: 'Bank Transfer', label: 'Bank' },
-]
+// `computed`, so a language change redraws the modes with everything else. `value` stays
+// English - it is what the server stores and what `mode === 'Cash'` compares against.
+const MODES = computed(() => [
+  { value: 'Cash', label: t('Cash') },
+  { value: 'UPI', label: t('UPI') },
+  { value: 'Cheque', label: t('Cheque') },
+  { value: 'Bank Transfer', label: t('Bank') },
+])
 const NOTES = [500, 200, 100, 50, 20, 10]
+
+// The mode in the rep's own words, for the sentence they tick. The stored value is
+// not a word anybody says, and lowercasing it to fit English prose means nothing in
+// Hindi.
+const modeLabel = computed(
+  () => MODES.value.find((m) => m.value === mode.value)?.label || mode.value
+)
 
 const route = useRoute()
 const router = useRouter()
@@ -58,7 +68,7 @@ onMounted(async () => {
     const suggested = Number(route.query.amount)
     amount.value = suggested > 0 ? suggested : null
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not load what this shop owes.'
+    error.value = e instanceof ApiError ? e.message : t('Could not load what this shop owes.')
   } finally {
     loading.value = false
   }
@@ -120,7 +130,7 @@ async function submit() {
       device_id: await deviceUuid(),
     })
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not record the collection.'
+    error.value = e instanceof ApiError ? e.message : t('Could not record the collection.')
   } finally {
     busy.value = false
   }
@@ -136,39 +146,46 @@ function finish() {
   <div v-if="done" class="wrap screen">
     <div class="top">
       <div class="card ok-card">
-        <p class="badge"><Icon name="check" size="22" /><span>Collection recorded</span></p>
+        <p class="badge">
+          <Icon name="check" size="22" /><span>{{ t('Collection recorded') }}</span>
+        </p>
         <b class="big tnum">{{ formatRupees(done.amount) }}</b>
-        <p class="rec tnum">Receipt {{ done.receipt_no }}</p>
+        <p class="rec tnum">{{ t('Receipt {no}', { no: done.receipt_no }) }}</p>
         <p v-if="done.unallocated_amount" class="muted tnum">
-          {{ formatRupees(done.unallocated_amount) }} of it is on account, against no particular bill.
+          {{ t('{amount} of it is on account, against no particular bill.',
+               { amount: formatRupees(done.unallocated_amount) }) }}
         </p>
         <p class="muted">
           <Icon name="cloud-off" size="15" />
-          Saved on this phone. Hand it in with your deposit tonight.
+          {{ t('Saved on this phone. Hand it in with your deposit tonight.') }}
         </p>
       </div>
     </div>
     <div class="bottom">
-      <button class="btn-primary" @click="finish">Done</button>
+      <button class="btn-primary" @click="finish">{{ t('Done') }}</button>
     </div>
   </div>
 
   <div v-else class="wrap screen">
 
-    <div v-if="loading" class="muted pad">Loading…</div>
+    <div v-if="loading" class="muted pad">{{ t('Loading…') }}</div>
 
     <template v-else-if="position">
       <div class="head">
         <h1>{{ position.outlet_name }}</h1>
         <p class="muted tnum">
-          Owes {{ formatRupees(position.outstanding) }}<template v-if="bills.length">
-            · {{ bills.length }} bill{{ bills.length > 1 ? 's' : '' }} selected,
-            {{ formatRupees(pickedTotal) }}</template>
+          {{ t('Owes {amount}',
+               { amount: formatRupees(position.outstanding) }) }}<template v-if="bills.length">
+            · {{ bills.length === 1
+                  ? t('{n} bill selected, {amount}',
+                      { n: bills.length, amount: formatRupees(pickedTotal) })
+                  : t('{n} bills selected, {amount}',
+                      { n: bills.length, amount: formatRupees(pickedTotal) }) }}</template>
         </p>
       </div>
 
       <div class="card">
-        <label class="label" for="amt">How much did you take?</label>
+        <label class="label" for="amt">{{ t('How much did you take?') }}</label>
         <div class="amt">
           <span>₹</span>
           <input id="amt" class="tnum" type="number" inputmode="decimal" min="0"
@@ -176,18 +193,20 @@ function finish() {
         </div>
         <div class="chips">
           <button v-if="position.overdue" type="button" @click="amount = position.overdue">
-            Overdue {{ formatRupees(position.overdue) }}
+            {{ t('Overdue {amount}',
+                 { amount: formatRupees(position.overdue) }) }}
           </button>
           <button v-if="pickedTotal" type="button" @click="amount = pickedTotal">
-            Selected {{ formatRupees(pickedTotal) }}
+            {{ t('Selected {amount}', { amount: formatRupees(pickedTotal) }) }}
           </button>
           <button type="button" @click="amount = position.outstanding">
-            Full {{ formatRupees(position.outstanding) }}
+            {{ t('Full {amount}',
+                 { amount: formatRupees(position.outstanding) }) }}
           </button>
         </div>
       </div>
 
-      <h2 class="shead">How was it paid?</h2>
+      <h2 class="shead">{{ t('How was it paid?') }}</h2>
       <div class="modes">
         <button v-for="m in MODES" :key="m.value" type="button"
                 class="mode" :class="{ on: mode === m.value }" @click="mode = m.value">
@@ -198,15 +217,15 @@ function finish() {
 
       <div v-if="['Cheque', 'Bank Transfer', 'UPI'].includes(mode)" class="card">
         <label class="label" for="ref">
-          {{ mode === 'Cheque' ? 'Cheque number' : 'Reference number' }}
+          {{ mode === 'Cheque' ? t('Cheque number') : t('Reference number') }}
         </label>
-        <input id="ref" v-model="instrumentNo" :placeholder="mode === 'Cheque' ? '004921' : 'UTR / txn id'" />
+        <input id="ref" v-model="instrumentNo" :placeholder="mode === 'Cheque' ? '004921' : t('UTR / txn id')" />
         <template v-if="mode === 'Cheque'">
-          <label class="label" for="bank">Bank</label>
-          <input id="bank" v-model="instrumentBank" placeholder="HDFC Bank" />
+          <label class="label" for="bank">{{ t('Bank') }}</label>
+          <input id="bank" v-model="instrumentBank" :placeholder="t('HDFC Bank')" />
           <p class="muted small">
             <Icon name="info" size="15" />
-            Without the number nobody can chase it if it bounces.
+            {{ t('Without the number nobody can chase it if it bounces.') }}
           </p>
         </template>
       </div>
@@ -214,46 +233,58 @@ function finish() {
       <!-- Cash only. A note counter on a UPI payment is a form asking a question nobody has. -->
       <template v-if="mode === 'Cash'">
         <div class="shead row">
-          <h2>Count the notes <span class="muted">(optional)</span></h2>
+          <h2>
+            {{ t('Count the notes') }} <span class="muted">{{ t('(optional)') }}</span>
+          </h2>
           <span v-if="anyCounted" class="tnum" :class="tallyGap === 0 ? 'ok' : 'warn'">
-            {{ tallyGap === 0 ? 'Matches' : formatRupees(Math.abs(tallyGap)) + (tallyGap > 0 ? ' more' : ' short') }}
+            {{ tallyGap === 0
+                ? t('Matches')
+                : tallyGap > 0
+                  ? t('{amount} more', { amount: formatRupees(Math.abs(tallyGap)) })
+                  : t('{amount} short', { amount: formatRupees(Math.abs(tallyGap)) }) }}
           </span>
         </div>
         <div class="card notes">
           <div v-for="note in NOTES" :key="note" class="nrow">
             <span class="denom tnum">₹{{ note }}</span>
             <div class="stepper">
-              <button type="button" @click="bump(note, -1)" :aria-label="'One fewer ' + note">−</button>
+              <button type="button" @click="bump(note, -1)" :aria-label="t('One fewer {note}', { note })">−</button>
               <input class="tnum" type="number" inputmode="numeric" min="0"
                      :value="counted[note]" placeholder="0"
                      @input="setNote(note, $event.target.value)" />
-              <button type="button" @click="bump(note, 1)" :aria-label="'One more ' + note">+</button>
+              <button type="button" @click="bump(note, 1)" :aria-label="t('One more {note}', { note })">+</button>
             </div>
             <span class="sub tnum muted">{{ counted[note] ? formatRupees(note * counted[note]) : '—' }}</span>
           </div>
           <div v-if="anyCounted" class="ntotal tnum">
-            <span>Counted</span>
+            <span>{{ t('Counted') }}</span>
             <b>{{ formatRupees(tallied) }}</b>
             <button v-if="tallyGap !== 0" type="button" class="use" @click="useTally">
-              Use this
+              {{ t('Use this') }}
             </button>
           </div>
         </div>
       </template>
 
       <div class="card">
-        <label class="label" for="from">Who handed it over?</label>
-        <input id="from" v-model="collectedFrom" placeholder="Ramesh Sharma" />
+        <label class="label" for="from">{{ t('Who handed it over?') }}</label>
+        <input id="from" v-model="collectedFrom" :placeholder="t('Ramesh Sharma')" />
         <p class="muted small">
-          A receipt naming only a shop settles no argument three weeks later.
+          {{ t('A receipt naming only a shop settles no argument three weeks later.') }}
         </p>
 
         <label class="confirm" :class="{ on: confirmed }">
           <input type="checkbox" v-model="confirmed" />
           <span class="box"><Icon v-if="confirmed" name="check" size="16" /></span>
           <span>
-            I have taken {{ formatRupees(Number(amount) || 0) }} in {{ mode.toLowerCase() }}
-            <template v-if="collectedFrom">from {{ collectedFrom }}</template>.
+            {{ collectedFrom
+                ? t('I have taken {amount} in {mode} from {person}.', {
+                    amount: formatRupees(Number(amount) || 0),
+                    mode: modeLabel,
+                    person: collectedFrom })
+                : t('I have taken {amount} in {mode}.', {
+                    amount: formatRupees(Number(amount) || 0),
+                    mode: modeLabel }) }}
           </span>
         </label>
       </div>
@@ -263,12 +294,12 @@ function finish() {
       <div class="bottom">
         <p class="muted note">
           <Icon name="cloud-off" size="15" />
-          Nothing is posted anywhere. This is money in your hand until you deposit it.
+          {{ t('Nothing is posted anywhere. This is money in your hand until you deposit it.') }}
         </p>
         <button class="btn-primary" :disabled="busy || !ready" @click="submit">
-          {{ busy ? 'Recording…' : 'Record collection' }}
+          {{ busy ? t('Recording…') : t('Record collection') }}
         </button>
-        <button class="btn-plain" @click="router.back()">Cancel</button>
+        <button class="btn-plain" @click="router.back()">{{ t('Cancel') }}</button>
       </div>
     </template>
   </div>

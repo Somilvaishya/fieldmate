@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const route = useRoute()
 
@@ -35,7 +36,8 @@ function day(value) {
   const [y, m, d] = String(value).slice(0, 10).split('-')
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return `${d} ${months[Number(m) - 1]}`
+  const month = months[Number(m) - 1]
+  return `${d} ${month ? t(month) : ''}`.trim()
 }
 
 async function load() {
@@ -55,10 +57,10 @@ async function load() {
       collections.value = []
       listError.value = e instanceof ApiError
         ? e.message
-        : 'Could not load your recent receipts.'
+        : t('Could not load your recent receipts.')
     }
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not load your collections.'
+    error.value = e instanceof ApiError ? e.message : t('Could not load your collections.')
   } finally {
     loading.value = false
   }
@@ -164,7 +166,7 @@ async function openTake() {
     // sentence, because a rep cannot act on which of the two calls failed.
     saveError.value = e instanceof ApiError
       ? e.message
-      : 'Could not load your depots. This one needs signal.'
+      : t('Could not load your depots. This one needs signal.')
   }
 
   // Walked in from the season book: the booking, its depot and what it is short of are already
@@ -220,7 +222,7 @@ async function takeFromDepot() {
   } catch (e) {
     saveError.value = e instanceof ApiError
       ? e.message
-      : 'Could not record it. This one needs signal — nothing was saved.'
+      : t('Could not record it. This one needs signal — nothing was saved.')
   } finally {
     saving.value = false
   }
@@ -238,15 +240,15 @@ onMounted(async () => {
   <div class="wrap">
     <header class="head">
       <div>
-        <h1>Collections</h1>
-        <p class="dim">What you took, and what is still with you</p>
+        <h1>{{ t('Collections') }}</h1>
+        <p class="dim">{{ t('What you took, and what is still with you') }}</p>
       </div>
-      <button class="quiet" :disabled="loading" @click="load" aria-label="Refresh">
+      <button class="quiet" :disabled="loading" @click="load" :aria-label="t('Refresh')">
         <Icon name="refresh" size="18" />
       </button>
     </header>
 
-    <p v-if="loading" class="note">Loading…</p>
+    <p v-if="loading" class="note">{{ t('Loading…') }}</p>
     <p v-else-if="error" class="note crit">{{ error }}</p>
 
     <template v-else>
@@ -255,14 +257,19 @@ onMounted(async () => {
       <RouterLink to="/deposit" class="hand" :class="{ late: overdue }">
         <Icon name="tag" size="22" />
         <span class="body">
-          <b class="tnum">{{ formatRupees(carrying) }} with you</b>
+          <b class="tnum">
+            {{ t('{amount} with you', { amount: formatRupees(carrying) }) }}
+          </b>
           <em v-if="overdue">
-            Carrying it {{ inHand.oldest_days }} days — your manager is told
+            {{ t('Carrying it {days} days — your manager is told',
+                 { days: inHand.oldest_days }) }}
           </em>
           <em v-else-if="inHand?.count">
-            {{ inHand.count }} receipt{{ inHand.count === 1 ? '' : 's' }} to hand in
+            {{ inHand.count === 1
+                ? t('{n} receipt to hand in', { n: inHand.count })
+                : t('{n} receipts to hand in', { n: inHand.count }) }}
           </em>
-          <em v-else>Nothing to hand in right now</em>
+          <em v-else>{{ t('Nothing to hand in right now') }}</em>
         </span>
         <Icon name="chevron" size="18" class="go" />
       </RouterLink>
@@ -271,23 +278,23 @@ onMounted(async () => {
       <button v-if="!taking" class="take" @click="openTake">
         <Icon name="tag" size="20" />
         <span>
-          <b>Take from a depot</b>
-          <em>Money collected from a distributor, not a shop</em>
+          <b>{{ t('Take from a depot') }}</b>
+          <em>{{ t('Money collected from a distributor, not a shop') }}</em>
         </span>
       </button>
 
       <div v-else class="form">
         <div class="frow">
-          <h2>Take from a depot</h2>
-          <button class="quiet" @click="closeTake" aria-label="Close">
+          <h2>{{ t('Take from a depot') }}</h2>
+          <button class="quiet" @click="closeTake" :aria-label="t('Close')">
             <Icon name="close" size="20" />
           </button>
         </div>
 
         <label>
-          <span class="lbl">Which depot</span>
+          <span class="lbl">{{ t('Which depot') }}</span>
           <select v-model="form.distributor" :disabled="saving">
-            <option value="">Choose one</option>
+            <option value="">{{ t('Choose one') }}</option>
             <option v-for="d in depots" :key="d.distributor" :value="d.distributor">
               {{ d.distributor_name }}
             </option>
@@ -295,31 +302,34 @@ onMounted(async () => {
         </label>
 
         <label>
-          <span class="lbl">How much</span>
+          <span class="lbl">{{ t('How much') }}</span>
           <input v-model="form.amount" type="number" inputmode="decimal" min="0"
                  :disabled="saving" placeholder="0" />
         </label>
 
         <label>
-          <span class="lbl">How it was paid</span>
+          <span class="lbl">{{ t('How it was paid') }}</span>
           <select v-model="form.mode" :disabled="saving">
-            <option v-for="m in MODES" :key="m" :value="m">{{ m }}</option>
+            <!-- The value stays English; only what the rep reads goes through `t()`. -->
+            <option v-for="m in MODES" :key="m" :value="m">{{ t(m) }}</option>
           </select>
         </label>
 
         <!-- Anything but cash leaves a number on a slip, and a claim with no number on it is
              the first thing anybody disputes. -->
         <label v-if="needsReference">
-          <span class="lbl">{{ form.mode }} number</span>
+          <span class="lbl">{{ t('{mode} number', { mode: t(form.mode) }) }}</span>
           <input v-model="form.reference" type="text" :disabled="saving"
-                 placeholder="Cheque / UPI reference" />
+                 :placeholder="t('Cheque / UPI reference')" />
         </label>
 
         <!-- The date on the cheque, which is not today just because today is when it was
              handed over. A later date is a PDC: still recorded, still allocated, and not money
              until it falls due. -->
         <label v-if="isCheque">
-          <span class="lbl">Date on the {{ form.mode }}</span>
+          <span class="lbl">
+            {{ t('Date on the {mode}', { mode: t(form.mode) }) }}
+          </span>
           <input v-model="form.date" type="date" :disabled="saving" />
         </label>
 
@@ -327,13 +337,15 @@ onMounted(async () => {
              the only ones a receipt changes anything for. -->
         <label v-if="owing.length">
           <span class="lbl">
-            Against a booking <em class="opt">(optional)</em>
+            {{ t('Against a booking') }}
+            <em class="opt">{{ t('(optional)') }}</em>
           </span>
           <select v-model="form.booking" :disabled="saving">
-            <option value="">Not against a booking</option>
+            <option value="">{{ t('Not against a booking') }}</option>
             <option v-for="b in owing" :key="b.name" :value="b.name">
-              {{ b.customer }} · {{ b.season_name || b.season }} · short
-              {{ formatRupees(b.advance_short) }}
+              {{ b.customer }} · {{ b.season_name || b.season }} ·
+              {{ t('short {amount}',
+                   { amount: formatRupees(b.advance_short) }) }}
             </option>
           </select>
         </label>
@@ -342,49 +354,55 @@ onMounted(async () => {
              cannot fix and the party is waiting to be told. -->
         <p v-if="chosenBooking && willRelease === true" class="note good">
           <Icon name="check" size="18" />
-          <span>This releases the booking. It goes forward to be planned.</span>
+          <span>
+            {{ t('This releases the booking. It goes forward to be planned.') }}
+          </span>
         </p>
         <p v-else-if="chosenBooking && willRelease === false" class="note warn">
           <Icon name="alert" size="18" />
           <span v-if="isCheque && form.date">
-            A cheque dated later does not release the booking. It is recorded and held against it,
-            and the booking goes forward when the cheque falls due.
+            {{ t('A cheque dated later does not release the booking.') }}
+            {{ t('It is recorded and held against it, and the booking goes forward when the cheque falls due.') }}
           </span>
           <span v-else class="tnum">
-            This is less than the <b>{{ formatRupees(chosenBooking.advance_short) }}</b> still
-            due, so the booking stays held. Record it anyway &mdash; part of an advance counts.
+            {{ t('This is less than the') }}
+            <b>{{ formatRupees(chosenBooking.advance_short) }}</b>
+            {{ t('still due, so the booking stays held.') }}
+            {{ t('Record it anyway — part of an advance counts.') }}
           </span>
         </p>
 
         <label>
-          <span class="lbl">Who handed it over <em class="opt">(optional)</em></span>
-          <input v-model="form.from" type="text" :disabled="saving" placeholder="Name" />
+          <span class="lbl">
+            {{ t('Who handed it over') }} <em class="opt">{{ t('(optional)') }}</em>
+          </span>
+          <input v-model="form.from" type="text" :disabled="saving" :placeholder="t('Name')" />
         </label>
 
         <p v-if="saveError" class="note crit">{{ saveError }}</p>
 
         <p class="dim fine">
-          This money is ours. It reaches the books when somebody at the office confirms your
-          deposit — not now.
+          {{ t('This money is ours.') }}
+          {{ t('It reaches the books when somebody at the office confirms your deposit — not now.') }}
         </p>
 
         <button class="btn-primary" :disabled="!canSave || saving" @click="takeFromDepot">
-          {{ saving ? 'Saving…' : 'Record it' }}
+          {{ saving ? t('Saving…') : t('Record it') }}
         </button>
       </div>
 
       <template v-if="collections.length">
-        <div class="section"><h2>Recent receipts</h2></div>
+        <div class="section"><h2>{{ t('Recent receipts') }}</h2></div>
         <div v-for="c in collections" :key="c.name" class="row">
           <div class="left">
             <b>{{ c.party_name || c.outlet || c.distributor || c.party }}</b>
-            <span class="dim">{{ day(c.collection_date) }} · {{ c.mode }}
+            <span class="dim">{{ day(c.collection_date) }} · {{ t(c.mode) }}
               <template v-if="c.receipt_no"> · {{ c.receipt_no }}</template>
             </span>
           </div>
           <div class="right">
             <b class="tnum">{{ formatRupees(c.amount) }}</b>
-            <span class="pill" :class="TONE[c.status] || 'flat'">{{ c.status }}</span>
+            <span class="pill" :class="TONE[c.status] || 'flat'">{{ t(c.status) }}</span>
           </div>
         </div>
       </template>
@@ -393,13 +411,13 @@ onMounted(async () => {
 
       <div v-else class="empty">
         <Icon name="tag" size="34" />
-        <b>No collections yet</b>
-        <p class="dim">Take one at a shop and it will show up here.</p>
+        <b>{{ t('No collections yet') }}</b>
+        <p class="dim">{{ t('Take one at a shop and it will show up here.') }}</p>
       </div>
 
       <p class="dim fine">
-        Money taken at a shop belongs to that shop's distributor. You are carrying it, not
-        earning it — hand it in and it is off your name.
+        {{ t("Money taken at a shop belongs to that shop's distributor.") }}
+        {{ t('You are carrying it, not earning it — hand it in and it is off your name.') }}
       </p>
     </template>
   </div>

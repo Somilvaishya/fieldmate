@@ -6,13 +6,20 @@ import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
 import { pdcStatus } from '../lib/season'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
-const CHANNELS = [
-  { value: 'Cash Deposit Machine', label: 'Cash deposit machine', hint: 'CDM or recycler' },
-  { value: 'Bank Branch', label: 'Bank branch', hint: 'Over the counter' },
-  { value: 'Distributor Counter', label: 'Distributor counter', hint: 'Handed over at the depot' },
-  { value: 'Pickup Agent', label: 'Pickup agent', hint: 'Collected from you' },
-]
+// `computed`, so a language change redraws these with everything else. `value` stays English:
+// the server stores it and `channel === c.value` compares against it.
+const CHANNELS = computed(() => [
+  { value: 'Cash Deposit Machine', label: t('Cash deposit machine'), hint: t('CDM or recycler') },
+  { value: 'Bank Branch', label: t('Bank branch'), hint: t('Over the counter') },
+  {
+    value: 'Distributor Counter',
+    label: t('Distributor counter'),
+    hint: t('Handed over at the depot'),
+  },
+  { value: 'Pickup Agent', label: t('Pickup agent'), hint: t('Collected from you') },
+])
 
 const router = useRouter()
 
@@ -62,7 +69,7 @@ onMounted(async () => {
     // skipped.
     picked.value = new Set(rows.value.map((r) => r.name))
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not load what you are carrying.'
+    error.value = e instanceof ApiError ? e.message : t('Could not load what you are carrying.')
   } finally {
     loading.value = false
   }
@@ -87,7 +94,7 @@ async function submit() {
       device_id: await deviceUuid(),
     })
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not record the deposit.'
+    error.value = e instanceof ApiError ? e.message : t('Could not record the deposit.')
   } finally {
     busy.value = false
   }
@@ -98,35 +105,46 @@ async function submit() {
   <div v-if="done" class="wrap screen">
     <div class="top">
       <div class="card ok-card">
-        <p class="badge"><Icon name="check" size="22" /><span>Deposit declared</span></p>
+        <p class="badge">
+          <Icon name="check" size="22" /><span>{{ t('Deposit declared') }}</span>
+        </p>
         <b class="big tnum">{{ formatRupees(done.total_amount) }}</b>
         <p class="rec tnum">{{ done.reference_no }}</p>
         <!-- Honest about what has and has not happened. The rep saying where the money went is
              not the money arriving, and a screen that implies otherwise is the one thing that
              would make this control worthless. -->
         <p class="muted">
-          Your office will confirm it once the money shows up. Nothing is posted until then.
+          {{ t('Your office will confirm it once the money shows up.') }}
+          {{ t('Nothing is posted until then.') }}
         </p>
       </div>
     </div>
     <div class="bottom">
-      <button class="btn-primary" @click="router.replace('/today')">Done</button>
+      <button class="btn-primary" @click="router.replace('/today')">
+        {{ t('Done') }}
+      </button>
     </div>
   </div>
 
   <div v-else class="wrap screen">
 
-    <div v-if="loading" class="muted pad">Loading what you are carrying…</div>
+    <div v-if="loading" class="muted pad">{{ t('Loading what you are carrying…') }}</div>
 
     <div v-else-if="!rows.length" class="card pad">
-      <p><Icon name="check" size="18" /> You are not carrying anything.</p>
-      <p class="muted">Every collection you have taken is already in a deposit.</p>
+      <p><Icon name="check" size="18" /> {{ t('You are not carrying anything.') }}</p>
+      <p class="muted">
+        {{ t('Every collection you have taken is already in a deposit.') }}
+      </p>
     </div>
 
     <template v-else>
       <div class="head">
-        <h1>Hand in the money</h1>
-        <p class="muted tnum">{{ rows.length }} collection{{ rows.length > 1 ? 's' : '' }} in hand</p>
+        <h1>{{ t('Hand in the money') }}</h1>
+        <p class="muted tnum">
+          {{ rows.length === 1
+              ? t('{n} collection in hand', { n: rows.length })
+              : t('{n} collections in hand', { n: rows.length }) }}
+        </p>
       </div>
 
       <!-- Named, not merely flagged. "You have been carrying money since Tuesday" is something a
@@ -134,24 +152,39 @@ async function submit() {
       <div v-if="inHand.is_overdue" class="card warn-card">
         <p class="wtitle">
           <Icon name="alert" size="20" />
-          <span>You have been carrying money for {{ inHand.oldest_days }} days.</span>
+          <span>
+            {{ t('You have been carrying money for {n} days.',
+                 { n: inHand.oldest_days }) }}
+          </span>
         </p>
-        <p class="small">Anything over {{ inHand.threshold_days }} days is reported to your manager.</p>
+        <p class="small">
+          {{ t('Anything over {n} days is reported to your manager.',
+               { n: inHand.threshold_days }) }}
+        </p>
       </div>
 
       <div class="card tiles tnum">
-        <div><span class="label">Cash</span><b>{{ formatRupees(inHand.cash_amount) }}</b></div>
-        <div><span class="label">Cheques</span><b>{{ formatRupees(inHand.cheque_amount) }}</b></div>
+        <div>
+          <span class="label">{{ t('Cash') }}</span>
+          <b>{{ formatRupees(inHand.cash_amount) }}</b>
+        </div>
+        <div>
+          <span class="label">{{ t('Cheques') }}</span>
+          <b>{{ formatRupees(inHand.cheque_amount) }}</b>
+        </div>
         <!-- Part of the cheque figure beside it, not on top: the money is in the envelope
              either way, it simply will not clear until its date. -->
         <div v-if="inHand.pdc_amount">
-          <span class="label">Post-dated</span>
+          <span class="label">{{ t('Post-dated') }}</span>
           <b class="late">{{ formatRupees(inHand.pdc_amount) }}</b>
         </div>
-        <div><span class="label">In hand</span><b>{{ formatRupees(inHand.total_amount) }}</b></div>
+        <div>
+          <span class="label">{{ t('In hand') }}</span>
+          <b>{{ formatRupees(inHand.total_amount) }}</b>
+        </div>
       </div>
 
-      <h2 class="shead">What is in this deposit</h2>
+      <h2 class="shead">{{ t('What is in this deposit') }}</h2>
       <article v-for="row in rows" :key="row.name"
                class="row" :class="{ on: picked.has(row.name) }" @click="toggle(row)">
         <span class="box" :class="{ ticked: picked.has(row.name) }">
@@ -168,13 +201,13 @@ async function submit() {
                these one at a time and this is the one they must not read as cash. -->
           <span v-if="pdc(row).isPdc" class="pdc tnum">
             <Icon name="timer" size="14" />
-            Dated {{ pdc(row).dueOn }} — not bankable yet
+            {{ t('Dated {date} — not bankable yet', { date: pdc(row).dueOn }) }}
           </span>
         </div>
         <b class="tnum amt">{{ formatRupees(row.amount) }}</b>
       </article>
 
-      <h2 class="shead">Where did it go?</h2>
+      <h2 class="shead">{{ t('Where did it go?') }}</h2>
       <button v-for="c in CHANNELS" :key="c.value" type="button"
               class="chan" :class="{ on: channel === c.value }" @click="channel = c.value">
         <span>
@@ -185,20 +218,20 @@ async function submit() {
       </button>
 
       <div class="card">
-        <label class="label" for="ref">Slip or transaction number</label>
+        <label class="label" for="ref">{{ t('Slip or transaction number') }}</label>
         <input id="ref" v-model="referenceNo" placeholder="CDM-8849201" />
         <p class="muted small">
           <Icon name="info" size="15" />
-          Without it, a declared deposit is something nobody can check.
+          {{ t('Without it, a declared deposit is something nobody can check.') }}
         </p>
-        <label class="label" for="where">Branch or machine</label>
-        <input id="where" v-model="depositedAt" placeholder="SBI Main Market CDM #02" />
+        <label class="label" for="where">{{ t('Branch or machine') }}</label>
+        <input id="where" v-model="depositedAt" :placeholder="t('SBI Main Market CDM #02')" />
       </div>
 
       <div v-if="bankable.length" class="card">
-        <span class="label">Cheques in the envelope</span>
+        <span class="label">{{ t('Cheques in the envelope') }}</span>
         <div v-for="c in bankable" :key="c.name" class="chq tnum">
-          <span>{{ c.instrument_no || 'no number' }} · {{ c.party }}</span>
+          <span>{{ c.instrument_no || t('no number') }} · {{ c.party }}</span>
           <b>{{ formatRupees(c.amount) }}</b>
         </div>
       </div>
@@ -207,18 +240,18 @@ async function submit() {
            office holds them - and a rep who hands one over believing it is money will tell a
            party their booking is released when it is not. -->
       <div v-if="pdcs.length" class="card late-card">
-        <span class="label">Post-dated cheques</span>
+        <span class="label">{{ t('Post-dated cheques') }}</span>
         <div v-for="c in pdcs" :key="c.name" class="chq tnum">
           <span>
-            {{ c.instrument_no || 'no number' }} · {{ c.party }}
-            <em>due {{ c.instrument_date }}</em>
+            {{ c.instrument_no || t('no number') }} · {{ c.party }}
+            <em>{{ t('due {date}', { date: c.instrument_date }) }}</em>
           </span>
           <b>{{ formatRupees(c.amount) }}</b>
         </div>
         <p class="small">
           <Icon name="info" size="15" />
-          Hand these in with the rest. The office holds each one until its date — nothing clears,
-          and no booking is released, before then.
+          {{ t('Hand these in with the rest.') }}
+          {{ t('The office holds each one until its date — nothing clears, and no booking is released, before then.') }}
         </p>
       </div>
 
@@ -226,14 +259,19 @@ async function submit() {
 
       <div class="bottom">
         <p class="muted note tnum">
-          Declaring {{ formatRupees(selectedTotal) }} ·
-          {{ cash.length }} cash, {{ cheques.length }} cheque{{ cheques.length === 1 ? '' : 's' }}
+          {{ t('Declaring {amount}', { amount: formatRupees(selectedTotal) }) }} ·
+          {{ cheques.length === 1
+              ? t('{cash} cash, {n} cheque', { cash: cash.length, n: cheques.length })
+              : t('{cash} cash, {n} cheques', { cash: cash.length, n: cheques.length }) }}
           <template v-if="pdcTotal">
-            <br />of which {{ formatRupees(pdcTotal) }} is post-dated and will not clear yet
+            <br />{{ t('of which {amount} is post-dated and will not clear yet',
+                       { amount: formatRupees(pdcTotal) }) }}
           </template>
         </p>
         <button class="btn-primary" :disabled="busy || !ready" @click="submit">
-          {{ busy ? 'Recording…' : 'Declare ' + formatRupees(selectedTotal) }}
+          {{ busy
+              ? t('Recording…')
+              : t('Declare {amount}', { amount: formatRupees(selectedTotal) }) }}
         </button>
       </div>
     </template>
