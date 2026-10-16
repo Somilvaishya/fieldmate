@@ -20,6 +20,7 @@
  */
 
 import { PERCENT_DENOMINATOR, round_half_up_div } from '../scheme/engine'
+import { t } from './i18n'
 
 /** The kind a season order carries. Same string as `settings.BOOKING`, which is the field's value. */
 export const BOOKING = 'Booking'
@@ -154,7 +155,7 @@ export function seasonLabel(season) {
  */
 export function changeNote(season) {
   if (!season || season.may_change !== false) return ''
-  return season.change_note || 'This season is closed for changes.'
+  return season.change_note || t('This season is closed for changes.')
 }
 
 // ---------------------------------------------------------------------------------------- PDC
@@ -175,6 +176,6 @@ export function pdcStatus(row) {
   return {
     isPdc: true,
     dueOn: (row && row.instrument_date) || null,
-    words: 'Post-dated — the office holds it until it falls due',
+    words: t('Post-dated — the office holds it until it falls due'),
   }
 }

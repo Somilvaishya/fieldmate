@@ -35,6 +35,8 @@ import { formatPaise } from './money'
 // S9: the kinds that come off the bill. `Free Goods` is not among them - it ships at zero in
 // addition to the order - and neither is `Incentive`, which is the rep's money and was never the
 // shopkeeper's. DESIGN.md UX requirement 11 turns on this distinction holding everywhere.
+import { t } from './i18n'
+
 const DISCOUNT_KINDS = ['Percent Discount', 'Value Discount', 'Rate Off']
 
 /**
@@ -120,25 +122,33 @@ export function benefitWords(benefit, spec, ctx = {}) {
   const kind = benefit?.kind
   const currency = ctx.currency
 
+  // The kinds themselves stay in English - they are what the engine compares against.
   if (kind === 'Percent Discount') {
-    return `${percentWords(benefit.pct_bp)} off`
+    return t('{pct} off', { pct: percentWords(benefit.pct_bp) })
   }
   if (kind === 'Value Discount') {
-    return `${moneyLabel(benefit.amount_paise, currency)} off`
+    return t('{amount} off', { amount: moneyLabel(benefit.amount_paise, currency) })
   }
   if (kind === 'Rate Off') {
-    const each = ctx.base_uom ? ` each ${ctx.base_uom}` : ' per unit'
-    return `${moneyLabel(benefit.amount_paise, currency)} off${benefit.per === 'Unit' ? each : ''}`
+    const amount = moneyLabel(benefit.amount_paise, currency)
+    if (benefit.per !== 'Unit') return t('{amount} off', { amount })
+    return ctx.base_uom
+      ? t('{amount} off each {uom}', { amount, uom: ctx.base_uom })
+      : t('{amount} off per unit', { amount })
   }
   if (kind === 'Free Goods') {
     const name = ctx.nameFor ? ctx.nameFor(benefit.item) : benefit.item
     const qty = Number(benefit.qty) || 0
-    return `${qtyWords(qty, ctx.freeUomFor ? ctx.freeUomFor(benefit.item) : null)} ${name} free`.replace(/\s+/g, ' ')
+    return t('{qty} {item} free', {
+      qty: qtyWords(qty, ctx.freeUomFor ? ctx.freeUomFor(benefit.item) : null),
+      item: name,
+    }).replace(/\s+/g, ' ')
   }
   if (kind === 'Incentive') {
     // Marked as the rep's own wherever it appears. A shopkeeper told they were given the rep's
     // incentive is an argument at month-end, and the engine keeps the two apart for that reason.
-    return `${moneyLabel(benefit.amount_paise, currency)} incentive for you`
+    return t('{amount} incentive for you',
+             { amount: moneyLabel(benefit.amount_paise, currency) })
   }
   // A kind this build has never heard of. The engine leaves it out of every total rather than
   // guessing, so there is nothing truthful to say about it here either.
@@ -171,7 +181,8 @@ export function schemeBadge(spec, ctx = {}) {
 
   const floor = Number(first.from) || 0
   if (floor <= 0) return benefits
-  return `${benefits} on ${thresholdWords(spec, first, ctx)}+`
+  return t('{benefits} on {threshold}+',
+           { benefits, threshold: thresholdWords(spec, first, ctx) })
 }
 
 /**
@@ -189,7 +200,7 @@ export function appliedWords(entry, spec, ctx = {}) {
 
   const benefits = slab ? slabWords(spec, slab, ctx) : null
   if (!benefits) return spec?.rep_pitch || entry?.scheme_name || null
-  return `${measure} in the order → ${benefits}`
+  return t('{measure} in the order → {benefits}', { measure, benefits })
 }
 
 /** What comes off this bill because of one scheme. Free stock and the rep's incentive are not it. */
@@ -300,17 +311,28 @@ export function planNudge(miss, spec, lines) {
 
 /** Why a scheme was taken away, in a rep's words rather than an enum. */
 export function droppedWords(reason) {
-  if (reason === 'BUDGET_EXHAUSTED') return 'This offer has run out of budget for the month.'
-  if (reason === 'EXCLUSIVE_OVERLAP') return 'A better offer on the same items is being applied instead.'
-  if (reason === 'BEST_OF_GROUP') return 'Another offer in the same group pays this shop more.'
-  return 'This offer is not being applied to this order.'
+  if (reason === 'BUDGET_EXHAUSTED') {
+    return t('This offer has run out of budget for the month.')
+  }
+  if (reason === 'EXCLUSIVE_OVERLAP') {
+    return t('A better offer on the same items is being applied instead.')
+  }
+  if (reason === 'BEST_OF_GROUP') {
+    return t('Another offer in the same group pays this shop more.')
+  }
+  return t('This offer is not being applied to this order.')
 }
 
 /** The engine's own complaints about a cart, said out loud rather than swallowed. */
 export function totalErrorWords(code) {
   if (code === 'NEGATIVE_NET') {
-    return 'The offers on this order come to more than the order itself. It has been held at zero — ' +
-      'show this to your manager before you promise it.'
+    return [
+      t('The offers on this order come to more than the order itself.'),
+      t('It has been held at zero — show this to your manager before you promise it.'),
+    ].join(' ')
   }
-  return 'Something in the offers on this order does not add up. Show it to your manager before you promise it.'
+  return [
+    t('Something in the offers on this order does not add up.'),
+    t('Show it to your manager before you promise it.'),
+  ].join(' ')
 }

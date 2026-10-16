@@ -98,11 +98,25 @@ describe('the catalogue keeps up with the screens', () => {
   }
 
   const SCREENS = join(__dirname, '..', 'src', 'screens')
+  const SRC = join(__dirname, '..', 'src')
 
-  it('has Hindi for everything the converted screens ask for', () => {
-    const converted = readdirSync(SCREENS)
-      .map((name) => join(SCREENS, name))
-      .filter((file) => readFileSync(file, 'utf8').includes("from '../lib/i18n'"))
+  /** Every .js and .vue under src, so the shared libs are covered too. */
+  function sources(dir = SRC) {
+    const out = []
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) out.push(...sources(full))
+      else if (/\.(js|vue)$/.test(entry.name) && entry.name !== 'i18n.js') out.push(full)
+    }
+    return out
+  }
+
+  it('has Hindi for everything the converted files ask for', () => {
+    // All of src, not just the screens. Four order screens read their scheme wording out of
+    // `lib/schemeWords.js`, so a sentence with no Hindi in there would have been invisible to
+    // the one test whose whole job is to notice that.
+    const converted = sources().filter((file) =>
+      /from '[^']*i18n'/.test(readFileSync(file, 'utf8')))
 
     expect(converted.length).toBeGreaterThan(0)
 
@@ -113,21 +127,36 @@ describe('the catalogue keeps up with the screens', () => {
     expect(missing(asked, 'hi')).toEqual([])
   })
 
-  it('imports t() on every screen that calls it', () => {
+  it('imports t() everywhere under src that calls it', () => {
     // `Login.vue` did not. It imported `startLanguage` alone and called `t()` on the offline
     // sign-in error path, so the one message a rep needs when the first sign-in fails with no
     // signal raised `t is not defined` instead - a ReferenceError inside a catch block, which
     // is where nothing ever looks.
+    //
+    // Walks all of `src`, not just the screens. The first version of this guard looked at
+    // `src/screens` alone, and `lib/credit.js` and `lib/season.js` then picked up `t()` calls
+    // with no import and it said nothing - the same fault, in the one place not being watched.
+    // The libs matter more, not less: four order screens read their scheme wording out of
+    // `lib/schemeWords.js`.
     const broken = []
-    for (const name of readdirSync(SCREENS)) {
-      const source = readFileSync(join(SCREENS, name), 'utf8')
-      // `t(` preceded by a word character or a dot is somebody else's `t` - a loop variable,
-      // a property. Only a bare call counts.
-      if (!/(?<![\w.$])t\(\s*['"]/.test(source)) continue
-      const imported = source.match(/import\s*\{([^}]*)\}\s*from\s*'\.\.\/lib\/i18n'/)
-      const named = imported ? imported[1].split(',').map((x) => x.trim()) : []
-      if (!named.includes('t')) broken.push(name)
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(full)
+          continue
+        }
+        if (!/\.(js|vue)$/.test(entry.name) || entry.name === 'i18n.js') continue
+        const source = readFileSync(full, 'utf8')
+        // `t(` preceded by a word character or a dot is somebody else's `t` - a loop variable,
+        // a property. Only a bare call counts.
+        if (!/(?<![\w.$])t\(\s*['"]/.test(source)) continue
+        const imported = source.match(/import\s*\{([^}]*)\}\s*from\s*'[^']*i18n'/)
+        const named = imported ? imported[1].split(',').map((x) => x.trim()) : []
+        if (!named.includes('t')) broken.push(full.slice(SRC.length + 1))
+      }
     }
+    walk(SRC)
     expect(broken).toEqual([])
   })
 
@@ -220,8 +249,7 @@ describe('the catalogue keeps up with the screens', () => {
   it('carries no Hindi for a sentence no screen says', () => {
     // Not a failure, a report: a catalogue that only grows becomes a list nobody trusts. These
     // are the ones to look at when a screen's wording changes.
-    const all = readdirSync(SCREENS).map((name) => join(SCREENS, name))
-    const asked = new Set(all.flatMap(translatedStrings))
+    const asked = new Set(sources().flatMap(translatedStrings))
     const unused = Object.keys(hi).filter((key) => !asked.has(key))
     // The slice deliberately carries a few sentences for screens not yet converted.
     expect(unused.length).toBeLessThan(Object.keys(hi).length)

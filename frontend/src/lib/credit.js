@@ -28,6 +28,7 @@ import { ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import { getMeta, setMeta } from '../db'
 import { toPaise } from './money'
+import { t } from './i18n'
 
 /** The reading for the outlet currently open. Screens read this directly. */
 export const credit = ref(null)
@@ -145,7 +146,8 @@ export function assessCredit(reading, orderPaise = 0) {
       shop_headroom_paise: reading.shop_headroom_paise,
       shop_has_limit: reading.shop_has_limit,
       // Named. "This shop" was the one party the figure was never about.
-      headline: `No credit limit set for ${reading.party_name || 'this distributor'}`,
+      headline: t('No credit limit set for {party}',
+                   { party: reading.party_name || t('this distributor') }),
     }
   }
 
