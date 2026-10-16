@@ -15,6 +15,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getMeta } from '../db'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const boot = ref(null)
 const loading = ref(true)
@@ -38,9 +39,13 @@ const enabled = computed(() => {
 function termsFor(party) {
   const bits = []
   if (party.credit_days !== null && party.credit_days !== undefined) {
-    bits.push(party.credit_days === 0 ? 'Payable on delivery' : `${party.credit_days} day terms`)
+    bits.push(party.credit_days === 0
+      ? t('Payable on delivery')
+      : t('{n} day terms', { n: party.credit_days }))
   }
-  if (party.delivery_days) bits.push(`dispatches in ${party.delivery_days}`)
+  if (party.delivery_days) {
+    bits.push(t('dispatches in {n}', { n: party.delivery_days }))
+  }
   return bits.join(' · ')
 }
 </script>
@@ -48,20 +53,23 @@ function termsFor(party) {
 <template>
   <div class="screen">
     <header class="head">
-      <h1>Order on a distributor</h1>
-      <p class="sub">A sale we invoice ourselves, not one the distributor bills a shop for.</p>
+      <h1>{{ t('Order on a distributor') }}</h1>
+      <p class="sub">
+        {{ t('A sale we invoice ourselves, not one the distributor bills a shop for.') }}
+      </p>
     </header>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <p v-if="loading" class="muted">{{ t('Loading…') }}</p>
 
     <!-- Switched off is a setting, not a failure, so it says which and who can change it. -->
     <p v-else-if="!enabled" class="notice">
-      This company does not book primary sales. Ask your manager if that is wrong.
+      {{ t('This company does not book primary sales.') }}
+      {{ t('Ask your manager if that is wrong.') }}
     </p>
 
     <p v-else-if="!parties.length" class="notice">
-      No distributor is set up against your territory yet, so there is nobody here to order on.
-      Ask your manager.
+      {{ t('No distributor is set up against your territory yet, so there is nobody here to order on.') }}
+      {{ t('Ask your manager.') }}
     </p>
 
     <ul v-else class="list">

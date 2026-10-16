@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const data = ref(null)
 const actual = ref(null)
@@ -115,7 +116,7 @@ async function load() {
   } catch (e) {
     error.value = e instanceof ApiError
       ? e.message
-      : 'Could not load your numbers. They are on the server, not on this phone, so this needs signal.'
+      : t('Could not load your numbers. They are on the server, not on this phone, so this needs signal.')
   } finally {
     loading.value = false
   }
@@ -128,29 +129,33 @@ onMounted(load)
   <div class="wrap">
 
     <header class="head">
-      <h1>My performance</h1>
+      <h1>{{ t('My performance') }}</h1>
       <p v-if="targets.plan_name" class="sub">
-        {{ targets.plan_name }} · {{ targets.days_left }} days left
+        {{ targets.plan_name }} ·
+        {{ t('{n} days left', { n: targets.days_left }) }}
       </p>
     </header>
 
-    <p v-if="loading" class="note">Loading…</p>
+    <p v-if="loading" class="note">{{ t('Loading…') }}</p>
     <p v-else-if="error" class="note crit">{{ error }}</p>
 
     <template v-else-if="!targets.has_target">
       <div class="empty">
         <Icon name="target" />
-        <p>No target has been set for you this month.</p>
-        <p class="dim">Your manager sets these. Nothing you do on the phone changes it.</p>
+        <p>{{ t('No target has been set for you this month.') }}</p>
+        <p class="dim">
+          {{ t('Your manager sets these. Nothing you do on the phone changes it.') }}
+        </p>
       </div>
     </template>
 
     <template v-else>
       <!-- The headline -->
       <section v-if="headline" class="card">
-        <div class="label">Monthly target</div>
+        <div class="label">{{ t('Monthly target') }}</div>
         <div class="big tnum">
-          {{ show(headline) }} <span class="of">of {{ showTarget(headline) }}</span>
+          {{ show(headline) }}
+          <span class="of">{{ t('of {target}', { target: showTarget(headline) }) }}</span>
           <span class="pct" :class="tone(headline.achievement_pct)">
             {{ Math.round(headline.achievement_pct) }}%
           </span>
@@ -159,26 +164,45 @@ onMounted(load)
         <div v-if="headline.per_day_needed" class="need">
           <Icon name="trend" />
           <span>
-            Needed: <b class="tnum">{{ formatRupees(headline.per_day_needed) }} / day</b>
-            to get there
+            {{ t('Needed:') }}
+            <b class="tnum">
+              {{ t('{amount} / day', { amount: formatRupees(headline.per_day_needed) }) }}
+            </b>
+            {{ t('to get there') }}
           </span>
         </div>
         <!-- Phase 8: what has actually been happening per day, beside what needs to.
              A rep ahead of the required rate is on track whatever today's percentage says. -->
         <div v-if="runRate && runRate.current" class="rate" :class="{ ok: runRate.onTrack }">
-          <span>Doing <b class="tnum">{{ formatRupees(runRate.current) }} / day</b> so far</span>
-          <span v-if="runRate.onTrack">On course to close at {{ lakhs(runRate.projection) }}</span>
-          <span v-else>At this rate, {{ lakhs(runRate.projection) }} by month end</span>
+          <span>
+            {{ t('Doing') }}
+            <b class="tnum">
+              {{ t('{amount} / day', { amount: formatRupees(runRate.current) }) }}
+            </b>
+            {{ t('so far') }}
+          </span>
+          <span v-if="runRate.onTrack">
+            {{ t('On course to close at {amount}',
+                 { amount: lakhs(runRate.projection) }) }}
+          </span>
+          <span v-else>
+            {{ t('At this rate, {amount} by month end',
+                 { amount: lakhs(runRate.projection) }) }}
+          </span>
         </div>
         <div v-else-if="headline.achievement_pct >= 100" class="need ok">
-          <Icon name="check" /><span>Target met. Everything from here is on top.</span>
+          <Icon name="check" />
+          <span>{{ t('Target met. Everything from here is on top.') }}</span>
         </div>
       </section>
 
       <!-- Incentive -->
       <section v-if="incentive.measured && incentive.schemes.length" class="card money">
         <div class="row">
-          <div class="big tnum">On track for {{ formatRupees(incentive.total) }}</div>
+          <div class="big tnum">
+            {{ t('On track for {amount}',
+                 { amount: formatRupees(incentive.total) }) }}
+          </div>
           <span v-if="incentive.schemes[0].slab_label" class="tier">
             {{ incentive.schemes[0].slab_label }}
           </span>
@@ -186,25 +210,31 @@ onMounted(load)
         <div v-for="s in incentive.schemes" :key="s.scheme" class="slab">
           <div v-if="s.next" class="next">
             <span>
-              Hit <b>{{ s.next.from_pct }}%</b> to earn
+              {{ t('Hit') }} <b>{{ s.next.from_pct }}%</b> {{ t('to earn') }}
               <b>{{ s.next.payout_kind === 'Fixed Amount'
                     ? formatRupees(s.next.payout_amount)
-                    : s.next.payout_pct + '% of value' }}</b>
+                    : t('{pct}% of value', { pct: s.next.payout_pct }) }}</b>
             </span>
-            <span class="dim">{{ s.next.gap_pct }}% to the next slab</span>
+            <span class="dim">
+              {{ t('{pct}% to the next slab', { pct: s.next.gap_pct }) }}
+            </span>
           </div>
-          <div v-else class="next"><span class="dim">Top slab. Nothing above this one.</span></div>
+          <div v-else class="next"><span class="dim">{{ t('Top slab. Nothing above this one.') }}</span></div>
         </div>
         <!-- Said plainly, because it is computed from a figure that moves again tonight. -->
-        <p class="dim fine">Worked out from last night's figures. Not a promise.</p>
+        <p class="dim fine">
+          {{ t("Worked out from last night's figures. Not a promise.") }}
+        </p>
       </section>
 
       <!-- The four -->
       <section v-if="tiles.length" class="grid">
         <div v-for="tile in tiles" :key="tile.target_type" class="tile">
-          <div class="label">{{ tile.target_type }}</div>
+          <div class="label">{{ t(tile.target_type) }}</div>
           <div class="num tnum">{{ Math.round(tile.achievement_pct) }}%</div>
-          <div class="dim">{{ show(tile) }} of {{ showTarget(tile) }}</div>
+          <div class="dim">
+            {{ show(tile) }} {{ t('of {target}', { target: showTarget(tile) }) }}
+          </div>
           <div class="bar thin"><i :style="{ width: width(tile.achievement_pct) }"></i></div>
         </div>
       </section>
@@ -213,32 +243,46 @@ onMounted(load)
            target. These have no target beside them on purpose - a rep is measured on them,
            not asked for them, and inventing a goal for each would be inventing six. -->
       <section v-if="measured.length" class="card">
-        <div class="row"><h2>How the month is going</h2><span class="dim">measured</span></div>
+        <div class="row">
+          <h2>{{ t('How the month is going') }}</h2>
+          <span class="dim">{{ t('measured') }}</span>
+        </div>
         <div class="nine">
           <div v-for="m in measured" :key="m.key" class="cell">
-            <div class="dim">{{ m.label }}</div>
+            <!-- The label comes from the server with the metric; `t()` hands back what it
+                 does not recognise, and the KPI labels have Hindi on that side. -->
+            <div class="dim">{{ t(m.label) }}</div>
             <div class="num tnum">{{ measuredValue(m) }}</div>
             <!-- The base always travels with the ratio. 0% over no calls and 0% over twelve
                  are not the same fact, and a number on its own cannot say which. -->
             <div v-if="m.of" class="dim">
-              {{ Math.round(m.got) }} of {{ Math.round(m.of) }}
+              {{ t('{got} of {of}',
+                   { got: Math.round(m.got), of: Math.round(m.of) }) }}
             </div>
           </div>
         </div>
         <p v-if="actual?.totals" class="dim fine">
-          {{ actual.totals.days_worked }} day<span v-if="actual.totals.days_worked !== 1">s</span>
-          in the field this month.
+          {{ actual.totals.days_worked === 1
+              ? t('{n} day in the field this month.',
+                  { n: actual.totals.days_worked })
+              : t('{n} days in the field this month.',
+                  { n: actual.totals.days_worked }) }}
         </p>
       </section>
 
       <!-- Category breakdown -->
       <section v-if="categories.length" class="card">
-        <div class="row"><h2>By category</h2><span class="dim">Achieved</span></div>
+        <div class="row">
+          <h2>{{ t('By category') }}</h2>
+          <span class="dim">{{ t('Achieved') }}</span>
+        </div>
         <div v-for="c in categories" :key="c.target_type + c.item_group + c.brand" class="cat">
           <div class="row">
             <span class="strong">{{ c.item_group || c.brand }}</span>
-            <span class="tnum">{{ show(c) }} of {{ showTarget(c) }}
-              ({{ Math.round(c.achievement_pct) }}%)</span>
+            <span class="tnum">
+              {{ show(c) }} {{ t('of {target}', { target: showTarget(c) }) }}
+              ({{ Math.round(c.achievement_pct) }}%)
+            </span>
           </div>
           <div class="bar thin" :class="tone(c.achievement_pct)">
             <i :style="{ width: width(c.achievement_pct) }"></i>
@@ -247,13 +291,14 @@ onMounted(load)
       </section>
 
       <p v-if="targets.computed_on" class="note dim">
-        Counted {{ targets.computed_on.slice(0, 16).replace('T', ' ') }}.
-        Today's orders appear tomorrow.
+        {{ t('Counted {when}.',
+             { when: targets.computed_on.slice(0, 16).replace('T', ' ') }) }}
+        {{ t("Today's orders appear tomorrow.") }}
       </p>
     </template>
 
     <RouterLink to="/expense" class="btn-primary flat">
-      <Icon name="receipt" /> Claim expenses
+      <Icon name="receipt" /> {{ t('Claim expenses') }}
     </RouterLink>
   </div>
 </template>

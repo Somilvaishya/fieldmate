@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,7 +56,7 @@ onMounted(async () => {
       unit: 'display',
     }))
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not load the product list.'
+    error.value = e instanceof ApiError ? e.message : t('Could not load the product list.')
   } finally {
     loading.value = false
   }
@@ -109,7 +110,7 @@ async function save() {
     })
     saved.value = result
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not save the count.'
+    error.value = e instanceof ApiError ? e.message : t('Could not save the count.')
   } finally {
     busy.value = false
   }
@@ -125,27 +126,35 @@ function done() {
   <div v-if="saved" class="wrap screen">
     <div class="top">
       <div class="card ok-card">
-        <p class="badge"><Icon name="check" size="22" /><span>Stock saved</span></p>
-        <b class="big tnum">{{ saved.counted_lines }} of {{ saved.total_lines }} counted</b>
-        <p v-if="saved.is_partial" class="muted">
-          Saved with {{ saved.total_lines - saved.counted_lines }} products not counted. That is
-          fine — a partial count is worth more than none.
+        <p class="badge">
+          <Icon name="check" size="22" /><span>{{ t('Stock saved') }}</span>
         </p>
-        <p v-else class="muted">Every product on the list was counted.</p>
+        <b class="big tnum">
+          {{ t('{counted} of {total} counted',
+               { counted: saved.counted_lines, total: saved.total_lines }) }}
+        </b>
+        <p v-if="saved.is_partial" class="muted">
+          {{ t('Saved with {n} products not counted.',
+               { n: saved.total_lines - saved.counted_lines }) }}
+          {{ t('That is fine — a partial count is worth more than none.') }}
+        </p>
+        <p v-else class="muted">{{ t('Every product on the list was counted.') }}</p>
       </div>
     </div>
     <div class="bottom">
-      <button class="btn-primary" @click="done">Done</button>
+      <button class="btn-primary" @click="done">{{ t('Done') }}</button>
     </div>
   </div>
 
   <div v-else class="wrap screen">
 
-    <div v-if="loading" class="muted pad">Loading the product list…</div>
+    <div v-if="loading" class="muted pad">{{ t('Loading the product list…') }}</div>
 
     <div v-else-if="!rows.length" class="card pad">
-      <p><Icon name="alert" size="18" /> No products listed for this shop yet.</p>
-      <p class="muted">Ask your manager to set up the catalogue for it.</p>
+      <p>
+        <Icon name="alert" size="18" /> {{ t('No products listed for this shop yet.') }}
+      </p>
+      <p class="muted">{{ t('Ask your manager to set up the catalogue for it.') }}</p>
     </div>
 
     <template v-else>
@@ -153,34 +162,44 @@ function done() {
         <h1>{{ sheet.outlet_name }}</h1>
         <p class="muted tnum">
           <Icon name="clock" size="16" />
-          <span v-if="sheet.days_since != null">Last counted {{ sheet.days_since }} days ago</span>
-          <span v-else>First stock check here</span>
+          <span v-if="sheet.days_since != null">
+            {{ t('Last counted {n} days ago', { n: sheet.days_since }) }}
+          </span>
+          <span v-else>{{ t('First stock check here') }}</span>
         </p>
       </div>
 
       <!-- Pinned, because it is the only thing telling him how much is left while he scrolls. -->
       <div class="progress">
         <div class="pline tnum">
-          <b>{{ counted }} of {{ rows.length }} products counted</b>
+          <b>{{ t('{counted} of {total} products counted',
+                 { counted, total: rows.length }) }}</b>
           <span :class="pct === 100 ? 'ok' : 'muted'">{{ pct }}%</span>
         </div>
         <div class="track"><span class="fill" :style="{ width: pct + '%' }"></span></div>
-        <input v-model="search" class="find" placeholder="Search SKU code or name" />
+        <input v-model="search" class="find" :placeholder="t('Search SKU code or name')" />
       </div>
 
       <section v-for="group in groups" :key="group.name" class="group">
         <h2 class="ghead">
           <span>{{ group.name }}</span>
-          <span class="muted tnum">{{ group.counted }} of {{ group.items.length }}</span>
+          <span class="muted tnum">
+            {{ t('{counted} of {total}',
+                 { counted: group.counted, total: group.items.length }) }}
+          </span>
         </h2>
 
         <article v-for="row in group.items" :key="row.item_code"
                  class="row" :class="{ done: row.is_counted }">
           <div class="rtop">
             <span class="code">{{ row.item_code }}</span>
-            <span class="muted tnum">{{ row.conversion_factor }} per case</span>
-            <span v-if="row.is_counted && !row.qty_display" class="chip crit">Out of stock</span>
-            <span v-if="row.is_must_sell" class="chip">Must sell</span>
+            <span class="muted tnum">
+              {{ t('{n} per case', { n: row.conversion_factor }) }}
+            </span>
+            <span v-if="row.is_counted && !row.qty_display" class="chip crit">
+              {{ t('Out of stock') }}
+            </span>
+            <span v-if="row.is_must_sell" class="chip">{{ t('Must sell') }}</span>
           </div>
           <h3>{{ row.item_name }}</h3>
 
@@ -192,24 +211,28 @@ function done() {
               inputmode="numeric"
               min="0"
               :value="row.qty_display"
-              :placeholder="'Enter count'"
+              :placeholder="t('Enter count')"
               @input="setQty(row, $event.target.value)"
             />
-            <div class="units" role="group" :aria-label="'Unit for ' + row.item_name">
+            <div class="units" role="group" :aria-label="t('Unit for {item}', { item: row.item_name })">
               <button type="button" :class="{ on: row.unit === 'display' }"
-                      @click="row.unit = 'display'">Cases</button>
+                      @click="row.unit = 'display'">{{ t('Cases') }}</button>
               <button type="button" :class="{ on: row.unit === 'base' }"
-                      @click="row.unit = 'base'">Pcs</button>
+                      @click="row.unit = 'base'">{{ t('Pcs') }}</button>
             </div>
           </div>
 
           <div class="rfoot">
             <span class="muted tnum">
-              <template v-if="row.has_history">Last visit: {{ row.last_display_qty ?? row.last_qty }} {{ row.last_uom }}</template>
-              <template v-else>Never counted here</template>
+              <template v-if="row.has_history">
+                {{ t('Last visit: {qty} {uom}', {
+                     qty: row.last_display_qty ?? row.last_qty,
+                     uom: row.last_uom }) }}
+              </template>
+              <template v-else>{{ t('Never counted here') }}</template>
             </span>
             <button v-if="row.has_history" type="button" class="again" @click="sameAsLast(row)">
-              <Icon name="copy" size="16" /><span>Same as last time</span>
+              <Icon name="copy" size="16" /><span>{{ t('Same as last time') }}</span>
             </button>
           </div>
         </article>
@@ -220,11 +243,16 @@ function done() {
       <div class="bottom">
         <p v-if="missing" class="note warn-note tnum">
           <Icon name="alert" size="16" />
-          <span>{{ missing }} products not counted — save anyway?</span>
+          <span>
+            {{ t('{n} products not counted — save anyway?', { n: missing }) }}
+          </span>
         </p>
-        <p class="muted note"><Icon name="cloud-off" size="16" /> Saved on this phone. Syncs when you have signal.</p>
+        <p class="muted note">
+          <Icon name="cloud-off" size="16" />
+          {{ t('Saved on this phone. Syncs when you have signal.') }}
+        </p>
         <button class="btn-primary" :disabled="busy || !counted" @click="save">
-          {{ busy ? 'Saving…' : 'Save stock' }}
+          {{ busy ? t('Saving…') : t('Save stock') }}
         </button>
       </div>
     </template>
