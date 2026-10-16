@@ -144,7 +144,7 @@ def price(doc, lines=None) -> dict:
 	Called from `create` and again from the controller's `validate`, because an order that
 	arrives through the offline sync push never passes through this service at all — the push
 	inserts the document directly. Without the controller path, a day of orders captured in a
-	village would land with every total at zero. That exact bug shipped once on Day End.
+	village would land with every total at zero. That exact bug shipped once on the day close.
 	"""
 	# A booking that has been submitted is not repriced, at all.
 	#
@@ -733,8 +733,21 @@ def _warehouse_for(customer: str | None) -> str | None:
 	"""The depot that serves this party, from `Customer.fm_warehouse`.
 
 	A group warehouse is refused rather than passed on: ERPNext cannot reserve stock in one and
-	says so with a message about group warehouses that names nothing a manager can act on. Left
-	blank here, ERPNext defaults per line instead, which at least works.
+	says so with a message about group warehouses that names nothing a manager can act on.
+
+	**KNOWN ISSUE, not yet fixed.** This used to say that leaving it blank lets ERPNext default
+	per line, "which at least works". It does not. Stock Settings' default warehouse is applied
+	by `get_item_details` on the form path, and a Sales Order inserted server-side never goes
+	through it - so for an item with no Item Default row, `Sales Order.validate` raises
+	`WarehouseRequired` naming the item code and the whole primary sale is refused. That is what
+	`TestAnOrderOnAPartyWeBill`, and the booking tests in `test_cockpit`, `test_season`,
+	`test_dispatch`, `test_target` and `test_phone_season` are failing on.
+
+	Filling it from Stock Settings was tried and is not the answer on its own: the header field
+	does not reach the rows (`Sales Order.validate` calls `reset_default_field_value`, which
+	*clears* the header when the rows disagree rather than filling them), and setting the rows
+	from a site-wide default moved the failure rather than removing it. Which warehouse ships a
+	primary sale is a business answer, so it is being asked rather than guessed.
 	"""
 	if not customer:
 		return None
@@ -819,8 +832,8 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		# nothing read it; allocation is what needs it, because reserving stock means reserving
 		# it *somewhere* and the somewhere is the warehouse that will actually ship.
 		#
-		# Blank leaves ERPNext to default per line from the Item, which is its ordinary
-		# behaviour and the right fallback for a company running one warehouse.
+		# Blank is only safe where every item carries an Item Default row; otherwise ERPNext
+		# refuses the whole Sales Order outright. See the known issue on `_warehouse_for`.
 		"set_warehouse": _warehouse_for(seller.get("party")),
 		# The branch this sale is made from. On a site that has enabled Location as an Accounting
 		# Dimension this is mandatory on the Sales Order and on everything made from it, and

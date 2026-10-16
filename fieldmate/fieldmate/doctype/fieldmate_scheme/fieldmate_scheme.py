@@ -93,7 +93,35 @@ class FieldMateScheme(Document):
 
 		self.applies_everywhere = 0 if narrowed else 1
 
+	def drop_item_groups_nobody_chose(self):
+		"""Clear an `item_group` that came from the session default rather than from a manager.
+
+		A Link left blank is filled from the session default, and for a tree master that default
+		is the root of the tree - so a row where somebody picked only an item comes back naming
+		"All Item Groups" as well. Two things follow, and the second is the worse:
+
+		- the row names two things, so `validate_items` refuses it, quoting a value nobody typed;
+		- if it ever did save, the compiled scheme would qualify on every item on the site
+		  instead of the one item listed.
+
+		The same trap `carry_distributor_profile_to_customer` records for territory. The root is
+		looked up rather than spelled out, because an install can rename it.
+
+		Only dropped where the row also names an item or a brand. A row naming the root group and
+		nothing else is somebody's choice to read as such, and not this method's to overrule.
+		"""
+		root = frappe.db.get_value(
+			"Item Group", {"is_group": 1, "parent_item_group": ("in", ("", None))}, "name"
+		)
+		if not root:
+			return
+		for row in self.items or []:
+			if row.item_group == root and (row.item_code or row.brand):
+				row.item_group = None
+
 	def validate_items(self):
+		self.drop_item_groups_nobody_chose()
+
 		if self.measured_over == "Item Set" and not self.items:
 			frappe.throw(
 				frappe._("This scheme measures its slabs over a set of items but lists none, so "
