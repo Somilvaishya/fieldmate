@@ -67,7 +67,7 @@ const FILTERS = computed(() => [
 <template>
   <div class="wrap screen">
     <div class="head">
-      <h2>{{ t(t('Shops')) }}</h2>
+      <h2>{{ t('Shops') }}</h2>
       <span class="muted tnum">{{ all.length }} total</span>
     </div>
 
@@ -90,8 +90,10 @@ const FILTERS = computed(() => [
     </div>
 
     <p class="muted result">
-      <span v-if="loading">{{ t(t('Loading…')) }}</span>
-      <span v-else class="tnum">Showing {{ rows.length }} of {{ all.length }}</span>
+      <span v-if="loading">{{ t('Loading…') }}</span>
+      <span v-else class="tnum">
+        {{ t('Showing {shown} of {total}', { shown: rows.length, total: all.length }) }}
+      </span>
       <span v-if="note"> · {{ note }}</span>
     </p>
 
@@ -105,10 +107,10 @@ const FILTERS = computed(() => [
           </span>
         </span>
         <span v-if="statusOf(o) === 'visited'" class="pill done">
-          <Icon name="check" size="18" /> Visited
+          <Icon name="check" size="18" /> {{ t('Visited') }}
         </span>
         <span v-else-if="statusOf(o) === 'pending'" class="pill">
-          <Icon name="alert" size="18" /> Pending approval
+          <Icon name="alert" size="18" /> {{ t('Pending approval') }}
         </span>
         <Icon v-else class="go" name="chevron" size="22" />
       </RouterLink>
@@ -118,23 +120,23 @@ const FILTERS = computed(() => [
          an over-narrow search is cleared, an empty book is synced. -->
     <div v-if="!loading && !rows.length" class="empty">
       <Icon name="store" size="36" />
-      <b v-if="query || filter !== 'all'">{{ t(t('Nothing matches that')) }}</b>
-      <b v-else>{{ t(t('No shops on this phone yet')) }}</b>
+      <b v-if="query || filter !== 'all'">{{ t('Nothing matches that') }}</b>
+      <b v-else>{{ t('No shops on this phone yet') }}</b>
       <p class="muted" v-if="query || filter !== 'all'">
-        No shop matches that name, area or number in this list.
+        {{ t('No shop matches that name, area or number in this list.') }}
       </p>
       <p class="muted" v-else>
-        They arrive on the next sync. You can also add one now.
+        {{ t('They arrive on the next sync. You can also add one now.') }}
       </p>
       <button v-if="query || filter !== 'all'" class="ghost"
               @click="query = ''; filter = 'all'">
-        {{ t(t('Clear search')) }}
+        {{ t('Clear search') }}
       </button>
     </div>
 
     <div class="bottom">
       <RouterLink to="/outlet/new" class="btn-primary">
-        <Icon name="plus" size="20" /> {{ t(t('Add a shop')) }}
+        <Icon name="plus" size="20" /> {{ t('Add a shop') }}
       </RouterLink>
     </div>
   </div>

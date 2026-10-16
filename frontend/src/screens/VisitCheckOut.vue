@@ -143,17 +143,21 @@ async function finish() {
 
 <template>
   <div class="wrap screen" v-if="visit">
-    <h2>Finish at {{ visit.outletName }}</h2>
+    <h2>{{ t('Finish at {shop}', { shop: visit.outletName }) }}</h2>
     <p class="muted tnum" v-if="minutes !== null">
-      In the shop {{ minutes }} min<span v-if="captured"> · {{ captured }}</span>
+      {{ t('In the shop {n} min', { n: minutes }) }}
+      <span v-if="captured"> · {{ captured }}</span>
     </p>
 
-    <p class="lead">{{ t(t('What came of this visit?')) }}</p>
+    <p class="lead">{{ t('What came of this visit?') }}</p>
     <p v-if="visit?.order" class="booked">
       <Icon :name="visit.order.offline ? 'cloud-off' : 'check'" size="18" />
       <span>
-        Order of &#8377;{{ formatPaise(visit.order.net) }} booked here{{
-          visit.order.offline ? ', waiting to sync' : '' }}.
+        {{ visit.order.offline
+            ? t('Order of ₹{amount} booked here, waiting to sync.',
+                { amount: formatPaise(visit.order.net) })
+            : t('Order of ₹{amount} booked here.',
+                { amount: formatPaise(visit.order.net) }) }}
       </span>
     </p>
 
@@ -169,10 +173,10 @@ async function finish() {
     </div>
 
     <template v-if="noOrder">
-      <h3>{{ t(t('Why no order?')) }}</h3>
+      <h3>{{ t('Why no order?') }}</h3>
       <p v-if="!reasons.length" class="muted">
-        No reasons have reached this phone. Say what happened in the note below instead &mdash; you
-        can still check out.
+        {{ t('No reasons have reached this phone.') }}
+        {{ t('Say what happened in the note below instead — you can still check out.') }}
       </p>
       <div class="chips">
         <button v-for="r in reasons" :key="r.name" type="button"
@@ -184,7 +188,10 @@ async function finish() {
 
     <label class="lbl" for="note">
       <span>
-        Note <span class="muted">{{ needsNote ? '(required for this reason)' : '(optional)' }}</span>
+        {{ t('Note') }}
+        <span class="muted">
+          {{ needsNote ? t('(required for this reason)') : t('(optional)') }}
+        </span>
       </span>
       <span class="count tnum" :class="{ over: note.length > NOTE_LIMIT }">
         {{ note.length }} / {{ NOTE_LIMIT }}
@@ -205,9 +212,9 @@ async function finish() {
     <div class="bottom">
       <p v-if="blocker && !busy" class="gate">{{ blocker }}</p>
       <button class="btn-primary" :disabled="!ready || busy" @click="finish">
-        {{ busy ? 'Finishing…' : 'Check out' }}
+        {{ busy ? t('Finishing…') : t('Check out') }}
       </button>
-      <button class="btn-plain" @click="router.back()">Back to visit</button>
+      <button class="btn-plain" @click="router.back()">{{ t('Back to visit') }}</button>
     </div>
   </div>
 </template>

@@ -258,8 +258,8 @@ async function onPhoto(event) {
       <div class="head">
         <div class="who">
           <div class="badges">
-            <span v-if="visit.isGeoFenceBreach" class="tag warn">{{ t(t('Outside range')) }}</span>
-            <span v-if="visit.createdOffline" class="tag">{{ t(t('Saved on this phone')) }}</span>
+            <span v-if="visit.isGeoFenceBreach" class="tag warn">{{ t('Outside range') }}</span>
+            <span v-if="visit.createdOffline" class="tag">{{ t('Saved on this phone') }}</span>
           </div>
           <h2>{{ visit.outletName }}</h2>
           <p class="muted tnum">
@@ -272,13 +272,13 @@ async function onPhoto(event) {
       <div v-if="visit.isGeoFenceBreach" class="flag">
         <Icon name="pin" size="20" />
         <span>
-          Checked in outside this shop's range. The distance is saved with the visit for
-          your manager.
+          {{ t("Checked in outside this shop's range.") }}
+          {{ t('The distance is saved with the visit for your manager.') }}
         </span>
       </div>
 
       <div class="section">
-        <h3>{{ t(t('What to do here')) }}</h3>
+        <h3>{{ t('What to do here') }}</h3>
         <span class="muted tnum">{{ finished }} of {{ jobs.length }} done</span>
       </div>
 
@@ -319,15 +319,15 @@ async function onPhoto(event) {
           <span v-else class="noimg"><Icon name="camera" size="20" /></span>
           <figcaption>
             <b>{{ s.purpose }}</b>
-            <em v-if="s.state === 'sent'">{{ t(t('Sent')) }}</em>
-            <em v-else-if="s.state === 'blocked'" class="bad">{{ t(t('Stuck')) }}</em>
-            <em v-else>{{ t(t('Waiting')) }}</em>
+            <em v-if="s.state === 'sent'">{{ t('Sent') }}</em>
+            <em v-else-if="s.state === 'blocked'" class="bad">{{ t('Stuck') }}</em>
+            <em v-else>{{ t('Waiting') }}</em>
           </figcaption>
         </figure>
       </div>
 
       <div class="card">
-        <label class="lbl" for="remarks">{{ t(t('Remarks')) }}</label>
+        <label class="lbl" for="remarks">{{ t('Remarks') }}</label>
         <textarea id="remarks" v-model="visit.remarks" rows="3"
                   :placeholder="t('Anything worth telling your manager')"
                   @blur="visitStore.saveProgress()" />
@@ -342,10 +342,11 @@ async function onPhoto(event) {
 
     <div class="bottom">
       <p v-if="short" class="muted note tnum">
-        A visit here usually takes at least {{ visit.minVisitMinutes }} minutes.
+        {{ t('A visit here usually takes at least {n} minutes.',
+             { n: visit.minVisitMinutes }) }}
       </p>
       <button class="btn-primary" @click="router.push({ name: 'visit-checkout' })">
-        Finish visit
+        {{ t('Finish visit') }}
       </button>
     </div>
   </div>

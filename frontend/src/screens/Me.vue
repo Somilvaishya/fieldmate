@@ -103,9 +103,9 @@ onMounted(load)
     <header class="who">
       <div class="avatar"><Icon name="person" size="26" /></div>
       <div>
-        <h1>{{ profile?.full_name || profile?.field_user || 'You' }}</h1>
+        <h1>{{ profile?.full_name || profile?.field_user || t('You') }}</h1>
         <p class="dim">
-          {{ profile?.designation || 'Field Rep' }}
+          {{ profile?.designation || t('Field Rep') }}
           <template v-if="profile?.territory"> · {{ profile.territory }}</template>
         </p>
       </div>
@@ -113,13 +113,17 @@ onMounted(load)
 
     <div class="facts" v-if="profile">
       <div class="fact">
-        <span class="dim">Selling as</span>
-        <b>{{ profile.sales_mode || 'Order Booking' }}</b>
+        <span class="dim">{{ t('Selling as') }}</span>
+        <b>{{ t(profile.sales_mode || 'Order Booking') }}</b>
       </div>
       <!-- The number and where it came from. "25 calls" and "25 shops are on your route today"
            are different claims, and only the second is something a rep can walk. -->
       <div class="fact">
-        <span class="dim">{{ profile.daily_target_basis === 'route' ? 'On today\'s route' : 'Calls a day' }}</span>
+        <span class="dim">
+          {{ profile.daily_target_basis === 'route'
+              ? t("On today's route")
+              : t('Calls a day') }}
+        </span>
         <b class="tnum">{{ profile.daily_target_calls || '—' }}</b>
         <em v-if="profile.daily_target_beat" class="dim">{{ profile.daily_target_beat }}</em>
       </div>
@@ -155,14 +159,14 @@ onMounted(load)
 
     <div class="foot">
       <p class="dim fine" v-if="profile?.support_contact">
-        Stuck? {{ profile.support_contact }}
+        {{ t('Stuck? {contact}', { contact: profile.support_contact }) }}
       </p>
       <template v-if="!confirmWipe">
         <button class="out" :disabled="signingOut" @click="signOut">
-          {{ signingOut ? 'Sending what is left…' : 'Sign out' }}
+          {{ signingOut ? t('Sending what is left…') : t('Sign out') }}
         </button>
         <p class="dim fine">
-          Signing out sends anything still waiting, then clears this phone.
+          {{ t('Signing out sends anything still waiting, then clears this phone.') }}
         </p>
       </template>
 
@@ -170,18 +174,21 @@ onMounted(load)
            data may be lost" is a sentence nobody can act on. -->
       <div v-else class="sure">
         <p class="warn">
-          <b class="tnum">{{ waiting }} {{ waiting === 1 ? 'thing' : 'things' }} never reached
-          the office.</b>
-          Signing out now clears this phone and they are gone for good. If you can get signal,
-          stay signed in until they go.
+          <b class="tnum">
+            {{ waiting === 1
+                ? t('{n} thing never reached the office.', { n: waiting })
+                : t('{n} things never reached the office.', { n: waiting }) }}
+          </b>
+          {{ t('Signing out now clears this phone and they are gone for good.') }}
+          {{ t('If you can get signal, stay signed in until they go.') }}
         </p>
         <p v-if="signOutError" class="note crit">{{ signOutError }}</p>
         <div class="pair">
           <button class="keep" :disabled="signingOut" @click="confirmWipe = false">
-            Stay signed in
+            {{ t('Stay signed in') }}
           </button>
           <button class="go" :disabled="signingOut" @click="finishSignOut">
-            {{ signingOut ? 'Signing out…' : 'Sign out anyway' }}
+            {{ signingOut ? t('Signing out…') : t('Sign out anyway') }}
           </button>
         </div>
       </div>

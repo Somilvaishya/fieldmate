@@ -122,7 +122,9 @@ async function begin() {
         <span class="badge"><Icon :name="fix ? 'check' : 'pin'" size="22" /></span>
         <span class="tile-text">
           <b v-if="locating">{{ t('Getting a fix…') }}</b>
-          <b v-else-if="fix" class="tnum">Location captured · ±{{ fix.accuracy_m }} m</b>
+          <b v-else-if="fix" class="tnum">
+            {{ t('Location captured · ±{m} m', { m: fix.accuracy_m }) }}
+          </b>
           <b v-else>{{ t('Capture your location') }}</b>
           <span class="muted tnum" v-if="fix">
             {{ fix.latitude }}, {{ fix.longitude }} · {{ fix.location_provider }}
@@ -135,9 +137,13 @@ async function begin() {
       <label class="tile" :class="{ done: selfie }">
         <span class="badge"><Icon :name="selfie ? 'check' : 'camera'" size="22" /></span>
         <span class="tile-text">
-          <b v-if="selfie" class="tnum">Photo taken · {{ selfieKb }} KB</b>
+          <b v-if="selfie" class="tnum">
+            {{ t('Photo taken · {kb} KB', { kb: selfieKb }) }}
+          </b>
           <b v-else>{{ t('Take the start-of-day photo') }}</b>
-          <span class="muted tnum" v-if="selfie">Taken at {{ selfieAt }} · tap to retake</span>
+          <span class="muted tnum" v-if="selfie">
+            {{ t('Taken at {at} · tap to retake', { at: selfieAt }) }}
+          </span>
           <span class="muted" v-else>{{ requireSelfie ? t('Required') : t('Optional') }}</span>
         </span>
         <input type="file" accept="image/*" capture="user" hidden @change="onSelfie" />
@@ -200,7 +206,7 @@ async function begin() {
         {{ !fix ? t('Capture your location to continue.') : t('Take the photo to continue.') }}
       </p>
       <p class="muted foot" v-else>
-        Your location is recorded through the day and stops when you finish.
+        {{ t('Your location is recorded through the day and stops when you finish.') }}
       </p>
     </div>
   </div>

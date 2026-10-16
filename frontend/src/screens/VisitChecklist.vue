@@ -76,16 +76,18 @@ async function done() {
   <div class="wrap screen" v-if="visit">
     <div class="head">
       <div>
-        <span class="eyebrow">{{ t(t('Store checklist')) }}</span>
+        <span class="eyebrow">{{ t('Store checklist') }}</span>
         <h2>{{ visit.outletName }}</h2>
       </div>
       <span class="state" :class="remaining.length ? 'warn' : 'ok'">
-        {{ remaining.length ? `${remaining.length} required left` : 'All answered' }}
+        {{ remaining.length
+            ? t('{n} required left', { n: remaining.length })
+            : t('All answered') }}
       </span>
     </div>
 
     <p v-if="!questions.length" class="empty">
-      No questions are set for this shop today.
+      {{ t('No questions are set for this shop today.') }}
     </p>
 
     <ol class="qs">
@@ -133,7 +135,8 @@ async function done() {
                   @input="setText(q, $event.target.value)" @blur="save" />
 
         <p v-if="outOfRange(q)" class="warn">
-          Expected between {{ q.min_value }} and {{ q.max_value }}. Saved anyway — check it is right.
+          {{ t('Expected between {low} and {high}. Saved anyway — check it is right.',
+               { low: q.min_value, high: q.max_value }) }}
         </p>
       </li>
     </ol>
@@ -153,7 +156,7 @@ async function done() {
       <button class="btn-primary" @click="done">
         {{ saving ? t('Saving…') : t('Back to visit') }}
       </button>
-      <p class="muted note">{{ t(t('Every answer is saved on this phone as you go.')) }}</p>
+      <p class="muted note">{{ t('Every answer is saved on this phone as you go.') }}</p>
     </div>
   </div>
 </template>
