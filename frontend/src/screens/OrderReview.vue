@@ -19,6 +19,8 @@
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
+import { t } from '../lib/i18n'
 import { api, ApiError } from '../api/client'
 import { db, getMeta, setMeta } from '../db'
 import { toPaise } from '../lib/money'
@@ -128,6 +130,8 @@ const myTotal = computed(() => totals.value.net_paise + totals.value.tax_paise)
 
 // --------------------------------------------------------------------------------------- date
 
+// English keys, translated where they are read. Translating the arrays here would freeze
+// them at import the way a label const freezes.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -143,12 +147,16 @@ function iso(d) {
 // Written out rather than left to `toLocaleDateString`, which is a different implementation on
 // every Android WebView in the field and occasionally a different calendar.
 function dayLabel(d) {
-  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`
+  return t('{day}, {date} {month}', {
+    day: t(DAYS[d.getDay()]),
+    date: d.getDate(),
+    month: t(MONTHS[d.getMonth()]),
+  })
 }
 function timeLabel(d) {
   const h = d.getHours()
   const m = String(d.getMinutes()).padStart(2, '0')
-  const suffix = h < 12 ? 'am' : 'pm'
+  const suffix = h < 12 ? t('am') : t('pm')
   const hour = h % 12 === 0 ? 12 : h % 12
   return `${hour}:${m} ${suffix}`
 }
@@ -245,12 +253,12 @@ const shopCredit = computed(() => {
 function ago(ms) {
   if (ms === null || ms === undefined) return null
   const min = Math.floor(ms / 60000)
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min} min ago`
+  if (min < 1) return t('just now')
+  if (min < 60) return t('{n} min ago', { n: min })
   const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} h ago`
+  if (hr < 24) return t('{n} h ago', { n: hr })
   const days = Math.floor(hr / 24)
-  return `${days} ${days === 1 ? 'day' : 'days'} ago`
+  return days === 1 ? t('{n} day ago', { n: days }) : t('{n} days ago', { n: days })
 }
 const creditAge = computed(() => (creditAt.value ? ago(Date.now() - creditAt.value) : null))
 
@@ -359,17 +367,22 @@ const volume = computed(() => {
       bump(line.base_uom, line.qty)
     }
   }
-  return [...tally.entries()].filter(([, n]) => n > 0).map(([uom, n]) => `${n} ${uom}`)
+  return [...tally.entries()]
+    .filter(([, n]) => n > 0)
+    .map(([uom, n]) => t('{n} {unit}', { n, unit: uom }))
 })
 
 function qtyLabel(line) {
   const factor = Number(line.conversion_factor) || 1
   if (factor <= 1 || line.display_whole === null) {
-    return `${line.qty} ${line.base_uom}`
+    return t('{n} {unit}', { n: line.qty, unit: line.base_uom })
   }
-  const whole = `${line.display_whole} ${line.display_uom}`
-  const loose = line.display_remainder ? ` + ${line.display_remainder} ${line.base_uom}` : ''
-  return `${whole}${loose} · ${line.qty} ${line.base_uom}`
+  const whole = t('{n} {unit}', { n: line.display_whole, unit: line.display_uom })
+  const loose = line.display_remainder
+    ? ' + ' + t('{n} {unit}', { n: line.display_remainder, unit: line.base_uom })
+    : ''
+  const base = t('{n} {unit}', { n: line.qty, unit: line.base_uom })
+  return `${whole}${loose} · ${base}`
 }
 
 // Display material is dispatched with the order and belongs in the line list, but it is not free
@@ -506,23 +519,28 @@ onUnmounted(() => {
  * at the bottom of the screen, in the one place a rep cannot miss it.
  */
 const sendWords = computed(() => {
-  if (booking.value) return 'Book ' + (seasonName.value || 'this season')
-  if (weBill.value) return 'Send to the office'
-  return 'Send to distributor'
+  if (booking.value) {
+    return t('Book {season}', { season: seasonName.value || t('this season') })
+  }
+  if (weBill.value) return t('Send to the office')
+  return t('Send to distributor')
 })
 
 const doneWords = computed(() => {
-  if (done.value && done.value.offline) return 'Saved on this phone'
-  if (done.value && done.value.booking) return 'Booked'
-  if (weBill.value) return 'Sent to the office'
-  return 'Sent to the distributor'
+  if (done.value && done.value.offline) return t('Saved on this phone')
+  if (done.value && done.value.booking) return t('Booked')
+  if (weBill.value) return t('Sent to the office')
+  return t('Sent to the distributor')
 })
 
-const TERMS = [
-  { value: 'Credit', label: 'On credit', icon: 'timer' },
-  { value: 'Cash on Delivery', label: 'Cash on delivery', icon: 'store' },
-  { value: 'UPI on Delivery', label: 'UPI on delivery', icon: 'phone' },
-]
+// `computed`, not a plain array. A module-level const holding labels is evaluated once at
+// import, so the payment terms alone would have stayed in whichever language loaded first.
+// `value` stays English either way - it is what the server stores and what the radio compares.
+const TERMS = computed(() => [
+  { value: 'Credit', label: t('On credit'), icon: 'timer' },
+  { value: 'Cash on Delivery', label: t('Cash on delivery'), icon: 'store' },
+  { value: 'UPI on Delivery', label: t('UPI on delivery'), icon: 'phone' },
+])
 
 async function send() {
   if (!ready.value) return
@@ -576,7 +594,7 @@ async function send() {
   } catch (e) {
     error.value =
       (e && e.message) ||
-      'Could not send the order. It is still here on the phone - try again in a moment.'
+      t('Could not send the order. It is still here on the phone - try again in a moment.')
   } finally {
     busy.value = false
   }
@@ -598,77 +616,99 @@ function finish() {
           <span>{{ doneWords }}</span>
         </span>
         <b class="amount tnum">{{ sym }}{{ done.net }}</b>
-        <p class="tnum ref" v-if="done.reference">Order {{ done.reference }}</p>
-        <p class="tnum ref" v-else>No order number yet</p>
+        <p class="tnum ref" v-if="done.reference">
+          {{ t('Order {reference}', { reference: done.reference }) }}
+        </p>
+        <p class="tnum ref" v-else>{{ t('No order number yet') }}</p>
 
         <!-- What actually happened, which is three different things. A booking short of its
              advance is **held**: the status says so and nothing is reserved, and a rep who walks
              away thinking the goods are coming has told the party something untrue. -->
         <p v-if="!done.offline && done.booking">
-          Booked against <b>{{ done.season }}</b> at today&rsquo;s rates.
+          {{ t('Booked against') }} <b>{{ done.season }}</b>
+          {{ t('at today’s rates.') }}
           <template v-if="done.advance && done.advance.short">
-            It is held until <b class="tnum">{{ money(toPaise(done.advance.short)) }}</b> more
-            advance is collected. Nothing is reserved or dispatched before then.
+            {{ t('It is held until') }}
+            <b class="tnum">{{ money(toPaise(done.advance.short)) }}</b>
+            {{ t('more advance is collected.') }}
+            {{ t('Nothing is reserved or dispatched before then.') }}
           </template>
           <template v-else-if="done.advance && done.advance.required">
-            The advance is in hand, so it goes forward to be planned.
+            {{ t('The advance is in hand, so it goes forward to be planned.') }}
           </template>
         </p>
         <p v-else-if="!done.offline && done.weBill">
-          It is with the office now. We raise the order and we invoice it.
+          {{ t('It is with the office now. We raise the order and we invoice it.') }}
         </p>
         <p v-else-if="!done.offline">
-          It is with <b>{{ distributorName || 'your distributor' }}</b> now. They deliver the
-          order and bill the shop.
+          {{ t('It is with') }}
+          <b>{{ distributorName || t('your distributor') }}</b>
+          {{ t('now. They deliver the order and bill the shop.') }}
         </p>
 
         <!-- The one number a rep has to leave the counter with. -->
         <p v-if="done.advance && done.advance.short" class="held-note">
           <Icon name="alert" size="18" />
           <span class="tnum">
-            Collect <b>{{ money(toPaise(done.advance.short)) }}</b> to release this booking.
+            {{ t('Collect') }}
+            <b>{{ money(toPaise(done.advance.short)) }}</b>
+            {{ t('to release this booking.') }}
           </span>
         </p>
         <p v-if="done.approval" class="held-note">
           <Icon name="alert" size="18" />
           <span>
-            Your manager has to approve this one before the distributor works it. It is recorded
-            and they can see it &mdash; there is nothing more for you to do here.
+            {{ t('Your manager has to approve this one before the distributor works it.') }}
+            {{ t('It is recorded and they can see it — there is nothing more for you to do here.') }}
           </span>
         </p>
         <p v-else>
-          There is no signal here, so the order is written down on this phone. It
-          {{ done.weBill ? 'reaches the office' : 'goes to ' + (distributorName || 'your distributor') }}
-          on its own the moment you have a link &mdash; you can walk on.
+          {{ t('There is no signal here, so the order is written down on this phone.') }}
+          {{ done.weBill
+              ? t('It reaches the office on its own the moment you have a link — you can walk on.')
+              : t('It goes to {party} on its own the moment you have a link — you can walk on.',
+                  { party: distributorName || t('your distributor') }) }}
         </p>
       </div>
 
       <div class="card">
-        <div class="srow tnum"><span>Lines</span><b>{{ done.lines }}</b></div>
-        <div class="srow tnum"><span>Units</span><b>{{ done.units }}</b></div>
-        <div class="srow tnum" v-if="done.freeUnits">
-          <span>Free stock</span><b>{{ done.freeUnits }}</b>
+        <div class="srow tnum">
+          <span>{{ t('Lines') }}</span><b>{{ done.lines }}</b>
         </div>
-        <div class="srow tnum"><span>Off the bill</span><b>{{ sym }}{{ done.discount }}</b></div>
-        <div class="srow tnum" v-if="done.status"><span>Status</span><b>{{ done.status }}</b></div>
-        <div class="srow tnum"><span>Payment</span><b>{{ done.term }}</b></div>
+        <div class="srow tnum">
+          <span>{{ t('Units') }}</span><b>{{ done.units }}</b>
+        </div>
+        <div class="srow tnum" v-if="done.freeUnits">
+          <span>{{ t('Free stock') }}</span><b>{{ done.freeUnits }}</b>
+        </div>
+        <div class="srow tnum">
+          <span>{{ t('Off the bill') }}</span><b>{{ sym }}{{ done.discount }}</b>
+        </div>
+        <div class="srow tnum" v-if="done.status">
+          <span>{{ t('Status') }}</span><b>{{ done.status }}</b>
+        </div>
+        <div class="srow tnum">
+          <span>{{ t('Payment') }}</span><b>{{ done.term }}</b>
+        </div>
         <div class="srow tnum" v-if="done.dispatch">
-          <span>Dispatch</span><b>{{ done.dispatch }}</b>
+          <span>{{ t('Dispatch') }}</span><b>{{ done.dispatch }}</b>
         </div>
       </div>
 
       <p class="note plain" v-if="queued">
         <Icon name="cloud-off" size="18" />
         <span class="tnum">
-          <b>{{ queued }}</b> {{ queued === 1 ? 'record' : 'records' }} waiting to send from this
-          phone. They go on their own.
+          <b>{{ queued }}</b>
+          {{ queued === 1
+              ? t('record waiting to send from this phone. They go on their own.')
+              : t('records waiting to send from this phone. They go on their own.') }}
         </span>
       </p>
     </div>
 
     <div class="bottom">
       <button class="btn-primary" @click="finish">
-        {{ activeVisit ? 'Back to the visit' : 'Back to today' }}
+        {{ activeVisit ? t('Back to the visit') : t('Back to today') }}
       </button>
     </div>
   </div>
@@ -677,7 +717,7 @@ function finish() {
   <div v-else class="wrap screen">
     <div class="top">
       <RouterLink class="crumb" :to="cartRoute">
-        <Icon name="back" size="18" /> <span>Back to the cart</span>
+        <Icon name="back" size="18" /> <span>{{ t('Back to the cart') }}</span>
       </RouterLink>
 
       <header>
@@ -686,22 +726,22 @@ function finish() {
           <span v-if="shop && shop.outlet_class" class="tag">{{ shop.outlet_class }}</span>
         </div>
         <p class="sub tnum">
-          <span class="pill draft">Draft &middot; not sent</span>
+          <span class="pill draft">{{ t('Draft · not sent') }}</span>
           <span>{{ startedLabel }}</span>
         </p>
         <p class="muted tnum">{{ outlet }}</p>
       </header>
 
       <div v-if="loading && !catalogue" class="card">
-        <b>Opening the order&hellip;</b>
-        <p class="muted">One moment.</p>
+        <b>{{ t('Opening the order…') }}</b>
+        <p class="muted">{{ t('One moment.') }}</p>
       </div>
 
       <div v-else-if="isEmpty" class="card empty">
-        <b>Nothing to send yet</b>
+        <b>{{ t('Nothing to send yet') }}</b>
         <p class="muted">
-          This order has no lines on it. Add what the shopkeeper asked for and come back here to
-          read it out to them.
+          {{ t('This order has no lines on it.') }}
+          {{ t('Add what the shopkeeper asked for and come back here to read it out to them.') }}
         </p>
       </div>
 
@@ -714,34 +754,37 @@ function finish() {
           <div class="crown">
             <span class="stamp good">
               <Icon name="timer" size="18" />
-              <span>Booking &middot; {{ seasonName }}</span>
+              <span>{{ t('Booking · {season}', { season: seasonName }) }}</span>
             </span>
           </div>
           <p class="foot">
-            These rates are held for this season. The order is not repriced before it is
-            delivered, whatever the list does in between.
+            {{ t('These rates are held for this season.') }}
+            {{ t('The order is not repriced before it is delivered, whatever the list does in between.') }}
           </p>
           <div v-if="advance.required" class="srow tnum">
-            <span>Advance to collect</span>
+            <span>{{ t('Advance to collect') }}</span>
             <b>{{ money(advance.required) }}</b>
           </div>
           <p v-if="advance.required" class="foot strong">
-            Nothing is reserved or dispatched until that much is in hand. Take it now if you can
-            &mdash; a cheque dated later does not count until its date.
+            {{ t('Nothing is reserved or dispatched until that much is in hand.') }}
+            {{ t('Take it now if you can — a cheque dated later does not count until its date.') }}
           </p>
           <div v-if="deliverWindow.from" class="srow tnum">
-            <span>Delivery window</span>
-            <b>{{ deliverWindow.from }} to {{ deliverWindow.to }}</b>
+            <span>{{ t('Delivery window') }}</span>
+            <b>{{ t('{from} to {to}',
+                 { from: deliverWindow.from, to: deliverWindow.to }) }}</b>
           </div>
           <p v-if="frozen" class="foot strong">{{ frozen }}</p>
         </div>
 
         <!-- ------------------------------------------------------- financial clearance -->
-        <div class="section"><h3>{{ weBill ? "What the party pays" : "What the shop pays" }}</h3></div>
+        <div class="section">
+          <h3>{{ weBill ? t('What the party pays') : t('What the shop pays') }}</h3>
+        </div>
 
         <div class="card pay">
           <div class="payhead">
-            <span>Total payable</span>
+            <span>{{ t('Total payable') }}</span>
             <b class="big tnum">{{ sym }}{{ totals.tax_paise ? totals.grand : totals.net }}</b>
           </div>
           <!-- The GST the distributor will charge, so that what is read out here is what arrives
@@ -750,16 +793,16 @@ function finish() {
                about this company's tax position rather than a fact about this order. -->
           <template v-if="totals.tax_paise">
             <div class="srow tnum">
-              <span>Goods</span>
+              <span>{{ t('Goods') }}</span>
               <b>{{ sym }}{{ totals.net }}</b>
             </div>
             <div class="srow tnum">
-              <span>GST on the distributor's bill</span>
+              <span>{{ t("GST on the distributor's bill") }}</span>
               <b>{{ sym }}{{ totals.tax }}</b>
             </div>
           </template>
           <RouterLink class="srow tnum link" :to="schemesRoute">
-            <span>Scheme saving</span>
+            <span>{{ t('Scheme saving') }}</span>
             <b class="ok">
               &minus;{{ sym }}{{ totals.discount }}
               <Icon name="chevron" size="18" />
@@ -767,13 +810,15 @@ function finish() {
           </RouterLink>
           <p class="foot" v-if="freeUnitCount">
             <b class="tnum">{{ freeUnitCount }}</b>
-            free {{ freeUnitCount === 1 ? 'unit ships' : 'units ship' }} with this order at
-            {{ sym }}0.00. Their value is not taken off the total.
+            {{ freeUnitCount === 1
+                ? t('free unit ships with this order at {zero}.', { zero: sym + '0.00' })
+                : t('free units ship with this order at {zero}.', { zero: sym + '0.00' }) }}
+            {{ t('Their value is not taken off the total.') }}
           </p>
           <!-- Measured on what the shop actually receives. A scheme whose only benefit is the
                rep's incentive has "applied" and given the shopkeeper nothing. -->
           <p class="foot" v-if="totals.discount_paise === 0 && !freeUnitCount">
-            No scheme takes anything off this order.
+            {{ t('No scheme takes anything off this order.') }}
           </p>
         </div>
 
@@ -781,16 +826,18 @@ function finish() {
         <p v-if="check && !check.matched" class="note warn">
           <Icon name="alert" size="18" />
           <span class="tnum">
-            The office bills this order at
-            <b>{{ money(officeTotal) }}</b>, not
-            <b>{{ money(myTotal) }}</b>. The office figure is what the shop will be billed.
-            Read that one out, and tell your manager if it looks wrong.
+            {{ t('The office bills this order at') }}
+            <b>{{ money(officeTotal) }}</b>, {{ t('not') }}
+            <b>{{ money(myTotal) }}</b>.
+            {{ t('The office figure is what the shop will be billed.') }}
+            {{ t('Read that one out, and tell your manager if it looks wrong.') }}
           </span>
           <span v-if="check.tax_delta_paise" class="tnum">
-            The difference is the GST: the office has
-            <b>{{ money(check.server.tax_paise || 0) }}</b> of tax on it and this phone has
-            <b>{{ money(totals.tax_paise) }}</b>. Pull this screen down to fetch today&rsquo;s
-            rates.
+            {{ t('The difference is the GST: the office has') }}
+            <b>{{ money(check.server.tax_paise || 0) }}</b>
+            {{ t('of tax on it and this phone has') }}
+            <b>{{ money(totals.tax_paise) }}</b>.
+            {{ t('Pull this screen down to fetch today’s rates.') }}
           </span>
         </p>
 
@@ -800,8 +847,10 @@ function finish() {
             <span class="stamp" :class="credit.breach ? 'bad' : 'good'">
               <Icon :name="credit.breach ? 'alert' : 'check'" size="18" />
               <span>
-                {{ distributorName || 'The distributor' }}
-                {{ credit.breach ? 'is over the credit limit' : 'is within the credit limit' }}
+                {{ distributorName || t('The distributor') }}
+                {{ credit.breach
+                    ? t('is over the credit limit')
+                    : t('is within the credit limit') }}
               </span>
             </span>
           </div>
@@ -814,27 +863,39 @@ function finish() {
                on the catalogue header and the cart. -->
           <template v-if="credit.unlimited">
             <p class="foot">
-              No credit limit is set for {{ distributorName || 'this distributor' }}, so nothing
-              is holding this order. They owe
-              <b class="tnum">{{ money(credit.outstanding) }}</b> today.
+              {{ t('No credit limit is set for {party}, so nothing is holding this order.',
+                   { party: distributorName || t('this distributor') }) }}
+              {{ t('They owe') }}
+              <b class="tnum">{{ money(credit.outstanding) }}</b> {{ t('today.') }}
             </p>
           </template>
 
           <template v-else>
             <div class="track" role="img"
-                 :aria-label="'Credit used ' + money(credit.exposure) + ' of ' + money(credit.limit)">
+                 :aria-label="t('Credit used {used} of {limit}',
+                                { used: money(credit.exposure), limit: money(credit.limit) })">
               <span class="seg used" :style="{ width: credit.segOutstanding + '%' }"></span>
               <span class="seg this" :style="{ width: credit.segOrder + '%' }"></span>
               <span class="seg over" :style="{ width: credit.segOver + '%' }"></span>
             </div>
             <div class="legend">
-              <span><i class="sw used"></i> Already owed <b class="tnum">{{ money(credit.outstanding) }}</b></span>
-              <span><i class="sw this"></i> This order <b class="tnum">{{ money(credit.order) }}</b></span>
-              <span v-if="credit.segOver"><i class="sw over"></i> Over <b class="tnum">{{ money(credit.over) }}</b></span>
+              <span>
+                <i class="sw used"></i> {{ t('Already owed') }}
+                <b class="tnum">{{ money(credit.outstanding) }}</b>
+              </span>
+              <span>
+                <i class="sw this"></i> {{ t('This order') }}
+                <b class="tnum">{{ money(credit.order) }}</b>
+              </span>
+              <span v-if="credit.segOver">
+                <i class="sw over"></i> {{ t('Over') }}
+                <b class="tnum">{{ money(credit.over) }}</b>
+              </span>
             </div>
 
             <div class="srow tnum">
-              <span>Sanctioned limit</span><b>{{ money(credit.limit) }}</b>
+              <span>{{ t('Sanctioned limit') }}</span>
+              <b>{{ money(credit.limit) }}</b>
             </div>
 
             <!-- The shop's own debt to its distributor, which is a different number from
@@ -843,39 +904,48 @@ function finish() {
                  nobody has given one is not a shop with no room. -->
             <div v-if="shopCredit" class="srow tnum" :class="{ bad: shopCredit.breach }">
               <span>
-                This shop owes its distributor
-                <em class="muted">our own count</em>
+                {{ t('This shop owes its distributor') }}
+                <em class="muted">{{ t('our own count') }}</em>
               </span>
-              <b>{{ money(shopCredit.outstanding) }} of {{ money(shopCredit.limit) }}</b>
+              <b>{{ t('{owed} of {limit}', {
+                   owed: money(shopCredit.outstanding),
+                   limit: money(shopCredit.limit) }) }}</b>
             </div>
             <div class="srow tnum">
-              <span>{{ credit.breach ? 'Past the limit by' : 'Headroom left after this' }}</span>
+              <span>{{ credit.breach
+                  ? t('Past the limit by')
+                  : t('Headroom left after this') }}</span>
               <b :class="credit.breach ? 'bad' : 'ok'">
                 {{ money(credit.breach ? credit.over : credit.after) }}
               </b>
             </div>
 
             <p v-if="credit.breach" class="foot strong">
-              Send it anyway. The order is recorded with the breach on it and goes to your manager
-              for review &mdash; the shopkeeper does not have to wait at the counter.
+              {{ t('Send it anyway.') }}
+              {{ t('The order is recorded with the breach on it and goes to your manager for review — the shopkeeper does not have to wait at the counter.') }}
             </p>
           </template>
 
-          <p class="muted tnum" v-if="creditAge">Credit position as of {{ creditAge }}.</p>
+          <p class="muted tnum" v-if="creditAge">
+            {{ t('Credit position as of {age}.', { age: creditAge }) }}
+          </p>
         </div>
 
         <div v-else class="card">
-          <b>Credit position not on this phone</b>
+          <b>{{ t('Credit position not on this phone') }}</b>
           <p class="muted">
-            This shop&rsquo;s limit and outstanding have not reached this handset yet. The order
-            still goes through, and the credit check runs on your manager&rsquo;s side.
+            {{ t('This shop’s limit and outstanding have not reached this handset yet.') }}
+            {{ t('The order still goes through, and the credit check runs on your manager’s side.') }}
           </p>
         </div>
 
         <!-- --------------------------------------------------------------- the lines -->
         <div class="section">
-          <h3>What was ordered</h3>
-          <span class="muted tnum">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
+          <h3>{{ t('What was ordered') }}</h3>
+          <span class="muted tnum">
+            {{ lineCount === 1 ? t('{n} line', { n: lineCount })
+                               : t('{n} lines', { n: lineCount }) }}
+          </span>
         </div>
 
         <div class="card table">
@@ -888,14 +958,17 @@ function finish() {
             <span class="lmoney">
               <b class="tnum">{{ line.unpriceable ? '—' : sym + line.gross }}</b>
               <span class="muted tnum" v-if="!line.unpriceable">
-                {{ sym }}{{ line.display_rate }} / {{ line.display_uom }}
+                {{ t('{rate} / {uom}',
+                     { rate: sym + line.display_rate, uom: line.display_uom }) }}
               </span>
-              <span class="muted" v-else>no price</span>
+              <span class="muted" v-else>{{ t('no price') }}</span>
             </span>
             <!-- One date for the order fills every line; this is the override for the few that
                  differ, which is the shape a season booking actually has. -->
             <label v-if="booking" class="when">
-              <span class="sr">When {{ line.item_name }} is wanted</span>
+              <span class="sr">
+                {{ t('When {item} is wanted', { item: line.item_name }) }}
+              </span>
               <!-- Both events, deliberately. A date input fires `change` when the picker is
                    committed and `input` as the value is edited, and which of the two arrives
                    depends on the Android WebView - a handler on one of them loses the date on
@@ -916,45 +989,50 @@ function finish() {
               <b>
                 {{ row.item_name }}
                 <span class="pill" :class="isPosm(row) ? 'flat' : 'ok'">
-                  {{ isPosm(row) ? 'POSM' : 'Free' }}
+                  {{ isPosm(row) ? t('POSM') : t('Free') }}
                 </span>
               </b>
               <span class="muted tnum">
-                {{ row.qty }} {{ row.uom || 'units' }}
+                {{ t('{n} {unit}', { n: row.qty, unit: row.uom || t('units') }) }}
                 <template v-if="row.scheme_name"> &middot; {{ row.scheme_name }}</template>
               </span>
             </span>
             <span class="lmoney">
               <b class="tnum">{{ sym }}0.00</b>
-              <span class="muted">{{ isPosm(row) ? 'display material' : 'not billed' }}</span>
+              <span class="muted">
+                {{ isPosm(row) ? t('display material') : t('not billed') }}
+              </span>
             </span>
           </div>
 
           <div class="lrow sum">
             <span class="lbody">
-              <b>Total</b>
+              <b>{{ t('Total') }}</b>
               <span class="muted tnum" v-if="volume.length">{{ volume.join(' · ') }}</span>
             </span>
             <span class="lmoney">
               <b class="tnum big">{{ sym }}{{ totals.net }}</b>
-              <span class="muted tnum">gross {{ sym }}{{ totals.gross }}</span>
+              <span class="muted tnum">
+                {{ t('gross {amount}', { amount: sym + totals.gross }) }}
+              </span>
             </span>
           </div>
         </div>
 
         <RouterLink v-if="stoppers.length" class="note crit" :to="cartRoute">
           <Icon name="alert" size="18" />
-          <span>{{ stoppers[0].message }} <b>Open the cart to fix it.</b></span>
+          <span>{{ stoppers[0].message }} <b>{{ t('Open the cart to fix it.') }}</b></span>
         </RouterLink>
 
         <!-- The one date, which every line follows unless the rep moved it above. -->
         <div v-if="booking" class="card">
-          <label class="lbl" for="booking-date">When is this wanted</label>
+          <label class="lbl" for="booking-date">{{ t('When is this wanted') }}</label>
           <input id="booking-date" type="date" v-model="bookingDate"
                  :min="deliverWindow.from" :max="deliverWindow.to" />
           <p class="muted small">
-            Every line follows this unless you set one of them differently. It has to fall between
-            <b class="tnum">{{ deliverWindow.from }}</b> and
+            {{ t('Every line follows this unless you set one of them differently.') }}
+            {{ t('It has to fall between') }}
+            <b class="tnum">{{ deliverWindow.from }}</b> {{ t('and') }}
             <b class="tnum">{{ deliverWindow.to }}</b>.
           </p>
         </div>
@@ -963,34 +1041,43 @@ function finish() {
         <p v-if="badDates.length" class="note crit" role="alert">
           <Icon name="alert" size="18" />
           <span>
-            {{ badDates.length === 1 ? 'One line is' : badDates.length + ' lines are' }} wanted
-            outside this season&rsquo;s delivery window:
-            <b>{{ badDates.map((l) => l.item_name).join(', ') }}</b>. Move
-            {{ badDates.length === 1 ? 'it' : 'them' }} between
-            <b class="tnum">{{ deliverWindow.from }}</b> and
+            {{ badDates.length === 1
+                ? t('One line is wanted outside this season’s delivery window:')
+                : t('{n} lines are wanted outside this season’s delivery window:',
+                    { n: badDates.length }) }}
+            <b>{{ badDates.map((l) => l.item_name).join(', ') }}</b>.
+            {{ badDates.length === 1 ? t('Move it between') : t('Move them between') }}
+            <b class="tnum">{{ deliverWindow.from }}</b> {{ t('and') }}
             <b class="tnum">{{ deliverWindow.to }}</b>.
           </span>
         </p>
 
         <!-- ------------------------------------------------------------- payment terms -->
-        <div class="section"><h3>{{ weBill ? "How the party pays" : "How the shop pays" }}</h3></div>
+        <div class="section">
+          <h3>{{ weBill ? t('How the party pays') : t('How the shop pays') }}</h3>
+        </div>
         <fieldset class="terms">
-          <legend class="sr">Payment term</legend>
-          <label v-for="t in TERMS" :key="t.value" class="term"
-                 :class="{ on: paymentTerm === t.value }">
-            <input type="radio" name="payment-term" :value="t.value" v-model="paymentTerm" />
-            <Icon :name="t.icon" size="20" />
+          <legend class="sr">{{ t('Payment term') }}</legend>
+          <!-- `term`, not `t`: the loop variable was shadowing the imported translator, and
+               this block has three sentences inside it that need it. -->
+          <label v-for="term in TERMS" :key="term.value" class="term"
+                 :class="{ on: paymentTerm === term.value }">
+            <input type="radio" name="payment-term" :value="term.value" v-model="paymentTerm" />
+            <Icon :name="term.icon" size="20" />
             <span class="tbody">
-              <b>{{ t.label }}</b>
-              <span class="muted tnum" v-if="t.value === 'Credit' && dueDate">
-                Due {{ dayLabel(dueDate) }} &middot; {{ creditDays }} days from the bill
+              <b>{{ term.label }}</b>
+              <span class="muted tnum" v-if="term.value === 'Credit' && dueDate">
+                {{ t('Due {date} · {n} days from the bill',
+                     { date: dayLabel(dueDate), n: creditDays }) }}
               </span>
-              <span class="muted" v-else-if="t.value === 'Credit'">
-                Terms are set by your distributor.
+              <span class="muted" v-else-if="term.value === 'Credit'">
+                {{ t('Terms are set by your distributor.') }}
               </span>
-              <span class="muted" v-else>Collected when the order is delivered.</span>
+              <span class="muted" v-else>
+                {{ t('Collected when the order is delivered.') }}
+              </span>
             </span>
-            <Icon v-if="paymentTerm === t.value" name="check" size="20" class="mark" />
+            <Icon v-if="paymentTerm === term.value" name="check" size="20" class="mark" />
           </label>
         </fieldset>
 
@@ -998,15 +1085,17 @@ function finish() {
         <!-- Only where the site has Locations. On every other site this is not drawn at all,
              because a picker over nothing is a question with no answer. -->
         <div v-if="needsLocation" class="card">
-          <label class="lbl" for="location">Which of our branches is this sale from</label>
+          <label class="lbl" for="location">
+            {{ t('Which of our branches is this sale from') }}
+          </label>
           <select id="location" v-model="location">
-            <option :value="null">Choose one</option>
+            <option :value="null">{{ t('Choose one') }}</option>
             <option v-for="l in locations" :key="l.name" :value="l.name">
               {{ l.location_name || l.name }}
             </option>
           </select>
           <p class="muted small">
-            It decides the branch on the order and on the bill that follows it.
+            {{ t('It decides the branch on the order and on the bill that follows it.') }}
           </p>
         </div>
 
@@ -1014,14 +1103,19 @@ function finish() {
         <div class="card slot">
           <Icon name="timer" size="22" />
           <span class="sbody">
-            <b v-if="dispatchDate" class="tnum">Dispatch {{ dayLabel(dispatchDate) }}</b>
-            <b v-else>Dispatch date set by the distributor</b>
+            <b v-if="dispatchDate" class="tnum">
+              {{ t('Dispatch {date}', { date: dayLabel(dispatchDate) }) }}
+            </b>
+            <b v-else>{{ t('Dispatch date set by the distributor') }}</b>
             <span class="muted tnum" v-if="dispatchDate">
-              {{ deliveryDays }} {{ deliveryDays === 1 ? 'day' : 'days' }}, as committed by
-              {{ distributorName || 'your distributor' }}
+              {{ deliveryDays === 1
+                  ? t('{n} day, as committed by {party}',
+                      { n: deliveryDays, party: distributorName || t('your distributor') })
+                  : t('{n} days, as committed by {party}',
+                      { n: deliveryDays, party: distributorName || t('your distributor') }) }}
             </span>
             <span class="muted" v-else>
-              They confirm it when they accept the order.
+              {{ t('They confirm it when they accept the order.') }}
             </span>
           </span>
         </div>
@@ -1029,21 +1123,23 @@ function finish() {
         <!-- --------------------------------------------------- instructions and the read-back -->
         <div class="card">
           <label class="lbl" for="instructions">
-            Delivery instructions <span class="muted">(optional)</span>
+            {{ t('Delivery instructions') }}
+            <span class="muted">{{ t('(optional)') }}</span>
           </label>
           <textarea id="instructions" v-model="instructions" rows="2"
-                    placeholder="Back lane after 4 pm, ask for Ramesh" />
+                    :placeholder="t('Back lane after 4 pm, ask for Ramesh')" />
         </div>
 
         <div class="card">
-          <label class="lbl" for="confirmed">Read the order back to</label>
+          <label class="lbl" for="confirmed">{{ t('Read the order back to') }}</label>
           <input id="confirmed" v-model="confirmedWith" type="text"
-                 placeholder="Who you read it to" autocomplete="off" />
+                 :placeholder="t('Who you read it to')" autocomplete="off" />
           <label class="attest" :class="{ on: readBack }">
             <input type="checkbox" v-model="readBack" />
             <span>
-              I read this order back to
-              <b>{{ confirmedWith.trim() || 'the proprietor' }}</b> and they agreed to it.
+              {{ t('I read this order back to') }}
+              <b>{{ confirmedWith.trim() || t('the proprietor') }}</b>
+              {{ t('and they agreed to it.') }}
             </span>
           </label>
         </div>
@@ -1058,22 +1154,23 @@ function finish() {
         <p class="note plain">
           <Icon name="store" size="18" />
           <span v-if="booking">
-            This books <b>{{ seasonName }}</b> for
-            <b>{{ outletName || outlet }}</b> at today&rsquo;s rates. We raise the order and we
-            invoice it.
+            {{ t('This books') }} <b>{{ seasonName }}</b> {{ t('for') }}
+            <b>{{ outletName || outlet }}</b>
+            {{ t('at today’s rates. We raise the order and we invoice it.') }}
             <template v-if="advance.required">
-              It is held until <b class="tnum">{{ money(advance.required) }}</b> of advance is
-              collected &mdash; nothing is reserved before then.
+              {{ t('It is held until') }}
+              <b class="tnum">{{ money(advance.required) }}</b>
+              {{ t('of advance is collected — nothing is reserved before then.') }}
             </template>
           </span>
           <span v-else-if="weBill">
-            This is a sale we invoice. Sending it raises the order on our side &mdash; it does not
-            go to anybody else&rsquo;s queue.
+            {{ t('This is a sale we invoice.') }}
+            {{ t('Sending it raises the order on our side — it does not go to anybody else’s queue.') }}
           </span>
           <span v-else>
-            Sending this puts the order in
-            <b>{{ distributorName || 'your distributor' }}</b>&rsquo;s queue. They deliver it and
-            they bill the shop. Nothing is invoiced from here.
+            {{ t('Sending this puts the order in') }}
+            <b>{{ distributorName || t('your distributor') }}</b>{{ t('’s queue.') }}
+            {{ t('They deliver it and they bill the shop. Nothing is invoiced from here.') }}
           </span>
         </p>
       </template>
@@ -1082,28 +1179,28 @@ function finish() {
     <div class="bottom">
       <template v-if="isEmpty">
         <button class="btn-primary" @click="router.push(catalogueRoute)">
-          Add items to this order
+          {{ t('Add items to this order') }}
         </button>
       </template>
       <template v-else>
         <p v-if="needsLocation && !location" class="gate tnum">
-          Pick which of our branches this sale is from.
+          {{ t('Pick which of our branches this sale is from.') }}
         </p>
         <p v-else-if="!readBack" class="gate tnum">
-          Read the order back to the shopkeeper, then tick the box above.
+          {{ t('Read the order back to the shopkeeper, then tick the box above.') }}
         </p>
         <p v-else-if="!online" class="gate tnum">
-          No signal. The order saves on this phone and sends itself later.
+          {{ t('No signal. The order saves on this phone and sends itself later.') }}
         </p>
         <button class="btn-primary" :disabled="!ready" @click="send">
-          <span v-if="busy">Sending&hellip;</span>
+          <span v-if="busy">{{ t('Sending…') }}</span>
           <span v-else class="tnum">
-            {{ online ? sendWords : 'Save on this phone' }} &middot;
+            {{ online ? sendWords : t('Save on this phone') }} &middot;
             {{ sym }}{{ totals.net }}
           </span>
         </button>
         <button class="btn-plain" :disabled="busy" @click="router.push(cartRoute)">
-          Back to edit
+          {{ t('Back to edit') }}
         </button>
       </template>
     </div>

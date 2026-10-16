@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { localOutlets, refreshOutlets } from '../stores/outlets'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const all = ref([])
 const query = ref('')
@@ -21,7 +22,7 @@ onMounted(async () => {
   const today = await visitStore.todaysVisits()
   visited.value = new Set(today.filter((v) => v.state === 'closed').map((v) => v.outlet))
   const result = await refreshOutlets()
-  if (result.offline) note.value = 'Showing shops saved on this phone.'
+  if (result.offline) note.value = t('Showing shops saved on this phone.')
   else await load()
 })
 
@@ -53,26 +54,28 @@ const counts = computed(() => {
   return c
 })
 
-const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'todo', label: 'To visit' },
-  { key: 'visited', label: 'Visited' },
-  { key: 'pending', label: 'Pending approval' },
-]
+// A computed, not a const: the keys go to the filter logic and the labels to the rep, and a
+// const would hold whichever language was loaded first.
+const FILTERS = computed(() => [
+  { key: 'all', label: t('All') },
+  { key: 'todo', label: t('To visit') },
+  { key: 'visited', label: t('Visited') },
+  { key: 'pending', label: t('Pending approval') },
+])
 </script>
 
 <template>
   <div class="wrap screen">
     <div class="head">
-      <h2>Shops</h2>
+      <h2>{{ t('Shops') }}</h2>
       <span class="muted tnum">{{ all.length }} total</span>
     </div>
 
     <div class="search">
       <Icon class="lead" name="search" size="20" />
       <input v-model="query" type="search" autocomplete="off"
-             placeholder="Search by name, area or phone" aria-label="Search shops" />
-      <button v-if="query" class="clear" aria-label="Clear search" @click="query = ''">
+             :placeholder="t('Search by name, area or phone')" :aria-label="t('Search shops')" />
+      <button v-if="query" class="clear" :aria-label="t('Clear search')" @click="query = ''">
         <Icon name="close" size="20" />
       </button>
     </div>
@@ -87,8 +90,10 @@ const FILTERS = [
     </div>
 
     <p class="muted result">
-      <span v-if="loading">Loading…</span>
-      <span v-else class="tnum">Showing {{ rows.length }} of {{ all.length }}</span>
+      <span v-if="loading">{{ t('Loading…') }}</span>
+      <span v-else class="tnum">
+        {{ t('Showing {shown} of {total}', { shown: rows.length, total: all.length }) }}
+      </span>
       <span v-if="note"> · {{ note }}</span>
     </p>
 
@@ -96,16 +101,16 @@ const FILTERS = [
       <RouterLink v-for="o in rows" :key="o.name" :to="`/outlet/${o.name}`" class="row">
         <span class="info">
           <b>{{ o.outlet_name }}</b>
-          <span class="muted area">{{ o.city || 'No area recorded' }}</span>
+          <span class="muted area">{{ o.city || t('No area recorded') }}</span>
           <span v-if="o.mobile_no" class="muted tnum phone">
             <Icon name="phone" size="14" /> {{ o.mobile_no }}
           </span>
         </span>
         <span v-if="statusOf(o) === 'visited'" class="pill done">
-          <Icon name="check" size="18" /> Visited
+          <Icon name="check" size="18" /> {{ t('Visited') }}
         </span>
         <span v-else-if="statusOf(o) === 'pending'" class="pill">
-          <Icon name="alert" size="18" /> Pending approval
+          <Icon name="alert" size="18" /> {{ t('Pending approval') }}
         </span>
         <Icon v-else class="go" name="chevron" size="22" />
       </RouterLink>
@@ -115,23 +120,23 @@ const FILTERS = [
          an over-narrow search is cleared, an empty book is synced. -->
     <div v-if="!loading && !rows.length" class="empty">
       <Icon name="store" size="36" />
-      <b v-if="query || filter !== 'all'">Nothing matches that</b>
-      <b v-else>No shops on this phone yet</b>
+      <b v-if="query || filter !== 'all'">{{ t('Nothing matches that') }}</b>
+      <b v-else>{{ t('No shops on this phone yet') }}</b>
       <p class="muted" v-if="query || filter !== 'all'">
-        No shop matches that name, area or number in this list.
+        {{ t('No shop matches that name, area or number in this list.') }}
       </p>
       <p class="muted" v-else>
-        They arrive on the next sync. You can also add one now.
+        {{ t('They arrive on the next sync. You can also add one now.') }}
       </p>
       <button v-if="query || filter !== 'all'" class="ghost"
               @click="query = ''; filter = 'all'">
-        Clear search
+        {{ t('Clear search') }}
       </button>
     </div>
 
     <div class="bottom">
       <RouterLink to="/outlet/new" class="btn-primary">
-        <Icon name="plus" size="20" /> Add a shop
+        <Icon name="plus" size="20" /> {{ t('Add a shop') }}
       </RouterLink>
     </div>
   </div>

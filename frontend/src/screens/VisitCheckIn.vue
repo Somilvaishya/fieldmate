@@ -9,13 +9,16 @@ import * as outletStore from '../stores/outlets'
 import * as dayStore from '../stores/day'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
-const REASONS = [
-  'Shop has moved',
-  'Met the owner elsewhere',
-  'Shutter down, met outside',
-  'GPS drifting here',
-]
+// Chips a rep taps into their own note. Text, not wire values - whatever is written here is
+// what the note carries up, so a Hindi-speaking rep writes a Hindi note.
+const REASONS = computed(() => [
+  t('Shop has moved'),
+  t('Met the owner elsewhere'),
+  t('Shutter down, met outside'),
+  t('GPS drifting here'),
+])
 
 const route = useRoute()
 const router = useRouter()
@@ -134,7 +137,7 @@ async function onPhoto(event) {
     photo.value = out.dataUrl
     photoKb.value = out.kb
   } catch {
-    error.value = 'Could not read that photo. Try taking it again.'
+    error.value = t('Could not read that photo. Try taking it again.')
   } finally {
     event.target.value = ''
   }
@@ -144,7 +147,7 @@ async function begin({ closeOpen = false } = {}) {
   error.value = ''
   if (!dayOpen.value) return router.push('/day/start')
   if (requirePhoto.value && !photo.value) {
-    error.value = 'Take the photo at the shop before you check in.'
+    error.value = t('Take the photo at the shop before you check in.')
     return
   }
   if (openElsewhere.value && !closeOpen) return backToOpenVisit()
@@ -164,7 +167,7 @@ async function begin({ closeOpen = false } = {}) {
       error.value = e.message
       closing.value = true
     } else {
-      error.value = e instanceof ApiError ? e.message : 'Could not check in. Try again.'
+      error.value = e instanceof ApiError ? e.message : t('Could not check in. Try again.')
     }
   } finally {
     busy.value = false
@@ -179,18 +182,20 @@ async function begin({ closeOpen = false } = {}) {
       <p class="muted">{{ outlet.city || '' }}<span v-if="outlet.mobile_no"> · {{ outlet.mobile_no }}</span></p>
 
       <button type="button" class="tile" :class="{ done: fix }" @click="locate" :disabled="locating">
-        <b>{{ locating ? 'Getting a fix…' : fix ? 'Location captured' : 'Capture location' }}</b>
+        <b>{{ locating ? t('Getting a fix…') : fix ? t('Location captured') : t('Capture location') }}</b>
         <span v-if="fix" class="muted tnum">±{{ fix.accuracy_m }} m</span>
-        <span v-else-if="!locating" class="muted">Tap to try again</span>
+        <span v-else-if="!locating" class="muted">{{ t('Tap to try again') }}</span>
       </button>
 
       <!-- Only where the site asked for it. Drawn at all is the signal that it is wanted; a tile
            offering an optional photo at sixty counters a day is sixty chances to be slowed down
            by something nobody reads. -->
       <label v-if="requirePhoto" class="tile photo" :class="{ done: photo }">
-        <b v-if="photo" class="tnum">Photo taken · {{ photoKb }} KB</b>
-        <b v-else>Take the photo at this shop</b>
-        <span class="muted">{{ photo ? 'Tap to retake' : 'Required here' }}</span>
+        <b v-if="photo" class="tnum">
+            {{ t('Photo taken · {kb} KB', { kb: photoKb }) }}
+          </b>
+        <b v-else>{{ t('Take the photo at this shop') }}</b>
+        <span class="muted">{{ photo ? t('Tap to retake') : t('Required here') }}</span>
         <input type="file" accept="image/*" capture="environment" hidden @change="onPhoto" />
       </label>
 
@@ -200,7 +205,7 @@ async function begin({ closeOpen = false } = {}) {
       <div v-if="outsideFence" class="dist far">
         <b class="tnum">You are {{ distance }} m from this shop, outside its
           {{ fenceRadius }} m range.</b>
-        <p>You can still check in. Your manager will see the distance saved with this visit.</p>
+        <p>{{ t('You can still check in. Your manager will see the distance saved with this visit.') }}</p>
         <div class="facts">
           <span class="tnum"><Icon name="pin" size="16" /> Now: {{ distance }} m away</span>
           <span class="tnum"><Icon name="check" size="16" /> Usual range: {{ fenceRadius }} m
@@ -215,13 +220,13 @@ async function begin({ closeOpen = false } = {}) {
       </p>
 
       <label class="lbl" for="note">
-        {{ outsideFence ? 'Reason for the distance' : 'Note' }}
-        <span class="muted">(optional)</span>
+        {{ outsideFence ? t('Reason for the distance') : t('Note') }}
+        <span class="muted">{{ t('(optional)') }}</span>
       </label>
       <input id="note" v-model="note"
              :placeholder="outsideFence
-               ? 'e.g. shop has moved, met the owner elsewhere'
-               : 'Why this shop, if it is off your route'" />
+               ? t('e.g. shop has moved, met the owner elsewhere')
+               : t('Why this shop, if it is off your route')" />
       <!-- Typed one-handed at a doorstep, so the common answers are one tap. -->
       <div class="chips" v-if="outsideFence">
         <button v-for="r in REASONS" :key="r" type="button" class="chip" @click="note = r">
@@ -233,14 +238,14 @@ async function begin({ closeOpen = false } = {}) {
            is the same mistake as saying it when it has. -->
       <p v-if="dayKnown && !dayOpen" class="notice">
         <Icon name="alert" />
-        <span>Your day has not started yet. Start it and this shop will be waiting.</span>
+        <span>{{ t('Your day has not started yet. Start it and this shop will be waiting.') }}</span>
       </p>
       <!-- The shop behind them. Named before they touch anything, with the way back to it. -->
       <p v-if="openElsewhere" class="notice">
         <Icon name="alert" />
         <span>
-          You are still checked in at <b>{{ openElsewhere.outletName }}</b>. Check out from
-          there first - a visit ends by checking out.
+          {{ t('You are still checked in at {shop}.', { shop: openElsewhere.outletName }) }}
+          {{ t('Check out from there first — a visit ends by checking out.') }}
         </span>
       </p>
       <p v-if="error" class="err">{{ error }}</p>
@@ -248,30 +253,30 @@ async function begin({ closeOpen = false } = {}) {
 
     <div class="bottom">
       <button v-if="openElsewhere" class="btn-primary" @click="backToOpenVisit">
-        Back to {{ openElsewhere.outletName }}
+        {{ t('Back to {shop}', { shop: openElsewhere.outletName }) }}
       </button>
       <button v-else class="btn-primary" :disabled="busy || !dayKnown" @click="begin()">
-        {{ busy ? 'Checking in…'
-           : !dayKnown ? 'One moment…'
-           : !dayOpen ? 'Start my day'
-           : outsideFence ? 'Check in with the distance logged'
-           : 'Check in' }}
+        {{ busy ? t('Checking in…')
+           : !dayKnown ? t('One moment…')
+           : !dayOpen ? t('Start my day')
+           : outsideFence ? t('Check in with the distance logged')
+           : t('Check in') }}
       </button>
 
       <!-- The way out for a rep who has genuinely walked away from that shop and cannot go
            back. Offered, spelled out, and never the first thing their thumb finds. -->
       <template v-if="openElsewhere">
         <button v-if="!closing" class="btn-plain" @click="closing = true">
-          I have left {{ openElsewhere.outletName }}
+          {{ t('I have left {shop}', { shop: openElsewhere.outletName }) }}
         </button>
         <template v-else>
           <p class="muted">
             That visit will be closed where it stands and counted as a short visit - as
-            <b>No Order</b> unless an order was already booked in it. You cannot go back and
+            <b>{{ t('No Order') }}</b> unless an order was already booked in it. You cannot go back and
             fill it in.
           </p>
           <button class="btn-plain" :disabled="busy" @click="begin({ closeOpen: true })">
-            {{ busy ? 'Checking in…' : 'Close it and check in here' }}
+            {{ busy ? t('Checking in…') : t('Close it and check in here') }}
           </button>
         </template>
       </template>

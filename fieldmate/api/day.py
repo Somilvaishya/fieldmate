@@ -91,7 +91,7 @@ def trail_upload(device_uuid: str | None = None, pings: str | None = None,
 	return ok(trail_service.append(
 		field_user=field_user,
 		pings=parsed,
-		day_start=open_day["day_start"] if open_day else None,
+		day=open_day["day"] if open_day else None,
 		device_id=_device.name,
 	))
 

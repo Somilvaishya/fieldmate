@@ -60,9 +60,9 @@ class FieldMateExpenseClaim(Document):
 		trail = frappe.db.get_value(
 			"FieldMate Location Trail",
 			{"field_user": self.field_user, "trail_date": self.claim_date},
-			["name", "ping_count", "day_start"], as_dict=True)
+			["name", "ping_count", "day"], as_dict=True)
 		self.trail_ping_count = cint(trail.ping_count) if trail else 0
-		self.day_start = trail.day_start if trail else None
+		self.day = trail.day if trail else None
 
 		# An unstated claim is the trail. A rep who agrees with the recording should not have to
 		# retype it, and most of them do agree.

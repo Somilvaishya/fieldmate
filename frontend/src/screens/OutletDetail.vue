@@ -6,6 +6,7 @@ import { localOutlet } from '../stores/outlets'
 import { getMeta, setMeta, putRecord } from '../db'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const route = useRoute()
 const outlet = ref(null)
@@ -33,7 +34,9 @@ onMounted(async () => {
       outlet.value = { ...(outlet.value || {}), ...cached.outlet }
     }
     note.value = e instanceof ApiError && e.code === 'OFFLINE'
-      ? (cached ? 'Showing what is saved on this phone.' : 'Offline. Sync once to load this shop.')
+      ? (cached
+          ? t('Showing what is saved on this phone.')
+          : t('Offline. Sync once to load this shop.'))
       : e.message
   } finally {
     loading.value = false
@@ -69,7 +72,11 @@ const shopUsed = computed(() =>
     : 0
 )
 
-/** Indian grouping. ₹1,24,500 - not ₹124,500, which reads wrong to everyone using this. */
+/** Indian grouping. ₹1,24,500 - not ₹124,500, which reads wrong to everyone using this.
+ *
+ * The locale stays `en-IN` whatever the language. Grouping is what was wrong for this market;
+ * the numeral system was not, and `hi-IN` can return Devanagari digits in a figure a rep reads
+ * out across a counter. */
 function rupees(value) {
   if (value === null || value === undefined || value === '') return null
   return '₹' + Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })
@@ -78,15 +85,15 @@ function rupees(value) {
 const facts = computed(() => {
   const o = outlet.value || {}
   return [
-    ['Status', o.outlet_status],
-    ['Approval', o.approval_status],
-    ['Type', o.outlet_type],
-    ['Class', o.outlet_class],
-    ['Route', o.primary_beat],
-    ['Area', [o.address_line1, o.city].filter(Boolean).join(', ')],
-    ['GSTIN', o.gstin],
-    ['Payment terms', o.credit_days ? `${o.credit_days} days` : null],
-    ['Weekly off', o.weekly_off],
+    [t('Status'), o.outlet_status],
+    [t('Approval'), o.approval_status],
+    [t('Type'), o.outlet_type],
+    [t('Class'), o.outlet_class],
+    [t('Route'), o.primary_beat],
+    [t('Area'), [o.address_line1, o.city].filter(Boolean).join(', ')],
+    [t('GSTIN'), o.gstin],
+    [t('Payment terms'), o.credit_days ? t('{n} days', { n: o.credit_days }) : null],
+    [t('Weekly off'), o.weekly_off],
   ].filter(([, v]) => v)
 })
 
@@ -101,37 +108,39 @@ const mapHref = computed(() =>
 
 <template>
   <div class="wrap screen" v-if="outlet">
-    <RouterLink to="/outlets" class="back"><Icon name="back" size="20" /> Shops</RouterLink>
+    <RouterLink to="/outlets" class="back">
+      <Icon name="back" size="20" /> {{ t('Shops') }}
+    </RouterLink>
     <p v-if="note" class="muted">{{ note }}</p>
-    <p v-if="loading" class="muted">Loading the latest…</p>
+    <p v-if="loading" class="muted">{{ t('Loading the latest…') }}</p>
 
     <div class="top">
       <!-- Identity -->
       <div class="card">
         <div class="badges">
           <span v-if="outlet.outlet_class" class="tag">{{ outlet.outlet_class }}</span>
-          <span v-if="outlet.kyc_verified" class="tag ok">KYC verified</span>
+          <span v-if="outlet.kyc_verified" class="tag ok">{{ t('KYC verified') }}</span>
           <span v-if="outlet.outlet_type" class="tag">{{ outlet.outlet_type }}</span>
         </div>
         <div class="identity">
           <div class="who">
             <h2>{{ outlet.outlet_name }}</h2>
-            <p class="muted">{{ outlet.city || 'No area recorded' }}</p>
+            <p class="muted">{{ outlet.city || t('No area recorded') }}</p>
           </div>
           <!-- Labelled, not an icon alone: DESIGN.md requires it, because mixed literacy
                is a real constraint in these markets. -->
           <a v-if="outlet.mobile_no" class="call" :href="telHref(outlet.mobile_no)">
             <Icon name="phone" size="22" />
-            <span>Call</span>
+            <span>{{ t('Call') }}</span>
           </a>
         </div>
         <div class="quick">
           <a v-if="mapHref" class="ghost" :href="mapHref" target="_blank" rel="noopener">
-            <Icon name="directions" size="18" /> Directions
+            <Icon name="directions" size="18" /> {{ t('Directions') }}
           </a>
           <a v-if="outlet.mobile_no" class="ghost" :href="waHref(outlet.mobile_no)"
              target="_blank" rel="noopener">
-            <Icon name="chat" size="18" /> WhatsApp
+            <Icon name="chat" size="18" /> {{ t('WhatsApp') }}
           </a>
         </div>
       </div>
@@ -140,7 +149,11 @@ const mapHref = computed(() =>
       <div v-if="detail" class="state" :class="detail.can_take_order ? 'good' : 'held'">
         <Icon :name="detail.can_take_order ? 'check' : 'alert'" size="22" />
         <div>
-          <b>{{ detail.can_take_order ? 'Ready to take an order' : 'Cannot take an order yet' }}</b>
+          <b>
+            {{ detail.can_take_order
+                ? t('Ready to take an order')
+                : t('Cannot take an order yet') }}
+          </b>
           <p class="muted" v-if="!detail.can_take_order">{{ detail.blocked_reason }}</p>
         </div>
       </div>
@@ -149,25 +162,32 @@ const mapHref = computed(() =>
            screen and this is the shop's debt. -->
       <div v-if="detail && shopCredit" class="card">
         <div class="row">
-          <span class="muted">This shop owes {{ credit.party_name || 'its distributor' }}</span>
+          <span class="muted">
+            {{ t('This shop owes {party}',
+                 { party: credit.party_name || t('its distributor') }) }}
+          </span>
           <b class="tnum big" :class="{ tight: shopHasLimit && shopUsed >= 80 }">
-            {{ shopHasLimit ? rupees(shopCredit.headroom) : 'No limit set' }}
+            {{ shopHasLimit ? rupees(shopCredit.headroom) : t('No limit set') }}
           </b>
         </div>
         <template v-if="shopHasLimit">
           <div class="track"><div class="fill" :style="{ width: shopUsed + '%' }"></div></div>
           <div class="row">
-            <span class="muted tnum">Limit {{ rupees(shopCredit.limit) }}</span>
-            <span class="muted tnum">{{ shopUsed }}% used</span>
+            <span class="muted tnum">
+              {{ t('Limit {amount}', { amount: rupees(shopCredit.limit) }) }}
+            </span>
+            <span class="muted tnum">{{ t('{pct}% used', { pct: shopUsed }) }}</span>
           </div>
         </template>
         <p class="muted foot">
           <template v-if="shopHasLimit">
-            Owing {{ rupees(shopCredit.outstanding) }} ·
+            {{ t('Owing {amount}',
+                 { amount: rupees(shopCredit.outstanding) }) }} ·
           </template>
-          <b>our own count</b> - orders booked here, less what has been collected. Not a ledger.
+          <b>{{ t('our own count') }}</b>
+          {{ t('- orders booked here, less what has been collected. Not a ledger.') }}
           <template v-if="!shopHasLimit">
-            Set this shop&rsquo;s credit limit in Desk to measure it.
+            {{ t('Set this shop’s credit limit in Desk to measure it.') }}
           </template>
         </p>
       </div>
@@ -177,23 +197,28 @@ const mapHref = computed(() =>
            the distributor's limit as this shop's. -->
       <div v-if="detail && (hasLimit || credit.unlimited)" class="card">
         <div class="row">
-          <span class="muted">{{ credit.party_name || 'The distributor' }} owes us</span>
+          <span class="muted">
+            {{ t('{party} owes us',
+                 { party: credit.party_name || t('The distributor') }) }}
+          </span>
           <b class="tnum big" :class="{ tight: hasLimit && used >= 80 }">
-            {{ credit.unlimited ? 'No limit set' : rupees(credit.headroom) }}
+            {{ credit.unlimited ? t('No limit set') : rupees(credit.headroom) }}
           </b>
         </div>
         <template v-if="hasLimit">
           <div class="track"><div class="fill" :style="{ width: used + '%' }"></div></div>
           <div class="row">
-            <span class="muted tnum">Limit {{ rupees(credit.credit_limit) }}</span>
-            <span class="muted tnum">{{ used }}% used</span>
+            <span class="muted tnum">
+              {{ t('Limit {amount}', { amount: rupees(credit.credit_limit) }) }}
+            </span>
+            <span class="muted tnum">{{ t('{pct}% used', { pct: used }) }}</span>
           </div>
         </template>
       </div>
 
       <!-- Facts. A plain label/value list, not a card per row. -->
       <div class="card" v-if="facts.length">
-        <h3>Shop details</h3>
+        <h3>{{ t('Shop details') }}</h3>
         <div v-for="[label, value] in facts" :key="label" class="kv">
           <span class="muted">{{ label }}</span>
           <b>{{ value }}</b>
@@ -201,23 +226,24 @@ const mapHref = computed(() =>
       </div>
 
       <div v-if="detail && detail.contacts.length" class="card">
-        <h3>People</h3>
+        <h3>{{ t('People') }}</h3>
         <div v-for="c in detail.contacts" :key="c.person_name" class="kv contact">
           <span class="person">
             <b>{{ c.person_name }}</b>
             <span class="muted">
-              {{ c.role_at_outlet || 'Contact' }}<em v-if="c.is_primary"> · main</em>
+              {{ c.role_at_outlet || t('Contact') }}<em v-if="c.is_primary">
+                · {{ t('main') }}</em>
             </span>
           </span>
           <a v-if="c.mobile_no" class="call small" :href="telHref(c.mobile_no)">
             <Icon name="phone" size="20" />
-            <span>Call</span>
+            <span>{{ t('Call') }}</span>
           </a>
         </div>
       </div>
 
       <div v-if="outlet.shop_photo" class="card">
-        <h3>Shopfront</h3>
+        <h3>{{ t('Shopfront') }}</h3>
         <img class="photo" :src="outlet.shop_photo" alt="" loading="lazy" />
       </div>
     </div>
@@ -225,7 +251,7 @@ const mapHref = computed(() =>
     <div class="bottom">
       <RouterLink v-if="openVisit && openVisit.outlet === outlet.name" class="btn-primary"
                   :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
-        Carry on with this visit
+        {{ t('Carry on with this visit') }}
       </RouterLink>
 
       <!-- Still inside another shop. This used to be a live "Check in here" with a note under it
@@ -235,32 +261,35 @@ const mapHref = computed(() =>
       <template v-else-if="openVisit">
         <RouterLink class="btn-primary"
                     :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
-          Back to {{ openVisit.outletName }}
+          {{ t('Back to {shop}', { shop: openVisit.outletName }) }}
         </RouterLink>
         <p class="muted foot">
-          You are still checked in at {{ openVisit.outletName }}. Check out from there, then come
-          back here.
+          {{ t('You are still checked in at {shop}.',
+               { shop: openVisit.outletName }) }}
+          {{ t('Check out from there, then come back here.') }}
         </p>
         <RouterLink class="ghost foot"
                     :to="{ name: 'visit-start', params: { name: outlet.name } }">
-          I have left {{ openVisit.outletName }}
+          {{ t('I have left {shop}', { shop: openVisit.outletName }) }}
         </RouterLink>
       </template>
 
       <RouterLink v-else class="btn-primary"
                   :to="{ name: 'visit-start', params: { name: outlet.name } }">
-        <Icon name="store" size="20" /> Check in here
+        <Icon name="store" size="20" /> {{ t('Check in here') }}
       </RouterLink>
     </div>
   </div>
   <!-- The failure case needs its own branch: the note explaining WHY used to live inside
        the v-if above, so in the one case where it mattered the rep saw only "not found". -->
   <div v-else class="wrap">
-    <RouterLink to="/outlets" class="back"><Icon name="back" size="20" /> Shops</RouterLink>
-    <p v-if="loading" class="muted">Loading…</p>
+    <RouterLink to="/outlets" class="back">
+      <Icon name="back" size="20" /> {{ t('Shops') }}
+    </RouterLink>
+    <p v-if="loading" class="muted">{{ t('Loading…') }}</p>
     <template v-else>
-      <p class="muted"><b>This shop is not on your phone yet.</b></p>
-      <p class="muted">{{ note || 'Sync once and it will be here.' }}</p>
+      <p class="muted"><b>{{ t('This shop is not on your phone yet.') }}</b></p>
+      <p class="muted">{{ note || t('Sync once and it will be here.') }}</p>
     </template>
   </div>
 </template>

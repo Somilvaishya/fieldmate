@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { deviceUuid, setMeta } from '../db'
+import { startLanguage, t } from '../lib/i18n'
 import Icon from '../components/Icon.vue'
 
 const router = useRouter()
@@ -46,16 +47,18 @@ async function submit() {
       device_name: navigator.userAgent.slice(0, 60),
     })
     await setMeta('profile', data)
+    // What this login's User record says, unless this handset has already been set otherwise.
+    startLanguage(data?.language)
     router.push('/today')
   } catch (e) {
     // Errors say what happened in plain words - a rep reads this in a market with no
     // support line available. Signing in is the one action that genuinely needs the
     // network, so the generic "your work is saved on this phone" would be nonsense here.
     error.value = e instanceof ApiError && e.code === 'OFFLINE'
-      ? 'You need a signal to sign in the first time. Once you have, the app works offline.'
+      ? t('You need a signal to sign in the first time. Once you have, the app works offline.')
       : e instanceof ApiError
         ? e.message
-        : 'Could not reach the server.'
+        : t('Could not reach the server.')
   } finally {
     busy.value = false
   }
@@ -68,17 +71,17 @@ async function submit() {
       <div class="brand">
         <img class="mark" :src="logo" alt="" width="64" height="64" />
         <h1>FieldMate</h1>
-        <p class="tagline">Field force automation</p>
+        <p class="tagline">{{ t('Field force automation') }}</p>
       </div>
 
       <!-- While the server is being asked whether this session is already signed in. Without it
            the form flashes up for a moment on every open, which reads as having been signed
            out. -->
-      <p v-if="checking" class="card checking">One moment…</p>
+      <p v-if="checking" class="card checking">{{ t('One moment…') }}</p>
 
       <form v-else id="signin" class="card" @submit.prevent="submit">
         <div class="field">
-          <label for="usr"><Icon name="person" /> Mobile number or email</label>
+          <label for="usr"><Icon name="person" /> {{ t('Mobile number or email') }}</label>
           <!-- Focused on arrival so the keyboard is already up, and enterkeyhint puts
                "Next" then "Go" on it - so a rep can type both fields and sign in without
                reaching for the button. Signing in stays a deliberate action either way;
@@ -97,7 +100,7 @@ async function submit() {
         </div>
 
         <div class="field">
-          <label for="pwd"><Icon name="lock" /> Password</label>
+          <label for="pwd"><Icon name="lock" /> {{ t('Password') }}</label>
           <div class="with-action">
             <input
               id="pwd"
@@ -111,7 +114,7 @@ async function submit() {
             <button
               type="button"
               class="reveal"
-              :aria-label="reveal ? 'Hide password' : 'Show password'"
+              :aria-label="reveal ? t('Hide password') : t('Show password')"
               :aria-pressed="reveal"
               @click="reveal = !reveal"
             >
@@ -129,11 +132,11 @@ async function submit() {
 
     <div v-if="!checking" class="bottom">
       <button form="signin" class="btn-primary" :disabled="busy">
-        {{ busy ? 'Signing in…' : 'Sign in' }}
+        {{ busy ? t('Signing in…') : t('Sign in') }}
       </button>
       <p class="assurance">
         <Icon name="cloud-off" />
-        <span>Works offline once you have signed in</span>
+        <span>{{ t('Works offline once you have signed in') }}</span>
       </p>
     </div>
   </div>

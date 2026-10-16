@@ -39,7 +39,7 @@ class FieldMateOrder(Document):
 		This lives on the controller and not only in the service because an order captured with
 		no signal arrives through `sync.push`, which inserts the document directly and never
 		calls a service at all. Anything that ran only in the service would simply not happen
-		for the offline majority - which is exactly how Day End once landed with every figure
+		for the offline majority - which is exactly how a day once landed with every figure
 		at zero for a rep who had worked a whole day in a village.
 		"""
 		from fieldmate.services import order as order_service

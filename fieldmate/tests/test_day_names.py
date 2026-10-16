@@ -15,7 +15,7 @@ class TestNamesNotIds(DayFixture):
 	def test_the_open_day_carries_its_route_name(self):
 		beat = self.make_beat(territory=self.territory, assigned_to=self.rep.name)
 		started = self.start_day()
-		frappe.db.set_value("FieldMate Day Start", started["day_start"], "planned_beat",
+		frappe.db.set_value("FieldMate Day", started["day"], "planned_beat",
 		                    beat.name, update_modified=False)
 
 		day = day_service.current(self.rep.name)

@@ -10,6 +10,7 @@ import * as visitStore from '../stores/visit'
 import * as photoQueue from '../sync/photos'
 import { localOutlets } from '../stores/outlets'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const router = useRouter()
 const boot = ref(null)
@@ -53,9 +54,9 @@ const firstName = computed(() => (boot.value?.full_name || '').split(' ')[0] || 
 
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
+  if (h < 12) return t('Good morning')
+  if (h < 17) return t('Good afternoon')
+  return t('Good evening')
 })
 
 const dateLabel = computed(() =>
@@ -116,26 +117,31 @@ function rupees(n) {
 const tiles = computed(() => {
   const out = []
   if (openDay.value) {
-    out.push({ to: '/cockpit', icon: 'list', title: 'Today so far',
-               note: 'Calls, orders and cash' })
+    out.push({ to: '/cockpit', icon: 'list', title: t('Today so far'),
+               note: t('Calls, orders and cash') })
   }
   out.push({
-    to: '/outlets', icon: 'store', title: 'Shops',
-    note: totalShops.value ? `${totalShops.value} in your area` : 'Sync to bring yours down',
+    to: '/outlets', icon: 'store', title: t('Shops'),
+    note: totalShops.value
+      ? t('{n} in your area', { n: totalShops.value })
+      : t('Sync to bring yours down'),
   })
   // The Beats screen was built in Phase 3 and nothing ever linked to it - it was reachable
   // only by typing the URL. A rep asking "when do I next walk this route" had nowhere to look.
-  out.push({ to: '/beats', icon: 'directions', title: 'My routes',
-             note: 'When each one runs' })
-  out.push({ to: '/orders', icon: 'cart', title: 'My orders', note: 'Where each one reached' })
+  out.push({ to: '/beats', icon: 'directions', title: t('My routes'),
+             note: t('When each one runs') })
+  out.push({ to: '/orders', icon: 'cart', title: t('My orders'),
+             note: t('Where each one reached') })
   out.push({
-    to: '/money', icon: 'tag', title: 'Collections',
-    note: inHand.value?.count ? `${rupees(inHand.value.total_amount)} with you` : 'What you took',
+    to: '/money', icon: 'tag', title: t('Collections'),
+    note: inHand.value?.count
+      ? t('{amount} with you', { amount: rupees(inHand.value.total_amount) })
+      : t('What you took'),
   })
-  out.push({ to: '/performance', icon: 'target', title: 'My performance',
-             note: 'Targets and the month' })
-  out.push({ to: '/expense', icon: 'receipt', title: 'Claim expenses',
-             note: 'Travel, food, what you spent' })
+  out.push({ to: '/performance', icon: 'target', title: t('My performance'),
+             note: t('Targets and the month') })
+  out.push({ to: '/expense', icon: 'receipt', title: t('Claim expenses'),
+             note: t('Travel, food, what you spent') })
   return out
 })
 
@@ -205,7 +211,7 @@ async function load() {
 
 async function syncNow() {
   if (!online.value) {
-    error.value = 'Still offline. Everything you captured is saved and will sync on its own.'
+    error.value = t('Still offline. Everything you captured is saved and will sync on its own.')
     return
   }
   syncing.value = true
@@ -242,7 +248,7 @@ onUnmounted(() => {
         </div>
       </div>
       <p v-if="error" class="err">{{ error }}</p>
-      <p v-if="stale" class="muted">Showing your last saved details. Reconnect to refresh.</p>
+      <p v-if="stale" class="muted">{{ t('Showing your last saved details. Reconnect to refresh.') }}</p>
 
       <!-- A visit left open. Top of the screen, because it is the only thing that matters
            until it is closed: an open visit blocks the next check-in. -->
@@ -250,17 +256,17 @@ onUnmounted(() => {
                   :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
         <span class="line">
           <span class="dot live" aria-hidden="true"></span>
-          <b>Still in {{ openVisit.outletName }}</b>
+          <b>{{ t('Still in {shop}', { shop: openVisit.outletName }) }}</b>
         </span>
-        <span class="muted">Tap to carry on, or to finish the visit.</span>
+        <span class="muted">{{ t('Tap to carry on, or to finish the visit.') }}</span>
         <Icon class="go" name="chevron" size="26" />
       </RouterLink>
 
       <!-- Loading has its own state. Showing "Day not started" with a Start day button
            while the day is still being fetched told a rep the opposite of the truth. -->
       <div v-if="loading" class="card">
-        <b>Loading your day…</b>
-        <p class="muted">One moment.</p>
+        <b>{{ t('Loading your day…') }}</b>
+        <p class="muted">{{ t('One moment.') }}</p>
       </div>
 
       <!-- The day -->
@@ -268,19 +274,27 @@ onUnmounted(() => {
         <div class="row">
           <span class="line">
             <span class="dot live" aria-hidden="true"></span>
-            <b>Day running<span v-if="started" class="tnum"> since {{ started }}</span></b>
+            <b>
+              {{ t('Day running') }}
+              <span v-if="started" class="tnum">
+                {{ t('since {time}', { time: started }) }}
+              </span>
+            </b>
           </span>
-          <span class="badge">Active</span>
+          <span class="badge">{{ t('Active') }}</span>
         </div>
         <p class="muted" v-if="openDay.planned_beat">
           {{ openDay.planned_beat_name || openDay.planned_beat }}
         </p>
-        <p class="muted" v-else>No beat planned for today.</p>
+        <p class="muted" v-else>{{ t('No beat planned for today.') }}</p>
 
         <template v-if="shops.length">
           <div class="row progress-head">
-            <b class="tnum">{{ doneCount }} of {{ shops.length }} shops done</b>
-            <span class="muted tnum">{{ percent }}% complete</span>
+            <b class="tnum">
+              {{ t('{done} of {total} shops done',
+                   { done: doneCount, total: shops.length }) }}
+            </b>
+            <span class="muted tnum">{{ t('{percent}% complete', { percent }) }}</span>
           </div>
           <div class="track" role="progressbar" :aria-valuenow="percent"
                aria-valuemin="0" aria-valuemax="100">
@@ -288,7 +302,9 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <p class="muted tnum" v-if="pings">{{ pings }} location points waiting to upload</p>
+        <p class="muted tnum" v-if="pings">
+          {{ t('{n} location points waiting to upload', { n: pings }) }}
+        </p>
       </div>
 
       <!-- Before the day starts, this card answers the only question a rep has: what does
@@ -296,39 +312,47 @@ onUnmounted(() => {
            screen. -->
       <div v-else class="card plan">
         <template v-if="planned?.beat">
-          <span class="eyebrow">Today's route</span>
+          <span class="eyebrow">{{ t("Today's route") }}</span>
           <b class="route">{{ planned.beat_name || planned.beat }}</b>
           <div class="facts">
             <span class="tnum" v-if="planned.outlet_count">
-              <Icon name="store" size="18" /> {{ planned.outlet_count }} shops
+              <Icon name="store" size="18" />
+              {{ t('{n} shops', { n: planned.outlet_count }) }}
             </span>
             <span class="tnum" v-if="planned.estimated_travel_km">
-              <Icon name="directions" size="18" /> about {{ planned.estimated_travel_km }} km
+              <Icon name="directions" size="18" />
+              {{ t('about {km} km', { km: planned.estimated_travel_km }) }}
             </span>
             <span class="tnum" v-if="planned.estimated_duration_min">
-              <Icon name="timer" size="18" /> about {{ plannedHours }}
+              <Icon name="timer" size="18" />
+              {{ t('about {hours}', { hours: plannedHours }) }}
             </span>
           </div>
         </template>
 
         <template v-else-if="planned?.status === 'Holiday'">
-          <span class="eyebrow">Today</span>
-          <b class="route">Holiday</b>
-          <p class="muted">No route today. You can still visit a shop if you need to.</p>
+          <span class="eyebrow">{{ t('Today') }}</span>
+          <b class="route">{{ t('Holiday') }}</b>
+          <p class="muted">
+            {{ t('No route today. You can still visit a shop if you need to.') }}
+          </p>
         </template>
 
         <template v-else-if="planned?.status === 'Leave'">
-          <span class="eyebrow">Today</span>
-          <b class="route">You are on leave</b>
-          <p class="muted">No route today.</p>
+          <span class="eyebrow">{{ t('Today') }}</span>
+          <b class="route">{{ t('You are on leave') }}</b>
+          <p class="muted">{{ t('No route today.') }}</p>
         </template>
 
         <template v-else>
-          <span class="eyebrow">Today</span>
-          <b class="route">No route planned</b>
+          <span class="eyebrow">{{ t('Today') }}</span>
+          <b class="route">{{ t('No route planned') }}</b>
+          <!-- Two sentences, two keys. A key built by concatenation is not a key: at runtime
+               it is the joined string, and anything reading the source - the catalogue check
+               included - sees only the first piece. -->
           <p class="muted">
-            Nobody has set a route for you today. You can still start your day and visit any
-            shop in your area.
+            {{ t('Nobody has set a route for you today.') }}
+            {{ t('You can still start your day and visit any shop in your area.') }}
           </p>
         </template>
       </div>
@@ -340,21 +364,30 @@ onUnmounted(() => {
                   :class="{ late: inHand.is_overdue }">
         <Icon name="tag" size="20" />
         <span>
-          <b class="tnum">Hand in {{ rupees(inHand.total_amount) }}</b>
+          <b class="tnum">
+            {{ t('Hand in {amount}', { amount: rupees(inHand.total_amount) }) }}
+          </b>
           <em v-if="inHand.is_overdue">
-            Carrying it {{ inHand.oldest_days }} days — your manager is told
+            {{ t('Carrying it {days} days — your manager is told',
+                 { days: inHand.oldest_days }) }}
           </em>
-          <em v-else>{{ inHand.count }} collection{{ inHand.count > 1 ? 's' : '' }} in hand</em>
+          <em v-else>
+            {{ inHand.count === 1
+                ? t('{n} collection in hand', { n: inHand.count })
+                : t('{n} collections in hand', { n: inHand.count }) }}
+          </em>
         </span>
         <Icon name="chevron" size="18" class="go" />
       </RouterLink>
 
       <!-- The grid: everything else a rep opens from home, two across. -->
       <div v-if="!loading" class="grid">
-        <RouterLink v-for="t in tiles" :key="t.to" :to="t.to" class="tile">
-          <Icon :name="t.icon" size="22" />
-          <b>{{ t.title }}</b>
-          <em>{{ t.note }}</em>
+        <!-- `tile`, not `t`: the loop variable was shadowing the imported translator
+             inside this block, so the first label added here would have failed to resolve. -->
+        <RouterLink v-for="tile in tiles" :key="tile.to" :to="tile.to" class="tile">
+          <Icon :name="tile.icon" size="22" />
+          <b>{{ tile.title }}</b>
+          <em>{{ tile.note }}</em>
         </RouterLink>
       </div>
 
@@ -362,21 +395,23 @@ onUnmounted(() => {
            not a worklist, and the Shops tab is where a rep goes to look one up. -->
       <template v-if="openDay && shops.length">
         <div class="section">
-          <h3>Today's shops</h3>
-          <span class="muted tnum">{{ shops.length }} in walking order</span>
+          <h3>{{ t("Today's shops") }}</h3>
+          <span class="muted tnum">
+            {{ t('{n} in walking order', { n: shops.length }) }}
+          </span>
         </div>
         <RouterLink v-for="o in shops" :key="o.name" :to="`/outlet/${o.name}`"
                     class="shop" :class="{ visited: visitedOutlets.has(o.name) }">
           <span class="seq tnum">{{ o.sequence }}</span>
           <span class="info">
             <b>{{ o.outlet_name }}</b>
-            <span class="muted">{{ o.city || '—' }}<em v-if="o.is_mandatory"> · must visit</em></span>
+            <span class="muted">{{ o.city || '—' }}<em v-if="o.is_mandatory"> · {{ t('must visit') }}</em></span>
           </span>
           <span v-if="visitedOutlets.has(o.name)" class="pill done">
-            <Icon name="check" size="18" /> Visited
+            <Icon name="check" size="18" /> {{ t('Visited') }}
           </span>
           <span v-else-if="o.approval_status !== 'Approved'" class="pill">
-            <Icon name="alert" size="18" /> Pending
+            <Icon name="alert" size="18" /> {{ t('Pending') }}
           </span>
           <Icon v-else class="go" name="chevron" size="22" />
         </RouterLink>
@@ -390,22 +425,26 @@ onUnmounted(() => {
     <div class="bottom">
       <RouterLink v-if="openVisit" class="btn-primary"
                   :to="{ name: 'visit', params: { uuid: openVisit.clientUuid } }">
-        Carry on in {{ openVisit.outletName }}
+        {{ t('Carry on in {shop}', { shop: openVisit.outletName }) }}
       </RouterLink>
-      <button v-else-if="loading" class="btn-primary" disabled>Loading…</button>
-      <RouterLink v-else-if="!openDay" to="/day/start" class="btn-primary">Start day</RouterLink>
+      <button v-else-if="loading" class="btn-primary" disabled>{{ t('Loading…') }}</button>
+      <RouterLink v-else-if="!openDay" to="/day/start" class="btn-primary">
+        {{ t('Start day') }}
+      </RouterLink>
       <RouterLink v-else-if="nextShop" class="btn-primary"
                   :to="{ name: 'visit-start', params: { name: nextShop.name } }">
-        Start next visit &middot; {{ nextShop.outlet_name }}
+        {{ t('Start next visit · {shop}', { shop: nextShop.outlet_name }) }}
       </RouterLink>
-      <RouterLink v-else to="/day/end" class="btn-primary">Finish day</RouterLink>
+      <RouterLink v-else to="/day/end" class="btn-primary">{{ t('Finish day') }}</RouterLink>
 
       <div class="also">
         <RouterLink v-if="openDay && (nextShop || openVisit)" to="/day/end" class="ghost">
-          Finish day
+          {{ t('Finish day') }}
         </RouterLink>
         <button class="ghost" :disabled="syncing" @click="syncNow">
-          {{ syncing ? 'Syncing…' : waiting ? `Sync now (${waiting})` : 'Sync now' }}
+          {{ syncing
+              ? t('Syncing…')
+              : waiting ? t('Sync now ({n})', { n: waiting }) : t('Sync now') }}
         </button>
       </div>
 
@@ -414,7 +453,9 @@ onUnmounted(() => {
            device data a disclosure surface. Claiming otherwise would be a lie to a rep. -->
       <p class="assurance" v-if="waiting">
         <Icon name="cloud-off" size="18" />
-        <span class="tnum">{{ waiting }} saved on this phone, waiting to sync</span>
+        <span class="tnum">
+          {{ t('{n} saved on this phone, waiting to sync', { n: waiting }) }}
+        </span>
       </p>
     </div>
   </div>

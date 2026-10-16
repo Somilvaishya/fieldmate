@@ -22,6 +22,7 @@ import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import { AWAITING_ADVANCE } from '../lib/season'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const bookings = ref([])
 const loading = ref(true)
@@ -30,18 +31,20 @@ const filter = ref('')
 
 // What the office has done with it, in the rep's words. "Awaiting Advance" is what the field is
 // called; "Waiting for your advance" is what the rep has to do about it.
-const WORDS = {
-  Draft: 'Not sent',
-  'Pending Approval': 'Waiting on your manager',
-  [AWAITING_ADVANCE]: 'Waiting for the advance',
-  Approved: 'Approved',
-  'Sent To Distributor': 'With the depot',
-  Accepted: 'Accepted',
-  Invoiced: 'Billed',
-  Delivered: 'Delivered',
-  Rejected: 'Refused',
-  Cancelled: 'Cancelled',
-}
+// `computed`, for the same reason as on the orders list. `AWAITING_ADVANCE` is imported
+// rather than spelled out so the key cannot drift from the server's own value.
+const WORDS = computed(() => ({
+  Draft: t('Not sent'),
+  'Pending Approval': t('Waiting on your manager'),
+  [AWAITING_ADVANCE]: t('Waiting for the advance'),
+  Approved: t('Approved'),
+  'Sent To Distributor': t('With the depot'),
+  Accepted: t('Accepted'),
+  Invoiced: t('Billed'),
+  Delivered: t('Delivered'),
+  Rejected: t('Refused'),
+  Cancelled: t('Cancelled'),
+}))
 const TONE = {
   [AWAITING_ADVANCE]: 'warn',
   'Pending Approval': 'warn',
@@ -53,11 +56,11 @@ const TONE = {
   Approved: 'ok',
 }
 
-const TABS = [
-  { key: '', label: 'All' },
-  { key: 'held', label: 'Need advance' },
-  { key: 'moving', label: 'Going ahead' },
-]
+const TABS = computed(() => [
+  { key: '', label: t('All') },
+  { key: 'held', label: t('Need advance') },
+  { key: 'moving', label: t('Going ahead') },
+])
 
 const shown = computed(() => {
   if (filter.value === 'held') return bookings.value.filter((b) => b.advance_short > 0)
@@ -80,7 +83,8 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function day(value) {
   if (!value) return ''
   const [y, m, d] = String(value).slice(0, 10).split('-')
-  return `${Number(d)} ${MONTHS[Number(m) - 1]} ${String(y).slice(2)}`
+  const month = MONTHS[Number(m) - 1]
+  return `${Number(d)} ${month ? t(month) : ''} ${String(y).slice(2)}`.replace(/\s+/g, ' ')
 }
 
 /** How far the advance has got, for a bar. Full where the season asks for none. */
@@ -100,7 +104,7 @@ async function load() {
     error.value =
       e instanceof ApiError
         ? e.message
-        : 'Could not load the season book. These figures move on the office side, so this list needs signal.'
+        : t('Could not load the season book. These figures move on the office side, so this list needs signal.')
   } finally {
     loading.value = false
   }
@@ -113,33 +117,37 @@ onMounted(load)
   <div class="wrap">
     <header class="head">
       <div>
-        <h1>Season book</h1>
-        <p class="dim">What you have booked, and what each one is waiting for</p>
+        <h1>{{ t('Season book') }}</h1>
+        <p class="dim">{{ t('What you have booked, and what each one is waiting for') }}</p>
       </div>
-      <button class="quiet" :disabled="loading" @click="load" aria-label="Refresh">
+      <button class="quiet" :disabled="loading" @click="load" :aria-label="t('Refresh')">
         <Icon name="refresh" size="18" />
       </button>
     </header>
 
     <div class="tabs">
-      <button v-for="t in TABS" :key="t.key" class="chip"
-              :class="{ on: filter === t.key }" @click="filter = t.key">
-        {{ t.label }}
+      <button v-for="tab in TABS" :key="tab.key" class="chip"
+              :class="{ on: filter === tab.key }" @click="filter = tab.key">
+        {{ tab.label }}
       </button>
     </div>
 
-    <p v-if="loading" class="note">Loading…</p>
+    <p v-if="loading" class="note">{{ t('Loading…') }}</p>
     <p v-else-if="error" class="note crit">{{ error }}</p>
 
     <template v-else-if="shown.length">
       <!-- The day's actual job, at the top. A rep opens this screen to find out whose office to
            walk into, not to admire a list. -->
       <div class="sum">
-        <span>{{ shown.length }} booking{{ shown.length === 1 ? '' : 's' }}</span>
+        <span>
+          {{ shown.length === 1
+              ? t('{n} booking', { n: shown.length })
+              : t('{n} bookings', { n: shown.length }) }}
+        </span>
         <b v-if="toCollect" class="tnum warn-text">
-          {{ formatRupees(toCollect) }} to collect
+          {{ t('{amount} to collect', { amount: formatRupees(toCollect) }) }}
         </b>
-        <b v-else class="tnum ok-text">Nothing outstanding</b>
+        <b v-else class="tnum ok-text">{{ t('Nothing outstanding') }}</b>
       </div>
 
       <div v-for="b in shown" :key="b.name" class="card">
@@ -159,15 +167,19 @@ onMounted(load)
         <!-- The advance, which is the whole reason this screen is not just the orders list. -->
         <div v-if="b.advance_required" class="adv">
           <div class="track" role="img"
-               :aria-label="'Advance ' + formatRupees(b.advance_in_hand) + ' of ' + formatRupees(b.advance_required)">
+               :aria-label="t('Advance {paid} of {due}', {
+                            paid: formatRupees(b.advance_in_hand),
+                            due: formatRupees(b.advance_required) })">
             <span class="seg paid" :style="{ width: pctPaid(b) + '%' }"></span>
           </div>
           <div class="srow tnum">
-            <span>Advance</span>
-            <b>{{ formatRupees(b.advance_in_hand) }} of {{ formatRupees(b.advance_required) }}</b>
+            <span>{{ t('Advance') }}</span>
+            <b>{{ t('{paid} of {due}', {
+                 paid: formatRupees(b.advance_in_hand),
+                 due: formatRupees(b.advance_required) }) }}</b>
           </div>
           <div v-if="b.advance_short" class="srow tnum">
-            <span class="warn-text">Still to collect</span>
+            <span class="warn-text">{{ t('Still to collect') }}</span>
             <b class="warn-text">{{ formatRupees(b.advance_short) }}</b>
           </div>
 
@@ -177,13 +189,14 @@ onMounted(load)
           <p v-if="b.pdc_total" class="foot">
             <Icon name="info" size="15" />
             <span class="tnum">
-              <b>{{ formatRupees(b.pdc_total) }}</b> of post-dated cheques is held against this
-              booking. It does not count until it falls due.
+              <b>{{ formatRupees(b.pdc_total) }}</b>
+              {{ t('of post-dated cheques is held against this booking.') }}
+              {{ t('It does not count until it falls due.') }}
             </span>
           </p>
 
           <p v-if="b.advance_short" class="foot strong">
-            Nothing is reserved or dispatched until the advance is in hand.
+            {{ t('Nothing is reserved or dispatched until the advance is in hand.') }}
           </p>
 
           <!-- The depot collection form, not the shop one. A booking advance comes from the
@@ -192,32 +205,36 @@ onMounted(load)
                the depot and the shortfall already filled in. -->
           <RouterLink v-if="b.advance_short" class="go"
                       :to="{ name: 'money', query: { order: b.name } }">
-            Collect {{ formatRupees(b.advance_short) }}
+            {{ t('Collect {amount}',
+                 { amount: formatRupees(b.advance_short) }) }}
           </RouterLink>
         </div>
 
-        <p v-else class="foot">This season asks for no advance.</p>
+        <p v-else class="foot">{{ t('This season asks for no advance.') }}</p>
 
         <div class="meta tnum">
-          <span>Booked {{ day(b.order_date) }}</span>
-          <span v-if="b.delivery_from">Delivers {{ day(b.delivery_from) }}–{{ day(b.delivery_to) }}</span>
+          <span>{{ t('Booked {date}', { date: day(b.order_date) }) }}</span>
+          <span v-if="b.delivery_from">
+            {{ t('Delivers {from}–{to}',
+                 { from: day(b.delivery_from), to: day(b.delivery_to) }) }}
+          </span>
           <!-- The promise the party was given at the counter, and the one thing a rep is asked
                about most: has the price moved. -->
-          <span v-if="b.rates_locked">Rates held</span>
-          <span v-if="b.tops_up">Adds to {{ b.tops_up }}</span>
+          <span v-if="b.rates_locked">{{ t('Rates held') }}</span>
+          <span v-if="b.tops_up">{{ t('Adds to {name}', { name: b.tops_up }) }}</span>
         </div>
       </div>
     </template>
 
     <div v-else class="empty">
       <Icon name="timer" size="34" />
-      <b>{{ filter ? 'Nothing here' : 'No bookings yet' }}</b>
+      <b>{{ filter ? t('Nothing here') : t('No bookings yet') }}</b>
       <p class="dim">
         {{ filter
-          ? 'Try another tab.'
-          : 'A primary order dated inside an open season books it. There is nothing open, or nothing booked yet.' }}
+          ? t('Try another tab.')
+          : t('A primary order dated inside an open season books it. There is nothing open, or nothing booked yet.') }}
       </p>
-      <RouterLink to="/parties" class="ghost">Order on a distributor</RouterLink>
+      <RouterLink to="/parties" class="ghost">{{ t('Order on a distributor') }}</RouterLink>
     </div>
   </div>
 </template>

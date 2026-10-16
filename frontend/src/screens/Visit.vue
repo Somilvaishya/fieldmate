@@ -10,6 +10,7 @@ import { api } from '../api/client'
 import { formatPaise } from '../lib/money'
 import * as photoQueue from '../sync/photos'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const router = useRouter()
 const visit = visitStore.activeVisit
@@ -25,7 +26,11 @@ const busy = ref(false)
 let ticker = null
 
 // Quick notes a rep would otherwise type one-handed at a counter.
-const QUICK_NOTES = ['Cash collected', 'Owner absent', 'Stock damaged', 'Asked for scheme']
+// Suggestions a rep taps into their own note, so these are text rather than wire values -
+// the note goes up as whatever it says here.
+const QUICK_NOTES = computed(() => [
+  t('Cash collected'), t('Owner absent'), t('Stock damaged'), t('Asked for scheme'),
+])
 
 const answered = computed(() => {
   if (!visit.value) return { done: 0, total: 0, required: 0 }
@@ -44,7 +49,7 @@ const orderCard = computed(() => {
   const booked = visit.value?.order
   if (booked) {
     return {
-      pill: booked.offline ? 'Saved on phone' : 'Booked',
+      pill: booked.offline ? t('Saved on phone') : t('Booked'),
       sub: `₹${formatPaise(booked.net)} — ${booked.offline ? 'will sync by itself' : 'sent to the distributor'}`,
       tone: 'ok',
       pct: 100,
@@ -53,12 +58,12 @@ const orderCard = computed(() => {
   if (cart.value.lines) {
     return {
       pill: `${cart.value.lines} in cart`,
-      sub: 'Started but not punched yet',
+      sub: t('Started but not punched yet'),
       tone: 'warn',
       pct: 50,
     }
   }
-  return { pill: 'None yet', sub: 'Catalogue, schemes and credit', tone: 'muted', pct: 0 }
+  return { pill: t('None yet'), sub: t('Catalogue, schemes and credit'), tone: 'muted', pct: 0 }
 })
 
 const jobs = computed(() => {
@@ -66,7 +71,7 @@ const jobs = computed(() => {
   const order = orderCard.value
   return [
     {
-      key: 'order', icon: 'cart', title: 'Order',
+      key: 'order', icon: 'cart', title: t('Order'),
       sub: order.sub,
       pill: order.pill,
       tone: order.tone,
@@ -75,44 +80,44 @@ const jobs = computed(() => {
       disabled: !visit.value?.outlet,
     },
     {
-      key: 'checklist', icon: 'list', title: 'Checklist',
-      sub: 'Store hygiene, banners and display',
-      pill: a.total ? `${a.done} of ${a.total}` : 'None set',
+      key: 'checklist', icon: 'list', title: t('Checklist'),
+      sub: t('Store hygiene, banners and display'),
+      pill: a.total ? t('{done} of {total}', { done: a.done, total: a.total }) : t('None set'),
       tone: a.total && a.done === a.total ? 'ok' : a.required ? 'warn' : 'muted',
       pct: a.total ? Math.round((a.done / a.total) * 100) : 0,
       to: { name: 'visit-checklist' },
       disabled: !a.total,
     },
     {
-      key: 'shelf', icon: 'shelves', title: 'Shelf check',
-      sub: 'Facings and competitor pricing',
-      pill: shelfDone.value ? 'Done' : 'Pending',
+      key: 'shelf', icon: 'shelves', title: t('Shelf check'),
+      sub: t('Facings and competitor pricing'),
+      pill: shelfDone.value ? t('Done') : t('Pending'),
       tone: shelfDone.value ? 'ok' : 'muted',
       pct: shelfDone.value ? 100 : 0,
       to: { name: 'visit-merchandising' },
     },
     {
-      key: 'stock', icon: 'shelves', title: 'Stock check',
-      sub: stockDone.value ? 'Counted this visit' : 'What he is still holding',
-      pill: stockDone.value ? 'Done' : 'None yet',
+      key: 'stock', icon: 'shelves', title: t('Stock check'),
+      sub: stockDone.value ? t('Counted this visit') : t('What he is still holding'),
+      pill: stockDone.value ? t('Done') : t('None yet'),
       tone: stockDone.value ? 'ok' : 'muted',
       pct: stockDone.value ? 100 : 0,
       to: { name: 'stock-check', params: { outlet: visit.value?.outlet } },
       disabled: !visit.value?.outlet,
     },
     {
-      key: 'money', icon: 'tag', title: 'Collect payment',
-      sub: owed.value ? formatPaise(owed.value * 100) + ' outstanding' : 'Nothing outstanding',
-      pill: collected.value ? 'Taken' : (owed.value ? 'Due' : 'Clear'),
+      key: 'money', icon: 'tag', title: t('Collect payment'),
+      sub: owed.value ? formatPaise(owed.value * 100) + ' outstanding' : t('Nothing outstanding'),
+      pill: collected.value ? t('Taken') : (owed.value ? t('Due') : t('Clear')),
       tone: collected.value ? 'ok' : (owed.value ? 'warn' : 'muted'),
       pct: collected.value ? 100 : 0,
       to: { name: 'outstanding', params: { outlet: visit.value?.outlet } },
       disabled: !visit.value?.outlet,
     },
     {
-      key: 'photo', icon: 'camera', title: 'Photos',
-      sub: 'Shopfront, shelf, damage',
-      pill: photos.value ? `${photos.value} waiting` : 'None yet',
+      key: 'photo', icon: 'camera', title: t('Photos'),
+      sub: t('Shopfront, shelf, damage'),
+      pill: photos.value ? t('{n} waiting', { n: photos.value }) : t('None yet'),
       tone: photos.value ? 'ok' : 'muted',
       pct: photos.value ? 100 : 0,
       photo: true,
@@ -173,15 +178,15 @@ function addNote(text) {
 // What the server's `purpose` column accepts, in the order a rep meets them. Every photo used to
 // go up as "Shelf" whatever it showed, so a damaged-stock picture and a planogram check were the
 // same word on the desk and nobody could tell them apart afterwards.
-const PURPOSES = [
-  { key: 'Shelf', label: 'Shelf' },
-  { key: 'Shop Front', label: 'Shop front' },
-  { key: 'Planogram', label: 'Planogram' },
-  { key: 'Competitor', label: 'Competitor' },
-  { key: 'Damage', label: 'Damage' },
-  { key: 'Expiry', label: 'Expiry' },
-  { key: 'Other', label: 'Other' },
-]
+const PURPOSES = computed(() => [
+  { key: 'Shelf', label: t('Shelf') },
+  { key: 'Shop Front', label: t('Shop front') },
+  { key: 'Planogram', label: t('Planogram') },
+  { key: 'Competitor', label: t('Competitor') },
+  { key: 'Damage', label: t('Damage') },
+  { key: 'Expiry', label: t('Expiry') },
+  { key: 'Other', label: t('Other') },
+])
 const purpose = ref('Shelf')
 const shots = ref([])
 
@@ -238,8 +243,8 @@ async function onPhoto(event) {
     watchShots()
   } catch {
     error.value = files.length > 1
-      ? 'Could not read one of those photos. Try again.'
-      : 'Could not read that photo. Try taking it again.'
+      ? t('Could not read one of those photos. Try again.')
+      : t('Could not read that photo. Try taking it again.')
   } finally {
     busy.value = false
     event.target.value = ''
@@ -253,8 +258,8 @@ async function onPhoto(event) {
       <div class="head">
         <div class="who">
           <div class="badges">
-            <span v-if="visit.isGeoFenceBreach" class="tag warn">Outside range</span>
-            <span v-if="visit.createdOffline" class="tag">Saved on this phone</span>
+            <span v-if="visit.isGeoFenceBreach" class="tag warn">{{ t('Outside range') }}</span>
+            <span v-if="visit.createdOffline" class="tag">{{ t('Saved on this phone') }}</span>
           </div>
           <h2>{{ visit.outletName }}</h2>
           <p class="muted tnum">
@@ -267,13 +272,13 @@ async function onPhoto(event) {
       <div v-if="visit.isGeoFenceBreach" class="flag">
         <Icon name="pin" size="20" />
         <span>
-          Checked in outside this shop's range. The distance is saved with the visit for
-          your manager.
+          {{ t("Checked in outside this shop's range.") }}
+          {{ t('The distance is saved with the visit for your manager.') }}
         </span>
       </div>
 
       <div class="section">
-        <h3>What to do here</h3>
+        <h3>{{ t('What to do here') }}</h3>
         <span class="muted tnum">{{ finished }} of {{ jobs.length }} done</span>
       </div>
 
@@ -288,7 +293,7 @@ async function onPhoto(event) {
               <b>{{ job.title }}</b>
               <span class="pill" :class="job.tone">{{ job.pill }}</span>
             </span>
-            <span class="muted">{{ busy && job.photo ? 'Saving photo…' : job.sub }}</span>
+            <span class="muted">{{ busy && job.photo ? t('Saving photo…') : job.sub }}</span>
             <span class="track"><span class="fill" :style="{ width: job.pct + '%' }"></span></span>
           </span>
           <Icon v-if="!job.photo" name="chevron" size="20" class="go" />
@@ -299,7 +304,7 @@ async function onPhoto(event) {
 
       <!-- What the next photo will be filed as. Chosen before the camera opens, because after it
            closes the rep is already looking at the next thing. -->
-      <div class="purposes" role="group" aria-label="What the next photo shows">
+      <div class="purposes" role="group" :aria-label="t('What the next photo shows')">
         <button v-for="p in PURPOSES" :key="p.key" type="button"
                 class="chip" :class="{ on: purpose === p.key }" @click="purpose = p.key">
           {{ p.label }}
@@ -314,17 +319,17 @@ async function onPhoto(event) {
           <span v-else class="noimg"><Icon name="camera" size="20" /></span>
           <figcaption>
             <b>{{ s.purpose }}</b>
-            <em v-if="s.state === 'sent'">Sent</em>
-            <em v-else-if="s.state === 'blocked'" class="bad">Stuck</em>
-            <em v-else>Waiting</em>
+            <em v-if="s.state === 'sent'">{{ t('Sent') }}</em>
+            <em v-else-if="s.state === 'blocked'" class="bad">{{ t('Stuck') }}</em>
+            <em v-else>{{ t('Waiting') }}</em>
           </figcaption>
         </figure>
       </div>
 
       <div class="card">
-        <label class="lbl" for="remarks">Remarks</label>
+        <label class="lbl" for="remarks">{{ t('Remarks') }}</label>
         <textarea id="remarks" v-model="visit.remarks" rows="3"
-                  placeholder="Anything worth telling your manager"
+                  :placeholder="t('Anything worth telling your manager')"
                   @blur="visitStore.saveProgress()" />
         <div class="chips">
           <button v-for="n in QUICK_NOTES" :key="n" type="button" class="chip"
@@ -337,10 +342,11 @@ async function onPhoto(event) {
 
     <div class="bottom">
       <p v-if="short" class="muted note tnum">
-        A visit here usually takes at least {{ visit.minVisitMinutes }} minutes.
+        {{ t('A visit here usually takes at least {n} minutes.',
+             { n: visit.minVisitMinutes }) }}
       </p>
       <button class="btn-primary" @click="router.push({ name: 'visit-checkout' })">
-        Finish visit
+        {{ t('Finish visit') }}
       </button>
     </div>
   </div>

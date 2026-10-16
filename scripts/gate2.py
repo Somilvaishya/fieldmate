@@ -224,20 +224,20 @@ def grant_leave(rep, on_date, holiday_list=None) -> bool:
 
 
 def criterion_2(fx):
-    """Day Start creates a matching Employee Checkin with correct lat/long."""
+    """Opening the day creates a matching Employee Checkin with correct lat/long."""
     from fieldmate import compat
     from fieldmate.services import day as day_service
 
     rep = fx.reps[1]
     if not compat.is_installed("hrms"):
-        note(2, "Day Start mirrors into Employee Checkin",
+        note(2, "Opening the day mirrors into Employee Checkin",
              "hrms is not installed on this site, so there is nothing to mirror into. "
              "The adapter skips quietly by design - hrms is optional (compat REQUIRED_APPS).")
         return None
 
     employee = ensure_employee(rep, fx.holiday_list)
     if not employee:
-        note(2, "Day Start mirrors into Employee Checkin",
+        note(2, "Opening the day mirrors into Employee Checkin",
              "no Employee could be created for the rep on this site.")
         return None
 
@@ -249,7 +249,7 @@ def criterion_2(fx):
     finally:
         frappe.set_user("Administrator")
 
-    checkin = frappe.db.get_value("FieldMate Day Start", started["day_start"], "employee_checkin")
+    checkin = frappe.db.get_value("FieldMate Day", started["day"], "employee_checkin")
     geo_ok = True
     detail = f"checkin {checkin}"
     if checkin and compat.capabilities()["checkin_has_geo"]:
@@ -316,7 +316,7 @@ def criterion_3(fx, started):
         # Sent in six batches, as the pinger does. One row must come out of it, not six.
         for batch in range(0, len(pings), 90):
             trail_service.append(rep.name, pings[batch:batch + 90],
-                                 day_start=started["day_start"] if started else None)
+                                 day=started["day"] if started else None)
     finally:
         frappe.set_user("Administrator")
 
@@ -347,10 +347,10 @@ def criterion_4(fx):
     finally:
         frappe.set_user("Administrator")
 
-    flagged = frappe.db.get_value("FieldMate Day Start", started["day_start"], "is_mock_location")
+    flagged = frappe.db.get_value("FieldMate Day", started["day"], "is_mock_location")
 
     check(4, "A mock location is flagged rather than silently accepted",
-          bool(flagged) and bool(started.get("day_start")),
+          bool(flagged) and bool(started.get("day")),
           "the day still starts - a rep is not blocked on the word of a flag that can be wrong - "
           f"but it is recorded: is_mock_location = {flagged}")
 
@@ -377,12 +377,12 @@ def criterion_5(fx, started):
     finally:
         frappe.set_user("Administrator")
 
-    same = bool(first) and first.get("day_start") == started["day_start"]
-    stable = bool(second) and second.get("day_start") == first.get("day_start")
+    same = bool(first) and first.get("day") == started["day"]
+    stable = bool(second) and second.get("day") == first.get("day")
 
     check(5, "Reopening resumes the same open day",
           same and stable,
-          f"day {started['day_start']} reads back identically, still open")
+          f"day {started['day']} reads back identically, still open")
 
     note("5b", "Killing the app itself",
          "A client behaviour. The server half is proved above; the phone half is step C4 of "

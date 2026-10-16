@@ -43,6 +43,22 @@ class OrderFixture(SchemeFixture):
 		frappe.clear_document_cache("Customer", self.outlet.distributor)
 		self.distributor = frappe.get_doc("Customer", self.outlet.distributor)
 		self.price_item(self.item, 100)
+		# Which depot a directly-billed order ships from. A fixture that books on a party we
+		# bill has to answer this the same way it has to answer which company: ERPNext refuses
+		# a Sales Order whose rows do not say where the stock leaves from, and the service now
+		# says so itself rather than letting that surface as "Source warehouse required".
+		#
+		# Set as the FieldMate Settings default, because that is the answer for everybody;
+		# `Customer.fm_warehouse` is the per-party override and has its own tests.
+		self.apply_settings(default_warehouse=self.leaf_warehouse())
+
+	def leaf_warehouse(self) -> str | None:
+		"""A warehouse stock can actually leave from, in this rep's company.
+
+		A group node is not a place - ERPNext cannot reserve in one - so only a leaf will do.
+		"""
+		return frappe.db.get_value(
+			"Warehouse", {"company": self.rep.company, "is_group": 0}, "name")
 
 	def territory_for_orders(self):
 		if not getattr(self, "_territory", None):
@@ -306,7 +322,8 @@ class TestApproval(OrderFixture):
 class TestAnOfflineOrderLandsTheSameWay(OrderFixture):
 	"""An order captured with no signal arrives through sync.push, which inserts the document
 	directly and never calls the order service. Everything that matters therefore has to live on
-	the controller — which is exactly the bug that once landed Day End with every figure at zero.
+	the controller — which is exactly the bug that once landed a day close with every figure
+	at zero.
 	"""
 
 	def test_a_pushed_order_is_priced_routed_and_accrued(self):
@@ -504,6 +521,46 @@ class TestAnOrderOnAPartyWeBill(OrderFixture):
 			"billed to the party we sold to, not to anybody else")
 		self.assertEqual(result["order_status"], "Approved")
 
+	def test_the_sales_order_says_where_the_stock_leaves_from(self):
+		"""On every row, which is the only place ERPNext looks.
+
+		`Sales Order.validate_warehouse` checks `warehouse` on each item row of a stock item.
+		Setting the header alone does nothing server-side - `validate` calls
+		`reset_default_field_value`, which *clears* the header when the rows disagree with it
+		rather than filling them from it. ERPNext spreads the header over the rows in the
+		form's own script, which a server-side insert never runs.
+		"""
+		created = self.book_party()
+		self.as_rep(order_service.submit_order, created["name"])
+		sales_order = frappe.db.get_value("FieldMate Order", created["name"], "sales_order")
+		self.track("Sales Order", sales_order)
+
+		warehouse = self.leaf_warehouse()
+		self.assertEqual(
+			frappe.db.get_value("Sales Order", sales_order, "set_warehouse"), warehouse)
+		rows = frappe.get_all("Sales Order Item", filters={"parent": sales_order},
+		                      pluck="warehouse")
+		self.assertTrue(rows)
+		self.assertTrue(all(w == warehouse for w in rows),
+		                f"every row has to name the depot, got {rows}")
+
+	def test_with_no_warehouse_set_up_it_says_so_in_words(self):
+		"""Rather than letting ERPNext say "Source warehouse required for stock item ITEM-0042".
+
+		That sentence is true and useless: it names a document field, in a document the rep
+		never sees, about a setting they have never heard of. The order is refused either way -
+		the point is that the refusal names what to go and set.
+		"""
+		self.apply_settings(default_warehouse=None)
+		frappe.db.set_value("Customer", self.party, "fm_warehouse", None,
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+
+		created = self.book_party()
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.as_rep(order_service.submit_order, created["name"])
+		self.assertIn("default warehouse in FieldMate Settings", str(ctx.exception))
+
 	def test_it_is_not_handed_to_a_distributors_queue(self):
 		"""There is no distributor in a primary sale - we are the seller."""
 		created = self.book_party()
@@ -541,7 +598,15 @@ class TestWhichBranchIsSelling(OrderFixture):
 	So the rep chooses, and the party's usual branch is what they are offered.
 	"""
 
-	SETTINGS = ("enable_secondary_sales", "enable_primary_sales")
+	# `default_location` is snapshotted here, and it has to be. These tests point the setting at
+	# a Location they create, `tearDown` deletes that Location, and the **Single keeps the
+	# value** - so the next `apply_settings` of anything at all saves a document holding a Link
+	# to a branch that is gone and fails with "Could not find Default Location". It takes out
+	# every later test in the class, in `OrderFixture.setUp`, nowhere near the cause.
+	#
+	# Restored before `super().tearDown()` deletes the tracked docs, which is the order that
+	# makes it work.
+	SETTINGS = ("enable_secondary_sales", "enable_primary_sales", "default_location")
 
 	def setUp(self):
 		super().setUp()
@@ -589,12 +654,43 @@ class TestWhichBranchIsSelling(OrderFixture):
 		frappe.clear_document_cache("Customer", self.party)
 		self.assertEqual(order_service.default_location_for(self.party), branch)
 
-	def test_a_party_with_no_branch_defaults_to_nothing(self):
+	def test_a_party_with_no_branch_and_no_setting_defaults_to_nothing(self):
 		"""Which is every party on a site that does not use Locations."""
+		self.apply_settings(default_location=None)
+		self.assertIsNone(order_service.default_location_for(self.party))
+
+	def test_the_setting_answers_for_a_party_that_names_no_branch(self):
+		"""The rule the depot already followed: the party's own answer, else the setting.
+
+		Without it a company running one branch had to name that branch on every Customer it
+		ever created, and a party somebody forgot posted an order with no branch at all - which
+		on a site using Location as an Accounting Dimension is a Sales Order ERPNext refuses.
+		"""
+		branch = self.branch()
+		self.apply_settings(default_location=branch)
+		frappe.db.set_value("Customer", self.party, "fm_location", None, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+		self.assertEqual(order_service.default_location_for(self.party), branch)
+
+	def test_the_party_beats_the_setting(self):
+		"""A party a particular branch always handles is the reason the field is on Customer."""
+		theirs, everybody = self.branch(), self.branch()
+		self.apply_settings(default_location=everybody)
+		frappe.db.set_value("Customer", self.party, "fm_location", theirs,
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+		self.assertEqual(order_service.default_location_for(self.party), theirs)
+
+	def test_a_group_in_the_setting_is_refused_too(self):
+		"""The same rule on both sides of the fallback, or the setting is a way around it."""
+		self.apply_settings(default_location=self.branch(is_group=1))
+		frappe.db.set_value("Customer", self.party, "fm_location", None, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
 		self.assertIsNone(order_service.default_location_for(self.party))
 
 	def test_a_group_is_never_offered_as_a_default(self):
 		"""Posting against a folder is not posting against a place, and ERPNext would take it."""
+		self.apply_settings(default_location=None)
 		group = self.branch(is_group=1)
 		frappe.db.set_value("Customer", self.party, "fm_location", group, update_modified=False)
 		frappe.clear_document_cache("Customer", self.party)

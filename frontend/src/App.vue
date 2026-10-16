@@ -46,17 +46,25 @@ const TABS = [
     <main class="body"><RouterView /></main>
 
     <nav v-if="chrome" class="tabs">
-      <RouterLink v-for="t in TABS" :key="t.to" :to="t.to" class="tab">
+      <RouterLink v-for="tab in TABS" :key="tab.to" :to="tab.to" class="tab">
         <span class="mark" aria-hidden="true"></span>
-        <Icon :name="t.icon" size="22" />
-        <span class="label">{{ t.label }}</span>
+        <Icon :name="tab.icon" size="22" />
+        <span class="label">{{ tab.label }}</span>
       </RouterLink>
     </nav>
   </div>
 </template>
 
 <style scoped>
-.shell { display: flex; flex-direction: column; height: 100%; }
+/* Fixed to the viewport rather than sized against it.
+ *
+ * A height has to be measured, and on a phone every unit that measures one has a case where it
+ * is wrong: `100%` includes the strip under the address bar, `100dvh` can be left stale by the
+ * on-screen keyboard. Both put the tab bar somewhere other than the bottom edge, which is what
+ * a rep reported - the bar mid-page with empty white below it.
+ *
+ * `inset: 0` is the viewport by definition. Nothing to recompute, and no unit to be wrong. */
+.shell { position: fixed; inset: 0; display: flex; flex-direction: column; }
 /* The only scroller. The status lane above and the tabs below are chrome, and both stay put
    while a rep scrolls a long beat. */
 .body { flex: 1; overflow-y: auto; }

@@ -76,8 +76,7 @@ TRANSACTIONAL = [
     # Phase 2
     "FieldMate Attendance Summary",
     "FieldMate Location Trail",
-    "FieldMate Day End",
-    "FieldMate Day Start",
+    "FieldMate Day",
     # Phase 0 - the sync spine
     "FieldMate Sync Conflict",
     "FieldMate Sync Batch",

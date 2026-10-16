@@ -88,8 +88,8 @@ export async function ensure() {
 /** Open the day. Works with no signal: the record is queued and the rep carries on.
  *
  * Before this, an offline start threw away the selfie, the fix and the odometer, and every
- * check-in afterwards was refused because the server had no open day. The queued Day Start
- * keeps its client id, and each visit references that id - `sync._apply` resolves it through
+ * check-in afterwards was refused because the server had no open day. The queued day keeps
+ * its client id, and each visit references that id - `sync._apply` resolves it through
  * `depends_on` when the batch lands, so a whole offline day arrives intact and in order.
  */
 export async function start(payload) {
@@ -101,7 +101,7 @@ export async function start(payload) {
     const data = await api.dayStart(device, body)
     openDay.value = data
     loaded.value = true
-    await rememberName(clientUuid, 'FieldMate Day Start', data.day_start)
+    await rememberName(clientUuid, 'FieldMate Day', data.day)
     await setMeta('openDay', data)
     pinger.start()
     // The trail document should exist on the server while the rep is still looking at the
@@ -113,7 +113,7 @@ export async function start(payload) {
   }
 
   const local = {
-    day_start: clientUuid,          // the client id stands in until the server names it
+    day: clientUuid,                // the client id stands in until the server names it
     day_date: stamp().slice(0, 10),
     started_at: stamp(),
     planned_beat: plannedToday.value?.beat || null,
@@ -124,7 +124,7 @@ export async function start(payload) {
     created: true,
   }
 
-  await enqueue('FieldMate Day Start', {
+  await enqueue('FieldMate Day', {
     docstatus: 1,
     day_date: local.day_date,
     start_time: local.started_at,
@@ -150,6 +150,10 @@ export async function start(payload) {
 /** Close the day. Also works with no signal. */
 export async function end(payload) {
   const device = await deviceUuid()
+  // The close carries its own id, so a retry on a bad connection is recognised as the same
+  // close rather than applied twice. Generated once, for whichever path the day takes out.
+  const endUuid = crypto.randomUUID()
+  const day = openDay.value?.day || null
   await pinger.flush()          // send the trail before the server computes distance from it
 
   // Yesterday's thumbnails. They are kept so a rep can see this morning's photos after they
@@ -158,7 +162,7 @@ export async function end(payload) {
   photoQueue.forgetSentBefore(Date.now() - 2 * 24 * 60 * 60 * 1000).catch(() => {})
 
   try {
-    const data = await api.dayEnd(device, payload)
+    const data = await api.dayEnd(device, { ...payload, client_uuid: endUuid })
     openDay.value = null
     await setMeta('openDay', null)
     pinger.stop()
@@ -167,17 +171,18 @@ export async function end(payload) {
     if (!offline(e)) throw e
   }
 
-  await enqueue('FieldMate Day End', {
-    docstatus: 1,
-    day_start: openDay.value?.day_start || null,
+  // A close, not a second document: `closes` names the day this finishes, by server name if
+  // the day was opened online and by its own client id if the open is still in the outbox.
+  // The server resolves either. No `docstatus` - the day was submitted the morning it opened.
+  await enqueue('FieldMate Day', {
+    closes: day,
     end_time: stamp(),
-    latitude: payload.latitude ?? null,
-    longitude: payload.longitude ?? null,
-    accuracy_m: payload.accuracy_m ?? null,
+    end_latitude: payload.latitude ?? null,
+    end_longitude: payload.longitude ?? null,
+    end_accuracy_m: payload.accuracy_m ?? null,
     odometer_end: payload.odometer_end ?? null,
     remarks: payload.remarks || null,
-    created_offline: 1,
-  }, { dependsOn: openDay.value?.day_start || null })
+  }, { clientUuid: endUuid, dependsOn: day })
 
   openDay.value = null
   await setMeta('openDay', null)

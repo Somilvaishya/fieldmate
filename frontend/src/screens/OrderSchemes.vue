@@ -24,6 +24,8 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
+import { t } from '../lib/i18n'
 import { db } from '../db'
 import { formatPaise } from '../lib/money'
 import { isPosmItem } from '../lib/posm'
@@ -105,7 +107,7 @@ function slabOf(spec, idx) {
   return (spec.slabs || []).find((s) => Number(s.idx) === Number(idx)) || null
 }
 function itemName(code) {
-  return itemIndex.value.get(code)?.item_name || code || 'item'
+  return itemIndex.value.get(code)?.item_name || code || t('item')
 }
 function freeUomFor(code) {
   return itemIndex.value.get(code)?.stock_uom || null
@@ -127,18 +129,22 @@ const words = computed(() => ({
  * stays "units".
  */
 function unitFor(spec) {
-  if (!spec || spec.basis === 'Value') return 'units'
-  if (spec.measured_over === 'Order') return 'units'
+  if (!spec || spec.basis === 'Value') return t('units')
+  if (spec.measured_over === 'Order') return t('units')
   const uoms = new Set()
   for (const code of spec.qualifying_items || []) {
     const item = itemIndex.value.get(code)
     if (item && item.stock_uom) uoms.add(item.stock_uom)
   }
-  return uoms.size === 1 ? [...uoms][0] : 'units'
+  // The unit itself is an ERPNext master value and stays as the server names it. Only the
+  // fallback word is ours.
+  return uoms.size === 1 ? [...uoms][0] : t('units')
 }
 
 function measureText(spec, basis, value) {
-  return basis === 'Value' ? money(value) : `${value} ${unitFor(spec)}`
+  return basis === 'Value'
+    ? money(value)
+    : t('{n} {unit}', { n: value, unit: unitFor(spec) })
 }
 
 // ------------------------------------------------------------------------------------ applied
@@ -167,22 +173,34 @@ const earned = computed(() =>
     const mine = []
     for (const b of entry.benefits || []) {
       if (b.kind === 'Incentive') {
-        mine.push(`${money(b.amount_paise)} incentive for you`)
+        mine.push(t('{amount} incentive for you',
+                    { amount: money(b.amount_paise) }))
         continue
       }
       if (b.kind === 'Free Goods') {
-        gets.push({ text: `${qtyWords(b.qty, freeUomFor(b.item))} ${itemName(b.item)} free`, free: true })
+        gets.push({
+          text: t('{qty} {item} free', {
+            qty: qtyWords(b.qty, freeUomFor(b.item)),
+            item: itemName(b.item),
+          }),
+          free: true,
+        })
         continue
       }
       if (DISCOUNT_KINDS.includes(b.kind)) {
         // The rate is named beside the rupees only when the slab carries exactly one percentage.
         // The engine skips benefit kinds it does not know, so positions in the two arrays can
         // diverge, and matching by index would eventually put the wrong rate on the wrong money.
-        const rate =
-          b.kind === 'Percent Discount' && percents.length === 1
-            ? ` (${percentWords(percents[0].pct_bp)})`
-            : ''
-        gets.push({ text: `${money(b.amount_paise)} off the bill${rate}`, free: false })
+        const named = b.kind === 'Percent Discount' && percents.length === 1
+        gets.push({
+          text: named
+            ? t('{amount} off the bill ({pct})', {
+                amount: money(b.amount_paise),
+                pct: percentWords(percents[0].pct_bp),
+              })
+            : t('{amount} off the bill', { amount: money(b.amount_paise) }),
+          free: false,
+        })
       }
     }
 
@@ -190,9 +208,14 @@ const earned = computed(() =>
     if (slab) {
       const from = basis === 'Value' ? money(slab.from) : String(slab.from)
       const open = slab.to === null || slab.to === undefined
-      const to = open ? '+' : ` to ${basis === 'Value' ? money(slab.to) : slab.to}`
       const unit = basis === 'Value' ? '' : ` ${unitFor(spec)}`
-      slabText = `Slab met: ${from}${to}${unit}`
+      slabText = open
+        ? t('Slab met: {from}+{unit}', { from, unit })
+        : t('Slab met: {from} to {to}{unit}', {
+            from,
+            to: basis === 'Value' ? money(slab.to) : slab.to,
+            unit,
+          })
     }
 
     return {
@@ -261,7 +284,9 @@ const rungs = computed(() =>
       mine,
       have: measureText(spec, nm.basis, nm.measure),
       need: target === null ? null : measureText(spec, nm.basis, target),
-      short: nm.basis === 'Value' ? money(nm.gap_paise) : `${nm.gap_units} ${unitFor(spec)}`,
+      short: nm.basis === 'Value'
+        ? money(nm.gap_paise)
+        : t('{n} {unit}', { n: nm.gap_units, unit: unitFor(spec) }),
       // Shared with the cart screen, deliberately. Two screens that each worked out "how much more"
       // for themselves would eventually offer a rep two different quantities for the same nudge -
       // and this is the one number on the screen a rep acts on without checking. It also buys the
@@ -280,7 +305,8 @@ async function addTheGap(rung) {
     await cart.bumpQty(rung.add.item_code, rung.add.add_base, { unit: 'base' })
   } catch (e) {
     actionError.value =
-      (e && e.message) || 'Could not add that here. Open the cart and change the quantity there.'
+      (e && e.message)
+      || t('Could not add that here. Open the cart and change the quantity there.')
   } finally {
     adding.value = null
   }
@@ -315,12 +341,12 @@ const notApplied = computed(() =>
 function ago(ms) {
   if (ms === null || ms === undefined) return null
   const min = Math.floor(ms / 60000)
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min} min ago`
+  if (min < 1) return t('just now')
+  if (min < 60) return t('{n} min ago', { n: min })
   const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} h ago`
+  if (hr < 24) return t('{n} h ago', { n: hr })
   const days = Math.floor(hr / 24)
-  return `${days} ${days === 1 ? 'day' : 'days'} ago`
+  return days === 1 ? t('{n} day ago', { n: days }) : t('{n} days ago', { n: days })
 }
 
 const schemesAge = computed(() => ago(dataAge.value.schemes.ageMs))
@@ -358,7 +384,7 @@ onMounted(async () => {
   <div class="wrap screen">
     <div class="top">
       <RouterLink class="crumb" :to="cartRoute">
-        <Icon name="back" size="18" /> <span>Back to the cart</span>
+        <Icon name="back" size="18" /> <span>{{ t('Back to the cart') }}</span>
       </RouterLink>
 
       <header>
@@ -367,18 +393,18 @@ onMounted(async () => {
           <span v-if="tier" class="tag">{{ tier }}</span>
         </div>
         <p class="sub">
-          <span>What this order earns</span>
+          <span>{{ t('What this order earns') }}</span>
           <button type="button" class="linkbtn" @click="refresh" :disabled="refreshing">
             <Icon name="refresh" size="16" />
-            <span>{{ refreshing ? 'Refreshing…' : 'Refresh offers' }}</span>
+            <span>{{ refreshing ? t('Refreshing…') : t('Refresh offers') }}</span>
           </button>
         </p>
       </header>
 
       <!-- Loading is a designed state, not a blank screen. -->
       <div v-if="loading && !catalogue" class="card">
-        <b>Working out what this order earns…</b>
-        <p class="muted">One moment.</p>
+        <b>{{ t('Working out what this order earns…') }}</b>
+        <p class="muted">{{ t('One moment.') }}</p>
       </div>
 
       <template v-else>
@@ -388,10 +414,10 @@ onMounted(async () => {
 
         <!-- An empty cart is not an error. There is simply nothing to price yet. -->
         <div v-if="isEmpty" class="card empty">
-          <b>Nothing in this order yet</b>
+          <b>{{ t('Nothing in this order yet') }}</b>
           <p class="muted">
-            Schemes are worked out from what is in the cart. Add a few items and every discount
-            and free pack this shop has earned appears here.
+            {{ t('Schemes are worked out from what is in the cart.') }}
+            {{ t('Add a few items and every discount and free pack this shop has earned appears here.') }}
           </p>
         </div>
 
@@ -400,22 +426,24 @@ onMounted(async () => {
                "Off this bill" is the only one the total subtracts. -->
           <div class="tiles">
             <div class="tile">
-              <span class="label">Order value</span>
+              <span class="label">{{ t('Order value') }}</span>
               <b class="value tnum">{{ sym }}{{ totals.gross }}</b>
             </div>
             <div class="tile">
-              <span class="label">Items</span>
+              <span class="label">{{ t('Items') }}</span>
               <b class="value tnum">{{ lineCount }}</b>
             </div>
             <div class="tile good">
-              <span class="label">Off this bill</span>
+              <span class="label">{{ t('Off this bill') }}</span>
               <b class="value tnum">{{ sym }}{{ totals.discount }}</b>
             </div>
             <div class="tile">
-              <span class="label">Free stock</span>
+              <span class="label">{{ t('Free stock') }}</span>
               <b class="value tnum">{{ freeUnitCount }}</b>
               <span class="label">
-                {{ freeUnitCount === 1 ? 'unit' : 'units' }}, billed at zero
+                {{ freeUnitCount === 1
+                    ? t('unit, billed at zero')
+                    : t('units, billed at zero') }}
               </span>
             </div>
           </div>
@@ -423,10 +451,11 @@ onMounted(async () => {
           <p v-if="totals.incentive_paise > 0" class="note mine">
             <Icon name="person" size="18" />
             <span>
-              This order pays you <b class="tnum">{{ sym }}{{ totals.incentive }}</b>
+              {{ t('This order pays you') }}
+              <b class="tnum">{{ sym }}{{ totals.incentive }}</b>
               <template v-if="repOnly.length">
                 ({{ repOnly.map((s) => s.scheme_name || s.scheme).join(', ') }})</template>.
-              It is not on the shop&rsquo;s bill and is not read out to them.
+              {{ t('It is not on the shop’s bill and is not read out to them.') }}
             </span>
           </p>
 
@@ -438,14 +467,16 @@ onMounted(async () => {
           <p v-if="schemesStale" class="note warn">
             <Icon name="cloud-off" size="18" />
             <span>
-              These offers were last updated <b>{{ schemesAge || 'a while ago' }}</b>. They still
-              price the order. Connect once to bring in anything new.
+              {{ t('These offers were last updated') }}
+              <b>{{ schemesAge || t('a while ago') }}</b>.
+              {{ t('They still price the order.') }}
+              {{ t('Connect once to bring in anything new.') }}
             </span>
           </p>
 
           <RouterLink v-if="warnings.length" class="note warn" :to="cartRoute">
             <Icon name="alert" size="18" />
-            <span>{{ warnings[0].message }} <b>Open the cart to fix it.</b></span>
+            <span>{{ warnings[0].message }} <b>{{ t('Open the cart to fix it.') }}</b></span>
           </RouterLink>
 
           <p v-if="actionError" class="note crit" role="alert">
@@ -454,37 +485,41 @@ onMounted(async () => {
 
           <!-- ------------------------------------------------------------------ applied -->
           <div class="section">
-            <h3>What the shop has earned</h3>
+            <h3>{{ t('What the shop has earned') }}</h3>
             <span class="muted tnum">{{ shopEarned.length }}</span>
           </div>
 
           <div v-if="!shopEarned.length" class="card empty">
-            <b v-if="!hasSpecs">No offers have reached this phone for this shop</b>
-            <b v-else>This order has not earned a scheme yet</b>
+            <b v-if="!hasSpecs">
+              {{ t('No offers have reached this phone for this shop') }}
+            </b>
+            <b v-else>{{ t('This order has not earned a scheme yet') }}</b>
             <p class="muted" v-if="!hasSpecs">
-              Connect once and the shop&rsquo;s offers download for good. The order can still be
-              taken and sent without them.
+              {{ t('Connect once and the shop’s offers download for good.') }}
+              {{ t('The order can still be taken and sent without them.') }}
             </p>
             <p class="muted" v-else-if="rungs.length">
-              Nothing has crossed a slab yet. The next rung, and exactly how much it takes, is
-              just below.
+              {{ t('Nothing has crossed a slab yet.') }}
+              {{ t('The next rung, and exactly how much it takes, is just below.') }}
             </p>
             <p class="muted" v-else>
-              Nothing in this order qualifies for one of this shop&rsquo;s offers.
+              {{ t('Nothing in this order qualifies for one of this shop’s offers.') }}
             </p>
           </div>
 
           <article v-for="s in shopEarned" :key="s.scheme" class="card scheme">
             <div class="crown">
-              <span class="stamp"><Icon name="check" size="18" /> <span>Applied</span></span>
-              <span v-if="s.budget_warning" class="pill warn">Past its budget</span>
+              <span class="stamp">
+                <Icon name="check" size="18" /> <span>{{ t('Applied') }}</span>
+              </span>
+              <span v-if="s.budget_warning" class="pill warn">{{ t('Past its budget') }}</span>
             </div>
 
             <h4>{{ s.scheme_name || s.scheme }}</h4>
             <p v-if="s.rep_pitch" class="pitch">&ldquo;{{ s.rep_pitch }}&rdquo;</p>
 
             <p v-if="s.slabText" class="slab tnum">
-              {{ s.slabText }} &middot; you have {{ s.have }}
+              {{ s.slabText }} &middot; {{ t('you have {have}', { have: s.have }) }}
             </p>
 
             <ul class="gets">
@@ -498,44 +533,45 @@ onMounted(async () => {
                  the mistake that pays the shop twice. -->
             <div class="split">
               <div>
-                <span class="label">Off this bill</span>
+                <span class="label">{{ t('Off this bill') }}</span>
                 <b class="tnum ok">{{ sym }}{{ formatPaise(s.off) }}</b>
               </div>
               <div>
-                <span class="label">Benefit value</span>
+                <span class="label">{{ t('Benefit value') }}</span>
                 <b class="tnum">{{ sym }}{{ s.benefit }}</b>
               </div>
             </div>
             <p class="foot" v-if="s.freeUnits">
-              The free stock ships in addition at zero. Only the
-              <b class="tnum">{{ sym }}{{ formatPaise(s.off) }}</b> comes off the total.
+              {{ t('The free stock ships in addition at zero. Only the') }}
+              <b class="tnum">{{ sym }}{{ formatPaise(s.off) }}</b>
+              {{ t('comes off the total.') }}
             </p>
 
             <p v-for="(m, i) in s.mine" :key="'m' + i" class="foot mineline">
               <Icon name="person" size="16" />
-              <span class="tnum">{{ m }} &middot; not the shop&rsquo;s</span>
+              <span class="tnum">{{ m }} &middot; {{ t('not the shop’s') }}</span>
             </p>
           </article>
 
           <!-- -------------------------------------------------------------- near misses -->
           <div class="section">
-            <h3>One more step</h3>
+            <h3>{{ t('One more step') }}</h3>
             <span class="muted tnum">{{ rungs.length }}</span>
           </div>
 
           <!-- A near miss is only ever emitted when it can actually be reached, so an empty list
                is real news rather than a missing box. -->
           <div v-if="!rungs.length" class="card empty">
-            <b v-if="shopEarned.length">Nothing more to unlock</b>
-            <b v-else-if="hasSpecs">No slab is within reach on this order</b>
-            <b v-else>No offers on this phone to work towards</b>
+            <b v-if="shopEarned.length">{{ t('Nothing more to unlock') }}</b>
+            <b v-else-if="hasSpecs">{{ t('No slab is within reach on this order') }}</b>
+            <b v-else>{{ t('No offers on this phone to work towards') }}</b>
             <p class="muted" v-if="shopEarned.length">
-              Every offer this order qualifies for is already at its top slab. Adding more will
-              not change the discount.
+              {{ t('Every offer this order qualifies for is already at its top slab.') }}
+              {{ t('Adding more will not change the discount.') }}
             </p>
             <p class="muted" v-else-if="hasSpecs">
-              None of this shop&rsquo;s offers cover what is in the cart. Check the catalogue for
-              items that carry one.
+              {{ t('None of this shop’s offers cover what is in the cart.') }}
+              {{ t('Check the catalogue for items that carry one.') }}
             </p>
           </div>
 
@@ -543,7 +579,7 @@ onMounted(async () => {
             <h4>{{ r.scheme_name || r.scheme }}</h4>
             <p class="short tnum">
               <Icon name="alert" size="18" />
-              <span><b>{{ r.short }}</b> short of the next slab</span>
+              <span><b>{{ r.short }}</b> {{ t('short of the next slab') }}</span>
             </p>
 
             <ul class="gets" v-if="r.gives">
@@ -554,10 +590,13 @@ onMounted(async () => {
 
             <div v-if="r.pct !== null" class="track" role="progressbar"
                  :aria-valuenow="r.pct" aria-valuemin="0" aria-valuemax="100"
-                 :aria-label="(r.scheme_name || r.scheme) + ' progress to the next slab'">
+                 :aria-label="t('{scheme} progress to the next slab',
+                                { scheme: r.scheme_name || r.scheme })">
               <div class="fill" :style="{ width: r.pct + '%' }"></div>
             </div>
-            <p v-if="r.need" class="meter tnum">{{ r.have }} of {{ r.need }}</p>
+            <p v-if="r.need" class="meter tnum">
+              {{ t('{have} of {need}', { have: r.have, need: r.need }) }}
+            </p>
 
             <template v-if="r.add">
               <button type="button" class="btn-add"
@@ -565,33 +604,37 @@ onMounted(async () => {
                 <Icon name="plus" size="20" />
                 <span class="tnum">
                   {{ adding === r.scheme
-                     ? 'Adding…'
-                     : 'Add ' + qtyWords(r.add.add_display, r.add.add_uom)
-                       + ' of ' + r.add.item_name }}
+                     ? t('Adding…')
+                     : t('Add {qty} of {item}', {
+                         qty: qtyWords(r.add.add_display, r.add.add_uom),
+                         item: r.add.item_name }) }}
                 </span>
               </button>
               <p class="foot tnum">
-                Adds {{ sym }}{{ formatPaise(r.add.cost_paise) }} to the order.
+                {{ t('Adds {amount} to the order.',
+                     { amount: sym + formatPaise(r.add.cost_paise) }) }}
               </p>
             </template>
             <!-- No honest one-tap: nothing qualifying in the cart to add to, or every candidate
                  already at the most this shop may order. Said, rather than a dead button. -->
             <p v-else class="foot">
-              Add more of the items this offer covers to reach it.
+              {{ t('Add more of the items this offer covers to reach it.') }}
             </p>
 
             <p v-for="(m, i) in r.mine" :key="'rm' + i" class="foot mineline">
               <Icon name="person" size="16" />
-              <span class="tnum">{{ m }} &middot; not the shop&rsquo;s</span>
+              <span class="tnum">{{ m }} &middot; {{ t('not the shop’s') }}</span>
             </p>
           </article>
 
           <!-- --------------------------------------------------------------- free goods -->
           <template v-if="freeSaleable.length || freePosm.length">
-            <div class="section"><h3>Going with the order, free</h3></div>
+            <div class="section"><h3>{{ t('Going with the order, free') }}</h3></div>
             <p class="lead">
-              Dispatched at {{ sym }}0.00 in addition to what is billed. Their value is
-              <b>not</b> taken off the total.
+              {{ t('Dispatched at {zero} in addition to what is billed.',
+                   { zero: sym + '0.00' }) }}
+              {{ t('Their value is') }} <b>{{ t('not') }}</b>
+              {{ t('taken off the total.') }}
             </p>
 
             <div v-if="freeSaleable.length" class="card frees">
@@ -604,7 +647,9 @@ onMounted(async () => {
                     <template v-if="row.scheme_name"> &middot; {{ row.scheme_name }}</template>
                   </span>
                 </span>
-                <span class="fval muted tnum">value {{ sym }}{{ row.value }}</span>
+                <span class="fval muted tnum">
+                  {{ t('value {amount}', { amount: sym + row.value }) }}
+                </span>
               </div>
             </div>
 
@@ -614,7 +659,7 @@ onMounted(async () => {
               <p class="posmhead">
                 <Icon name="shelves" size="18" />
                 <span>
-                  Display material &mdash; dispatched, never billed, never counted as a sale.
+                  {{ t('Display material — dispatched, never billed, never counted as a sale.') }}
                 </span>
               </p>
               <div v-for="row in freePosm" :key="'p' + row.item_code + row.scheme" class="frow">
@@ -633,7 +678,7 @@ onMounted(async () => {
 
           <!-- ------------------------------------------------------------------ dropped -->
           <template v-if="notApplied.length">
-            <div class="section"><h3>Not applied</h3></div>
+            <div class="section"><h3>{{ t('Not applied') }}</h3></div>
             <div class="card quiet">
               <div v-for="d in notApplied" :key="d.scheme" class="drow">
                 <b>{{ d.scheme_name || d.scheme }}</b>
@@ -642,7 +687,9 @@ onMounted(async () => {
             </div>
           </template>
 
-          <p class="muted age tnum" v-if="schemesAge">Offers refreshed {{ schemesAge }}.</p>
+          <p class="muted age tnum" v-if="schemesAge">
+            {{ t('Offers refreshed {age}.', { age: schemesAge }) }}
+          </p>
         </template>
       </template>
     </div>
@@ -653,22 +700,26 @@ onMounted(async () => {
       <template v-if="!isEmpty">
         <div class="tally">
           <span class="tnum">
-            <b class="ok">{{ sym }}{{ totals.discount }}</b> off the bill
+            <b class="ok">{{ sym }}{{ totals.discount }}</b> {{ t('off the bill') }}
             <template v-if="freeUnitCount">
-              &middot; <b>{{ freeUnitCount }}</b> free
-              {{ freeUnitCount === 1 ? 'unit' : 'units' }}
+              &middot; <b>{{ freeUnitCount }}</b>
+              {{ freeUnitCount === 1 ? t('free unit') : t('free units') }}
             </template>
           </span>
         </div>
         <div class="payline">
-          <span>Net payable</span>
+          <span>{{ t('Net payable') }}</span>
           <b class="net tnum">{{ sym }}{{ totals.net }}</b>
         </div>
-        <button class="btn-primary" @click="router.push(reviewRoute)">Review the order</button>
-        <button class="btn-plain" @click="router.push(cartRoute)">Back to the cart</button>
+        <button class="btn-primary" @click="router.push(reviewRoute)">
+          {{ t('Review the order') }}
+        </button>
+        <button class="btn-plain" @click="router.push(cartRoute)">
+          {{ t('Back to the cart') }}
+        </button>
       </template>
       <button v-else class="btn-primary" @click="router.push(catalogueRoute)">
-        Add items to this order
+        {{ t('Add items to this order') }}
       </button>
     </div>
   </div>

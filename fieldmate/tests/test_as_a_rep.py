@@ -63,7 +63,7 @@ class TestARepCanWorkTheirDay(AsTheRep):
 		})
 		self.assertTrue(result["created"])
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", result["day_start"], "docstatus"), 1,
+			frappe.db.get_value("FieldMate Day", result["day"], "docstatus"), 1,
 			"the day must be submitted, not left a draft",
 		)
 
@@ -94,7 +94,7 @@ class TestARepCanWorkTheirDay(AsTheRep):
 		                     {"latitude": DELHI[0], "longitude": DELHI[1]})
 		self.assertTrue(result["created"])
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day End", result["day_end"], "docstatus"), 1
+			frappe.db.get_value("FieldMate Day", result["day"], "status"), "Closed"
 		)
 
 
@@ -113,14 +113,14 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 		"""
 		day_uuid = self.uid("DAY")
 		result = self.push([{
-			"doctype": "FieldMate Day Start",
+			"doctype": "FieldMate Day",
 			"client_uuid": day_uuid,
 			"data": {
 				"docstatus": 1,
 				"day_date": today(),
 				"start_time": add_to_date(now_datetime(), hours=-4),
 				"status": "Open",
-				"latitude": DELHI[0], "longitude": DELHI[1],
+				"start_latitude": DELHI[0], "start_longitude": DELHI[1],
 				"selfie": PIXEL,
 				"created_offline": 1,
 			},
@@ -128,9 +128,9 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 
 		self.assertEqual(result["status"], "created",
 		                 f"rejected: {result.get('code')} {result.get('message')}")
-		self.track("FieldMate Day Start", result["name"])
+		self.track("FieldMate Day", result["name"])
 
-		doc = frappe.get_doc("FieldMate Day Start", result["name"])
+		doc = frappe.get_doc("FieldMate Day", result["name"])
 		self.assertEqual(doc.docstatus, 1, "submit_on_push must work for a real rep")
 		self.assertEqual(doc.field_user, self.rep.name, "filled from the session")
 
@@ -140,7 +140,7 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 		frappe.db.commit()
 
 		result = self.push([{
-			"doctype": "FieldMate Day Start",
+			"doctype": "FieldMate Day",
 			"client_uuid": self.uid("DAY"),
 			"data": {
 				"docstatus": 1,
@@ -148,44 +148,43 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 				"day_date": today(),
 				"start_time": now_datetime(),
 				"status": "Open",
-				"latitude": DELHI[0], "longitude": DELHI[1],
+				"start_latitude": DELHI[0], "start_longitude": DELHI[1],
 			},
 		}])["results"][0]
-		self.track("FieldMate Day Start", result.get("name"))
+		self.track("FieldMate Day", result.get("name"))
 
 		self.assertEqual(result["status"], "created")
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", result["name"], "field_user"),
+			frappe.db.get_value("FieldMate Day", result["name"], "field_user"),
 			self.rep.name,
 		)
 
 	def test_an_offline_day_end_closes_its_day(self):
 		"""Without this the day stays Open and reports as one the rep forgot to finish."""
 		day = self.push([{
-			"doctype": "FieldMate Day Start",
+			"doctype": "FieldMate Day",
 			"client_uuid": self.uid("DAY"),
 			"data": {
 				"docstatus": 1, "day_date": today(),
 				"start_time": add_to_date(now_datetime(), hours=-5),
-				"status": "Open", "latitude": DELHI[0], "longitude": DELHI[1],
+				"status": "Open", "start_latitude": DELHI[0], "start_longitude": DELHI[1],
 			},
 		}])["results"][0]
-		self.track("FieldMate Day Start", day["name"])
+		self.track("FieldMate Day", day["name"])
 
 		end = self.push([{
-			"doctype": "FieldMate Day End",
+			"doctype": "FieldMate Day",
 			"client_uuid": self.uid("END"),
 			"data": {
-				"docstatus": 1, "day_start": day["name"], "end_time": now_datetime(),
-				"latitude": DELHI[0], "longitude": DELHI[1], "created_offline": 1,
+				"closes": day["name"], "end_time": now_datetime(),
+				"end_latitude": DELHI[0], "end_longitude": DELHI[1],
 			},
 		}])["results"][0]
-		self.assertEqual(end["status"], "created",
+		self.assertEqual(end["status"], "updated",
 		                 f"rejected: {end.get('code')} {end.get('message')}")
-		self.track("FieldMate Day End", end["name"])
 
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", day["name"], "status"), "Closed"
+			frappe.db.get_value("FieldMate Day", day["name"], "status"), "Closed"
 		)
 		self.assertIsNone(day_service.current(self.rep.name),
 		                  "a closed day must not still read as open")
@@ -194,12 +193,13 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 		day_uuid = self.uid("DAY")
 		pushed = self.push([
 			{
-				"doctype": "FieldMate Day Start",
+				"doctype": "FieldMate Day",
 				"client_uuid": day_uuid,
 				"data": {
 					"docstatus": 1, "day_date": today(),
 					"start_time": add_to_date(now_datetime(), hours=-6),
-					"status": "Open", "latitude": DELHI[0], "longitude": DELHI[1],
+					"status": "Open", "start_latitude": DELHI[0],
+					"start_longitude": DELHI[1],
 					"created_offline": 1,
 				},
 			},
@@ -210,7 +210,7 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 					"docstatus": 1,
 					"outlet": self.outlet.name,
 					"visit_date": today(),
-					"day_start": day_uuid,
+					"day": day_uuid,
 					"check_in_time": add_to_date(now_datetime(), minutes=-50),
 					"check_in_latitude": DELHI[0], "check_in_longitude": DELHI[1],
 					"check_out_time": add_to_date(now_datetime(), minutes=-20),
@@ -221,7 +221,7 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 		])["results"]
 
 		day, visit = pushed[0], pushed[1]
-		self.track("FieldMate Day Start", day.get("name"))
+		self.track("FieldMate Day", day.get("name"))
 		self.track("FieldMate Visit", visit.get("name"))
 
 		self.assertEqual(day["status"], "created",
@@ -229,7 +229,7 @@ class TestARepCanSyncTheirOfflineDay(AsTheRep):
 		self.assertEqual(visit["status"], "created",
 		                 f"visit rejected: {visit.get('code')} {visit.get('message')}")
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Visit", visit["name"], "day_start"), day["name"]
+			frappe.db.get_value("FieldMate Visit", visit["name"], "day"), day["name"]
 		)
 		self.assertEqual(
 			frappe.db.get_value("FieldMate Visit", visit["name"], "field_user"), self.rep.name

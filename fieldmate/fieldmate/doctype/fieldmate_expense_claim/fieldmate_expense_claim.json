@@ -10,7 +10,7 @@
   "naming_series", "claim_date", "field_user", "employee",
   "column_head", "company", "expense_type", "claim_status",
   "section_travel", "trail_distance_km", "claimed_distance_km", "rate_per_km",
-  "column_travel", "distance_variance_km", "distance_variance_pct", "trail_ping_count", "day_start",
+  "column_travel", "distance_variance_km", "distance_variance_pct", "trail_ping_count", "day",
   "section_amount", "computed_amount", "claimed_amount", "column_amount", "approved_amount", "allowance_cap",
   "section_proof", "receipt", "receipt_required", "column_proof", "remarks",
   "section_approval", "needs_approval", "approval_reason", "approved_by", "approved_on",
@@ -45,7 +45,7 @@
   {"fieldname": "distance_variance_pct", "fieldtype": "Percent", "label": "Over Trail", "read_only": 1},
   {"fieldname": "trail_ping_count", "fieldtype": "Int", "label": "Pings", "read_only": 1,
    "description": "How many location readings the trail holds for that day. A claim standing on four pings and one standing on four hundred are different evidence, and the approver can see which."},
-  {"fieldname": "day_start", "fieldtype": "Link", "label": "Day Start", "options": "FieldMate Day Start", "read_only": 1},
+  {"fieldname": "day", "fieldtype": "Link", "label": "Day", "options": "FieldMate Day", "read_only": 1},
 
   {"fieldname": "section_amount", "fieldtype": "Section Break", "label": "Amount"},
   {"fieldname": "computed_amount", "fieldtype": "Currency", "label": "Computed", "read_only": 1,

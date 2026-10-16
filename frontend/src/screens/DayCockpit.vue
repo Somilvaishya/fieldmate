@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const day = ref(null)
 const trend = ref([])
@@ -64,7 +65,7 @@ async function load() {
   } catch (e) {
     error.value = e instanceof ApiError
       ? e.message
-      : 'Could not load today. These figures are counted on the server, so this needs signal.'
+      : t('Could not load today. These figures are counted on the server, so this needs signal.')
   } finally {
     loading.value = false
   }
@@ -78,9 +79,9 @@ onMounted(load)
 
     <header class="head">
       <div>
-        <h1>Today</h1>
+        <h1>{{ t('Today') }}</h1>
         <p v-if="day" class="sub">
-          {{ day.beat || 'No beat planned' }} · {{ day.full_name }}
+          {{ day.beat || t('No beat planned') }} · {{ day.full_name }}
         </p>
       </div>
       <button class="quiet" :disabled="loading" @click="load">
@@ -88,41 +89,47 @@ onMounted(load)
       </button>
     </header>
 
-    <p v-if="loading" class="note">Loading…</p>
+    <p v-if="loading" class="note">{{ t('Loading…') }}</p>
     <p v-else-if="error" class="note crit">{{ error }}</p>
 
     <template v-else-if="day">
       <div v-if="!day.day_started" class="note warn">
-        Your day has not started yet. Nothing below will move until it does.
+        {{ t('Your day has not started yet.') }}
+        {{ t('Nothing below will move until it does.') }}
       </div>
 
       <!-- The three that matter -->
       <section class="strip">
         <div class="tile">
-          <div class="label">Booked</div>
+          <div class="label">{{ t('Booked') }}</div>
           <div class="num tnum">{{ orders.count }}</div>
           <div class="value tnum">{{ short(orders.value) }}</div>
-          <div class="dim">{{ orders.shops }} shop{{ orders.shops === 1 ? '' : 's' }}</div>
+          <div class="dim">
+            {{ orders.shops === 1
+                ? t('{n} shop', { n: orders.shops })
+                : t('{n} shops', { n: orders.shops }) }}
+          </div>
         </div>
         <div class="tile">
-          <div class="label">Calls</div>
+          <div class="label">{{ t('Calls') }}</div>
           <div class="num tnum">{{ visits.made }}<small> / {{ visits.planned || '–' }}</small></div>
           <div class="value tnum">{{ Math.round(visits.strike_rate) }}%</div>
-          <div class="dim">struck</div>
+          <div class="dim">{{ t('struck') }}</div>
         </div>
         <div class="tile">
-          <div class="label">Collected</div>
+          <div class="label">{{ t('Collected') }}</div>
           <div class="num tnum ok">{{ short(money.collected) }}</div>
           <div class="value tnum">{{ short(money.deposited) }}</div>
-          <div class="dim">handed over</div>
+          <div class="dim">{{ t('handed over') }}</div>
         </div>
       </section>
 
       <!-- Where the day has reached -->
       <section class="card">
         <div class="row">
-          <b>{{ visits.made }} of {{ bar.planned }} calls</b>
-          <span class="dim">{{ bar.openCount }} left</span>
+          <b>{{ t('{made} of {planned} calls',
+                 { made: visits.made, planned: bar.planned }) }}</b>
+          <span class="dim">{{ t('{n} left', { n: bar.openCount }) }}</span>
         </div>
         <div class="bar">
           <i class="done" :style="{ width: bar.done + '%' }"></i>
@@ -130,9 +137,15 @@ onMounted(load)
           <i class="open" :style="{ width: bar.open + '%' }"></i>
         </div>
         <div class="legend">
-          <span><i class="dot done"></i>{{ visits.productive }} sold</span>
-          <span><i class="dot dry"></i>{{ bar.dryCount }} no order</span>
-          <span><i class="dot open"></i>{{ bar.openCount }} to go</span>
+          <span>
+            <i class="dot done"></i>{{ t('{n} sold', { n: visits.productive }) }}
+          </span>
+          <span>
+            <i class="dot dry"></i>{{ t('{n} no order', { n: bar.dryCount }) }}
+          </span>
+          <span>
+            <i class="dot open"></i>{{ t('{n} to go', { n: bar.openCount }) }}
+          </span>
         </div>
       </section>
 
@@ -140,41 +153,51 @@ onMounted(load)
       <RouterLink v-if="money.in_hand > 0" to="/deposit" class="card hand">
         <Icon name="tag" size="20" />
         <span>
-          <b>{{ formatRupees(money.in_hand) }} still with you</b>
-          <em>{{ money.receipts }} receipt{{ money.receipts === 1 ? '' : 's' }} · hand it in</em>
+          <b>{{ t('{amount} still with you',
+                 { amount: formatRupees(money.in_hand) }) }}</b>
+          <em>
+            {{ money.receipts === 1
+                ? t('{n} receipt · hand it in', { n: money.receipts })
+                : t('{n} receipts · hand it in', { n: money.receipts }) }}
+          </em>
         </span>
         <Icon name="chevron" size="18" class="go" />
       </RouterLink>
 
       <!-- Fourteen days, from the snapshot -->
       <section v-if="spark" class="card">
-        <div class="row"><b>Last 14 days</b><span class="dim">best {{ short(spark.best) }}</span></div>
+        <div class="row">
+          <b>{{ t('Last 14 days') }}</b>
+          <span class="dim">{{ t('best {amount}', { amount: short(spark.best) }) }}</span>
+        </div>
         <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <path :d="spark.path" fill="none" stroke="currentColor" stroke-width="2.5"
                 vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" />
         </svg>
         <p class="dim fine">
-          Counted overnight, so today's own bar is the live one above.
+          {{ t("Counted overnight, so today's own bar is the live one above.") }}
         </p>
       </section>
 
       <div class="grid">
         <div class="mini">
-          <div class="dim">Distance</div>
-          <b class="tnum">{{ Number(travel.distance_km || 0).toFixed(1) }} km</b>
+          <div class="dim">{{ t('Distance') }}</div>
+          <b class="tnum">
+            {{ t('{n} km', { n: Number(travel.distance_km || 0).toFixed(1) }) }}
+          </b>
         </div>
         <div class="mini">
-          <div class="dim">Hours out</div>
+          <div class="dim">{{ t('Hours out') }}</div>
           <b class="tnum">{{ Number(travel.hours || 0).toFixed(1) }}</b>
         </div>
       </div>
 
       <div class="links">
         <RouterLink to="/performance" class="btn-flat">
-          <Icon name="target" size="18" /> My performance
+          <Icon name="target" size="18" /> {{ t('My performance') }}
         </RouterLink>
         <RouterLink to="/expense" class="btn-flat">
-          <Icon name="receipt" size="18" /> Claim expenses
+          <Icon name="receipt" size="18" /> {{ t('Claim expenses') }}
         </RouterLink>
       </div>
     </template>

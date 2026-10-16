@@ -491,15 +491,106 @@ journey plan names for that day, so a short Thursday asks for less than a long M
 figure is the fallback and its default of 25 is gone), #4 (Activity), #11
 (`expected_duration_min` described against the quality floor it was being confused with),
 #5 (visit selfie behind a settings toggle), #7 (WebP where the device can encode it - the trap being that a canvas asked for a type it cannot encode returns a
-**PNG** silently, which would have made photos *larger* on old WebViews), #8 (below).
+**PNG** silently, which would have made photos *larger* on old WebViews), #8 (below),
+#1 (autofill from the master doctypes, below), #12 (dynamic UOM, below),
+#10 (`geo_accuracy_m`, below), #16 (the day merged into one document, below).
 
 **Answered, no work needed:** #6 (Flag Mock Location - it already does what it says).
 
-**Outstanding:** #1 autofill from master doctypes · #9 approval-rule simplification (high risk) ·
-#10 `geo_accuracy_m` - *waiting on the user*: flag a loose pin to the approving manager, or drop
-the field · #12 dynamic UOM · #13 Hindi/English · #16 and #18 Day Start+End merge and the wider
-doctype cull - *waiting on the user*; recommended against doing it inside this batch, offered as
-its own phase · #17 scheme simplification (high risk).
+**In progress:** #13 Hindi/English - 9 of 30 screens and the switch itself; the server needs no
+code change, only a `translations/hi.csv`, because the 295 translatable calls are already there ·
+#18 optimise and remove redundant code - the code half is done (order pricing 16 lookups down to
+6 on an eight-line order; the season cockpit four passes per page load down to one), and the
+"unnecessary doctypes" half went with #16.
+
+**Outstanding:** #9 approval-rule simplification (high risk - it governs money and permissions) ·
+#17 scheme simplification (high risk - the JS and Python evaluators have to agree statement for
+statement).
+
+## The warehouse a primary sale ships from
+
+A directly-billed order could not post a Sales Order at all on a site where the items carry no
+Item Default row. `_warehouse_for` returned nothing, and the comment beside it said that leaving
+the warehouse blank "lets ERPNext default per line, which at least works". **It does not.** Stock
+Settings' default warehouse is applied by `get_item_details`, on the form path, and a Sales Order
+inserted server-side never goes through it - so `Sales Order.validate_warehouse` refused the whole
+document with "Source warehouse required for stock item ITEM-0042". A sentence that is true and
+useless: it names a field on a document the rep never sees, about a setting they have never heard
+of.
+
+**The answer is a setting**, `FieldMate Settings.default_warehouse`, which whoever manages Desk can
+change. `Customer.fm_warehouse` stays as the per-party override, for a party served by a different
+depot. With neither set, the service now refuses in its own words and names what to go and set,
+instead of letting ERPNext's message through.
+
+**The rows are what carry it, not the header.** Setting `set_warehouse` alone does nothing
+server-side: `validate` calls `reset_default_field_value`, which *clears* the header when the rows
+disagree with it rather than filling them from it. ERPNext spreads the header over the rows in the
+form's own script, which a server-side insert never runs. The header is set as well, so the form
+reads back the way a human would expect.
+
+**Worth keeping about how this was found.** The per-line diagnosis was right the first time and was
+then reverted on a bad signal: `test_cockpit` went from 5 errors to 9 and that looked like the
+change making things worse. It was not - re-running the *reverted* tree gave 9 as well. The counts
+on this site drift between runs, because `FrappeTestCase` rolls back per class and day, order and
+season records accumulate. Two numbers from two different runs are not a comparison, and a
+conclusion drawn from one is worth less than no conclusion. The run that still showed the failure
+had also started *before* the per-line edit landed, so it was never testing it at all.
+
+A related trap in the same area: counts drifting also made "eight failures, one root cause" look
+true when there were three unrelated causes - the warehouse, `GST Category cannot be set to
+Overseas` (india_compliance, which CI does not install), and `KeyError: 'Lines Per Call'` in
+`test_target`, which descends from `FieldMateTestCase` and never posts a Sales Order at all.
+
+## #10 — the GPS accuracy nobody read
+
+The field was written on every new shop and read by nothing: no rule, report, geo-fence or
+approval looked at it, checked across the whole app. Seven outlets on testerp2, every row 0.
+
+**The number still matters, just not stored.** Standing outside a shop, "±8 m" against "±120 m" is
+the difference between a pin worth keeping and one worth re-taking, and the rep is the only person
+who can act on it - they can walk a few steps and tap again. So the reading stays on the capture
+screen, off the handset's own live fix, and the column is gone.
+
+The split had to be deliberate, because `coords` is spread wholesale into the create payload -
+anything parked in it is sent. The accuracy now lives in its own ref that never leaves the screen.
+
+## #16 — the day, merged into one document
+
+`FieldMate Day Start` + `FieldMate Day End`, joined by a unique Link, became `FieldMate Day`.
+`FieldMate Visit` had held check-in and check-out in one record from the start; the day was the odd
+one out, and the pair bought nothing - a join on every read, a second naming series, and
+`field_user`, `day_date`, `client_uuid` and `remarks` duplicated across both.
+
+Submitted when the day opens, with `status` carrying the lifecycle, which is what Day Start already
+did. The closing fields are therefore `allow_on_submit` - the honest declaration, and it replaces
+a `db_set` that bypassed validation. `finish()` is the single place a day ends, reached through
+`on_update_after_submit`, so it runs whichever of the three ways the end arrived: the rep tapping
+Finish Day, that same tap replayed out of the sync queue, or the scheduler shutting a day nobody
+ended. Closing used to be written out once per path, and the offline path was the one that forgot
+the attendance row.
+
+**The sync path needed a new capability, not a rename.** A day is pushed twice - once when it opens
+and once when it closes - and `_apply` could only insert. It saw a record it already had, reported
+`duplicate`, and the close was accepted and silently dropped; the day stayed Open until the
+scheduler marked it a day the rep forgot to finish. So `Syncable` grew `closes_field`,
+`update_uuid_field` and `update_fields`: the close names what it closes, carries its own id so a
+retry is idempotent on its own, and may write only the listed fields. **That allow-list, not the
+permission, is what makes writing to an already-submitted record safe** - a device that also sends
+`distance_km`, or a colleague's `field_user`, is ignored rather than trusted.
+
+Names are symmetric on purpose - `start_latitude`/`end_latitude`, `start_checkin`/`end_checkin`.
+Both documents used a bare `latitude` for their own end of the day, and merging them with one side
+keeping the bare name is how somebody later reads the morning's position as the evening's. The one
+`employee_checkin` was a real defect waiting: it held whichever HRMS log was written last, so a
+day's IN was overwritten by its OUT.
+
+The 147 days on the test site were **carried over, not deleted**, although nobody asked for them -
+deleting is the one thing that cannot be undone if that turns out to be wrong about a single row,
+and carrying them cost one INSERT. Each keeps the name its Day Start had, which is what makes it
+cheap: every record that belonged to a day already holds that name, so repointing `day_start` at
+`day` is a column copy rather than a mapping that can lose a row. Days from before the merge
+therefore read `FM-DS-00001` and later ones `FM-DAY-00001`, which is accurate.
 
 ## #12 — a choice of unit, and where the choice comes from
 

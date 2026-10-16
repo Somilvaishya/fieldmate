@@ -19,6 +19,7 @@ import { ref, computed, onMounted } from 'vue'
 import { api, ApiError } from '../api/client'
 import { getMeta } from '../db'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const parties = ref([])
 const links = ref([])
@@ -79,7 +80,7 @@ async function loadCatalogues() {
     if (catalogues.value.length === 1) catalogue.value = catalogues.value[0].name
   } catch (e) {
     shareError.value =
-      e instanceof ApiError ? e.message : 'Could not load what can be shared. This needs signal.'
+      e instanceof ApiError ? e.message : t('Could not load what can be shared. This needs signal.')
   } finally {
     loadingCatalogues.value = false
   }
@@ -102,7 +103,7 @@ async function share() {
     await loadLinks()
   } catch (e) {
     shareError.value =
-      e instanceof ApiError ? e.message : 'Could not make the link. This one needs signal.'
+      e instanceof ApiError ? e.message : t('Could not make the link. This one needs signal.')
   } finally {
     sharing.value = false
   }
@@ -123,7 +124,7 @@ async function copy(url) {
     // Refused by the browser. The link is on the screen to read off, which is what the rep
     // would fall back to anyway.
     copied.value = false
-    shareError.value = 'Could not copy it. The link is above — press and hold to select it.'
+    shareError.value = t('Could not copy it. The link is above — press and hold to select it.')
   }
 }
 
@@ -134,7 +135,8 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function day(value) {
   if (!value) return ''
   const [y, m, d] = String(value).slice(0, 10).split('-')
-  return `${Number(d)} ${MONTHS[Number(m) - 1]} ${String(y).slice(2)}`
+  const month = MONTHS[Number(m) - 1]
+  return `${Number(d)} ${month ? t(month) : ''} ${String(y).slice(2)}`.replace(/\s+/g, ' ')
 }
 
 const pulling = ref('')
@@ -147,7 +149,7 @@ async function loadLinks() {
     error.value =
       e instanceof ApiError
         ? e.message
-        : 'Could not load what you have shared. This list lives on the server.'
+        : t('Could not load what you have shared. This list lives on the server.')
   }
 }
 
@@ -168,7 +170,7 @@ async function withdraw(link) {
     await loadLinks()
   } catch (e) {
     error.value =
-      e instanceof ApiError ? e.message : 'Could not switch it off. This one needs signal.'
+      e instanceof ApiError ? e.message : t('Could not switch it off. This one needs signal.')
   } finally {
     pulling.value = ''
   }
@@ -188,10 +190,10 @@ onMounted(async () => {
   <div class="wrap">
     <header class="head">
       <div>
-        <h1>Share the range</h1>
-        <p class="dim">A link the party opens themselves, at their own prices</p>
+        <h1>{{ t('Share the range') }}</h1>
+        <p class="dim">{{ t('A link the party opens themselves, at their own prices') }}</p>
       </div>
-      <button class="quiet" :disabled="loading" @click="loadLinks" aria-label="Refresh">
+      <button class="quiet" :disabled="loading" @click="loadLinks" :aria-label="t('Refresh')">
         <Icon name="refresh" size="18" />
       </button>
     </header>
@@ -201,22 +203,23 @@ onMounted(async () => {
     <p class="note plain">
       <Icon name="info" size="18" />
       <span>
-        Whoever holds the link can open it. It carries <b>one party&rsquo;s</b> prices, it
-        expires, and you can switch it off &mdash; nothing else takes a URL back.
+        {{ t('Whoever holds the link can open it.') }}
+        {{ t('It carries') }} <b>{{ t("one party's") }}</b>
+        {{ t('prices, it expires, and you can switch it off — nothing else takes a URL back.') }}
       </span>
     </p>
 
-    <p v-if="loading" class="note">Loading…</p>
+    <p v-if="loading" class="note">{{ t('Loading…') }}</p>
 
     <template v-else>
       <!-- ----------------------------------------------------------------- making one -->
       <div class="form">
-        <div class="frow"><h2>Send a catalogue</h2></div>
+        <div class="frow"><h2>{{ t('Send a catalogue') }}</h2></div>
 
         <label>
-          <span class="lbl">To which party</span>
+          <span class="lbl">{{ t('To which party') }}</span>
           <select v-model="party" :disabled="sharing" @change="loadCatalogues">
-            <option value="">Choose one</option>
+            <option value="">{{ t('Choose one') }}</option>
             <option v-for="p in parties" :key="p.distributor" :value="p.distributor">
               {{ p.distributor_name }}
             </option>
@@ -224,32 +227,38 @@ onMounted(async () => {
         </label>
 
         <p v-if="!parties.length" class="dim fine">
-          No distributor is set up against your territory yet, so there is nobody here to share
-          with. Ask your manager.
+          {{ t('No distributor is set up against your territory yet, so there is nobody here to share with.') }}
+          {{ t('Ask your manager.') }}
         </p>
 
         <template v-if="party">
-          <p v-if="loadingCatalogues" class="dim fine">Looking for what can be shared…</p>
+          <p v-if="loadingCatalogues" class="dim fine">
+            {{ t('Looking for what can be shared…') }}
+          </p>
 
           <!-- Named plainly, because "nothing to share" and "nothing is marked as a showcase"
                are different problems and only one of them is the rep's to report. -->
           <p v-else-if="!catalogues.length" class="dim fine">
-            Nothing is marked as a showcase for {{ partyName }}. An ordinary catalogue is written
-            for you, not for them, so it cannot be shared. Ask your manager for one.
+            {{ t('Nothing is marked as a showcase for {party}.', { party: partyName }) }}
+            {{ t('An ordinary catalogue is written for you, not for them, so it cannot be shared.') }}
+            {{ t('Ask your manager for one.') }}
           </p>
 
           <label v-else>
-            <span class="lbl">Which catalogue</span>
+            <span class="lbl">{{ t('Which catalogue') }}</span>
             <select v-model="catalogue" :disabled="sharing">
-              <option value="">Choose one</option>
+              <option value="">{{ t('Choose one') }}</option>
               <option v-for="c in catalogues" :key="c.name" :value="c.name">
-                {{ c.catalogue_name }} · {{ c.line_count }} items
+                {{ c.catalogue_name }} ·
+                {{ t('{n} items', { n: c.line_count }) }}
               </option>
             </select>
           </label>
 
           <label v-if="catalogues.length">
-            <span class="lbl">Hold the prices until <em class="opt">(optional)</em></span>
+            <span class="lbl">
+              {{ t('Hold the prices until') }} <em class="opt">{{ t('(optional)') }}</em>
+            </span>
             <input v-model="validTo" type="date" :disabled="sharing" />
           </label>
         </template>
@@ -261,21 +270,22 @@ onMounted(async () => {
         <div v-if="made" class="made">
           <p class="stamp">
             <Icon name="check" size="18" />
-            <span>Link ready for {{ partyName }}</span>
+            <span>{{ t('Link ready for {party}', { party: partyName }) }}</span>
           </p>
           <p class="url">{{ made.url }}</p>
           <button class="btn-plain" @click="copy(made.url)">
-            {{ copied ? 'Copied' : 'Copy the link' }}
+            {{ copied ? t('Copied') : t('Copy the link') }}
           </button>
           <p class="dim fine">
-            Paste it into a message to them. What they send back arrives here as a
-            <b>draft order</b> for you to check and submit &mdash; nothing they do commits
-            anything.
+            {{ t('Paste it into a message to them.') }}
+            {{ t('What they send back arrives here as a') }}
+            <b>{{ t('draft order') }}</b>
+            {{ t('for you to check and submit — nothing they do commits anything.') }}
           </p>
         </div>
 
         <button v-if="catalogues.length" class="btn-primary" :disabled="!canShare" @click="share">
-          {{ sharing ? 'Making the link…' : 'Make a link' }}
+          {{ sharing ? t('Making the link…') : t('Make a link') }}
         </button>
       </div>
 
@@ -283,7 +293,7 @@ onMounted(async () => {
       <p v-if="error" class="note crit">{{ error }}</p>
 
       <template v-if="links.length">
-        <div class="section"><h2>What you have shared</h2></div>
+        <div class="section"><h2>{{ t('What you have shared') }}</h2></div>
 
         <div v-for="link in links" :key="link.name" class="card">
           <div class="row">
@@ -292,7 +302,7 @@ onMounted(async () => {
               <span class="dim">{{ link.catalogue_name || link.catalogue }}</span>
             </div>
             <span class="pill" :class="link.live ? 'ok' : 'flat'">
-              {{ link.live ? 'Live' : 'Closed' }}
+              {{ link.live ? t('Live') : t('Closed') }}
             </span>
           </div>
 
@@ -300,14 +310,22 @@ onMounted(async () => {
                the reason the screen is worth opening twice. -->
           <div class="meta tnum">
             <span v-if="link.view_count">
-              Opened {{ link.view_count }} {{ link.view_count === 1 ? 'time' : 'times' }}
+              {{ link.view_count === 1
+                  ? t('Opened {n} time', { n: link.view_count })
+                  : t('Opened {n} times', { n: link.view_count }) }}
             </span>
-            <span v-else>Not opened yet</span>
-            <span v-if="link.last_opened">Last {{ day(link.last_opened) }}</span>
+            <span v-else>{{ t('Not opened yet') }}</span>
+            <span v-if="link.last_opened">
+              {{ t('Last {when}', { when: day(link.last_opened) }) }}
+            </span>
             <span v-if="link.valid_to">
-              {{ link.live ? 'Prices held until' : 'Expired' }} {{ day(link.valid_to) }}
+              {{ link.live
+                  ? t('Prices held until {date}', { date: day(link.valid_to) })
+                  : t('Expired {date}', { date: day(link.valid_to) }) }}
             </span>
-            <span v-if="link.max_views">Capped at {{ link.max_views }} opens</span>
+            <span v-if="link.max_views">
+              {{ t('Capped at {n} opens', { n: link.max_views }) }}
+            </span>
           </div>
 
           <p v-if="!link.live && link.closed_because" class="dim fine">
@@ -315,24 +333,26 @@ onMounted(async () => {
           </p>
 
           <div v-if="link.live" class="acts">
-            <button class="btn-plain" @click="copy(link.url)">Copy the link</button>
+            <button class="btn-plain" @click="copy(link.url)">{{ t('Copy the link') }}</button>
             <button v-if="confirming !== link.name" class="undo"
                     @click="confirming = link.name">
-              Switch it off
+              {{ t('Switch it off') }}
             </button>
           </div>
 
           <div v-if="confirming === link.name" class="sure">
             <p class="dim">
-              The address stops working for everybody, including anybody reading it now. It
-              cannot be undone &mdash; but you can make a new link in a moment.
+              {{ t('The address stops working for everybody, including anybody reading it now.') }}
+              {{ t('It cannot be undone — but you can make a new link in a moment.') }}
             </p>
             <div class="pair">
               <button class="keep" :disabled="pulling === link.name" @click="confirming = ''">
-                Leave it on
+                {{ t('Leave it on') }}
               </button>
               <button class="go" :disabled="pulling === link.name" @click="withdraw(link)">
-                {{ pulling === link.name ? 'Switching off…' : 'Yes, switch it off' }}
+                {{ pulling === link.name
+                    ? t('Switching off…')
+                    : t('Yes, switch it off') }}
               </button>
             </div>
           </div>
@@ -341,8 +361,8 @@ onMounted(async () => {
 
       <div v-else class="empty">
         <Icon name="tag" size="34" />
-        <b>Nothing shared yet</b>
-        <p class="dim">Pick a party above and send them the range.</p>
+        <b>{{ t('Nothing shared yet') }}</b>
+        <p class="dim">{{ t('Pick a party above and send them the range.') }}</p>
       </div>
     </template>
   </div>

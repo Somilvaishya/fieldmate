@@ -1,0 +1,316 @@
+A Payment Entry cannot be posted without an idempotency key.,आइडेम्पोटेंसी की के बिना पेमेंट एंट्री पोस्ट नहीं हो सकती।
+A Sales Order cannot be posted without an idempotency key.,आइडेम्पोटेंसी की के बिना सेल्स ऑर्डर पोस्ट नहीं हो सकता।
+"A benefit cannot be worth less than nothing. Reverse the accrual by setting its status to Reversed, which leaves the original row where the claim can still see it.","फ़ायदा शून्य से कम का नहीं हो सकता। उसकी स्थिति Reversed करके उलटें, जिससे असली पंक्ति वहीं रहती है जहाँ दावा उसे देख सकता है।"
+A cheque needs its number. Nobody can chase one without it.,चेक का नंबर चाहिए। उसके बिना कोई पीछा नहीं कर सकता।
+A claim for nothing is not a claim.,शून्य का दावा दावा नहीं होता।
+A claim has to say which distributor it is for.,दावे में बताना होगा वो किस डिस्ट्रीब्यूटर के लिए है।
+A claim is either Approved or Rejected.,दावा या तो मंज़ूर होता है या नामंज़ूर।
+A claim line has no ledger entry behind it.,दावे की एक लाइन के पीछे कोई लेजर एंट्री नहीं है।
+A claim over {0} needs a photograph of the bill.,{0} से ऊपर के दावे के लिए बिल की फ़ोटो चाहिए।
+A claim with nothing on it is not a claim.,खाली दावा दावा नहीं होता।
+A collection at a shop needs the shop.,दुकान पर की वसूली के लिए दुकान चाहिए।
+A collection from a distributor needs the distributor.,डिस्ट्रीब्यूटर से की वसूली के लिए डिस्ट्रीब्यूटर चाहिए।
+A collection of nothing is not a collection.,शून्य की वसूली वसूली नहीं होती।
+A coverage threshold is a percentage between 1 and 100.,कवरेज की सीमा 1 से 100 के बीच का प्रतिशत होती है।
+A credit note cannot be posted without an idempotency key.,आइडेम्पोटेंसी की के बिना क्रेडिट नोट पोस्ट नहीं हो सकता।
+A credit note for nothing is not a credit note.,शून्य का क्रेडिट नोट क्रेडिट नोट नहीं होता।
+A day cannot be started in the future.,दिन भविष्य में शुरू नहीं किया जा सकता।
+"A delivery trip needs a vehicle and a departure time. ERPNext will not save one without them, and neither should we - a trip without either is a list of addresses.","डिलीवरी ट्रिप के लिए गाड़ी और निकलने का समय चाहिए। ERPNext इनके बिना सेव नहीं करता, और हमें भी नहीं करना चाहिए - इनके बिना ट्रिप पतों की सूची है।"
+A deposit cannot be confirmed by the person who declared it.,जमा की पुष्टि वो नहीं कर सकता जिसने उसे घोषित किया।
+A deposit with nothing in it is not a deposit.,खाली जमा जमा नहीं होता।
+A field user cannot report to themselves.,कोई फ़ील्ड यूज़र खुद को रिपोर्ट नहीं कर सकता।
+A payout cannot be negative. Nobody owes us for a bad month.,भुगतान ऋणात्मक नहीं हो सकता। बुरे महीने के लिए कोई हमारा कर्ज़दार नहीं होता।
+A payout is either Approved or Rejected.,भुगतान या तो मंज़ूर होता है या नामंज़ूर।
+A plan cannot span more than {0} days. Generate one month at a time.,एक प्लान {0} दिन से ज़्यादा का नहीं हो सकता। एक बार में एक महीना बनाएँ।
+A primary order has to say which party it is for.,प्राइमरी ऑर्डर में बताना होगा वो किस पार्टी के लिए है।
+A season's book is commercial information. Only {0} can read it.,सीज़न की किताब व्यापारिक जानकारी है। इसे सिर्फ़ {0} पढ़ सकते हैं।
+A stock count needs a shop.,स्टॉक गिनती के लिए दुकान चाहिए।
+A submitted visit needs an outcome.,सबमिट हुई विज़िट का कोई नतीजा होना चाहिए।
+"A weekly beat runs every week, so Week Pattern must be All. Use Fortnightly or Monthly to visit on selected weeks.","साप्ताहिक बीट हर हफ़्ते चलती है, इसलिए Week Pattern All होना चाहिए। चुनिंदा हफ़्तों में जाने के लिए Fortnightly या Monthly लें।"
+Allocating a season decides which distributor is served short. Only {0} can do that.,सीज़न बाँटने से तय होता है किस डिस्ट्रीब्यूटर को कम मिलेगा। यह सिर्फ़ {0} कर सकते हैं।
+"An active must-sell list needs at least one item, or compliance scores against nothing and always reads 100%.","चालू must-sell सूची में कम से कम एक आइटम चाहिए, वरना अनुपालन किसी चीज़ के सामने नहीं नापा जाता और हमेशा 100% दिखता है।"
+"An active scheme with no slabs grants nothing. Add a slab, or leave the scheme inactive until the offer is decided.","बिना स्लैब वाली चालू स्कीम कुछ नहीं देती। एक स्लैब जोड़ें, या ऑफ़र तय होने तक स्कीम को बंद रखें।"
+An approved claim has to be worth something.,मंज़ूर दावे की कोई कीमत होनी चाहिए।
+An expense claim cannot be posted without an idempotency key.,आइडेम्पोटेंसी की के बिना खर्च का दावा पोस्ट नहीं हो सकता।
+An expense claim for nothing is not an expense claim.,शून्य का खर्च दावा खर्च दावा नहीं होता।
+An order cannot top itself up.,कोई ऑर्डर खुद को टॉप अप नहीं कर सकता।
+An order has to say which shop it is for.,ऑर्डर में बताना होगा वो किस दुकान के लिए है।
+Answer these before you leave: {0},जाने से पहले इनके जवाब दें: {0}
+Approve or reject this exception before submitting it.,इसे सबमिट करने से पहले इस छूट को मंज़ूर या नामंज़ूर करें।
+Asked for through the shared catalogue on {0}.,{0} को साझा कैटलॉग से माँगा गया।
+Average Order,औसत ऑर्डर
+"Best Of Group keeps only the richest scheme inside a group, so this one needs a group to compete in. Give it the same Stack Group as the schemes it is meant to be weighed against.","Best Of Group एक ग्रुप में सिर्फ़ सबसे बड़ी स्कीम रखता है, इसलिए इसे मुक़ाबले के लिए एक ग्रुप चाहिए। जिन स्कीमों से इसकी तुलना होनी है, उन्हीं का Stack Group दें।"
+Booking closes before it opens.,बुकिंग खुलने से पहले बंद हो जाती है।
+Calls,कॉल
+Changes would close before booking opens.,बदलाव बुकिंग खुलने से पहले बंद हो जाएँगे।
+Check out of the shop before submitting the visit.,विज़िट सबमिट करने से पहले दुकान से चेक आउट करें।
+Check the shelf,शेल्फ़ देखें
+Check-out cannot be before check-in.,चेक आउट चेक इन से पहले नहीं हो सकता।
+Choose a reason for the missed order.,ऑर्डर न मिलने का कारण चुनें।
+Choose how much of something you would like.,बताएँ किस चीज़ का कितना चाहिए।
+Choose how this conflict was resolved before closing it.,इसे बंद करने से पहले चुनें कि यह टकराव कैसे सुलझा।
+Closed automatically - the day was never ended.,अपने आप बंद हुआ - दिन कभी खत्म नहीं किया गया।
+Closed automatically when the next visit began.,अगली विज़िट शुरू होने पर अपने आप बंद हुआ।
+Collect what is due,जो बाकी है वो वसूलें
+Collected,वसूल हुआ
+Collection,वसूली
+Collection {0} is {1} and cannot go into a deposit.,वसूली {0} {1} है और किसी जमा में नहीं जा सकती।
+Collection {0} no longer exists.,वसूली {0} अब मौजूद नहीं है।
+Count his stock,उसका स्टॉक गिनें
+Coverage,कवरेज
+Credit could not be checked because no company is set against your login. This order is not being held; tell your manager so it can be corrected.,आपके लॉगिन के सामने कोई कंपनी तय न होने से क्रेडिट जाँचा नहीं जा सका। यह ऑर्डर रोका नहीं जा रहा; अपने मैनेजर को बताएँ ताकि यह ठीक हो।
+Credit note {0} stands against this claim. Reverse that before cancelling the claim underneath it.,इस दावे के सामने क्रेडिट नोट {0} खड़ा है। उसके नीचे का दावा रद्द करने से पहले उसे उलटें।
+Date,तारीख़
+Days Out,बाहर के दिन
+Delivery ends before it starts.,डिलीवरी शुरू होने से पहले खत्म हो जाती है।
+Delivery starts before booking opens. A season is booked in advance of its deliveries - check the dates.,डिलीवरी बुकिंग खुलने से पहले शुरू हो जाती है। सीज़न अपनी डिलीवरी से पहले बुक होता है - तारीख़ें देखें।
+"Discount ceiling must be above zero, or every order with any scheme on it needs approval.","छूट की ऊपरी सीमा शून्य से ऊपर होनी चाहिए, वरना किसी भी स्कीम वाले हर ऑर्डर को मंज़ूरी चाहिए।"
+Dispatching a season takes stock out of the warehouse. Only {0} can do that.,सीज़न भेजने पर स्टॉक वेयरहाउस से निकलता है। यह सिर्फ़ {0} कर सकते हैं।
+Distance (m),दूरी (मी)
+"Enable at least one kind of sale. With neither, a rep cannot book anything at all.",कम से कम एक तरह की बिक्री चालू करें। दोनों बंद होने पर रेप कुछ भी बुक नहीं कर सकता।
+"Enter your invoice number. It is the only thread from this order to the bill you raised, and nobody can reconstruct it later.","अपना इनवॉइस नंबर डालें। यह इस ऑर्डर से आपके बनाए बिल तक का एक ही धागा है, और बाद में कोई इसे जोड़ नहीं सकता।"
+Exception,छूट
+"Expense Claim has no {0} field on this site, so a settlement cannot be posted without risking a duplicate. Run bench migrate.","इस साइट के एक्सपेंस क्लेम में {0} फ़ील्ड नहीं है, इसलिए निपटान पोस्ट करने पर नक़ल बन सकती है। bench migrate चलाएँ।"
+Flagged For,किस लिए निशान
+Generate the days before submitting this plan.,यह प्लान सबमिट करने से पहले दिन बनाएँ।
+Geo Fence Radius must be between 10 and 5000 metres.,जियो फ़ेंस का दायरा 10 से 5000 मीटर के बीच होना चाहिए।
+Km,किमी
+Latitude must be between -90 and 90.,अक्षांश -90 और 90 के बीच होना चाहिए।
+Ledger entry {0} appears twice on this claim.,लेजर एंट्री {0} इस दावे में दो बार है।
+Ledger entry {0} belongs to another distributor.,लेजर एंट्री {0} किसी दूसरे डिस्ट्रीब्यूटर की है।
+"Ledger entry {0} is a {1} row. That is what the rep earned, not what you gave away, and it is not claimable.","लेजर एंट्री {0} एक {1} पंक्ति है। वो रेप की कमाई है, आपने जो दिया वो नहीं, और उसका दावा नहीं हो सकता।"
+Ledger entry {0} is already on claim {1}.,लेजर एंट्री {0} पहले से दावे {1} पर है।
+Ledger entry {0} is not submitted and cannot be claimed.,"लेजर एंट्री {0} सबमिट नहीं हुई है, इसलिए उसका दावा नहीं हो सकता।"
+Ledger entry {0} no longer exists.,लेजर एंट्री {0} अब मौजूद नहीं है।
+Lines / Call,लाइनें / कॉल
+Location reported as mocked,लोकेशन नक़ली बताई गई
+Longitude must be between -180 and 180.,देशांतर -180 और 180 के बीच होना चाहिए।
+Max Monthly Potential cannot be below the minimum.,अधिकतम मासिक संभावना न्यूनतम से नीचे नहीं हो सकती।
+Minutes,मिनट
+"More than one distributor covers your area, so we cannot tell which one this shop belongs to. Ask your manager to set yours.","आपके इलाके को एक से ज़्यादा डिस्ट्रीब्यूटर कवर करते हैं, इसलिए हम बता नहीं सकते यह दुकान किसकी है। अपने मैनेजर से अपना तय करवाएँ।"
+Name,नाम
+Name an approver role or an approver. An order this rule stops and sends to nobody is an order that quietly never ships.,"मंज़ूरी देने वाली भूमिका या व्यक्ति बताएँ। जो ऑर्डर यह नियम रोककर किसी को न भेजे, वो चुपचाप कभी नहीं जाता।"
+New Shops,नई दुकानें
+No day is open. Start your day first.,कोई दिन खुला नहीं है। पहले अपना दिन शुरू करें।
+No photo was sent.,कोई फ़ोटो नहीं भेजी गई।
+"No reasons are set up, so say what happened in the note.","कोई कारण तय नहीं है, इसलिए नोट में लिखें क्या हुआ।"
+"No settlement item is set in FieldMate Settings, so an approved claim has nothing to credit against. Set one before settling claims.","FieldMate Settings में कोई सेटलमेंट आइटम तय नहीं है, इसलिए मंज़ूर दावे के सामने क्रेडिट करने को कुछ नहीं है। दावे निपटाने से पहले एक तय करें।"
+"No travel rate per km is set in FieldMate Settings, so a travel claim cannot be priced. Set one before reps start filing.","FieldMate Settings में प्रति किमी यात्रा दर तय नहीं है, इसलिए यात्रा दावे का दाम नहीं लग सकता। रेप दाखिल करना शुरू करें उससे पहले एक तय करें।"
+"Nobody is recorded as {0}'s manager, so there is nobody to approve this. Set Reports To on their FieldMate Field User, or ask the distributor or an administrator to decide.","{0} का कोई मैनेजर दर्ज नहीं है, इसलिए इसे मंज़ूर करने वाला कोई नहीं। उनके FieldMate Field User पर Reports To तय करें, या डिस्ट्रीब्यूटर या प्रशासक से फ़ैसला करवाएँ।"
+Not checked during the visit,विज़िट में जाँचा नहीं गया
+Nothing has been delivered for this season yet.,इस सीज़न के लिए अभी कुछ भेजा नहीं गया।
+Nothing in that file could be read. {0},उस फ़ाइल में कुछ भी पढ़ा नहीं जा सका। {0}
+Nothing is left to claim between {0} and {1}.,{0} और {1} के बीच दावा करने को कुछ नहीं बचा।
+Nothing left to ship against it.,इसके सामने भेजने को कुछ नहीं बचा।
+Nothing on it left to bill.,इस पर बिल करने को कुछ नहीं बचा।
+Off the planned beat,तय बीट से बाहर
+Only a booking can top up another booking. This order is not one - check that its date falls inside a season's booking window.,सिर्फ़ कोई बुकिंग दूसरी बुकिंग को टॉप अप कर सकती है। यह ऑर्डर बुकिंग नहीं है - देखें कि इसकी तारीख़ किसी सीज़न की बुकिंग अवधि में आती है।
+Only a manager can approve a new shop.,नई दुकान को सिर्फ़ मैनेजर मंज़ूर कर सकता है।
+Only a submitted claim can be approved or rejected.,सिर्फ़ सबमिट हुए दावे को मंज़ूर या नामंज़ूर किया जा सकता है।
+Only an approved claim can be settled. This one is {0}.,सिर्फ़ मंज़ूर दावा निपटाया जा सकता है। यह {0} है।
+Only an approved payout can be marked paid. This one is {0}.,सिर्फ़ मंज़ूर भुगतान को चुकाया हुआ लिखा जा सकता है। यह {0} है।
+Only one contact can be the primary.,सिर्फ़ एक संपर्क मुख्य हो सकता है।
+"Only {0}'s own manager, their distributor or an administrator can decide this order.","इस ऑर्डर का फ़ैसला सिर्फ़ {0} का अपना मैनेजर, उनका डिस्ट्रीब्यूटर या कोई प्रशासक कर सकता है।"
+"Order value threshold must be above zero, or the rule catches every order rather than the large ones.","ऑर्डर मूल्य की सीमा शून्य से ऊपर होनी चाहिए, वरना नियम बड़े ऑर्डर की जगह हर ऑर्डर पकड़ लेगा।"
+Orders,ऑर्डर
+Outcome,नतीजा
+Outside the shop's range,दुकान की सीमा के बाहर
+"Payment Entry has no {0} field on this site, so a retried deposit could pay twice. Install the FieldMate custom fields and try again.","इस साइट की पेमेंट एंट्री में {0} फ़ील्ड नहीं है, इसलिए दोबारा भेजा गया जमा दो बार भुगतान कर सकता है। FieldMate के कस्टम फ़ील्ड इंस्टॉल करके दोबारा कोशिश करें।"
+Plan Compliance,प्लान अनुपालन
+Please sign in.,कृपया साइन इन करें।
+Productive,उपजाऊ
+Raised automatically at check-in on visit {0}.,विज़िट {0} के चेक इन पर अपने आप उठाया गया।
+Record the date the money moved. A settled claim with no date is the first thing anybody disputes at month end.,पैसा जिस तारीख़ को गया वो दर्ज करें। बिना तारीख़ निपटा दावा महीने के अंत में सबसे पहले विवाद में आता है।
+Record where it was paid. FieldMate does not pay anybody; it says what is owed and records where the payment happened.,कहाँ भुगतान हुआ वो दर्ज करें। FieldMate किसी को भुगतान नहीं करता; वो बताता है क्या बाकी है और भुगतान कहाँ हुआ ये दर्ज करता है।
+Rep,रेप
+Reporting line loops back on itself at {0}.,रिपोर्टिंग की कड़ी {0} पर खुद पर लौट आती है।
+"Row {0} depends on {1}, which comes later in the list. A rep cannot answer a question whose trigger has not been asked yet.","पंक्ति {0} {1} पर टिकी है, जो सूची में बाद में आती है। रेप उस सवाल का जवाब नहीं दे सकता जिसका ट्रिगर अभी पूछा ही नहीं गया।"
+"Row {0} depends on {1}, which is not a question in this template.","पंक्ति {0} {1} पर टिकी है, जो इस टेम्पलेट में सवाल ही नहीं है।"
+"Row {0} gives away {1}%, which is more than the line is worth.","पंक्ति {0} {1}% दे देती है, जो लाइन की कीमत से ज़्यादा है।"
+Row {0} gives goods away but names no item. A rep cannot hand a shopkeeper a quantity of nothing.,पंक्ति {0} सामान मुफ़्त देती है पर कोई आइटम नहीं बताती। रेप दुकानदार को किसी चीज़ की मात्रा नहीं दे सकता जो चीज़ ही न हो।
+"Row {0} grants its benefit per multiple of the slab, which counts how many times the floor was crossed. A slab starting at zero has no floor to count.","पंक्ति {0} स्लैब के हर गुणक पर फ़ायदा देती है, जो गिनता है कि फ़र्श कितनी बार पार हुआ। शून्य से शुरू होने वाले स्लैब का कोई फ़र्श ही नहीं है।"
+"Row {0} grants {1}, but {2} is empty and {3} carries {4}. Fill {2}, or change the benefit to {5}.","पंक्ति {0} {1} देती है, पर {2} खाली है और {3} में {4} है। {2} भरें, या फ़ायदा {5} कर दें।"
+"Row {0} grants {1}, but {2} is empty. A benefit worth nothing is a tier the rep quotes and the invoice ignores.","पंक्ति {0} {1} देती है, पर {2} खाली है। शून्य कीमत का फ़ायदा वो स्तर है जो रेप बताता है और इनवॉइस अनदेखा कर देता है।"
+"Row {0} grants {1}, so only {2} may carry a number - clear {3}. One row is one benefit; add another row with the same slab number to grant both.","पंक्ति {0} {1} देती है, इसलिए सिर्फ़ {2} में संख्या हो सकती है - {3} खाली करें। एक पंक्ति एक फ़ायदा है; दोनों देने हैं तो उसी स्लैब संख्या की दूसरी पंक्ति जोड़ें।"
+"Row {0} names both {1} and {2}. A row has to say exactly one of item, item group or brand - with two, nobody reading this months later can tell which one the offer was written for.","पंक्ति {0} में {1} और {2} दोनों हैं। एक पंक्ति में आइटम, आइटम ग्रुप या ब्रांड में से ठीक एक होना चाहिए - दोनों होने पर महीनों बाद पढ़ने वाला बता नहीं सकेगा कि ऑफ़र किसके लिए लिखा गया था।"
+"Row {0} names no item, item group or brand, so there is nothing for a cart to qualify on.","पंक्ति {0} में कोई आइटम, आइटम ग्रुप या ब्रांड नहीं है, इसलिए कार्ट के योग्य होने के लिए कुछ नहीं है।"
+Row {0}: Max Qty cannot be below Min Qty.,पंक्ति {0}: अधिकतम मात्रा न्यूनतम से कम नहीं हो सकती।
+"Row {0}: Weight must be above zero, or the line cannot affect the score.","पंक्ति {0}: वज़न शून्य से ऊपर होना चाहिए, वरना लाइन स्कोर पर असर नहीं डाल सकती।"
+Row {0}: a choice question with no options cannot be answered.,पंक्ति {0}: बिना विकल्प वाले चुनाव सवाल का जवाब नहीं दिया जा सकता।
+"Row {0}: every benefit belongs to a slab. Number the slabs from 1 upwards, and give rows that make up one combo the same number.","पंक्ति {0}: हर फ़ायदा किसी स्लैब का होता है। स्लैब 1 से आगे गिनें, और जो पंक्तियाँ मिलकर एक कॉम्बो बनाती हैं उन्हें वही संख्या दें।"
+"Row {0}: every question needs a code. Answers are matched to questions by code, not by wording.","पंक्ति {0}: हर सवाल का कोड चाहिए। जवाब सवालों से कोड के ज़रिए मिलते हैं, शब्दों से नहीं।"
+Row {0}: the minimum ({1}) is above the maximum ({2}).,पंक्ति {0}: न्यूनतम ({1}) अधिकतम ({2}) से ऊपर है।
+"Row {0}: {1} has no {2} conversion on its Item master, so nobody knows how many pieces one holds. Add the UOM to the item first.","पंक्ति {0}: {1} के Item मास्टर पर कोई {2} कन्वर्ज़न नहीं है, इसलिए कोई नहीं जानता एक में कितने पीस आते हैं। पहले आइटम में UOM जोड़ें।"
+"Row {0}: {1} is already in the qualifying list. Listed twice, its quantity would count twice towards the slab.",पंक्ति {0}: {1} पहले से योग्य सूची में है। दो बार होने पर उसकी मात्रा स्लैब में दो बार गिनी जाएगी।
+"Row {0}: {1} is already on active beat {2}. Remove it there first, or deactivate that beat.","पंक्ति {0}: {1} पहले से चालू बीट {2} पर है। पहले उसे वहाँ से हटाएँ, या वो बीट बंद करें।"
+Row {0}: {1} is already on this beat. A shop is visited once per run.,पंक्ति {0}: {1} पहले से इस बीट पर है। एक चक्कर में दुकान एक बार जाई जाती है।
+"Row {0}: {1} is in {2}, which is outside this beat's territory ({3}).","पंक्ति {0}: {1} {2} में है, जो इस बीट के क्षेत्र ({3}) के बाहर है।"
+Row {0}: {1} is listed twice.,पंक्ति {0}: {1} दो बार लिखा है।
+"Rows {0} and {1} are both slab {2} but cover different ranges. Rows sharing a slab number are one slab granting a combo, so they have to open and close together.","पंक्ति {0} और {1} दोनों स्लैब {2} हैं पर अलग दायरे रखती हैं। एक ही स्लैब संख्या वाली पंक्तियाँ मिलकर एक कॉम्बो देती हैं, इसलिए उन्हें साथ खुलना और बंद होना चाहिए।"
+Rows {0} and {1} both use the code {2}. One answer cannot belong to two questions.,पंक्ति {0} और {1} दोनों कोड {2} इस्तेमाल करती हैं। एक जवाब दो सवालों का नहीं हो सकता।
+"Sales Invoice has no {0} field on this site, so a claim cannot be settled without risking a duplicate credit. Run bench migrate.","इस साइट के सेल्स इनवॉइस में {0} फ़ील्ड नहीं है, इसलिए दावा निपटाने पर दोहरा क्रेडिट बन सकता है। bench migrate चलाएँ।"
+"Sales Order has no {0} field on this site, so an order cannot be posted without risking a duplicate. Install the FieldMate fixtures and run bench migrate.","इस साइट के सेल्स ऑर्डर में {0} फ़ील्ड नहीं है, इसलिए ऑर्डर पोस्ट करने पर नक़ल बन सकती है। FieldMate के फ़िक्स्चर इंस्टॉल करके bench migrate चलाएँ।"
+Say why it was rejected. A bare rejection is a phone call.,बताएँ क्यों नामंज़ूर हुआ। बिना कारण नामंज़ूरी एक फ़ोन कॉल है।
+Say why you are rejecting it. The rep has to tell the shop something.,बताएँ आप इसे क्यों नामंज़ूर कर रहे हैं। रेप को दुकान से कुछ कहना होता है।
+Say why. A rejected expense with no reason is a grievance.,कारण बताएँ। बिना कारण नामंज़ूर खर्च एक शिकायत है।
+Say why. A rejected incentive with no reason is a grievance.,कारण बताएँ। बिना कारण नामंज़ूर इंसेंटिव एक शिकायत है।
+"Scope row {0} excludes everywhere, which switches the scheme off without saying so. Name what it excludes, or delete the row.","स्कोप पंक्ति {0} हर जगह को बाहर कर देती है, जो स्कीम को चुपचाप बंद कर देता है। बताएँ क्या बाहर है, या पंक्ति हटा दें।"
+"Set at least one trigger. A rule with none matches every order in its scope, and a queue holding everything gets approved without being read.","कम से कम एक ट्रिगर तय करें। बिना ट्रिगर वाला नियम अपने दायरे के हर ऑर्डर पर लगता है, और सब कुछ रखने वाली कतार बिना पढ़े मंज़ूर हो जाती है।"
+Shop,दुकान
+Shop is awaiting approval - no order yet,दुकान मंज़ूरी के इंतज़ार में है - अभी ऑर्डर नहीं
+Shops,दुकानें
+Shops Covered,कवर हुई दुकानें
+Shorter than expected,उम्मीद से छोटी
+Slab {0} ends at or before it begins.,स्लैब {0} शुरू होने पर या उससे पहले ही खत्म हो जाता है।
+"Slab {0} has no ceiling, so slab {1} can never be reached. The open-topped slab has to be the highest one.","स्लैब {0} की कोई ऊपरी सीमा नहीं है, इसलिए स्लैब {1} तक कभी पहुँचा नहीं जा सकता। खुली छत वाला स्लैब सबसे ऊपर होना चाहिए।"
+Slab {0} is open ended but is not the last one.,स्लैब {0} खुला है पर आखिरी नहीं है।
+Slab {0} pays a fixed amount of nothing.,स्लैब {0} तय रकम में कुछ नहीं देता।
+Slab {0} pays a percentage of nothing.,स्लैब {0} प्रतिशत में कुछ नहीं देता।
+"Slab {0} runs from {1} to {2} and so matches nothing. Give it a ceiling above its floor, or tick Open Top if it is the last tier.","स्लैब {0} {1} से {2} तक चलता है, इसलिए कुछ भी मेल नहीं खाता। उसकी ऊपरी सीमा फ़र्श से ऊपर रखें, या आखिरी स्तर हो तो Open Top टिक करें।"
+"Slab {0} starts at {1}, inside slab {2} which runs to {3}. A cart that lands in two slabs at once is an offer nobody can explain across a counter.","स्लैब {0} {1} से शुरू होता है, जो स्लैब {2} के अंदर है जो {3} तक जाता है। एक साथ दो स्लैब में गिरने वाला कार्ट वो ऑफ़र है जिसे काउंटर पर कोई समझा नहीं सकता।"
+Slabs {0} and {1} overlap. A rep at {2}% would be in both.,स्लैब {0} और {1} एक-दूसरे पर चढ़ते हैं। {2}% पर कोई रेप दोनों में होगा।
+Start your day before visiting a shop.,दुकान पर जाने से पहले अपना दिन शुरू करें।
+"Stock reservation is switched off for this site, so nothing can be allocated. Switch on Enable Stock Reservation in Stock Settings.","इस साइट पर स्टॉक रिज़र्वेशन बंद है, इसलिए कुछ बाँटा नहीं जा सकता। Stock Settings में Enable Stock Reservation चालू करें।"
+Strike Rate,स्ट्राइक रेट
+Submit the claim before deciding on it.,फ़ैसला लेने से पहले दावा सबमिट करें।
+Submit the payout before deciding on it.,फ़ैसला लेने से पहले भुगतान सबमिट करें।
+Submit the plan before cascading it.,नीचे बाँटने से पहले प्लान सबमिट करें।
+Take the order,ऑर्डर लें
+Take the photo at the shop before you check in.,चेक इन करने से पहले दुकान पर फ़ोटो लें।
+Take the start-of-day photo before you begin.,शुरू करने से पहले दिन की पहली फ़ोटो लें।
+Territory,क्षेत्र
+Thank you. {0} has it and will be in touch.,धन्यवाद। {0} के पास यह है और वो संपर्क करेंगे।
+That claim belongs to another rep.,वो दावा किसी दूसरे रेप का है।
+That collection was never recorded.,वो वसूली कभी दर्ज नहीं हुई।
+That customer was not found.,वो ग्राहक नहीं मिला।
+That deposit has not been declared yet.,वो जमा अभी घोषित नहीं हुआ।
+That party no longer exists.,वो पार्टी अब मौजूद नहीं है।
+That photo could not be read. Take it again.,वो फ़ोटो पढ़ी नहीं जा सकी। दोबारा लें।
+That photo is not in a format we can read. Take it again.,वो फ़ोटो ऐसे रूप में नहीं है जिसे हम पढ़ सकें। दोबारा लें।
+"That photo is {0} KB, over the {1} KB limit. It should have been shrunk on the phone first.","वो फ़ोटो {0} KB की है, {1} KB की सीमा से ऊपर। उसे पहले फ़ोन पर छोटा किया जाना चाहिए था।"
+That shop is not in your territory.,वो दुकान आपके क्षेत्र में नहीं है।
+That shop no longer exists.,वो दुकान अब मौजूद नहीं है।
+That shop was not found.,वो दुकान नहीं मिली।
+"That visit was cancelled, so the photo cannot be attached.","वो विज़िट रद्द हो गई थी, इसलिए फ़ोटो नहीं जोड़ी जा सकती।"
+The claim period ends before it starts.,दावे की अवधि शुरू होने से पहले खत्म हो जाती है।
+The depot has already {0} this order. Ask them to raise a return - cancelling it here would leave their paperwork with nothing behind it.,डिपो ने इस ऑर्डर को पहले ही {0} कर दिया है। उनसे रिटर्न बनवाएँ - इसे यहाँ रद्द करने पर उनके काग़ज़ों के पीछे कुछ नहीं बचेगा।
+The period ends before it starts.,अवधि शुरू होने से पहले खत्म हो जाती है।
+The scheme expires before it starts.,स्कीम शुरू होने से पहले ही खत्म हो जाती है।
+"The top slab stops at {0}%. Mark it open ended, or a rep who does better than that earns nothing at all.","सबसे ऊपरी स्लैब {0}% पर रुक जाता है। उसे खुला करें, वरना उससे बेहतर करने वाले रेप को कुछ भी नहीं मिलेगा।"
+The {0} latitude must be between -90 and 90.,{0} का अक्षांश -90 और 90 के बीच होना चाहिए।
+The {0} longitude must be between -180 and 180.,{0} का देशांतर -180 और 180 के बीच होना चाहिए।
+The {0} target is zero. A target nobody can miss is not a target.,{0} का लक्ष्य शून्य है। जो लक्ष्य कोई चूक न सके वो लक्ष्य नहीं होता।
+There are two {0} targets for {1}.,{1} के लिए दो {0} लक्ष्य हैं।
+There is a gap between slab {0} and slab {1}. A rep landing between {2}% and {3}% would earn nothing.,स्लैब {0} और स्लैब {1} के बीच खाली जगह है। {2}% और {3}% के बीच आने वाले रेप को कुछ नहीं मिलेगा।
+"There is no price list for {0}, so there is nothing to show them. {1}","{0} के लिए कोई प्राइस लिस्ट नहीं है, इसलिए उन्हें दिखाने को कुछ नहीं। {1}"
+These items are not on file any more: {0}. Refresh the catalogue and try again.,ये आइटम अब फ़ाइल पर नहीं हैं: {0}। कैटलॉग रिफ़्रेश करके दोबारा कोशिश करें।
+"These items have no pack size set for the unit the order is in: {0}. Book them in the base unit, or ask your manager to set the conversion.","ऑर्डर जिस यूनिट में है, उसके लिए इन आइटमों का पैक साइज़ तय नहीं है: {0}। इन्हें बेस यूनिट में बुक करें, या अपने मैनेजर से कन्वर्ज़न तय करवाएँ।"
+This booking needs {0} up front and {1} has been received. It is held until the balance of {2} is collected.,इस बुकिंग के लिए पहले {0} चाहिए और {1} मिला है। {2} की बाकी रकम आने तक यह रुकी है।
+"This check-in was {0} m from the shop, inside its {1} m fence. No exception is needed.","यह चेक इन दुकान से {0} मी दूर था, उसकी {1} मी की सीमा के अंदर। किसी छूट की ज़रूरत नहीं।"
+This claim has already been submitted.,यह दावा पहले ही सबमिट हो चुका है।
+This claim is settled{0}. Reverse the payment before cancelling the record of it.,यह दावा निपट चुका है{0}। इसका रिकॉर्ड रद्द करने से पहले भुगतान उलटें।
+This claim is {0} and is no longer waiting on a decision.,यह दावा {0} है और अब फ़ैसले का इंतज़ार नहीं कर रहा।
+This collection is already inside a confirmed deposit. Reverse the deposit first — cancelling it here would leave the bank with money nothing accounts for.,यह वसूली पहले से किसी पुष्ट जमा के अंदर है। पहले जमा को उलटें — इसे यहाँ रद्द करने पर बैंक में वो पैसा रह जाएगा जिसका कोई हिसाब नहीं।
+This deposit is confirmed and its payments are posted. Reverse those first rather than cancelling the declaration underneath them.,यह जमा पुष्ट है और इसके भुगतान पोस्ट हो चुके हैं। उनके नीचे की घोषणा रद्द करने की जगह पहले उन्हें उलटें।
+This device is no longer active. Sign in again to continue.,यह डिवाइस अब चालू नहीं है। जारी रखने के लिए दोबारा साइन इन करें।
+This is not your visit.,यह आपकी विज़िट नहीं है।
+This link has expired. Ask for a new one.,यह लिंक खत्म हो गया। नया माँगें।
+This link is no longer available.,यह लिंक अब उपलब्ध नहीं है।
+This link is not available.,यह लिंक उपलब्ध नहीं है।
+This link is not open yet.,यह लिंक अभी खुला नहीं है।
+This link would expire before it starts.,यह लिंक शुरू होने से पहले खत्म हो जाएगा।
+This login has been deactivated. Ask your depot to contact us.,यह लॉगिन बंद कर दिया गया है। अपने डिपो से हमसे संपर्क करने को कहें।
+This login is not attached to a distributor.,यह लॉगिन किसी डिस्ट्रीब्यूटर से जुड़ा नहीं है।
+"This order bills {0} directly, so it has to say which warehouse the stock leaves from. Set the default warehouse in FieldMate Settings, or name one on {0} if that party ships from somewhere else.","यह ऑर्डर {0} को सीधा बिल करता है, इसलिए बताना होगा स्टॉक किस वेयरहाउस से जाता है। FieldMate Settings में डिफ़ॉल्ट वेयरहाउस तय करें, या वो पार्टी कहीं और से भेजती है तो {0} पर एक तय करें।"
+This order cannot be booked here.,यह ऑर्डर यहाँ बुक नहीं हो सकता।
+"This order is within limit. {0} owes {1} of {2}, leaving {3} after this order.","यह ऑर्डर सीमा के अंदर है। {0} पर {2} में से {1} बाकी है, इस ऑर्डर के बाद {3} बचेगा।"
+This order is {0}. It cannot be marked {1} from there.,यह ऑर्डर {0} है। वहाँ से इसे {1} नहीं लिखा जा सकता।
+"This order takes {0} {1} past their {2} credit limit, so it cannot be booked until {1} of that is paid.","यह ऑर्डर {1} को उनकी {2} क्रेडिट सीमा से {0} आगे ले जाता है, इसलिए उसमें से {1} चुकाए जाने तक यह बुक नहीं हो सकता।"
+"This order takes {0} {1} past their {2} credit limit, so your manager has to approve it before it is confirmed.","यह ऑर्डर {1} को उनकी {2} क्रेडिट सीमा से {0} आगे ले जाता है, इसलिए पक्का होने से पहले आपके मैनेजर को मंज़ूरी देनी होगी।"
+"This order takes {0} {1} past their {2} credit limit. It will still go through, and the office will see it.","यह ऑर्डर {1} को उनकी {2} क्रेडिट सीमा से {0} आगे ले जाता है। यह फिर भी चला जाएगा, और ऑफ़िस इसे देख लेगा।"
+"This outlet is billed direct to {0}, which is also its distributor. One of the two is wrong: either the shop buys from the distributor, or we invoice it ourselves.","यह दुकान सीधे {0} को बिल होती है, जो उसका डिस्ट्रीब्यूटर भी है। दोनों में से एक गलत है: या दुकान डिस्ट्रीब्यूटर से ख़रीदती है, या हम उसे खुद बिल करते हैं।"
+This outlet is not in your territory.,यह दुकान आपके क्षेत्र में नहीं है।
+This payout is marked paid on {0}. Reverse the payment before cancelling the record of it.,यह भुगतान {0} को चुकाया हुआ लिखा है। इसका रिकॉर्ड रद्द करने से पहले भुगतान उलटें।
+This payout is {0} and is no longer waiting on a decision.,यह भुगतान {0} है और अब फ़ैसले का इंतज़ार नहीं कर रहा।
+This phone has been {0} and cannot be used until somebody at the office turns it back on.,यह फ़ोन {0} है और ऑफ़िस में कोई इसे दोबारा चालू न करे तब तक इस्तेमाल नहीं हो सकता।
+This reason needs a note saying what actually happened.,इस कारण के साथ नोट चाहिए जिसमें लिखा हो असल में क्या हुआ।
+"This scheme ends on {0}, before it starts on {1}. It would never be live for a single day.","यह स्कीम {0} को खत्म होती है, जो {1} की शुरुआत से पहले है। यह एक दिन भी चालू नहीं रहेगी।"
+"This scheme measures its slabs over a set of items but lists none, so no cart would ever qualify. Add the items, or measure it over the whole order instead.","यह स्कीम अपने स्लैब कुछ आइटमों पर नापती है पर कोई आइटम नहीं बताती, इसलिए कोई कार्ट कभी योग्य नहीं होगा। आइटम जोड़ें, या इसे पूरे ऑर्डर पर नापें।"
+"This shop has no distributor against it, so there is nobody to bill. Ask your manager to set one before you book an order.","इस दुकान के सामने कोई डिस्ट्रीब्यूटर नहीं है, इसलिए बिल करने वाला कोई नहीं। ऑर्डर बुक करने से पहले अपने मैनेजर से एक तय करवाएँ।"
+This shop is marked {0}.,यह दुकान {0} लिखी है।
+This shop is not in your territory.,यह दुकान आपके क्षेत्र में नहीं है।
+"This shop is waiting for approval. You can visit it, but not book an order yet.","यह दुकान मंज़ूरी के इंतज़ार में है। आप यहाँ जा सकते हैं, पर अभी ऑर्डर बुक नहीं कर सकते।"
+"This site has no Expense Claim Type set up, so an approved claim has nothing to post against. Create one before settling claims.","इस साइट पर कोई Expense Claim Type बना नहीं है, इसलिए मंज़ूर दावे के सामने पोस्ट करने को कुछ नहीं है। दावे निपटाने से पहले एक बनाएँ।"
+This visit is already finished.,यह विज़िट पहले ही खत्म हो चुकी है।
+Tick which collections are in this deposit.,टिक करें इस जमा में कौन सी वसूलियाँ हैं।
+To date is before from date.,"To date, from date से पहले है।"
+Valid To cannot be before Valid From.,"Valid To, Valid From से पहले नहीं हो सकता।"
+Value,मूल्य
+Value Sold,बेचा हुआ मूल्य
+Visit,विज़िट
+Visits Per Month must be between 1 and 31.,महीने की विज़िट 1 से 31 के बीच होनी चाहिए।
+Volume,मात्रा
+What happened at this shop?,इस दुकान पर क्या हुआ?
+Which customer is this link for?,यह लिंक किस ग्राहक के लिए है?
+Which shop is this link for?,यह लिंक किस दुकान के लिए है?
+Which shop?,कौन सी दुकान?
+You are not set up as a field user yet. Ask your manager.,आप अभी फ़ील्ड यूज़र के तौर पर तय नहीं हुए हैं। अपने मैनेजर से कहें।
+You are not set up as a field user.,आप फ़ील्ड यूज़र के तौर पर तय नहीं हैं।
+You are not set up to add new shops.,आप नई दुकान जोड़ने के लिए तय नहीं हैं।
+You are still checked in at {0}. Check out from there first.,आप अभी भी {0} में चेक इन हैं। पहले वहाँ से चेक आउट करें।
+You can only record your own visits.,आप सिर्फ़ अपनी विज़िट दर्ज कर सकते हैं।
+You cannot approve your own claim.,आप अपना ही दावा मंज़ूर नहीं कर सकते।
+You cannot approve {0} against a claim for {1}.,{1} के दावे के सामने आप {0} मंज़ूर नहीं कर सकते।
+You have already filed a {0} claim for {1} ({2}).,आपने {1} के लिए {0} दावा पहले ही दाखिल कर दिया है ({2})।
+You have already finished today. Ask your manager if you need it reopened.,आप आज का काम खत्म कर चुके हैं। दोबारा खोलना हो तो अपने मैनेजर से कहें।
+You have put {0} against bills but only collected {1}. One of the two is wrong.,आपने बिलों के सामने {0} रखा है पर वसूला सिर्फ़ {1}। दोनों में से एक गलत है।
+"Your account is not linked to a distributor yet, so a new shop has nowhere to belong. Ask your manager to set it on your FieldMate user.","आपका खाता अभी किसी डिस्ट्रीब्यूटर से जुड़ा नहीं है, इसलिए नई दुकान के लिए कोई जगह नहीं। अपने मैनेजर से इसे अपने FieldMate यूज़र पर तय करवाएँ।"
+Your login can read the order queue but not work it. Ask whoever set it up at your depot.,आपका लॉगिन ऑर्डर कतार पढ़ सकता है पर उस पर काम नहीं कर सकता। अपने डिपो में जिसने इसे बनाया उससे कहें।
+Your login cannot raise claims.,आपका लॉगिन दावे नहीं कर सकता।
+Your login cannot send sales files. Ask whoever set it up at your depot.,आपका लॉगिन बिक्री फ़ाइलें नहीं भेज सकता। अपने डिपो में जिसने इसे बनाया उससे कहें।
+Your representative,आपका प्रतिनिधि
+end,अंत
+start,शुरुआत
+the customer,ग्राहक
+{0} already covers part of this period for {1}. Cancel it first.,{0} {1} के लिए इस अवधि का हिस्सा पहले से कवर करता है। पहले उसे रद्द करें।
+{0} already has a day open ({1}). Close it before starting another.,{0} का एक दिन पहले से खुला है ({1})। दूसरा शुरू करने से पहले उसे बंद करें।
+{0} already has a snapshot for {1} ({2}).,{0} के पास {1} का स्नैपशॉट पहले से है ({2})।
+{0} closed for changes on {1}. Ask your manager if this has to be altered.,{0} {1} को बदलाव के लिए बंद हो गया। बदलना ज़रूरी हो तो अपने मैनेजर से कहें।
+"{0} covers {1}, which does not include this beat's territory ({2}).","{0} {1} को कवर करता है, जिसमें इस बीट का क्षेत्र ({2}) नहीं आता।"
+{0} has more than one season booking on {1}. Close one before taking orders.,{1} को {0} की एक से ज़्यादा सीज़न बुकिंग है। ऑर्डर लेने से पहले एक बंद करें।
+"{0} has no channel tier, so FieldMate does not know what they are in the chain. Set one on the Customer.","{0} का कोई चैनल स्तर नहीं है, इसलिए FieldMate नहीं जानता वो कड़ी में कहाँ हैं। Customer पर एक तय करें।"
+"{0} has no credit limit set, so nothing is holding this order. They owe {1} today.","{0} की कोई क्रेडिट सीमा तय नहीं है, इसलिए इस ऑर्डर को कुछ नहीं रोक रहा। उन पर आज {1} बाकी है।"
+"{0} has no default bank or cash account, so there is nowhere to record the money as having arrived.","{0} का कोई डिफ़ॉल्ट बैंक या कैश खाता नहीं है, इसलिए पैसा आया ये दर्ज करने की कोई जगह नहीं।"
+"{0} has no {1} field on this site, so it cannot be posted without risking a duplicate. Install the FieldMate fixtures and run bench migrate.","इस साइट के {0} में {1} फ़ील्ड नहीं है, इसलिए इसे पोस्ट करने पर नक़ल बन सकती है। FieldMate के फ़िक्स्चर इंस्टॉल करके bench migrate चलाएँ।"
+"{0} has not been measured yet, so there is nothing to pay on.","{0} अभी नापा नहीं गया, इसलिए भुगतान के लिए कुछ नहीं है।"
+"{0} has not been submitted, so there is nothing to add to yet.","{0} सबमिट नहीं हुआ, इसलिए अभी जोड़ने को कुछ नहीं है।"
+"{0} holds no FieldMate role, so they could not sign in to the app. Assign a role on the User first.","{0} के पास कोई FieldMate भूमिका नहीं है, इसलिए वो ऐप में साइन इन नहीं कर सकेंगे। पहले User पर भूमिका दें।"
+{0} holds the {1} role. Give the depot its own login rather than attaching one to an administrator.,{0} के पास {1} भूमिका है। प्रशासक से लॉगिन जोड़ने की जगह डिपो को उसका अपना लॉगिन दें।
+{0} is a booking of {1} and this one is of {2}. A top-up belongs to the same season.,{0} {1} की बुकिंग है और यह {2} की। टॉप अप उसी सीज़न का होता है।
+"{0} is a depot holding our own stock, not a party we sell to.","{0} हमारा अपना स्टॉक रखने वाला डिपो है, वो पार्टी नहीं जिसे हम बेचते हैं।"
+"{0} is already booking for {1} over these dates. Two seasons open at once would leave it undecided which one an order belongs to - close that one, or move these dates.","इन तारीख़ों पर {0} पहले से {1} के लिए बुकिंग ले रहा है। एक साथ दो सीज़न खुले रहने पर तय नहीं होगा कि ऑर्डर किसका है - उसे बंद करें, या ये तारीख़ें बदलें।"
+{0} is already submitted. Cancel the plans below it before re-cascading.,{0} पहले से सबमिट है। दोबारा बाँटने से पहले उसके नीचे के प्लान रद्द करें।
+"{0} is disabled, so nothing can be ordered on them.","{0} बंद है, इसलिए उन पर कुछ ऑर्डर नहीं हो सकता।"
+{0} is disabled. Enable the login first.,{0} बंद है। पहले लॉगिन चालू करें।
+"{0} is not a billing account we know, so a credit note has nowhere to go.","{0} कोई ऐसा बिलिंग खाता नहीं है जिसे हम जानें, इसलिए क्रेडिट नोट के जाने की कोई जगह नहीं।"
+"{0} is not a billing account, so there is nothing to credit the payment to.","{0} कोई बिलिंग खाता नहीं है, इसलिए भुगतान को क्रेडिट करने के लिए कुछ नहीं है।"
+{0} is not a booking.,{0} कोई बुकिंग नहीं है।
+{0} is not a field user.,{0} फ़ील्ड यूज़र नहीं है।
+{0} is not a season.,{0} कोई सीज़न नहीं है।
+"{0} is not a showcase, so it cannot be shared. Tick Showcase on the catalogue if it was written to be read by a customer.","{0} शोकेस नहीं है, इसलिए साझा नहीं हो सकता। यह ग्राहक के पढ़ने के लिए लिखा गया हो तो कैटलॉग पर Showcase टिक करें।"
+{0} is not a target type this app knows how to measure.,{0} ऐसा लक्ष्य प्रकार नहीं है जिसे यह ऐप नापना जानता हो।
+{0} is not a way of allocating. Choose one of: {1}.,{0} बाँटने का तरीक़ा नहीं है। इनमें से एक चुनें: {1}।
+{0} is not an exception this app knows how to watch for.,{0} ऐसी छूट नहीं है जिसे यह ऐप देखना जानता हो।
+{0} is not an order.,{0} कोई ऑर्डर नहीं है।
+{0} is not something that can be done to an order.,{0} ऐसी चीज़ नहीं है जो किसी ऑर्डर पर की जा सके।
+"{0} is set to buy from a parent, but no parent is named. Set Buys From Party on the Customer.","{0} को किसी पैरेंट से ख़रीदने के लिए तय किया गया है, पर कोई पैरेंट नहीं बताया। Customer पर Buys From Party तय करें।"
+"{0} is wanted on {1}, which is outside this season's delivery window ({2} to {3}).","{0} {1} को चाहिए, जो इस सीज़न की डिलीवरी अवधि ({2} से {3}) के बाहर है।"
+{0} is {1} day(s) late on {2},{0} {2} पर {1} दिन देर से है
+"{0} is {1} over the limit their distributor allows them, counting this order. That is our own count of what they owe, from the orders booked here and the money collected against them - collect what is due, or ask your manager.","इस ऑर्डर को गिनकर {0} अपने डिस्ट्रीब्यूटर की दी हुई सीमा से {1} ऊपर है। यह उनके बाकी की हमारी अपनी गिनती है, यहाँ बुक हुए ऑर्डर और उनके सामने वसूले पैसे से - जो बाकी है वो वसूलें, या अपने मैनेजर से कहें।"
+"{0} is {1}'s booking. A top-up is the same party asking for more, not a different one.","{0} {1} की बुकिंग है। टॉप अप वही पार्टी और माँगती है, कोई दूसरी नहीं।"
+{0} must be between {1} and {2}. Got {3}.,{0} {1} और {2} के बीच होना चाहिए। मिला {3}।
+{0} of post-dated cheques is held against it and does not count until it falls due.,"इसके सामने {0} के पोस्ट-डेटेड चेक रखे हैं, जो तारीख़ आने तक नहीं गिने जाते।"
+"{0} owes {1} on booking {2}, due {3}. {4} has been received.","{0} पर बुकिंग {2} का {1} बाकी है, {3} को देय। {4} मिल चुका है।"
+"{0} plans were cascaded from this one. Cancel those first, or the targets below stop adding up to anything.","इसी से {0} प्लान नीचे बाँटे गए थे। पहले उन्हें रद्द करें, वरना नीचे के लक्ष्य किसी जोड़ में नहीं बैठेंगे।"
+{0} sales are switched off for this company. Ask your manager.,इस कंपनी के लिए {0} बिक्री बंद है। अपने मैनेजर से कहें।
+{0} {1} was not found.,{0} {1} नहीं मिला।

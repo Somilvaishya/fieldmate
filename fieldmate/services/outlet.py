@@ -23,7 +23,7 @@ from fieldmate.services import field_user as field_user_service
 REP_EDITABLE = {
 	"outlet_name", "owner_name", "mobile_no", "alternate_mobile", "email_id",
 	"address_line1", "address_line2", "city", "district", "state", "pincode",
-	"latitude", "longitude", "geo_accuracy_m",
+	"latitude", "longitude",
 	"opening_time", "closing_time", "weekly_off",
 	"channel", "outlet_type", "monthly_potential",
 	"gstin", "pan", "fssai_no",

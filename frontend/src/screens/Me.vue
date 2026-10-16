@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, setCsrfToken } from '../api/client'
 import { getMeta, setMeta, wipe } from '../db'
@@ -7,22 +7,28 @@ import * as outbox from '../sync/outbox'
 import * as photoQueue from '../sync/photos'
 import { pendingPings, flush as flushPings } from '../sync/pinger'
 import Icon from '../components/Icon.vue'
+import { t, language, setLanguage, LANGUAGES } from '../lib/i18n'
 
 const router = useRouter()
 const profile = ref(null)
 const loading = ref(true)
 
 // The screens that belong to the rep rather than to a shop or a day.
-const LINKS = [
-  { to: '/performance', icon: 'target', title: 'My performance',
-    note: 'Targets, and what the month is worth' },
-  { to: '/expense', icon: 'receipt', title: 'Claim expenses',
-    note: 'Travel, food and what you spent' },
-  { to: '/cockpit', icon: 'list', title: 'How today is going',
-    note: 'Calls, orders and cash so far' },
-  { to: '/deposit', icon: 'tag', title: 'Hand in cash',
-    note: 'Declare what you are carrying' },
-]
+//
+// A `computed`, not a plain const. A module-level array is built once when the file is first
+// imported, so its labels would hold whichever language was current at that moment and never
+// change again - the switch would appear to work on the rest of the screen and not on these
+// four rows, which is worse than not translating them at all.
+const LINKS = computed(() => [
+  { to: '/performance', icon: 'target', title: t('My performance'),
+    note: t('Targets, and what the month is worth') },
+  { to: '/expense', icon: 'receipt', title: t('Claim expenses'),
+    note: t('Travel, food and what you spent') },
+  { to: '/cockpit', icon: 'list', title: t('How today is going'),
+    note: t('Calls, orders and cash so far') },
+  { to: '/deposit', icon: 'tag', title: t('Hand in cash'),
+    note: t('Declare what you are carrying') },
+])
 
 async function load() {
   // The cached profile first, so this screen is never blank on a market connection.
@@ -97,9 +103,9 @@ onMounted(load)
     <header class="who">
       <div class="avatar"><Icon name="person" size="26" /></div>
       <div>
-        <h1>{{ profile?.full_name || profile?.field_user || 'You' }}</h1>
+        <h1>{{ profile?.full_name || profile?.field_user || t('You') }}</h1>
         <p class="dim">
-          {{ profile?.designation || 'Field Rep' }}
+          {{ profile?.designation || t('Field Rep') }}
           <template v-if="profile?.territory"> · {{ profile.territory }}</template>
         </p>
       </div>
@@ -107,16 +113,39 @@ onMounted(load)
 
     <div class="facts" v-if="profile">
       <div class="fact">
-        <span class="dim">Selling as</span>
-        <b>{{ profile.sales_mode || 'Order Booking' }}</b>
+        <span class="dim">{{ t('Selling as') }}</span>
+        <b>{{ t(profile.sales_mode || 'Order Booking') }}</b>
       </div>
       <!-- The number and where it came from. "25 calls" and "25 shops are on your route today"
            are different claims, and only the second is something a rep can walk. -->
       <div class="fact">
-        <span class="dim">{{ profile.daily_target_basis === 'route' ? 'On today\'s route' : 'Calls a day' }}</span>
+        <span class="dim">
+          {{ profile.daily_target_basis === 'route'
+              ? t("On today's route")
+              : t('Calls a day') }}
+        </span>
         <b class="tnum">{{ profile.daily_target_calls || '—' }}</b>
         <em v-if="profile.daily_target_beat" class="dim">{{ profile.daily_target_beat }}</em>
       </div>
+    </div>
+
+    <!-- Language. Changing it redraws every screen at once: `t()` reads a ref, so there is
+         nothing to reload and nothing to wait for. The choice is kept on this handset rather
+         than on the login, because a phone gets handed around. -->
+    <div class="row lang">
+      <!-- `chat` rather than a globe: there is no globe in the set, and a missing name
+           renders nothing at all. Language is what you speak, so this one fits. -->
+      <Icon name="chat" size="20" />
+      <span class="body">
+        <b>{{ t('Language') }}</b>
+        <em>{{ t('Changes everything on this phone, straight away') }}</em>
+      </span>
+      <span class="pick">
+        <button v-for="l in LANGUAGES" :key="l.code" type="button"
+                class="opt" :class="{ on: language === l.code }"
+                :aria-pressed="language === l.code"
+                @click="setLanguage(l.code)">{{ l.label }}</button>
+      </span>
     </div>
 
     <RouterLink v-for="l in LINKS" :key="l.to" :to="l.to" class="row">
@@ -130,14 +159,14 @@ onMounted(load)
 
     <div class="foot">
       <p class="dim fine" v-if="profile?.support_contact">
-        Stuck? {{ profile.support_contact }}
+        {{ t('Stuck? {contact}', { contact: profile.support_contact }) }}
       </p>
       <template v-if="!confirmWipe">
         <button class="out" :disabled="signingOut" @click="signOut">
-          {{ signingOut ? 'Sending what is left…' : 'Sign out' }}
+          {{ signingOut ? t('Sending what is left…') : t('Sign out') }}
         </button>
         <p class="dim fine">
-          Signing out sends anything still waiting, then clears this phone.
+          {{ t('Signing out sends anything still waiting, then clears this phone.') }}
         </p>
       </template>
 
@@ -145,18 +174,21 @@ onMounted(load)
            data may be lost" is a sentence nobody can act on. -->
       <div v-else class="sure">
         <p class="warn">
-          <b class="tnum">{{ waiting }} {{ waiting === 1 ? 'thing' : 'things' }} never reached
-          the office.</b>
-          Signing out now clears this phone and they are gone for good. If you can get signal,
-          stay signed in until they go.
+          <b class="tnum">
+            {{ waiting === 1
+                ? t('{n} thing never reached the office.', { n: waiting })
+                : t('{n} things never reached the office.', { n: waiting }) }}
+          </b>
+          {{ t('Signing out now clears this phone and they are gone for good.') }}
+          {{ t('If you can get signal, stay signed in until they go.') }}
         </p>
         <p v-if="signOutError" class="note crit">{{ signOutError }}</p>
         <div class="pair">
           <button class="keep" :disabled="signingOut" @click="confirmWipe = false">
-            Stay signed in
+            {{ t('Stay signed in') }}
           </button>
           <button class="go" :disabled="signingOut" @click="finishSignOut">
-            {{ signingOut ? 'Signing out…' : 'Sign out anyway' }}
+            {{ signingOut ? t('Signing out…') : t('Sign out anyway') }}
           </button>
         </div>
       </div>
@@ -180,6 +212,14 @@ onMounted(load)
 /* Which beat the figure came off. Small, because it answers a question only a rep who doubts
    the number thinks to ask. */
 .fact em { font-style: normal; font-size: 12px; }
+
+/* Not a link, so it does not get the chevron or the tap-through affordance. */
+.lang { cursor: default; }
+.pick { display: flex; gap: 6px; flex: none; }
+/* 44px minimum, like every other control a thumb has to find on a moving bus. */
+.opt { min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px;
+       background: var(--surface); color: var(--muted); font-size: 15px; font-weight: 600; }
+.opt.on { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
 
 .row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px;
        background: var(--surface); border: 1px solid var(--line); border-radius: 10px;

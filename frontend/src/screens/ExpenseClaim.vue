@@ -3,15 +3,25 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
-const TYPES = [
-  { key: 'Travel', label: 'Travel' },
-  { key: 'Food', label: 'Food' },
-  { key: 'Stay', label: 'Stay' },
-  { key: 'Other', label: 'Other' },
-]
+// `computed`, so a language change redraws the chips. `key` stays English: the server stores
+// it and `type === kind.key` compares against it.
+const TYPES = computed(() => [
+  { key: 'Travel', label: t('Travel') },
+  { key: 'Food', label: t('Food') },
+  { key: 'Stay', label: t('Stay') },
+  { key: 'Other', label: t('Other') },
+])
 
 const today = new Date().toISOString().slice(0, 10)
+
+// The kind in the rep's own words, for the two sentences that read it. The stored
+// value is not a word anybody says, and lowercasing it to fit English prose means
+// nothing in Hindi - the same trap the collection form had.
+const typeLabel = computed(
+  () => TYPES.value.find((k) => k.key === type.value)?.label || type.value
+)
 
 const type = ref('Travel')
 const claimDate = ref(today)
@@ -60,14 +70,18 @@ const overPct = computed(() =>
 const willWait = computed(() => {
   const tolerance = estimate.value?.tolerance_pct ?? 10
   if (isTravel.value && overTrail.value > 0 && overPct.value > tolerance) {
-    const measured = fromRoute.value ? 'than your route comes to' : 'than your trail recorded'
-    return `${overTrail.value.toFixed(1)} km more ${measured} — your manager will see this before it is paid.`
+    const km = overTrail.value.toFixed(1)
+    return fromRoute.value
+      ? t('{km} km more than your route comes to — your manager will see this before it is paid.',
+          { km })
+      : t('{km} km more than your trail recorded — your manager will see this before it is paid.',
+          { km })
   }
   if (isTravel.value && !trailKm.value && distance.value > 0) {
-    return 'Nothing was recorded for that day, so this needs your manager.'
+    return t('Nothing was recorded for that day, so this needs your manager.')
   }
   if (payable.value > computedAmount.value + 0.005) {
-    return 'More than the rule allows — your manager will see this before it is paid.'
+    return t('More than the rule allows — your manager will see this before it is paid.')
   }
   return ''
 })
@@ -95,7 +109,7 @@ async function loadEstimate() {
     amount.value = 0
     editingDistance.value = false
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not read your trail for that day.'
+    error.value = e instanceof ApiError ? e.message : t('Could not read your trail for that day.')
   } finally {
     loading.value = false
   }
@@ -125,11 +139,13 @@ async function file() {
       submit: 1,
     })
     done.value = result.claim_status === 'Pending Approval'
-      ? `Filed. ${formatRupees(result.claimed_amount)} waiting on your manager.`
-      : `Filed and approved. ${formatRupees(result.approved_amount)}.`
+      ? t('Filed. {amount} waiting on your manager.',
+           { amount: formatRupees(result.claimed_amount) })
+      : t('Filed and approved. {amount}.',
+           { amount: formatRupees(result.approved_amount) })
     await Promise.all([loadEstimate(), loadHistory()])
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not file that. Try again.'
+    error.value = e instanceof ApiError ? e.message : t('Could not file that. Try again.')
   } finally {
     saving.value = false
   }
@@ -151,23 +167,24 @@ onMounted(async () => {
   <div class="wrap">
 
     <header class="head">
-      <h1>Claim expenses</h1>
-      <input v-model="claimDate" type="date" class="date" :max="today" aria-label="Day claimed" />
+      <h1>{{ t('Claim expenses') }}</h1>
+      <input v-model="claimDate" type="date" class="date" :max="today" :aria-label="t('Day claimed')" />
     </header>
 
     <div class="chips">
-      <button v-for="t in TYPES" :key="t.key" class="chip"
-              :class="{ on: type === t.key }" @click="type = t.key">
-        {{ t.label }}
+      <button v-for="kind in TYPES" :key="kind.key" class="chip"
+              :class="{ on: type === kind.key }" @click="type = kind.key">
+        {{ kind.label }}
       </button>
     </div>
 
-    <p v-if="loading" class="note">Loading…</p>
+    <p v-if="loading" class="note">{{ t('Loading…') }}</p>
     <p v-else-if="error" class="note crit">{{ error }}</p>
 
     <template v-else>
       <div v-if="alreadyFiled" class="note warn">
-        You already filed a {{ type.toLowerCase() }} claim for this day ({{ alreadyFiled }}).
+        {{ t('You already filed a {kind} claim for this day ({name}).',
+             { kind: typeLabel, name: alreadyFiled }) }}
       </div>
 
       <!-- Travel: the trail, and what the rep says instead -->
@@ -177,44 +194,52 @@ onMounted(async () => {
             <Icon name="route" />
             <div>
               <div class="big tnum">
-                {{ trailKm.toFixed(1) }} km
-                <span class="badge">{{ fromRoute ? 'Your route' : 'GPS trail' }}</span>
+                {{ t('{n} km', { n: trailKm.toFixed(1) }) }}
+                <span class="badge">
+                  {{ fromRoute ? t('Your route') : t('GPS trail') }}
+                </span>
               </div>
               <div class="dim" v-if="fromRoute">
-                Shop to shop across {{ estimate.check_ins }} check-in<span v-if="estimate.check_ins !== 1">s</span>.
-                No GPS trail that day, so this is the straight line between them — usually less
-                than the road.
+                {{ estimate.check_ins === 1
+                    ? t('Shop to shop across {n} check-in.', { n: estimate.check_ins })
+                    : t('Shop to shop across {n} check-ins.', { n: estimate.check_ins }) }}
+                {{ t('No GPS trail that day, so this is the straight line between them — usually less than the road.') }}
               </div>
               <div class="dim" v-else>
-                Recorded across {{ estimate.check_ins }} check-in<span v-if="estimate.check_ins !== 1">s</span>
-                · {{ estimate.trail_ping_count }} pings
+                {{ estimate.check_ins === 1
+                    ? t('Recorded across {n} check-in', { n: estimate.check_ins })
+                    : t('Recorded across {n} check-ins', { n: estimate.check_ins }) }}
+                · {{ t('{n} pings', { n: estimate.trail_ping_count }) }}
               </div>
             </div>
           </div>
           <button class="link" @click="editingDistance = !editingDistance">
-            {{ editingDistance ? 'Done' : 'Edit' }}
+            {{ editingDistance ? t('Done') : t('Edit') }}
           </button>
         </div>
 
         <div v-if="editingDistance" class="edit">
-          <label for="km">Distance you actually travelled (km)</label>
+          <label for="km">{{ t('Distance you actually travelled (km)') }}</label>
           <input id="km" v-model.number="distance" type="number" step="0.5" min="0" inputmode="decimal" />
           <p class="dim fine" v-if="fromRoute">
-            This is the straight line between your shops, so the road is almost always longer.
-            A little more is normal. A lot more waits for your manager.
+            {{ t('This is the straight line between your shops, so the road is almost always longer.') }}
+            {{ t('A little more is normal. A lot more waits for your manager.') }}
           </p>
           <p class="dim fine" v-else>
-            The trail misses pings in basements and in markets with no signal, so a little more
-            is normal. A lot more waits for your manager.
+            {{ t('The trail misses pings in basements and in markets with no signal, so a little more is normal.') }}
+            {{ t('A lot more waits for your manager.') }}
           </p>
         </div>
 
         <div v-if="!rate" class="note crit">
-          No travel rate is set up yet. Ask your admin — nothing can be claimed for travel
-          until it is.
+          {{ t('No travel rate is set up yet.') }}
+          {{ t('Ask your admin — nothing can be claimed for travel until it is.') }}
         </div>
         <div v-else class="calc">
-          <span class="dim tnum">{{ distance.toFixed(1) }} km × {{ formatRupees(rate) }}/km</span>
+          <span class="dim tnum">
+            {{ t('{km} km × {rate}/km',
+                 { km: distance.toFixed(1), rate: formatRupees(rate) }) }}
+          </span>
           <span class="big tnum">{{ formatRupees(computedAmount) }}</span>
         </div>
       </section>
@@ -222,55 +247,69 @@ onMounted(async () => {
       <!-- Everything else: a flat allowance or a typed amount -->
       <section v-else class="card">
         <div v-if="estimate.allowance_cap" class="calc">
-          <span class="dim">Daily {{ type.toLowerCase() }} allowance</span>
+          <span class="dim">
+            {{ t('Daily {kind} allowance', { kind: typeLabel }) }}
+          </span>
           <span class="big tnum">{{ formatRupees(estimate.allowance_cap) }}</span>
         </div>
         <div class="edit">
-          <label for="amt">Amount claimed</label>
+          <label for="amt">{{ t('Amount claimed') }}</label>
           <input id="amt" v-model.number="amount" type="number" step="1" min="0"
                  inputmode="decimal" :placeholder="String(computedAmount)" />
         </div>
       </section>
 
       <section class="card">
-        <label for="rx">Receipt {{ needsReceipt ? '(required)' : '(optional)' }}</label>
+        <label for="rx">
+          {{ t('Receipt') }} {{ needsReceipt ? t('(required)') : t('(optional)') }}
+        </label>
         <button class="attach" :class="{ need: needsReceipt && !receipt }">
           <Icon name="camera" />
-          <span>{{ receipt ? 'Receipt attached' : 'Attach a photo of the bill' }}</span>
+          <span>
+            {{ receipt ? t('Receipt attached') : t('Attach a photo of the bill') }}
+          </span>
         </button>
 
-        <label for="note">Remarks</label>
+        <label for="note">{{ t('Remarks') }}</label>
         <input id="note" v-model="remarks" type="text"
-               placeholder="Where you went, e.g. Beat 4 to Swargate" />
+               :placeholder="t('Where you went, e.g. Beat 4 to Swargate')" />
       </section>
 
       <div v-if="willWait" class="note warn">{{ willWait }}</div>
       <div v-if="done" class="note ok">{{ done }}</div>
 
       <button class="btn-primary" :disabled="!canSubmit" @click="file">
-        {{ saving ? 'Filing…' : `File claim (${formatRupees(payable)})` }}
+        {{ saving
+            ? t('Filing…')
+            : t('File claim ({amount})', { amount: formatRupees(payable) }) }}
       </button>
 
       <p class="dim fine centre">
-        Travel claims are checked against your own check-in times and locations.
+        {{ t('Travel claims are checked against your own check-in times and locations.') }}
       </p>
 
       <!-- Recent claims -->
       <section v-if="history?.claims?.length" class="list">
         <div class="row">
-          <h2>Recent claims</h2>
-          <span class="dim">This month: {{ formatRupees(history.approved_this_month) }} approved</span>
+          <h2>{{ t('Recent claims') }}</h2>
+          <span class="dim">
+            {{ t('This month: {amount} approved',
+                 { amount: formatRupees(history.approved_this_month) }) }}
+          </span>
         </div>
         <div v-for="c in history.claims" :key="c.name" class="item">
           <div>
             <div class="strong">
-              {{ c.claim_date.slice(8) }}/{{ c.claim_date.slice(5, 7) }} · {{ c.expense_type }}
-              <span v-if="c.expense_type === 'Travel'" class="dim">({{ c.claimed_distance_km }} km)</span>
+              {{ c.claim_date.slice(8) }}/{{ c.claim_date.slice(5, 7) }} ·
+              {{ t(c.expense_type) }}
+              <span v-if="c.expense_type === 'Travel'" class="dim">
+                ({{ t('{n} km', { n: c.claimed_distance_km }) }})
+              </span>
             </div>
             <div class="tnum">{{ formatRupees(c.approved_amount || c.claimed_amount) }}</div>
             <div v-if="c.rejection_reason" class="dim">{{ c.rejection_reason }}</div>
           </div>
-          <span class="pill" :class="tone(c.claim_status)">{{ c.claim_status }}</span>
+          <span class="pill" :class="tone(c.claim_status)">{{ t(c.claim_status) }}</span>
         </div>
       </section>
     </template>

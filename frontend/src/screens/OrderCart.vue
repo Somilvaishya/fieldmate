@@ -28,6 +28,8 @@
  */
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
+import { t } from '../lib/i18n'
 import * as cart from '../stores/order'
 import { credit, creditFetchedAt, creditOffline, loadCredit, assessCredit } from '../lib/credit'
 import {
@@ -127,7 +129,7 @@ async function maybePrefill(name) {
 async function undoPrefill() {
   await cart.clear()
   prefilled.value = null
-  say('Started empty. Nothing was sent anywhere.')
+  say(t('Started empty. Nothing was sent anywhere.'))
 }
 
 onMounted(() => open(outlet.value))
@@ -147,7 +149,7 @@ async function bump(line, delta) {
     }
     await cart.bumpQty(line.item_code, delta, { unit: 'display' })
   } catch (e) {
-    say(e.message || 'That quantity could not be set.', 'crit')
+    say(e.message || t('That quantity could not be set.'), 'crit')
   }
 }
 
@@ -161,7 +163,7 @@ async function onTyped(line, event) {
     }
     await cart.setQty(line.item_code, value, { unit: 'display' })
   } catch (e) {
-    say(e.message || 'That quantity could not be set.', 'crit')
+    say(e.message || t('That quantity could not be set.'), 'crit')
   } finally {
     const held = cart.lineFor(line.item_code)
     event.target.value = held ? held.display_qty : ''
@@ -171,7 +173,7 @@ async function onTyped(line, event) {
 async function remove(line) {
   await cart.removeItem(line.item_code)
   confirming.value = null
-  say(`${line.item_name} taken off this order.`)
+  say(t('{item} taken off this order.', { item: line.item_name }))
 }
 
 /** The lower bound a minus tap stops at, so a mis-tap cannot silently drop a line. */
@@ -195,10 +197,13 @@ async function onUnit(line, event) {
     // They can see both figures change, but a rep reading a total to a shopkeeper should be told
     // rather than left to notice.
     if (after && after.qty !== Math.round(before * (Number(line.conversion_factor) || 1))) {
-      say(`Now ${qtyWords(after.display_qty, uom)} — ${qtyWords(after.qty, line.base_uom)}.`)
+      say(t('Now {display} — {base}.', {
+        display: qtyWords(after.display_qty, uom),
+        base: qtyWords(after.qty, line.base_uom),
+      }))
     }
   } catch (e) {
-    say(e.message || 'That unit could not be set.', 'crit')
+    say(e.message || t('That unit could not be set.'), 'crit')
   }
 }
 
@@ -286,12 +291,15 @@ async function takeNudge(nudge) {
   busy.value = true
   try {
     await cart.bumpQty(nudge.item_code, nudge.add_display, { unit: 'display' })
-    say(
-      `${qtyWords(nudge.add_display, nudge.add_uom)} of ${nudge.item_name} added. ` +
-      'The order has been re-priced on this phone.'
-    )
+    say([
+      t('{qty} of {item} added.', {
+        qty: qtyWords(nudge.add_display, nudge.add_uom),
+        item: nudge.item_name,
+      }),
+      t('The order has been re-priced on this phone.'),
+    ].join(' '))
   } catch (e) {
-    say(e.message || 'That could not be added.', 'crit')
+    say(e.message || t('That could not be added.'), 'crit')
   } finally {
     busy.value = false
   }
@@ -334,19 +342,22 @@ const creditAge = computed(() => {
   const at = creditFetchedAt.value
   if (!at) return null
   const mins = Math.round((Date.now() - at) / 60000)
-  if (mins < 2) return 'just now'
-  if (mins < 60) return `${mins} min ago`
+  if (mins < 2) return t('just now')
+  if (mins < 60) return t('{n} min ago', { n: mins })
   const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours} h ago`
+  if (hours < 24) return t('{n} h ago', { n: hours })
   const days = Math.round(hours / 24)
-  return `${days} ${days === 1 ? 'day' : 'days'} ago`
+  return days === 1 ? t('{n} day ago', { n: days }) : t('{n} days ago', { n: days })
 })
 
+// English keys, translated where they are read - the array is a lookup table, and
+// translating it here would freeze it the way a label const freezes.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 function shortDate(iso) {
   const parts = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''))
   if (!parts) return iso || ''
-  return `${Number(parts[3])} ${MONTHS[Number(parts[2]) - 1] || ''}`.trim()
+  const month = MONTHS[Number(parts[2]) - 1]
+  return `${Number(parts[3])} ${month ? t(month) : ''}`.trim()
 }
 
 /** Blockers other than "there is nothing here yet", which the empty state already says better. */
@@ -372,78 +383,103 @@ function blockerLines(blocker) {
     <div class="top">
       <header class="head">
         <RouterLink class="back" :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }"
-                    aria-label="Back to the item list">
+                    :aria-label="t('Back to the item list')">
           <Icon name="back" size="24" />
         </RouterLink>
         <div class="who">
           <h2>{{ outletName || outlet }}</h2>
-          <p v-if="credit?.gstin" class="sub tnum">GSTIN {{ credit.gstin }}</p>
+          <p v-if="credit?.gstin" class="sub tnum">
+            {{ t('GSTIN {number}', { number: credit.gstin }) }}
+          </p>
           <div class="badges">
             <span v-if="creditView.state === 'within'" class="tag ok">
-              <Icon name="check" size="18" /> Credit active
+              <Icon name="check" size="18" /> {{ t('Credit active') }}
             </span>
             <span v-else-if="creditView.state === 'breach'" class="tag crit">
-              <Icon name="alert" size="18" /> Distributor over credit limit
+              <Icon name="alert" size="18" /> {{ t('Distributor over credit limit') }}
             </span>
             <span v-else-if="creditView.state === 'unlimited'" class="tag">
-              No credit limit on {{ creditView.party_name || 'the distributor' }}
+              {{ t('No credit limit on {party}',
+                   { party: creditView.party_name || t('the distributor') }) }}
             </span>
-            <span v-if="credit?.credit_days" class="tag tnum">{{ credit.credit_days }} day terms</span>
+            <span v-if="credit?.credit_days" class="tag tnum">
+              {{ t('{n} day terms', { n: credit.credit_days }) }}
+            </span>
           </div>
         </div>
       </header>
 
       <!-- Credit, in full, because this is the screen where the order value exists. -->
-      <section class="credit" :class="creditView.tone" aria-label="Credit position">
+      <section class="credit" :class="creditView.tone" :aria-label="t('Credit position')">
         <div class="crow">
           <!-- Whose limit. This said "this shop" over the distributor's own figures. -->
           <b v-if="creditView.state === 'breach'">
-            {{ creditView.party_name || 'The distributor' }} is over the limit
+            {{ t('{party} is over the limit',
+                 { party: creditView.party_name || t('The distributor') }) }}
           </b>
-          <b v-else-if="creditView.state === 'within'">Safe zone &middot; under limit</b>
+          <b v-else-if="creditView.state === 'within'">
+            {{ t('Safe zone · under limit') }}
+          </b>
           <b v-else-if="creditView.state === 'unlimited'">
-            No limit set for {{ creditView.party_name || 'this distributor' }}
+            {{ t('No limit set for {party}',
+                 { party: creditView.party_name || t('this distributor') }) }}
           </b>
-          <b v-else>Credit not on this phone</b>
+          <b v-else>{{ t('Credit not on this phone') }}</b>
           <span v-if="creditView.state === 'breach'" class="tnum">
-            {{ money(creditView.over_paise) }} over
+            {{ t('{amount} over', { amount: money(creditView.over_paise) }) }}
           </span>
           <span v-else-if="creditView.state === 'within'" class="tnum">
-            {{ money(creditView.after_paise) }} left after this
+            {{ t('{amount} left after this',
+                 { amount: money(creditView.after_paise) }) }}
           </span>
         </div>
 
         <template v-if="bar">
           <div class="bar" role="img"
-               :aria-label="`${creditView.used_pct} percent of the credit limit used with this order`">
+               :aria-label="t('{pct} percent of the credit limit used with this order',
+                             { pct: creditView.used_pct })">
             <span class="seg owed" :style="{ width: bar.owed + '%' }"></span>
             <span class="seg now" :style="{ width: bar.order + '%' }"></span>
           </div>
           <dl class="figures">
-            <div><dt>Sanctioned</dt><dd class="tnum">{{ money(creditView.limit_paise) }}</dd></div>
-            <div><dt>Already owed</dt><dd class="tnum">{{ money(creditView.outstanding_paise) }}</dd></div>
-            <div><dt>This order</dt><dd class="tnum">{{ money(creditView.order_paise) }}</dd></div>
+            <div>
+              <dt>{{ t('Sanctioned') }}</dt>
+              <dd class="tnum">{{ money(creditView.limit_paise) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('Already owed') }}</dt>
+              <dd class="tnum">{{ money(creditView.outstanding_paise) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('This order') }}</dt>
+              <dd class="tnum">{{ money(creditView.order_paise) }}</dd>
+            </div>
           </dl>
           <!-- The shop's own debt to its distributor. A different number from every figure
                above, and the one a rep is most often asked about across the counter. -->
           <p v-if="creditView.shop_has_limit" class="cnote tnum">
-            This shop owes {{ creditView.party_name || 'its distributor' }}
+            {{ t('This shop owes {party}',
+                 { party: creditView.party_name || t('its distributor') }) }}
             <b>{{ money(creditView.shop_outstanding_paise) }}</b>
-            of {{ money(creditView.shop_limit_paise) }} &mdash; our own count.
+            {{ t('of {limit} — our own count.',
+                 { limit: money(creditView.shop_limit_paise) }) }}
           </p>
           <p class="cnote">
             <span v-if="creditView.state === 'breach'">
-              This order takes the shop past its limit. You can still book it &mdash; your manager
-              sees it flagged and decides.
+              {{ t('This order takes the shop past its limit.') }}
+              {{ t('You can still book it — your manager sees it flagged and decides.') }}
             </span>
-            <span v-else class="tnum">{{ creditView.used_pct }}% of the limit used with this order.</span>
-            <span v-if="creditAge"> Checked {{ creditAge }}.</span>
+            <span v-else class="tnum">
+              {{ t('{pct}% of the limit used with this order.',
+                   { pct: creditView.used_pct }) }}
+            </span>
+            <span v-if="creditAge"> {{ t('Checked {age}.', { age: creditAge }) }}</span>
           </p>
         </template>
         <p v-else class="cnote">
           {{ creditOffline
-            ? 'The distributor’s credit has not reached this phone yet. Take the order — the office will see where it lands.'
-            : 'No credit limit is recorded for this distributor, so nothing is holding this order.' }}
+            ? t('The distributor’s credit has not reached this phone yet. Take the order — the office will see where it lands.')
+            : t('No credit limit is recorded for this distributor, so nothing is holding this order.') }}
         </p>
       </section>
 
@@ -456,13 +492,21 @@ function blockerLines(blocker) {
       <p v-if="prefilled" class="flag ok">
         <Icon name="refresh" size="20" />
         <span class="tnum">
-          Filled from the last order<template v-if="prefilled.order_date">,
-          {{ shortDate(prefilled.order_date) }}</template>. {{ prefilled.filled }}
-          {{ prefilled.filled === 1 ? 'line' : 'lines' }}. Change what is different.
+          {{ prefilled.order_date
+              ? t('Filled from the last order, {date}.',
+                  { date: shortDate(prefilled.order_date) })
+              : t('Filled from the last order.') }}
+          {{ prefilled.filled === 1
+              ? t('{n} line.', { n: prefilled.filled })
+              : t('{n} lines.', { n: prefilled.filled }) }}
+          {{ t('Change what is different.') }}
           <template v-if="prefilled.skipped.length">
-            {{ prefilled.skipped.length }} could not come across &mdash; off the list, or no price yet.
+            {{ t('{n} could not come across — off the list, or no price yet.',
+                 { n: prefilled.skipped.length }) }}
           </template>
-          <button type="button" class="link" @click="undoPrefill">Start empty instead</button>
+          <button type="button" class="link" @click="undoPrefill">
+            {{ t('Start empty instead') }}
+          </button>
         </span>
       </p>
 
@@ -471,21 +515,31 @@ function blockerLines(blocker) {
       <section v-for="nudge in nudges" :key="nudge.key" class="nudge">
         <p class="nhead">
           <Icon name="tag" size="20" />
-          <b>Nearly at the next slab</b>
+          <b>{{ t('Nearly at the next slab') }}</b>
         </p>
         <p class="nbody">
-          Add <b class="tnum">{{ qtyWords(nudge.add_display, nudge.add_uom) }}</b> of
-          {{ nudge.item_name }} to reach <b class="tnum">{{ nudge.threshold }}</b> and earn
-          <b>{{ nudge.earns }}</b><template v-if="nudge.instead_of"> instead of
-          {{ nudge.instead_of }}</template>.
+          {{ nudge.instead_of
+              ? t('Add {qty} of {item} to reach {threshold} and earn {earns} instead of {instead}.', {
+                  qty: qtyWords(nudge.add_display, nudge.add_uom),
+                  item: nudge.item_name,
+                  threshold: nudge.threshold,
+                  earns: nudge.earns,
+                  instead: nudge.instead_of })
+              : t('Add {qty} of {item} to reach {threshold} and earn {earns}.', {
+                  qty: qtyWords(nudge.add_display, nudge.add_uom),
+                  item: nudge.item_name,
+                  threshold: nudge.threshold,
+                  earns: nudge.earns }) }}
         </p>
         <p class="ncost tnum">
-          Costs the shop {{ money(nudge.cost_paise) }} more
+          {{ t('Costs the shop {amount} more',
+               { amount: money(nudge.cost_paise) }) }}
           <template v-if="nudge.scheme_name">&middot; {{ nudge.scheme_name }}</template>
         </p>
         <button type="button" class="nbtn" :disabled="busy" @click="takeNudge(nudge)">
           <Icon name="plus" size="20" />
-          Add {{ qtyWords(nudge.add_display, nudge.add_uom) }}
+          {{ t('Add {qty}',
+               { qty: qtyWords(nudge.add_display, nudge.add_uom) }) }}
         </button>
       </section>
 
@@ -503,34 +557,36 @@ function blockerLines(blocker) {
       <!-- States -->
       <div v-if="loading && !catalogue" class="state">
         <Icon name="cart" size="36" />
-        <b>Opening this order</b>
-        <p>One moment.</p>
+        <b>{{ t('Opening this order') }}</b>
+        <p>{{ t('One moment.') }}</p>
       </div>
 
       <div v-else-if="loadError && !catalogue && isEmpty" class="state crit" role="alert">
         <Icon name="cloud-off" size="36" />
-        <b>No item list for this shop yet</b>
+        <b>{{ t('No item list for this shop yet') }}</b>
         <p>{{ loadError }}</p>
       </div>
 
       <div v-else-if="isEmpty" class="state">
         <Icon name="cart" size="36" />
-        <b>Nothing in this order yet</b>
+        <b>{{ t('Nothing in this order yet') }}</b>
         <p>
-          Open the item list and add what the shopkeeper wants. Everything is saved on this phone
-          as you go, signal or not.
+          {{ t('Open the item list and add what the shopkeeper wants.') }}
+          {{ t('Everything is saved on this phone as you go, signal or not.') }}
         </p>
         <RouterLink class="ghost" :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }">
-          <Icon name="store" size="20" /> Open the item list
+          <Icon name="store" size="20" /> {{ t('Open the item list') }}
         </RouterLink>
       </div>
 
       <!-- The lines -->
       <template v-else>
         <div class="section">
-          <h3>This order</h3>
+          <h3>{{ t('This order') }}</h3>
           <span class="muted tnum">
-            {{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }} &middot; {{ baseUnitCount }} units
+            {{ lineCount === 1 ? t('{n} line', { n: lineCount })
+                              : t('{n} lines', { n: lineCount }) }}
+            &middot; {{ t('{n} units', { n: baseUnitCount }) }}
           </span>
         </div>
 
@@ -542,12 +598,14 @@ function blockerLines(blocker) {
               <p class="meta tnum">
                 {{ line.item_code }}
                 <template v-if="line.conversion_factor > 1">
-                  &middot; {{ qtyWords(line.conversion_factor, line.base_uom) }} per
-                  {{ line.display_uom }}
+                  &middot; {{ t('{qty} per {uom}', {
+                       qty: qtyWords(line.conversion_factor, line.base_uom),
+                       uom: line.display_uom }) }}
                 </template>
               </p>
             </div>
-            <button type="button" class="drop" :aria-label="`Remove ${line.item_name}`"
+            <button type="button" class="drop"
+                    :aria-label="t('Remove {item}', { item: line.item_name })"
                     @click="confirming = confirming === line.item_code ? null : line.item_code">
               <Icon name="close" size="22" />
             </button>
@@ -559,8 +617,8 @@ function blockerLines(blocker) {
             <Icon name="alert" size="20" />
             <span>
               {{ line.off_catalogue
-                ? 'This has come off this shop’s list since it was added, so it has no price.'
-                : 'No price on this shop’s list yet, so this cannot be totalled.' }}
+                ? t('This has come off this shop’s list since it was added, so it has no price.')
+                : t('No price on this shop’s list yet, so this cannot be totalled.') }}
             </span>
           </p>
 
@@ -568,20 +626,22 @@ function blockerLines(blocker) {
             <div class="stepper">
               <button type="button" class="step"
                       :aria-label="line.display_qty <= floorFor(line)
-                        ? `Remove ${line.item_name}` : `One ${line.display_uom} less`"
+                        ? t('Remove {item}', { item: line.item_name })
+                        : t('One {uom} less', { uom: line.display_uom })"
                       @click="bump(line, -1)">
                 <Icon name="minus" size="22" />
               </button>
               <label class="qtybox">
                 <input class="qty tnum" type="text" inputmode="decimal" :value="line.display_qty"
-                       :aria-label="`${line.display_uom} of ${line.item_name}`"
+                       :aria-label="t('{uom} of {item}',
+                                     { uom: line.display_uom, item: line.item_name })"
                        @change="onTyped(line, $event)" />
                 <!-- A unit the rep can change, where the item converts into more than one. The
                      plain label stays wherever there is nothing to choose between, so the common
                      case does not grow a control that does nothing. -->
                 <select v-if="unitChoices(line).length" class="qtyuom unitpick"
                         :value="line.display_uom"
-                        :aria-label="`Unit for ${line.item_name}`"
+                        :aria-label="t('Unit for {item}', { item: line.item_name })"
                         @change="onUnit(line, $event)">
                   <option v-for="u in unitChoices(line)" :key="u.uom" :value="u.uom">
                     {{ uomLabel(line.display_qty, u.uom) }}
@@ -589,14 +649,16 @@ function blockerLines(blocker) {
                 </select>
                 <span v-else class="qtyuom">{{ uomLabel(line.display_qty, line.display_uom) }}</span>
               </label>
-              <button type="button" class="step" :aria-label="`One more ${line.display_uom}`"
+              <button type="button" class="step"
+                      :aria-label="t('One more {uom}', { uom: line.display_uom })"
                       @click="bump(line, 1)">
                 <Icon name="plus" size="22" />
               </button>
             </div>
             <div class="amounts">
               <span class="meta tnum">
-                {{ symbol }}{{ line.display_rate }} per {{ line.display_uom }}
+                {{ t('{rate} per {uom}',
+                     { rate: symbol + line.display_rate, uom: line.display_uom }) }}
               </span>
               <b class="amount tnum">{{ symbol }}{{ line.gross }}</b>
               <span class="meta tnum">{{ qtyWords(line.qty, line.base_uom) }}</span>
@@ -606,16 +668,23 @@ function blockerLines(blocker) {
           <p v-if="line.uom_fallback" class="flag warn small">
             <Icon name="alert" size="20" />
             <span class="tnum">
-              This is being ordered in {{ line.base_uom }}, not cases &mdash; no pack size is set
-              for it. Check the quantity.
+              {{ t('This is being ordered in {uom}, not cases — no pack size is set for it.',
+                   { uom: line.base_uom }) }}
+              {{ t('Check the quantity.') }}
             </span>
           </p>
 
           <div v-if="confirming === line.item_code" class="confirm">
-            <span>Take {{ line.item_name }} off this order?</span>
+            <span>
+              {{ t('Take {item} off this order?', { item: line.item_name }) }}
+            </span>
             <div class="crow2">
-              <button type="button" class="ghost" @click="confirming = null">Keep it</button>
-              <button type="button" class="danger" @click="remove(line)">Remove</button>
+              <button type="button" class="ghost" @click="confirming = null">
+                {{ t('Keep it') }}
+              </button>
+              <button type="button" class="danger" @click="remove(line)">
+                {{ t('Remove') }}
+              </button>
             </div>
           </div>
         </article>
@@ -624,13 +693,15 @@ function blockerLines(blocker) {
       <!-- What the offers did, in words, and what came off the bill because of them. -->
       <template v-if="!isEmpty">
         <div class="section">
-          <h3>Bill</h3>
-          <span v-if="dataAge.schemes.stale" class="muted">Offers saved on this phone</span>
+          <h3>{{ t('Bill') }}</h3>
+          <span v-if="dataAge.schemes.stale" class="muted">
+            {{ t('Offers saved on this phone') }}
+          </span>
         </div>
 
         <section class="bill">
           <div class="brow">
-            <span>Gross</span>
+            <span>{{ t('Gross') }}</span>
             <b class="tnum">{{ symbol }}{{ totals.gross }}</b>
           </div>
 
@@ -639,15 +710,15 @@ function blockerLines(blocker) {
               <b>{{ row.label }}</b>
               <em v-if="row.words">{{ row.words }}</em>
               <em v-if="row.budget_warning" class="warnword">
-                This offer's budget is spent. It is still being applied &mdash; tell your manager.
+                {{ t("This offer's budget is spent. It is still being applied — tell your manager.") }}
               </em>
             </span>
             <b v-if="row.discount_paise" class="tnum off">-{{ money(row.discount_paise) }}</b>
-            <span v-else class="tnum muted">free stock</span>
+            <span v-else class="tnum muted">{{ t('free stock') }}</span>
           </div>
 
           <div class="brow total">
-            <span>Net payable</span>
+            <span>{{ t('Net payable') }}</span>
             <b class="tnum big">{{ symbol }}{{ totals.net }}</b>
           </div>
 
@@ -657,11 +728,11 @@ function blockerLines(blocker) {
                cart, which is most sites - a zero row would read as "no GST", which is a claim. -->
           <template v-if="totals.tax_paise">
             <div class="brow">
-              <span>GST</span>
+              <span>{{ t('GST') }}</span>
               <b class="tnum">{{ symbol }}{{ totals.tax }}</b>
             </div>
             <div class="brow total">
-              <span>Bill total</span>
+              <span>{{ t('Bill total') }}</span>
               <b class="tnum big">{{ symbol }}{{ totals.grand }}</b>
             </div>
           </template>
@@ -669,28 +740,39 @@ function blockerLines(blocker) {
           <!-- Free goods are their own lines at zero. Their value is what the shop received, and
                it is never subtracted from anything. -->
           <div v-if="freeGoods.length" class="free">
-            <p class="fhead"><Icon name="gift" size="20" /> <b>Free with this order</b></p>
+            <p class="fhead">
+              <Icon name="gift" size="20" /> <b>{{ t('Free with this order') }}</b>
+            </p>
             <div v-for="row in freeGoods" :key="`${row.scheme}:${row.item_code}`" class="frow">
               <span class="tnum">{{ qtyWords(row.qty, row.uom) }} {{ row.item_name }}</span>
-              <span class="tnum muted">worth {{ symbol }}{{ row.value }}</span>
+              <span class="tnum muted">
+                {{ t('worth {amount}', { amount: symbol + row.value }) }}
+              </span>
             </div>
             <p class="fnote">
-              Shipped free, in addition to the order. Not taken off the bill.
+              {{ t('Shipped free, in addition to the order. Not taken off the bill.') }}
             </p>
           </div>
 
           <div v-if="totals.incentive_paise" class="brow yours">
-            <span>Your incentive</span>
+            <span>{{ t('Your incentive') }}</span>
             <b class="tnum">{{ money(totals.incentive_paise) }}</b>
           </div>
           <p v-if="totals.incentive_paise" class="fnote">
-            Yours, not the shop's. It is not on this bill and does not change what they pay.
+            {{ t("Yours, not the shop's.") }}
+            {{ t('It is not on this bill and does not change what they pay.') }}
           </p>
 
           <p v-if="marginNote" class="fnote tnum">
-            If sold at MRP this shop makes about {{ money(marginNote.earns_paise) }} on
-            {{ marginNote.covered }} of {{ marginNote.total }}
-            {{ marginNote.total === 1 ? 'line' : 'lines' }}, before the offers above.
+            {{ marginNote.total === 1
+                ? t('If sold at MRP this shop makes about {amount} on {covered} of {total} line, before the offers above.', {
+                    amount: money(marginNote.earns_paise),
+                    covered: marginNote.covered,
+                    total: marginNote.total })
+                : t('If sold at MRP this shop makes about {amount} on {covered} of {total} lines, before the offers above.', {
+                    amount: money(marginNote.earns_paise),
+                    covered: marginNote.covered,
+                    total: marginNote.total }) }}
           </p>
         </section>
 
@@ -711,7 +793,10 @@ function blockerLines(blocker) {
 
     <div class="bottom">
       <p v-if="!isEmpty" class="sum">
-        <span class="tnum">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
+        <span class="tnum">
+          {{ lineCount === 1 ? t('{n} line', { n: lineCount })
+                             : t('{n} lines', { n: lineCount }) }}
+        </span>
         <b class="grand tnum">{{ symbol }}{{ totals.tax_paise ? totals.grand : totals.net }}</b>
       </p>
       <!-- One primary, and it follows what the rep is actually doing: with nothing in the cart the
@@ -720,16 +805,16 @@ function blockerLines(blocker) {
       <div class="acts">
         <RouterLink :class="isEmpty ? 'btn-primary' : 'ghost'"
                     :to="{ name: 'order-catalogue', params: { outlet }, query: keepParty }">
-          <Icon name="plus" size="20" /> Add products
+          <Icon name="plus" size="20" /> {{ t('Add products') }}
         </RouterLink>
         <RouterLink v-if="!isEmpty" class="btn-primary"
                     :to="{ name: 'order-schemes', params: { outlet }, query: keepParty }">
-          <Icon name="tag" size="20" /> See what this earns
+          <Icon name="tag" size="20" /> {{ t('See what this earns') }}
         </RouterLink>
       </div>
       <p class="assurance">
         <Icon name="cloud-off" size="18" />
-        <span>Saved on this phone as you go. Nothing is sent until you book it.</span>
+        <span>{{ t('Saved on this phone as you go. Nothing is sent until you book it.') }}</span>
       </p>
     </div>
   </div>

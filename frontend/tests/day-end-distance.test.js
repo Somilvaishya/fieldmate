@@ -31,7 +31,7 @@ const { default: DayEnd } = await import('../src/screens/DayEnd.vue')
 
 async function screen(summary) {
   daySummary.mockResolvedValue({
-    date: '2026-10-13', open: true, day_start: 'FM-DS-0001',
+    date: '2026-10-13', open: true, day: 'FM-DAY-0001',
     started_at: '2026-10-13 09:30:00', minutes_on_route: 240,
     actual_visits: 6, planned_visits: 8, productive_visits: 4, pending_shops: [],
     ...summary,

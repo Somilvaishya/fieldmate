@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client'
 import { db, setMeta, getMeta } from '../db'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
+import { t, language } from '../lib/i18n'
 
 const beats = ref([])
 const note = ref('')
@@ -27,7 +28,7 @@ onMounted(async () => {
   } catch (e) {
     if (e instanceof ApiError && e.code === 'OFFLINE') {
       beats.value = (await getMeta('myBeats', [])) || []
-      note.value = 'Showing the routes saved on this phone.'
+      note.value = t('Showing the routes saved on this phone.')
     } else {
       note.value = e.message
     }
@@ -39,16 +40,19 @@ onMounted(async () => {
 const todayBeat = computed(() => beats.value.find((b) => b.runs_today) || null)
 
 function when(beat) {
-  if (beat.runs_today) return 'Today'
-  if (beat.days_away === 1) return 'Tomorrow'
-  if (beat.days_away === null) return 'Not scheduled'
-  return `In ${beat.days_away} days`
+  if (beat.runs_today) return t('Today')
+  if (beat.days_away === 1) return t('Tomorrow')
+  if (beat.days_away === null) return t('Not scheduled')
+  return t('In {n} days', { n: beat.days_away })
 }
 
 function nextLabel(beat) {
-  if (!beat.next_run) return 'No upcoming date'
+  if (!beat.next_run) return t('No upcoming date')
   const d = new Date(beat.next_run + 'T00:00:00')
-  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })
+  // The locale follows the language. Hard-coded 'en-IN' put an English date in the middle of a
+  // Hindi card, which translating a string could never have fixed.
+  const locale = language.value === 'hi' ? 'hi-IN' : 'en-IN'
+  return d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'short' })
 }
 
 const cache = ref({})
@@ -110,15 +114,17 @@ const nextStop = computed(() => {
 
 <template>
   <div class="wrap screen">
-    <h2>My routes</h2>
+    <h2>{{ t('My routes') }}</h2>
     <p class="muted sub" v-if="!loading">
-      {{ beats.length }} {{ beats.length === 1 ? 'route' : 'routes' }} assigned to you
+      {{ beats.length === 1
+          ? t('{n} route assigned to you', { n: beats.length })
+          : t('{n} routes assigned to you', { n: beats.length }) }}
       <span v-if="note"> · {{ note }}</span>
     </p>
 
     <div v-if="loading" class="card skeleton">
-      <b>Loading your routes…</b>
-      <span class="muted">One moment.</span>
+      <b>{{ t('Loading your routes…') }}</b>
+      <span class="muted">{{ t('One moment.') }}</span>
     </div>
 
     <div class="list" v-else-if="beats.length">
@@ -127,7 +133,9 @@ const nextStop = computed(() => {
         <div class="row">
           <span class="line">
             <span class="dot" :class="{ live: b.runs_today }" aria-hidden="true"></span>
-            <span class="muted day">Every {{ b.visit_day || b.frequency }}</span>
+            <span class="muted day">
+              {{ t('Every {when}', { when: b.visit_day || b.frequency }) }}
+            </span>
           </span>
           <span class="when" :class="{ now: b.runs_today }">{{ when(b) }}</span>
         </div>
@@ -135,9 +143,13 @@ const nextStop = computed(() => {
         <b class="name">{{ b.beat_name }}</b>
 
         <div class="meta">
-          <span class="tnum"><Icon name="store" size="18" /> {{ b.outlet_count }} shops</span>
+          <span class="tnum">
+            <Icon name="store" size="18" />
+            {{ t('{n} shops', { n: b.outlet_count }) }}
+          </span>
           <span class="tnum sep" v-if="progress(b)">
-            · {{ progress(b).done }} visited ({{ progress(b).pct }}%)
+            · {{ t('{n} visited ({pct}%)',
+                   { n: progress(b).done, pct: progress(b).pct }) }}
           </span>
           <span class="muted sep" v-else>· {{ b.frequency }}</span>
         </div>
@@ -146,10 +158,12 @@ const nextStop = computed(() => {
           <div class="fill" :style="{ width: progress(b).pct + '%' }"></div>
         </div>
 
-        <span class="muted next">Next: {{ nextLabel(b) }}</span>
+        <span class="muted next">{{ t('Next: {when}', { when: nextLabel(b) }) }}</span>
 
         <span class="open" :class="{ primary: b.runs_today }">
-          <span>View {{ b.outlet_count }} shops in walking order</span>
+          <span>
+            {{ t('View {n} shops in walking order', { n: b.outlet_count }) }}
+          </span>
           <Icon name="chevron" size="20" />
         </span>
       </button>
@@ -157,39 +171,45 @@ const nextStop = computed(() => {
 
     <div v-else-if="!loading" class="empty">
       <Icon name="pin" size="36" />
-      <b>You have no route yet</b>
+      <b>{{ t('You have no route yet') }}</b>
       <p class="muted">
-        Ask your manager to assign a route to your FieldMate profile. You can still visit any
-        shop in your area from the Shops tab.
+        {{ t('Ask your manager to assign a route to your FieldMate profile.') }}
+        {{ t('You can still visit any shop in your area from the Shops tab.') }}
       </p>
-      <RouterLink to="/outlets" class="ghost">Open shops</RouterLink>
+      <RouterLink to="/outlets" class="ghost">{{ t('Open shops') }}</RouterLink>
     </div>
 
     <div class="bottom" v-if="todayBeat">
       <button class="btn-primary" @click="open(todayBeat)">
-        Open today's route · {{ todayBeat.beat_name }}
+        {{ t("Open today's route · {name}", { name: todayBeat.beat_name }) }}
       </button>
     </div>
 
     <!-- Walking order. A sheet, not a centre modal: it is read one-handed while standing. -->
     <div v-if="sheet" class="scrim" @click.self="close">
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheettitle">
-        <button class="grab" aria-label="Close" @click="close"></button>
+        <button class="grab" :aria-label="t('Close')" @click="close"></button>
         <div class="phead">
           <div>
-            <span class="eyebrow">{{ sheet.runs_today ? 'Running today' : 'Scheduled route' }}</span>
+            <span class="eyebrow">
+              {{ sheet.runs_today ? t('Running today') : t('Scheduled route') }}
+            </span>
             <h3 id="sheettitle">{{ sheet.beat_name }}</h3>
             <p class="muted tnum">
-              {{ sheet.outlet_count }} shops{{ ordered ? ' in walking order' : ', listed A–Z' }}
+              {{ ordered
+                  ? t('{n} shops in walking order', { n: sheet.outlet_count })
+                  : t('{n} shops, listed A–Z', { n: sheet.outlet_count }) }}
             </p>
           </div>
-          <button class="x" aria-label="Close" @click="close"><Icon name="close" size="22" /></button>
+          <button class="x" :aria-label="t('Close')" @click="close">
+            <Icon name="close" size="22" />
+          </button>
         </div>
 
         <div class="stops">
-          <p v-if="shopsLoading" class="muted pad">Loading the route…</p>
+          <p v-if="shopsLoading" class="muted pad">{{ t('Loading the route…') }}</p>
           <p v-else-if="!shops.length" class="muted pad">
-            No shops on this route yet.
+            {{ t('No shops on this route yet.') }}
           </p>
           <RouterLink v-for="(o, i) in shops" :key="o.name" :to="`/outlet/${o.name}`"
                       class="stop" :class="{ done: visited.has(o.name), next: o.name === nextStop }">
@@ -197,22 +217,22 @@ const nextStop = computed(() => {
             <span class="info">
               <span class="title">
                 <b>{{ o.outlet_name }}</b>
-                <span v-if="o.name === nextStop" class="tag">Next stop</span>
+                <span v-if="o.name === nextStop" class="tag">{{ t('Next stop') }}</span>
               </span>
               <span class="muted" v-if="visited.has(o.name)">
-                <Icon name="check" size="16" /> Visited today
+                <Icon name="check" size="16" /> {{ t('Visited today') }}
               </span>
-              <span class="muted" v-else>{{ o.city || 'No area recorded' }}</span>
+              <span class="muted" v-else>{{ o.city || t('No area recorded') }}</span>
             </span>
             <Icon name="chevron" size="20" class="go" />
           </RouterLink>
         </div>
 
         <div class="pfoot">
-          <button class="ghost" @click="close">Close</button>
+          <button class="ghost" @click="close">{{ t('Close') }}</button>
           <RouterLink v-if="nextStop" class="btn-primary"
                       :to="{ name: 'visit-start', params: { name: nextStop } }" @click="close">
-            Start next visit
+            {{ t('Start next visit') }}
           </RouterLink>
         </div>
       </div>

@@ -26,6 +26,8 @@
  */
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
+import { t } from '../lib/i18n'
 import * as cart from '../stores/order'
 import { credit, creditFetchedAt, creditOffline, loadCredit, assessCredit } from '../lib/credit'
 import { moneyLabel, qtyWords, schemeBadge, symbolFor, uomLabel } from '../lib/schemeWords'
@@ -204,7 +206,7 @@ const appliedByItem = computed(() => {
   for (const entry of appliedSchemes.value) {
     const spec = liveSpecs.value.find((s) => s.scheme === entry.scheme)
     if (!spec) continue
-    const words = spec.rep_pitch || entry.scheme_name || 'Offer applied'
+    const words = spec.rep_pitch || entry.scheme_name || t('Offer applied')
     const codes = spec.measured_over === 'Order' ? [...held] : (spec.qualifying_items || [])
     for (const code of codes) {
       if (!held.has(code)) continue
@@ -225,14 +227,18 @@ const groups = computed(() => {
   const rows = [...counts.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([key, count]) => ({ key, label: key, count }))
-  return [{ key: '__all', label: 'All', count: cart.catalogueItems.value.length }, ...rows]
+  return [{ key: '__all', label: t('All'), count: cart.catalogueItems.value.length },
+          ...rows]
 })
 
-const CHIPS = [
-  { key: 'focus', label: 'Hero SKUs' },
-  { key: 'mustsell', label: 'Must sell' },
-  { key: 'scheme', label: 'On offer' },
-]
+// `computed`, not a plain array: a module-level const holding labels is evaluated once when
+// this file is first imported, so it would hold whichever language loaded first and the chips
+// alone would stay in it after a switch. That is the `Me.vue` LINKS fault.
+const CHIPS = computed(() => [
+  { key: 'focus', label: t('Hero SKUs') },
+  { key: 'mustsell', label: t('Must sell') },
+  { key: 'scheme', label: t('On offer') },
+])
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -355,11 +361,14 @@ function say(message, tone = 'ok') {
 onUnmounted(() => clearTimeout(noticeTimer))
 
 /** "12 Sep" out of "2025-09-12". A rep reads a date, not an ISO string. */
+// English keys, translated where they are read. The array itself is a lookup table, and
+// translating it here would freeze it the way a label const freezes.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 function shortDate(iso) {
   const parts = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''))
   if (!parts) return iso || ''
-  return `${Number(parts[3])} ${MONTHS[Number(parts[2]) - 1] || ''}`.trim()
+  const month = MONTHS[Number(parts[2]) - 1]
+  return `${Number(parts[3])} ${month ? t(month) : ''}`.trim()
 }
 
 async function addUnits(item, displayQty) {
@@ -369,10 +378,13 @@ async function addUnits(item, displayQty) {
     if (line) {
       // DESIGN.md UX requirement 3: every write commits locally first and says so. The cart is in
       // IndexedDB before this line runs.
-      say(`${qtyWords(line.display_qty, line.display_uom)} of ${line.item_name} saved on this phone.`)
+      say(t('{qty} of {item} saved on this phone.', {
+        qty: qtyWords(line.display_qty, line.display_uom),
+        item: line.item_name,
+      }))
     }
   } catch (e) {
-    say(e.message || 'That item could not be added.', 'crit')
+    say(e.message || t('That item could not be added.'), 'crit')
   }
 }
 
@@ -391,7 +403,7 @@ async function bump(item, delta) {
     }
     await cart.bumpQty(item.item_code, delta, { unit: 'display' })
   } catch (e) {
-    say(e.message || 'That quantity could not be set.', 'crit')
+    say(e.message || t('That quantity could not be set.'), 'crit')
   }
 }
 
@@ -410,7 +422,7 @@ async function onTyped(item, event) {
     }
     await cart.setQty(item.item_code, value, { unit: 'display' })
   } catch (e) {
-    say(e.message || 'That quantity could not be set.', 'crit')
+    say(e.message || t('That quantity could not be set.'), 'crit')
   } finally {
     const held = heldQty(item.item_code)
     event.target.value = held ? held.display_qty : ''
@@ -428,7 +440,7 @@ async function repeatLastOrder() {
   try {
     const result = await cart.prefillFromLastOrder()
     if (!result.had_history || !result.filled) {
-      say('Nothing from the last order could be added to this one.', 'warn')
+      say(t('Nothing from the last order could be added to this one.'), 'warn')
       return
     }
     if (result.skipped.length) {
@@ -436,15 +448,19 @@ async function repeatLastOrder() {
       // them their repeat order is short of what it was last month, and they would find the gap
       // at the counter.
       say(
-        `${result.filled} added from the last order. ${result.skipped.length} could not come ` +
-        'across: off this shop’s list, or no price yet. Check before you read the total out.',
+        [
+          t('{n} added from the last order.', { n: result.filled }),
+          t('{n} could not come across: off this shop’s list, or no price yet.',
+            { n: result.skipped.length }),
+          t('Check before you read the total out.'),
+        ].join(' '),
         'warn'
       )
       return
     }
     router.push({ name: 'order-cart', params: { outlet: outlet.value }, query: keepParty.value })
   } catch (e) {
-    say(e.message || 'The last order could not be loaded.', 'crit')
+    say(e.message || t('The last order could not be loaded.'), 'crit')
   } finally {
     busy.value = false
   }
@@ -470,18 +486,20 @@ const catalogueAge = computed(() => ageWords(dataAge.value.catalogue.fetchedAt))
 function ageWords(at) {
   if (!at) return null
   const mins = Math.round((Date.now() - at) / 60000)
-  if (mins < 2) return 'just now'
-  if (mins < 60) return `${mins} min ago`
+  if (mins < 2) return t('just now')
+  if (mins < 60) return t('{n} min ago', { n: mins })
   const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours} h ago`
+  if (hours < 24) return t('{n} h ago', { n: hours })
   const days = Math.round(hours / 24)
-  return `${days} ${days === 1 ? 'day' : 'days'} ago`
+  return days === 1 ? t('{n} day ago', { n: days }) : t('{n} days ago', { n: days })
 }
 
 const historyWords = computed(() => {
   const last = lastOrder.value
-  if (!last || !last.order) return 'First order for this shop'
-  return last.order_date ? `Ordered before · last on ${shortDate(last.order_date)}` : 'Ordered before'
+  if (!last || !last.order) return t('First order for this shop')
+  return last.order_date
+    ? t('Ordered before · last on {date}', { date: shortDate(last.order_date) })
+    : t('Ordered before')
 })
 
 const emptyReason = computed(() => {
@@ -489,8 +507,8 @@ const emptyReason = computed(() => {
   const items = catalogue.value.items || []
   if (items.length) return null
   return catalogue.value.catalogues && catalogue.value.catalogues.length
-    ? 'This shop’s catalogue has no items on it yet. Your manager sets what this shop may be sold.'
-    : 'No catalogue has been set for this shop yet, so there is nothing to order from. Ask your manager to put it on one.'
+    ? t('This shop’s catalogue has no items on it yet. Your manager sets what this shop may be sold.')
+    : t('No catalogue has been set for this shop yet, so there is nothing to order from. Ask your manager to put it on one.')
 })
 </script>
 
@@ -500,7 +518,7 @@ const emptyReason = computed(() => {
       <!-- Who we are ordering for. The shop name is the biggest thing on the header because it is
            the one fact a rep checks before quoting anything. -->
       <header class="head">
-        <RouterLink class="back" :to="`/outlet/${outlet}`" aria-label="Back to shop">
+        <RouterLink class="back" :to="`/outlet/${outlet}`" :aria-label="t('Back to shop')">
           <Icon name="back" size="24" />
         </RouterLink>
         <div class="who">
@@ -511,7 +529,7 @@ const emptyReason = computed(() => {
           </p>
           <div class="badges">
             <span v-if="credit?.kyc_verified" class="tag ok">
-              <Icon name="check" size="18" /> Verified retailer
+              <Icon name="check" size="18" /> {{ t('Verified retailer') }}
             </span>
             <span class="tag">{{ historyWords }}</span>
           </div>
@@ -526,40 +544,51 @@ const emptyReason = computed(() => {
            is a different number and sits on the line below. -->
       <div class="credit" :class="creditView.tone">
         <div class="crow">
-          <span>{{ creditView.party_name || 'The distributor' }} owes us</span>
+          <span>
+            {{ t('{party} owes us',
+                 { party: creditView.party_name || t('The distributor') }) }}
+          </span>
           <b v-if="creditView.state === 'within' || creditView.state === 'breach'" class="tnum">
             {{ money(creditView.headroom_paise) }}
           </b>
-          <b v-else-if="creditView.state === 'unlimited'">No limit set</b>
-          <b v-else>Not on this phone</b>
+          <b v-else-if="creditView.state === 'unlimited'">{{ t('No limit set') }}</b>
+          <b v-else>{{ t('Not on this phone') }}</b>
         </div>
         <p v-if="creditView.state === 'within' || creditView.state === 'breach'" class="cnote tnum">
-          of {{ money(creditView.limit_paise) }} limit &middot;
-          {{ money(creditView.outstanding_paise) }} owed
-          <span v-if="creditAge">&middot; checked {{ creditAge }}</span>
+          {{ t('of {limit} limit · {owed} owed', {
+               limit: money(creditView.limit_paise),
+               owed: money(creditView.outstanding_paise) }) }}
+          <span v-if="creditAge">
+            &middot; {{ t('checked {age}', { age: creditAge }) }}
+          </span>
         </p>
         <p v-else-if="creditView.state === 'unlimited'" class="cnote tnum">
-          {{ money(creditView.outstanding_paise) }} owed today.
+          {{ t('{owed} owed today.',
+               { owed: money(creditView.outstanding_paise) }) }}
         </p>
         <p v-else class="cnote">
           {{ creditOffline
-            ? 'The distributor’s credit has not reached this phone yet. You can still take the order.'
-            : 'No credit limit is recorded for this distributor.' }}
+            ? t('The distributor’s credit has not reached this phone yet. You can still take the order.')
+            : t('No credit limit is recorded for this distributor.') }}
         </p>
 
         <!-- This shop's own debt, where somebody has set it a limit. A zero limit cannot be told
              from no limit at all, so a shop nobody has given one is not shown as having no room.
              Our own count, and it says so. -->
         <p v-if="creditView.shop_has_limit" class="cnote tnum shop">
-          This shop owes {{ money(creditView.shop_outstanding_paise) }}
-          of {{ money(creditView.shop_limit_paise) }} &middot;
-          <em>our own count</em>
+          {{ t('This shop owes {owed} of {limit}', {
+               owed: money(creditView.shop_outstanding_paise),
+               limit: money(creditView.shop_limit_paise) }) }}
+          &middot; <em>{{ t('our own count') }}</em>
         </p>
       </div>
 
       <p v-if="credit && !credit.can_take_order" class="flag crit" role="alert">
         <Icon name="alert" size="20" />
-        <span>{{ credit.blocked_reason || 'This shop is not cleared for orders yet. Your manager has to approve it.' }}</span>
+        <span>
+          {{ credit.blocked_reason
+            || t('This shop is not cleared for orders yet. Your manager has to approve it.') }}
+        </span>
       </p>
 
       <!-- Search. No barcode affordance: the catalogue payload carries no barcode and nothing on
@@ -570,15 +599,15 @@ const emptyReason = computed(() => {
           v-model="query"
           type="text"
           inputmode="search"
-          placeholder="Search name, brand or code"
-          aria-label="Search this shop's items"
+          :placeholder="t('Search name, brand or code')"
+          :aria-label="t('Search this shop\'s items')"
         />
-        <button v-if="query" type="button" class="clear" @click="query = ''" aria-label="Clear search">
+        <button v-if="query" type="button" class="clear" @click="query = ''" :aria-label="t('Clear search')">
           <Icon name="close" size="22" />
         </button>
       </div>
 
-      <div class="chips" role="group" aria-label="Filters">
+      <div class="chips" role="group" :aria-label="t('Filters')">
         <button
           v-for="c in CHIPS"
           :key="c.key"
@@ -590,7 +619,7 @@ const emptyReason = computed(() => {
         >{{ c.label }}</button>
       </div>
 
-      <div class="tabs" role="tablist" aria-label="Categories">
+      <div class="tabs" role="tablist" :aria-label="t('Categories')">
         <button
           v-for="g in groups"
           :key="g.key"
@@ -612,17 +641,19 @@ const emptyReason = computed(() => {
       <p v-if="skippedSchemes.length" class="flag warn">
         <Icon name="alert" size="20" />
         <span class="tnum">
-          {{ skippedSchemes.length }}
-          {{ skippedSchemes.length === 1 ? 'offer needs' : 'offers need' }} fixing by your manager
-          and {{ skippedSchemes.length === 1 ? 'is' : 'are' }} not being applied here.
+          {{ skippedSchemes.length === 1
+              ? t('{n} offer needs fixing by your manager and is not being applied here.',
+                  { n: skippedSchemes.length })
+              : t('{n} offers need fixing by your manager and are not being applied here.',
+                  { n: skippedSchemes.length }) }}
         </span>
       </p>
 
       <p v-if="dataAge.catalogue.stale && catalogue" class="flag warn">
         <Icon name="cloud-off" size="20" />
         <span>
-          These prices were saved on this phone {{ catalogueAge }}. Quote them if you have to, and
-          refresh when you get signal.
+          {{ t('These prices were saved on this phone {age}.', { age: catalogueAge }) }}
+          {{ t('Quote them if you have to, and refresh when you get signal.') }}
         </span>
       </p>
 
@@ -634,42 +665,46 @@ const emptyReason = computed(() => {
       <!-- Loading, empty and error are designed states, not afterthoughts. -->
       <div v-if="loading && !catalogue" class="state">
         <Icon name="store" size="36" />
-        <b>Loading this shop's items</b>
-        <p>One moment. This is kept on the phone afterwards, so it is quicker next time.</p>
+        <b>{{ t("Loading this shop's items") }}</b>
+        <p>{{ t('One moment. This is kept on the phone afterwards, so it is quicker next time.') }}</p>
       </div>
 
       <div v-else-if="loadError && !catalogue" class="state crit" role="alert">
         <Icon name="cloud-off" size="36" />
-        <b>No item list for this shop yet</b>
+        <b>{{ t('No item list for this shop yet') }}</b>
         <p>{{ loadError }}</p>
         <button type="button" class="ghost" :disabled="busy" @click="refresh">
-          <Icon name="refresh" size="20" /> {{ busy ? 'Trying…' : 'Try again' }}
+          <Icon name="refresh" size="20" /> {{ busy ? t('Trying…') : t('Try again') }}
         </button>
       </div>
 
       <div v-else-if="emptyReason" class="state">
         <Icon name="store" size="36" />
-        <b>Nothing to order from here</b>
+        <b>{{ t('Nothing to order from here') }}</b>
         <p>{{ emptyReason }}</p>
         <button type="button" class="ghost" :disabled="busy" @click="refresh">
-          <Icon name="refresh" size="20" /> {{ busy ? 'Refreshing…' : 'Refresh' }}
+          <Icon name="refresh" size="20" /> {{ busy ? t('Refreshing…') : t('Refresh') }}
         </button>
       </div>
 
       <div v-else-if="!filtered.length" class="state">
         <Icon name="search" size="36" />
-        <b v-if="query">No items match &ldquo;{{ query }}&rdquo;</b>
-        <b v-else>Nothing under this filter</b>
-        <p>Try a shorter word, or clear what is set.</p>
-        <button type="button" class="ghost" @click="clearFilters">Clear search and filters</button>
+        <b v-if="query">{{ t('No items match “{query}”', { query }) }}</b>
+        <b v-else>{{ t('Nothing under this filter') }}</b>
+        <p>{{ t('Try a shorter word, or clear what is set.') }}</p>
+        <button type="button" class="ghost" @click="clearFilters">
+          {{ t('Clear search and filters') }}
+        </button>
       </div>
 
       <!-- The list -->
       <template v-else>
         <p class="count tnum">
-          {{ filtered.length }} {{ filtered.length === 1 ? 'item' : 'items' }}
+          {{ filtered.length === 1
+              ? t('{n} item', { n: filtered.length })
+              : t('{n} items', { n: filtered.length }) }}
           <span v-if="catalogue.unpriceable_count" class="warnword">
-            &middot; {{ catalogue.unpriceable_count }} with no price yet
+            &middot; {{ t('{n} with no price yet', { n: catalogue.unpriceable_count }) }}
           </span>
         </p>
 
@@ -685,24 +720,26 @@ const emptyReason = computed(() => {
               <p class="meta tnum">{{ item.item_code }} &middot; {{ packWords(item) }}</p>
 
               <p v-if="item.unpriceable" class="noprice">
-                <Icon name="alert" size="18" /> No price on this shop's list yet
+                <Icon name="alert" size="18" /> {{ t("No price on this shop's list yet") }}
               </p>
               <p v-else-if="item.above_mrp" class="noprice">
                 <Icon name="alert" size="18" />
-                Priced above its MRP of {{ money(toPaise(item.mrp)) }}
+                {{ t('Priced above its MRP of {mrp}',
+                     { mrp: money(toPaise(item.mrp)) }) }}
               </p>
               <template v-else>
                 <p class="price">
                   <b class="tnum">{{ money(item.order_uom_rate_paise) }}</b>
-                  <span class="per">per {{ item.order_uom }}</span>
+                  <span class="per">{{ t('per {uom}', { uom: item.order_uom }) }}</span>
                 </p>
                 <p class="meta tnum">
-                  {{ money(item.rate_paise) }} per {{ item.stock_uom }}
+                  {{ t('{rate} per {uom}',
+                       { rate: money(item.rate_paise), uom: item.stock_uom }) }}
                   <template v-if="item.mrp">
-                    &middot; MRP <s>{{ money(toPaise(item.mrp)) }}</s>
+                    &middot; {{ t('MRP') }} <s>{{ money(toPaise(item.mrp)) }}</s>
                   </template>
                   <template v-if="marginPct(item)">
-                    &middot; <span class="margin">{{ marginPct(item) }}% margin</span>
+                    &middot; <span class="margin">{{ t('{n}% margin', { n: marginPct(item) }) }}</span>
                   </template>
                 </p>
               </template>
@@ -710,34 +747,40 @@ const emptyReason = computed(() => {
           </div>
 
           <div class="marks">
-            <span v-if="item.is_focus" class="tag">Hero SKU</span>
-            <span v-if="item.is_must_sell" class="tag">Must sell</span>
+            <span v-if="item.is_focus" class="tag">{{ t('Hero SKU') }}</span>
+            <span v-if="item.is_must_sell" class="tag">{{ t('Must sell') }}</span>
             <span v-if="badgeFor(item)" class="tag scheme">
               <Icon name="tag" size="18" /> {{ badgeFor(item) }}
             </span>
-            <span v-if="extraOffers(item)" class="tag tnum">+{{ extraOffers(item) }} more offer</span>
+            <span v-if="extraOffers(item)" class="tag tnum">
+              {{ t('+{n} more offer', { n: extraOffers(item) }) }}
+            </span>
           </div>
 
           <p v-if="stockFor(item)?.out" class="flag warn small">
             <Icon name="alert" size="20" />
             <span>
-              Out of stock at the depot<template v-if="stockFor(item).eta">, expected
-              {{ stockFor(item).eta }}</template>. You can still book it &mdash; it goes out when
-              stock lands.
+              {{ stockFor(item).eta
+                  ? t('Out of stock at the depot, expected {when}.',
+                      { when: stockFor(item).eta })
+                  : t('Out of stock at the depot.') }}
+              {{ t('You can still book it — it goes out when stock lands.') }}
             </span>
           </p>
           <p v-else-if="stockFor(item)" class="stock tnum">
-            <Icon name="check" size="18" /> {{ qtyWords(stockFor(item).qty, stockFor(item).uom) }} at the depot
+            <Icon name="check" size="18" />
+            {{ t('{qty} at the depot',
+                 { qty: qtyWords(stockFor(item).qty, stockFor(item).uom) }) }}
           </p>
 
           <!-- Quantity. Nothing here awaits the network: each tap re-prices the cart in memory. -->
           <div v-if="item.unpriceable" class="blocked">
-            Ask your manager to have this priced. It cannot be ordered until it is.
+            {{ t('Ask your manager to have this priced. It cannot be ordered until it is.') }}
           </div>
 
           <div v-else-if="item.above_mrp" class="blocked">
-            The list price is over the MRP on the pack, so this cannot be ordered. Ask your
-            manager to correct it.
+            {{ t('The list price is over the MRP on the pack, so this cannot be ordered.') }}
+            {{ t('Ask your manager to correct it.') }}
           </div>
 
           <div v-else-if="!heldQty(item.item_code)" class="quick">
@@ -757,7 +800,8 @@ const emptyReason = computed(() => {
               type="button"
               class="step"
               :aria-label="heldQty(item.item_code).display_qty <= floorFor(item)
-                ? `Remove ${item.item_name}` : `One ${item.order_uom} less`"
+                ? t('Remove {item}', { item: item.item_name })
+                : t('One {uom} less', { uom: item.order_uom })"
               @click="bump(item, -1)"
             ><Icon name="minus" size="22" /></button>
 
@@ -767,7 +811,7 @@ const emptyReason = computed(() => {
                 type="text"
                 inputmode="decimal"
                 :value="heldQty(item.item_code).display_qty"
-                :aria-label="`${item.order_uom} of ${item.item_name}`"
+                :aria-label="t('{uom} of {item}', { uom: item.order_uom, item: item.item_name })"
                 @change="onTyped(item, $event)"
               />
               <span class="qtyuom">{{ uomLabel(heldQty(item.item_code).display_qty, item.order_uom) }}</span>
@@ -776,7 +820,7 @@ const emptyReason = computed(() => {
             <button
               type="button"
               class="step"
-              :aria-label="`One more ${item.order_uom}`"
+              :aria-label="t('One more {uom}', { uom: item.order_uom })"
               @click="bump(item, 1)"
             ><Icon name="plus" size="22" /></button>
 
@@ -790,7 +834,7 @@ const emptyReason = computed(() => {
             <Icon name="gift" size="20" />
             <span class="tnum">
               +{{ qtyWords(freeByItem.get(item.item_code).qty, freeByItem.get(item.item_code).uom) }}
-              free added<template v-if="freeByItem.get(item.item_code).scheme">
+              {{ t('free added') }}<template v-if="freeByItem.get(item.item_code).scheme">
               &middot; {{ freeByItem.get(item.item_code).scheme }}</template>
             </span>
           </p>
@@ -803,13 +847,15 @@ const emptyReason = computed(() => {
                    && heldQty(item.item_code).display_qty < item.min_order_qty" class="fired warnline">
             <Icon name="alert" size="20" />
             <span class="tnum">
-              This shop cannot order less than {{ qtyWords(item.min_order_qty, item.order_uom) }}.
+              {{ t('This shop cannot order less than {qty}.',
+                   { qty: qtyWords(item.min_order_qty, item.order_uom) }) }}
             </span>
           </p>
         </article>
 
         <button v-if="moreCount" type="button" class="more tnum" @click="shownCount += PAGE">
-          Show {{ Math.min(PAGE, moreCount) }} more &middot; {{ moreCount }} left
+          {{ t('Show {n} more · {left} left',
+               { n: Math.min(PAGE, moreCount), left: moreCount }) }}
         </button>
       </template>
     </div>
@@ -819,40 +865,45 @@ const emptyReason = computed(() => {
       <template v-if="!isEmpty">
         <div class="sum">
           <span class="tnum">
-            {{ lineCount }} {{ lineCount === 1 ? 'item' : 'items' }} &middot;
-            {{ baseUnitCount }} units
+            {{ lineCount === 1 ? t('{n} item', { n: lineCount })
+                              : t('{n} items', { n: lineCount }) }}
+            &middot; {{ t('{n} units', { n: baseUnitCount }) }}
           </span>
           <b class="grand tnum">{{ symbol }}{{ totals.net }}</b>
         </div>
         <div class="sumnote">
           <span v-if="totals.discount_paise" class="saving tnum">
-            <Icon name="tag" size="18" /> {{ symbol }}{{ totals.discount }} off the bill
+            <Icon name="tag" size="18" />
+            {{ t('{amount} off the bill',
+                 { amount: symbol + totals.discount }) }}
           </span>
           <span v-if="freeGoods.length" class="saving tnum">
             <Icon name="gift" size="18" />
-            {{ freeGoods.length }} free {{ freeGoods.length === 1 ? 'line' : 'lines' }}
+            {{ freeGoods.length === 1
+                ? t('{n} free line', { n: freeGoods.length })
+                : t('{n} free lines', { n: freeGoods.length }) }}
           </span>
           <span v-if="!totals.discount_paise && !freeGoods.length" class="muted">
-            No offer has fired on this order yet.
+            {{ t('No offer has fired on this order yet.') }}
           </span>
         </div>
         <RouterLink class="btn-primary" :to="{ name: 'order-cart', params: { outlet }, query: keepParty }">
-          <Icon name="cart" size="22" /> Review order
+          <Icon name="cart" size="22" /> {{ t('Review order') }}
         </RouterLink>
       </template>
 
       <template v-else-if="lastOrder?.order">
         <p class="sumnote muted">
-          Nothing added yet. The last order at this shop can start it off.
+          {{ t('Nothing added yet. The last order at this shop can start it off.') }}
         </p>
         <button type="button" class="btn-primary" :disabled="busy" @click="repeatLastOrder">
           <Icon name="refresh" size="22" />
-          {{ busy ? 'Filling…' : 'Repeat last order' }}
+          {{ busy ? t('Filling…') : t('Repeat last order') }}
         </button>
       </template>
 
       <p v-else class="sumnote muted">
-        Add an item above to start this order. It is saved on this phone as you go.
+        {{ t('Add an item above to start this order. It is saved on this phone as you go.') }}
       </p>
     </div>
   </div>

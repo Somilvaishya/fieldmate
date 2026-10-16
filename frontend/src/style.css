@@ -34,17 +34,14 @@
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
 
-/* The shell is one screen tall with its own scroller inside, so how tall "one screen" is decides
-   whether the tab bar sits on the bottom edge or somewhere above it.
+/* The shell no longer measures the screen at all - it is `position: fixed; inset: 0` in App.vue,
+   which is the viewport by definition. These heights stay for anything that is not the shell: a
+   page rendered before Vue mounts, and the `body` background reaching the full height rather than
+   stopping where the content does.
  *
- * `100%` resolves against the **layout** viewport, which on mobile Chrome includes the strip under
- * the address bar. The shell therefore ends up taller than what the rep can see, and the tab bar
- * is pushed below the fold with a band of empty page under it — which is exactly what the order
- * review screen was doing on a phone.
- *
- * `100dvh` is the **visible** height and tracks the browser chrome as it hides and returns. Kept
- * as a second declaration rather than a replacement: a browser that does not know the unit ignores
- * the line and keeps the `100%` above it. */
+ * `100dvh` was here to fix the tab bar and did fix it for the address bar. It could not fix the
+   keyboard: Android shrinks the visual viewport and leaves the layout one alone, and a height
+   measured across that is stale as soon as the keyboard closes. */
 @supports (height: 100dvh) {
   html, body, #app { height: 100dvh; }
 }

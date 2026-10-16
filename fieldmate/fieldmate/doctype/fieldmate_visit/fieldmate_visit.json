@@ -8,7 +8,7 @@
  "is_submittable": 1,
  "field_order": [
   "naming_series", "visit_date", "outlet", "field_user",
-  "column_context", "beat", "day_start", "journey_plan", "visit_sequence",
+  "column_context", "beat", "day", "journey_plan", "visit_sequence",
   "section_planning", "is_planned", "is_deviation", "column_planning", "deviation_reason", "deviation_note",
   "section_checkin", "check_in_time", "check_in_latitude", "check_in_longitude", "check_in_accuracy_m",
   "column_checkin", "distance_from_outlet_m", "is_geo_fence_breach", "geo_fence_exception",
@@ -28,7 +28,7 @@
   {"fieldname": "field_user", "fieldtype": "Link", "label": "Field User", "options": "FieldMate Field User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "search_index": 1},
   {"fieldname": "column_context", "fieldtype": "Column Break"},
   {"fieldname": "beat", "fieldtype": "Link", "label": "Beat", "options": "FieldMate Beat", "in_standard_filter": 1},
-  {"fieldname": "day_start", "fieldtype": "Link", "label": "Day", "options": "FieldMate Day Start",
+  {"fieldname": "day", "fieldtype": "Link", "label": "Day", "options": "FieldMate Day",
    "description": "Every visit belongs to a working day. Without one there is no way to tell an evening visit from a forgotten record."},
   {"fieldname": "journey_plan", "fieldtype": "Link", "label": "Journey Plan", "options": "FieldMate Journey Plan"},
   {"fieldname": "visit_sequence", "fieldtype": "Int", "label": "Seq"},

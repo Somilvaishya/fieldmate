@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const orders = ref([])
 const loading = ref(true)
@@ -11,20 +12,22 @@ const filter = ref('')
 
 // What the depot has done with it, in the rep's words rather than the document's. "Sent To
 // Distributor" is what the field is called; "With the depot" is what the rep would say.
-const WORDS = {
-  'Draft': 'Not sent',
-  'Pending Approval': 'Waiting on your manager',
+// `computed`, so a language change redraws the pills. The keys are the server's own status
+// values and stay English - `TONE` is keyed on the same spelling.
+const WORDS = computed(() => ({
+  'Draft': t('Not sent'),
+  'Pending Approval': t('Waiting on your manager'),
   // A season booking held for its advance. Nobody is deciding anything - it is waiting for
   // money - so it must not read like an approval the rep can chase a manager about.
-  'Awaiting Advance': 'Waiting for the advance',
-  'Approved': 'Approved',
-  'Sent To Distributor': 'With the depot',
-  'Accepted': 'Depot accepted',
-  'Invoiced': 'Depot billed it',
-  'Delivered': 'Delivered',
-  'Rejected': 'Refused',
-  'Cancelled': 'Cancelled',
-}
+  'Awaiting Advance': t('Waiting for the advance'),
+  'Approved': t('Approved'),
+  'Sent To Distributor': t('With the depot'),
+  'Accepted': t('Depot accepted'),
+  'Invoiced': t('Depot billed it'),
+  'Delivered': t('Delivered'),
+  'Rejected': t('Refused'),
+  'Cancelled': t('Cancelled'),
+}))
 const TONE = {
   'Pending Approval': 'warn',
   'Awaiting Advance': 'warn',
@@ -35,12 +38,12 @@ const TONE = {
   'Accepted': 'ok',
 }
 
-const TABS = [
-  { key: '', label: 'All' },
-  { key: 'Sent To Distributor', label: 'With depot' },
-  { key: 'Pending Approval', label: 'Waiting' },
-  { key: 'Delivered', label: 'Delivered' },
-]
+const TABS = computed(() => [
+  { key: '', label: t('All') },
+  { key: 'Sent To Distributor', label: t('With depot') },
+  { key: 'Pending Approval', label: t('Waiting') },
+  { key: 'Delivered', label: t('Delivered') },
+])
 
 const shown = computed(() =>
   filter.value ? orders.value.filter((o) => o.order_status === filter.value) : orders.value
@@ -80,7 +83,8 @@ function day(value) {
   const [y, m, d] = String(value).slice(0, 10).split('-')
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return `${d} ${months[Number(m) - 1]}`
+  const month = months[Number(m) - 1]
+  return `${d} ${month ? t(month) : ''}`.trim()
 }
 
 async function load() {
@@ -92,7 +96,7 @@ async function load() {
   } catch (e) {
     error.value = e instanceof ApiError
       ? e.message
-      : 'Could not load your orders. This list lives on the server, so it needs signal.'
+      : t('Could not load your orders. This list lives on the server, so it needs signal.')
   } finally {
     loading.value = false
   }
@@ -139,7 +143,7 @@ async function doCancel(o) {
   } catch (e) {
     cancelError.value = e instanceof ApiError
       ? e.message
-      : 'Could not cancel it. This needs signal — try again when you have some.'
+      : t('Could not cancel it. This needs signal — try again when you have some.')
   } finally {
     cancelling.value = false
   }
@@ -152,35 +156,41 @@ onMounted(load)
   <div class="wrap">
     <header class="head">
       <div>
-        <h1>My orders</h1>
-        <p class="dim">What you booked, and where each one has reached</p>
+        <h1>{{ t('My orders') }}</h1>
+        <p class="dim">{{ t('What you booked, and where each one has reached') }}</p>
         <!-- The way into a primary order. It lives here rather than on the tab bar because a
              rep books one a week of these and twenty shop orders a day, and a sixth tab would
              cost the twenty to serve the one. -->
         <span class="ways">
-          <RouterLink to="/parties" class="ghost small">Order on a distributor</RouterLink>
-          <RouterLink to="/bookings" class="ghost small">Season book</RouterLink>
-          <RouterLink to="/showcase" class="ghost small">Share the range</RouterLink>
+          <RouterLink to="/parties" class="ghost small">
+            {{ t('Order on a distributor') }}
+          </RouterLink>
+          <RouterLink to="/bookings" class="ghost small">{{ t('Season book') }}</RouterLink>
+          <RouterLink to="/showcase" class="ghost small">{{ t('Share the range') }}</RouterLink>
         </span>
       </div>
-      <button class="quiet" :disabled="loading" @click="load" aria-label="Refresh">
+      <button class="quiet" :disabled="loading" @click="load" :aria-label="t('Refresh')">
         <Icon name="refresh" size="18" />
       </button>
     </header>
 
     <div class="tabs">
-      <button v-for="t in TABS" :key="t.key" class="chip"
-              :class="{ on: filter === t.key }" @click="filter = t.key">
-        {{ t.label }}
+      <button v-for="tab in TABS" :key="tab.key" class="chip"
+              :class="{ on: filter === tab.key }" @click="filter = tab.key">
+        {{ tab.label }}
       </button>
     </div>
 
-    <p v-if="loading" class="note">Loading…</p>
+    <p v-if="loading" class="note">{{ t('Loading…') }}</p>
     <p v-else-if="error" class="note crit">{{ error }}</p>
 
     <template v-else-if="shown.length">
       <div class="sum">
-        <span>{{ shown.length }} order{{ shown.length === 1 ? '' : 's' }}</span>
+        <span>
+          {{ shown.length === 1
+              ? t('{n} order', { n: shown.length })
+              : t('{n} orders', { n: shown.length }) }}
+        </span>
         <b class="tnum">{{ formatRupees(total) }}</b>
       </div>
 
@@ -198,7 +208,7 @@ onMounted(load)
             <!-- Marked, because a booking is not an order the rep forgets about: it is held
                  until its advance is in, and the season book is where that figure lives. -->
             <RouterLink v-if="isBooking(o)" class="pill book" to="/bookings">
-              {{ o.season || 'Booking' }}
+              {{ o.season || t('Booking') }}
             </RouterLink>
           </div>
         </div>
@@ -206,20 +216,22 @@ onMounted(load)
         <!-- Two taps, never one. Cancelling gives scheme budget back and withdraws the order
              from the depot's queue; it is not something a thumb should do by brushing past. -->
         <button v-if="canCancel(o) && confirming !== o.name" class="undo"
-                @click="askCancel(o)">Cancel this order</button>
+                @click="askCancel(o)">{{ t('Cancel this order') }}</button>
 
         <div v-else-if="confirming === o.name" class="sure">
           <p class="dim">
-            This takes it out of the depot's queue and gives back any offer it earned. It cannot
-            be undone.
+            {{ t("This takes it out of the depot's queue and gives back any offer it earned.") }}
+            {{ t('It cannot be undone.') }}
           </p>
           <input v-model="reason" type="text" :disabled="cancelling"
-                 placeholder="Why? (optional, the depot sees this)" />
+                 :placeholder="t('Why? (optional, the depot sees this)')" />
           <p v-if="cancelError" class="note crit">{{ cancelError }}</p>
           <div class="pair">
-            <button class="keep" :disabled="cancelling" @click="keepIt">Keep it</button>
+            <button class="keep" :disabled="cancelling" @click="keepIt">
+              {{ t('Keep it') }}
+            </button>
             <button class="go" :disabled="cancelling" @click="doCancel(o)">
-              {{ cancelling ? 'Cancelling…' : 'Yes, cancel' }}
+              {{ cancelling ? t('Cancelling…') : t('Yes, cancel') }}
             </button>
           </div>
         </div>
@@ -228,9 +240,11 @@ onMounted(load)
 
     <div v-else class="empty">
       <Icon name="cart" size="34" />
-      <b>{{ filter ? 'Nothing here' : 'No orders yet' }}</b>
+      <b>{{ filter ? t('Nothing here') : t('No orders yet') }}</b>
       <p class="dim">
-        {{ filter ? 'Try another tab.' : 'Book one from a shop and it will show up here.' }}
+        {{ filter
+            ? t('Try another tab.')
+            : t('Book one from a shop and it will show up here.') }}
       </p>
     </div>
   </div>

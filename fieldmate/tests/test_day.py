@@ -22,7 +22,7 @@ class DayFixture(JourneyFixture):
 		self.track("FieldMate Device Registry", self.device.name)
 
 	def tearDown(self):
-		for dt in ("FieldMate Day End", "FieldMate Day Start", "FieldMate Attendance Summary",
+		for dt in ("FieldMate Day", "FieldMate Attendance Summary",
 		           "FieldMate Location Trail"):
 			for name in frappe.get_all(dt, filters={"field_user": self.rep.name}, pluck="name"):
 				try:
@@ -48,18 +48,18 @@ class TestDayStart(DayFixture):
 		result = self.start_day()
 		self.assertTrue(result["created"])
 		self.assertEqual(result["day_date"], today())
-		self.assertTrue(result["day_start"].startswith("FM-DS-"))
+		self.assertTrue(result["day"].startswith("FM-DAY-"))
 
 	def test_starting_twice_returns_the_same_day(self):
 		"""A rep tapping start again, or a retried offline push, must not open a second day."""
 		first = self.start_day()
 		second = self.start_day()
 		self.assertFalse(second["created"])
-		self.assertEqual(first["day_start"], second["day_start"])
+		self.assertEqual(first["day"], second["day"])
 
 	def test_current_resumes_after_an_app_restart(self):
 		started = self.start_day()
-		self.assertEqual(day_service.current(self.rep.name)["day_start"], started["day_start"])
+		self.assertEqual(day_service.current(self.rep.name)["day"], started["day"])
 
 	def test_no_open_day_reads_as_none(self):
 		self.assertIsNone(day_service.current(self.rep.name))
@@ -73,7 +73,7 @@ class TestDayStart(DayFixture):
 		"""Blocking pushes a rep to stop using the app rather than to stop faking."""
 		result = self.start_day(is_mock_location=1)
 		self.assertTrue(result["created"])
-		self.assertTrue(frappe.db.get_value("FieldMate Day Start", result["day_start"],
+		self.assertTrue(frappe.db.get_value("FieldMate Day", result["day"],
 		                                    "is_mock_location"))
 
 	def test_impossible_coordinates_are_refused(self):
@@ -83,7 +83,7 @@ class TestDayStart(DayFixture):
 	def test_a_second_open_day_is_refused_at_the_doctype(self):
 		self.start_day()
 		doc = frappe.get_doc({
-			"doctype": "FieldMate Day Start",
+			"doctype": "FieldMate Day",
 			"field_user": self.rep.name,
 			"day_date": today(),
 			"start_time": now_datetime(),
@@ -93,7 +93,7 @@ class TestDayStart(DayFixture):
 		with self.assertRaises(frappe.ValidationError) as ctx:
 			doc.submit()
 		self.assertIn("already has a day open", str(ctx.exception))
-		frappe.delete_doc("FieldMate Day Start", doc.name, force=True, ignore_permissions=True)
+		frappe.delete_doc("FieldMate Day", doc.name, force=True, ignore_permissions=True)
 
 	def test_picks_up_the_planned_beat(self):
 		shops = [self.make_outlet(territory=self.territory).name for _ in range(3)]
@@ -118,7 +118,7 @@ class TestDayEnd(DayFixture):
 		result = day_service.end(self.rep.name, {"latitude": DELHI[0], "longitude": DELHI[1]})
 		self.assertTrue(result["created"])
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", started["day_start"], "status"), "Closed"
+			frappe.db.get_value("FieldMate Day", started["day"], "status"), "Closed"
 		)
 
 	def test_ending_without_a_day_is_refused(self):
@@ -160,13 +160,13 @@ class TestDayEnd(DayFixture):
 class TestAutoClose(DayFixture):
 	def test_a_forgotten_day_is_auto_closed(self):
 		started = self.start_day()
-		frappe.db.set_value("FieldMate Day Start", started["day_start"], "start_time",
+		frappe.db.set_value("FieldMate Day", started["day"], "start_time",
 		                    add_to_date(now_datetime(), hours=-40), update_modified=False)
 
 		closed = day_service.auto_close_stale_days()
 		self.assertGreaterEqual(closed, 1)
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", started["day_start"], "status"),
+			frappe.db.get_value("FieldMate Day", started["day"], "status"),
 			"Auto Closed",
 		)
 
@@ -174,7 +174,7 @@ class TestAutoClose(DayFixture):
 		started = self.start_day()
 		day_service.auto_close_stale_days()
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", started["day_start"], "status"), "Open"
+			frappe.db.get_value("FieldMate Day", started["day"], "status"), "Open"
 		)
 
 
@@ -187,7 +187,7 @@ class TestHrmsMirror(DayFixture):
 		result = self.start_day()
 		self.assertTrue(result["created"])
 		self.assertFalse(
-			frappe.db.get_value("FieldMate Day Start", result["day_start"], "employee_checkin")
+			frappe.db.get_value("FieldMate Day", result["day"], "start_checkin")
 		)
 
 
@@ -207,12 +207,12 @@ class TestADayBelongsToItsDate(DayFixture):
 	def stale_day(self) -> str:
 		"""A day opened yesterday and never ended."""
 		started = self.start_day()
-		frappe.db.set_value("FieldMate Day Start", started["day_start"], {
+		frappe.db.set_value("FieldMate Day", started["day"], {
 			"day_date": add_days(today(), -1),
 			"start_time": add_to_date(now_datetime(), days=-1),
 		}, update_modified=False)
-		frappe.clear_document_cache("FieldMate Day Start", started["day_start"])
-		return started["day_start"]
+		frappe.clear_document_cache("FieldMate Day", started["day"])
+		return started["day"]
 
 	def test_yesterdays_day_is_not_todays_day(self):
 		self.stale_day()
@@ -222,24 +222,31 @@ class TestADayBelongsToItsDate(DayFixture):
 		name = self.stale_day()
 		day_service.current(self.rep.name)
 		self.assertEqual(
-			frappe.db.get_value("FieldMate Day Start", name, "status"), "Auto Closed",
+			frappe.db.get_value("FieldMate Day", name, "status"), "Auto Closed",
 			"Auto Closed, not Closed: a forgotten day is not a finished one")
 
-	def test_it_gets_the_day_end_a_real_closing_gets(self):
-		"""The old auto-close flipped a status and stopped. No Day End meant no counts, no
+	def test_it_gets_the_closing_a_real_day_end_gets(self):
+		"""The old auto-close flipped a status and stopped. No closing meant no counts, no
 		distance, no attendance and no OUT in HRMS - the record of a forgotten day was a day
 		that produced nothing, which is not what happened."""
 		name = self.stale_day()
 		day_service.current(self.rep.name)
-		self.assertTrue(frappe.db.exists("FieldMate Day End", {"day_start": name}))
+		row = frappe.db.get_value("FieldMate Day", name,
+		                          ["status", "end_time"], as_dict=True)
+		self.assertEqual(row.status, "Auto Closed")
+		self.assertIsNotNone(row.end_time, "a forgotten day still records when it ended")
+		self.assertTrue(
+			frappe.db.exists("FieldMate Attendance Summary", {"day": name}),
+			"and the attendance row a real closing writes",
+		)
 
 	def test_it_is_not_closed_at_whatever_time_it_is_found(self):
 		"""Closing at `now` would book a twenty-hour day and an attendance row to match. Nobody
 		knows when the rep stopped, so the last thing the day recorded stands in for it."""
 		name = self.stale_day()
 		day_service.current(self.rep.name)
-		started_at = frappe.db.get_value("FieldMate Day Start", name, "start_time")
-		ended_at = frappe.db.get_value("FieldMate Day End", {"day_start": name}, "end_time")
+		started_at, ended_at = frappe.db.get_value(
+			"FieldMate Day", name, ["start_time", "end_time"])
 		self.assertEqual(get_datetime(ended_at), get_datetime(started_at),
 		                 "a day that recorded nothing ends when it began")
 
@@ -247,14 +254,14 @@ class TestADayBelongsToItsDate(DayFixture):
 		stale = self.stale_day()
 		fresh = self.start_day()
 		self.assertTrue(fresh["created"], "yesterday is not today, whatever its status says")
-		self.assertNotEqual(fresh["day_start"], stale)
+		self.assertNotEqual(fresh["day"], stale)
 		self.assertEqual(str(fresh["day_date"]), str(today()))
 
 	def test_a_day_opened_today_is_still_the_open_day(self):
 		"""The guard is on the date, not on how long ago the day started. A rep who kills the
 		app mid-morning must come back to the same day."""
 		started = self.start_day()
-		self.assertEqual(day_service.current(self.rep.name)["day_start"], started["day_start"])
+		self.assertEqual(day_service.current(self.rep.name)["day"], started["day"])
 
 	def test_ending_a_day_that_was_already_auto_closed_says_so(self):
 		"""Rather than closing it twice or reporting a success over a day that is already over."""

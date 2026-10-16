@@ -30,6 +30,7 @@ from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import scheme_compile
 from fieldmate.services import season as season_service
+from fieldmate.services import settings as settings_service
 
 # A booking that has been taken and is waiting for the money that releases it. Its own status
 # rather than Pending Approval: nobody is deciding anything, and a manager looking at a queue of
@@ -144,7 +145,7 @@ def price(doc, lines=None) -> dict:
 	Called from `create` and again from the controller's `validate`, because an order that
 	arrives through the offline sync push never passes through this service at all — the push
 	inserts the document directly. Without the controller path, a day of orders captured in a
-	village would land with every total at zero. That exact bug shipped once on Day End.
+	village would land with every total at zero. That exact bug shipped once on the day close.
 	"""
 	# A booking that has been submitted is not repriced, at all.
 	#
@@ -729,37 +730,89 @@ def assert_may_amend(doc) -> None:
 		frappe.throw(why)
 
 
-def _warehouse_for(customer: str | None) -> str | None:
-	"""The depot that serves this party, from `Customer.fm_warehouse`.
+def _warehouse_for(customer: str | None, company: str | None = None) -> str | None:
+	"""The depot a directly-billed order ships from.
 
-	A group warehouse is refused rather than passed on: ERPNext cannot reserve stock in one and
-	says so with a message about group warehouses that names nothing a manager can act on. Left
-	blank here, ERPNext defaults per line instead, which at least works.
+	`Customer.fm_warehouse` first, because a party served by a different depot is the whole
+	reason that field exists; then the default in FieldMate Settings, which is what answers for
+	everybody else and which whoever manages Desk can change.
+
+	Not a convenience. ERPNext's `Sales Order.validate_warehouse` checks `warehouse` on every
+	item row of a stock item and refuses the document without one - and leaving it blank does
+	**not** make ERPNext default per line, which is what was assumed here for a long time. Stock
+	Settings' default is applied by `get_item_details` on the form path only, and a Sales Order
+	inserted server-side never goes through it.
+
+	A group warehouse is refused rather than passed on, wherever it came from: ERPNext cannot
+	reserve stock in one and says so with a message about group warehouses that names nothing a
+	manager can act on.
+
+	The company check is not pedantry - a warehouse in another company's tree is refused by
+	ERPNext anyway, and a confusing refusal is worse than no answer at all, because the caller
+	below turns no answer into a sentence that names what to set.
 	"""
-	if not customer:
-		return None
-	warehouse = frappe.db.get_value("Customer", customer, "fm_warehouse")
+	warehouse = frappe.db.get_value("Customer", customer, "fm_warehouse") if customer else None
+	if not warehouse:
+		warehouse = settings_service.value("default_warehouse")
+
 	if not warehouse:
 		return None
-	return None if cint(frappe.get_cached_value("Warehouse", warehouse, "is_group")) else warehouse
+	row = frappe.db.get_value("Warehouse", warehouse, ["is_group", "company"], as_dict=True)
+	if not row or cint(row.is_group):
+		return None
+	return None if (company and row.company != company) else warehouse
+
+
+def _needs_a_warehouse(doc) -> bool:
+	"""Whether ERPNext will insist on one for this cart.
+
+	Only a stock item does, which is ERPNext's own rule in `Sales Order.validate_warehouse`.
+	Asked once over the whole cart rather than per line.
+
+	Deliberately not a full copy of that rule - it also counts a product bundle holding a stock
+	item. Missing that case means ERPNext raises its own error for it exactly as before, which is
+	the right way round to be incomplete.
+	"""
+	codes = {row.item_code for row in (doc.items or [])}
+	codes.update(row.item_code for row in (doc.free_goods or []))
+	if not codes:
+		return False
+	return bool(frappe.db.exists(
+		"Item", {"name": ("in", list(codes)), "is_stock_item": 1}
+	))
 
 
 def default_location_for(customer: str | None) -> str | None:
-	"""Which of our branches normally sells to this party, from `Customer.fm_location`.
+	"""Which of our branches a sale to this party is made from.
 
-	The default the rep is offered, not the answer: a party covered by two branches is the whole
-	reason the order carries its own `location`. Read the same way `_warehouse_for` reads the
-	depot, and a group node is refused for the same reason - a Location tree's branches are
-	folders, and posting against one is not a place.
+	`Customer.fm_location` first, for a party a particular branch always handles, then the
+	default in FieldMate Settings. The same order as `_warehouse_for` reads the depot, and for
+	the same reason: the specific answer wins where somebody gave one, and the setting is what
+	answers for everybody else. Without the fallback, a company running one branch had to name
+	it on every Customer it ever created.
+
+	Still the default the rep is *offered*, not the answer - a party covered by two branches is
+	the whole reason the order carries its own `location`, and `create` lets a choice beat this.
+
+	A group node is refused wherever it came from, the party's record or the setting: a Location
+	tree's branches are folders, and posting against one is not posting against a place.
 
 	`None` on a site that has no Locations, which is most of them.
 	"""
-	if not customer or not frappe.get_meta("Customer").has_field("fm_location"):
-		return None
-	location = frappe.db.get_value("Customer", customer, "fm_location")
+	location = None
+	if customer and frappe.get_meta("Customer").has_field("fm_location"):
+		location = frappe.db.get_value("Customer", customer, "fm_location")
+	if not location:
+		location = settings_service.value("default_location")
 	if not location:
 		return None
-	return None if cint(frappe.get_cached_value("Location", location, "is_group")) else location
+	# `db.get_value`, not `get_cached_value`: a setting left pointing at a Location somebody has
+	# since deleted would raise `DoesNotExistError` out of the cached read, and an order refused
+	# because of a stale setting is not the rep's problem to understand.
+	row = frappe.db.get_value("Location", location, ["is_group"], as_dict=True)
+	if not row:
+		return None
+	return None if cint(row.is_group) else location
 
 
 def locations_for(company: str | None = None) -> list[dict]:
@@ -798,6 +851,21 @@ def _raise_sales_order(doc, seller: dict) -> None:
 	"""The one path where an ERPNext document is correct: we are billing the shop ourselves."""
 	if doc.sales_order:
 		return
+
+	# Resolved once and used twice, on the header and on every row. The rows are the ones that
+	# matter: `Sales Order.validate` calls `reset_default_field_value`, which *clears* the header
+	# field when the rows disagree with it rather than filling them from it. ERPNext spreads the
+	# header over the rows in the form's own script, which a server-side insert never runs.
+	warehouse = _warehouse_for(seller.get("party"), doc.company)
+	if not warehouse and _needs_a_warehouse(doc):
+		# Said here, naming what to set. Left to ERPNext this is "Source warehouse required for
+		# stock item ITEM-0042" - true, and about a setting the reader has never heard of.
+		frappe.throw(frappe._(
+			"This order bills {0} directly, so it has to say which warehouse the stock leaves "
+			"from. Set the default warehouse in FieldMate Settings, or name one on {0} if that "
+			"party ships from somewhere else."
+		).format(seller.get("party") or frappe._("the customer")))
+
 	name = compat.make_sales_order({
 		"customer": seller["party"],
 		"company": doc.company,
@@ -819,9 +887,9 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		# nothing read it; allocation is what needs it, because reserving stock means reserving
 		# it *somewhere* and the somewhere is the warehouse that will actually ship.
 		#
-		# Blank leaves ERPNext to default per line from the Item, which is its ordinary
-		# behaviour and the right fallback for a company running one warehouse.
-		"set_warehouse": _warehouse_for(seller.get("party")),
+		# Set so the form reads back the way a human would expect; the rows below are what
+		# ERPNext actually validates. See `_warehouse_for`.
+		"set_warehouse": warehouse,
 		# The branch this sale is made from. On a site that has enabled Location as an Accounting
 		# Dimension this is mandatory on the Sales Order and on everything made from it, and
 		# nothing server-side fills it - ERPNext applies a dimension's default in the form only.
@@ -836,11 +904,12 @@ def _raise_sales_order(doc, seller: dict) -> None:
 			 # Per line, because that is the whole point of booking a season: a party asks for
 			 # part of its order in January and the rest in February, and ERPNext plans and
 			 # reserves against the date it was actually asked for.
-			 "delivery_date": row.delivery_date}
+			 "delivery_date": row.delivery_date,
+			 "warehouse": warehouse}
 			for row in (doc.items or [])
 		] + [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom,
-			 "rate": 0, "is_free_item": 1}
+			 "rate": 0, "is_free_item": 1, "warehouse": warehouse}
 			for row in (doc.free_goods or [])
 		],
 	})

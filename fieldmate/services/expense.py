@@ -36,7 +36,7 @@ def estimate(field_user: str | None = None, claim_date=None,
         trail = frappe.db.get_value(
             "FieldMate Location Trail",
             {"field_user": field_user, "trail_date": claim_date},
-            ["ping_count", "day_start"], as_dict=True)
+            ["ping_count", "day"], as_dict=True)
         rate = flt(settings_service.value("travel_rate_per_km"))
         visits = frappe.db.count("FieldMate Visit", {
             "field_user": field_user, "visit_date": claim_date, "docstatus": 1})
