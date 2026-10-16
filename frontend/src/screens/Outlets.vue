@@ -22,7 +22,7 @@ onMounted(async () => {
   const today = await visitStore.todaysVisits()
   visited.value = new Set(today.filter((v) => v.state === 'closed').map((v) => v.outlet))
   const result = await refreshOutlets()
-  if (result.offline) note.value = 'Showing shops saved on this phone.'
+  if (result.offline) note.value = t('Showing shops saved on this phone.')
   else await load()
 })
 
@@ -54,12 +54,14 @@ const counts = computed(() => {
   return c
 })
 
-const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'todo', label: 'To visit' },
-  { key: 'visited', label: 'Visited' },
-  { key: 'pending', label: 'Pending approval' },
-]
+// A computed, not a const: the keys go to the filter logic and the labels to the rep, and a
+// const would hold whichever language was loaded first.
+const FILTERS = computed(() => [
+  { key: 'all', label: t('All') },
+  { key: 'todo', label: t('To visit') },
+  { key: 'visited', label: t('Visited') },
+  { key: 'pending', label: t('Pending approval') },
+])
 </script>
 
 <template>

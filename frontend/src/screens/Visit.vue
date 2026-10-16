@@ -26,7 +26,11 @@ const busy = ref(false)
 let ticker = null
 
 // Quick notes a rep would otherwise type one-handed at a counter.
-const QUICK_NOTES = ['Cash collected', 'Owner absent', 'Stock damaged', 'Asked for scheme']
+// Suggestions a rep taps into their own note, so these are text rather than wire values -
+// the note goes up as whatever it says here.
+const QUICK_NOTES = computed(() => [
+  t('Cash collected'), t('Owner absent'), t('Stock damaged'), t('Asked for scheme'),
+])
 
 const answered = computed(() => {
   if (!visit.value) return { done: 0, total: 0, required: 0 }
@@ -45,7 +49,7 @@ const orderCard = computed(() => {
   const booked = visit.value?.order
   if (booked) {
     return {
-      pill: booked.offline ? 'Saved on phone' : 'Booked',
+      pill: booked.offline ? t('Saved on phone') : t('Booked'),
       sub: `₹${formatPaise(booked.net)} — ${booked.offline ? 'will sync by itself' : 'sent to the distributor'}`,
       tone: 'ok',
       pct: 100,
@@ -54,12 +58,12 @@ const orderCard = computed(() => {
   if (cart.value.lines) {
     return {
       pill: `${cart.value.lines} in cart`,
-      sub: 'Started but not punched yet',
+      sub: t('Started but not punched yet'),
       tone: 'warn',
       pct: 50,
     }
   }
-  return { pill: 'None yet', sub: 'Catalogue, schemes and credit', tone: 'muted', pct: 0 }
+  return { pill: t('None yet'), sub: t('Catalogue, schemes and credit'), tone: 'muted', pct: 0 }
 })
 
 const jobs = computed(() => {
@@ -67,7 +71,7 @@ const jobs = computed(() => {
   const order = orderCard.value
   return [
     {
-      key: 'order', icon: 'cart', title: 'Order',
+      key: 'order', icon: 'cart', title: t('Order'),
       sub: order.sub,
       pill: order.pill,
       tone: order.tone,
@@ -76,44 +80,44 @@ const jobs = computed(() => {
       disabled: !visit.value?.outlet,
     },
     {
-      key: 'checklist', icon: 'list', title: 'Checklist',
-      sub: 'Store hygiene, banners and display',
-      pill: a.total ? `${a.done} of ${a.total}` : 'None set',
+      key: 'checklist', icon: 'list', title: t('Checklist'),
+      sub: t('Store hygiene, banners and display'),
+      pill: a.total ? t('{done} of {total}', { done: a.done, total: a.total }) : t('None set'),
       tone: a.total && a.done === a.total ? 'ok' : a.required ? 'warn' : 'muted',
       pct: a.total ? Math.round((a.done / a.total) * 100) : 0,
       to: { name: 'visit-checklist' },
       disabled: !a.total,
     },
     {
-      key: 'shelf', icon: 'shelves', title: 'Shelf check',
-      sub: 'Facings and competitor pricing',
-      pill: shelfDone.value ? 'Done' : 'Pending',
+      key: 'shelf', icon: 'shelves', title: t('Shelf check'),
+      sub: t('Facings and competitor pricing'),
+      pill: shelfDone.value ? t('Done') : t('Pending'),
       tone: shelfDone.value ? 'ok' : 'muted',
       pct: shelfDone.value ? 100 : 0,
       to: { name: 'visit-merchandising' },
     },
     {
-      key: 'stock', icon: 'shelves', title: 'Stock check',
-      sub: stockDone.value ? 'Counted this visit' : 'What he is still holding',
-      pill: stockDone.value ? 'Done' : 'None yet',
+      key: 'stock', icon: 'shelves', title: t('Stock check'),
+      sub: stockDone.value ? t('Counted this visit') : t('What he is still holding'),
+      pill: stockDone.value ? t('Done') : t('None yet'),
       tone: stockDone.value ? 'ok' : 'muted',
       pct: stockDone.value ? 100 : 0,
       to: { name: 'stock-check', params: { outlet: visit.value?.outlet } },
       disabled: !visit.value?.outlet,
     },
     {
-      key: 'money', icon: 'tag', title: 'Collect payment',
-      sub: owed.value ? formatPaise(owed.value * 100) + ' outstanding' : 'Nothing outstanding',
-      pill: collected.value ? 'Taken' : (owed.value ? 'Due' : 'Clear'),
+      key: 'money', icon: 'tag', title: t('Collect payment'),
+      sub: owed.value ? formatPaise(owed.value * 100) + ' outstanding' : t('Nothing outstanding'),
+      pill: collected.value ? t('Taken') : (owed.value ? t('Due') : t('Clear')),
       tone: collected.value ? 'ok' : (owed.value ? 'warn' : 'muted'),
       pct: collected.value ? 100 : 0,
       to: { name: 'outstanding', params: { outlet: visit.value?.outlet } },
       disabled: !visit.value?.outlet,
     },
     {
-      key: 'photo', icon: 'camera', title: 'Photos',
-      sub: 'Shopfront, shelf, damage',
-      pill: photos.value ? `${photos.value} waiting` : 'None yet',
+      key: 'photo', icon: 'camera', title: t('Photos'),
+      sub: t('Shopfront, shelf, damage'),
+      pill: photos.value ? t('{n} waiting', { n: photos.value }) : t('None yet'),
       tone: photos.value ? 'ok' : 'muted',
       pct: photos.value ? 100 : 0,
       photo: true,
@@ -174,15 +178,15 @@ function addNote(text) {
 // What the server's `purpose` column accepts, in the order a rep meets them. Every photo used to
 // go up as "Shelf" whatever it showed, so a damaged-stock picture and a planogram check were the
 // same word on the desk and nobody could tell them apart afterwards.
-const PURPOSES = [
-  { key: 'Shelf', label: 'Shelf' },
-  { key: 'Shop Front', label: 'Shop front' },
-  { key: 'Planogram', label: 'Planogram' },
-  { key: 'Competitor', label: 'Competitor' },
-  { key: 'Damage', label: 'Damage' },
-  { key: 'Expiry', label: 'Expiry' },
-  { key: 'Other', label: 'Other' },
-]
+const PURPOSES = computed(() => [
+  { key: 'Shelf', label: t('Shelf') },
+  { key: 'Shop Front', label: t('Shop front') },
+  { key: 'Planogram', label: t('Planogram') },
+  { key: 'Competitor', label: t('Competitor') },
+  { key: 'Damage', label: t('Damage') },
+  { key: 'Expiry', label: t('Expiry') },
+  { key: 'Other', label: t('Other') },
+])
 const purpose = ref('Shelf')
 const shots = ref([])
 
@@ -239,8 +243,8 @@ async function onPhoto(event) {
     watchShots()
   } catch {
     error.value = files.length > 1
-      ? 'Could not read one of those photos. Try again.'
-      : 'Could not read that photo. Try taking it again.'
+      ? t('Could not read one of those photos. Try again.')
+      : t('Could not read that photo. Try taking it again.')
   } finally {
     busy.value = false
     event.target.value = ''

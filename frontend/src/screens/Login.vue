@@ -55,10 +55,10 @@ async function submit() {
     // support line available. Signing in is the one action that genuinely needs the
     // network, so the generic "your work is saved on this phone" would be nonsense here.
     error.value = e instanceof ApiError && e.code === 'OFFLINE'
-      ? 'You need a signal to sign in the first time. Once you have, the app works offline.'
+      ? t('You need a signal to sign in the first time. Once you have, the app works offline.')
       : e instanceof ApiError
         ? e.message
-        : 'Could not reach the server.'
+        : t('Could not reach the server.')
   } finally {
     busy.value = false
   }

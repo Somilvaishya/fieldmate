@@ -95,6 +95,21 @@ describe('the language switch', () => {
     expect(localStorage.getItem('fm_language')).toBe('hi')
   })
 
+  it('re-translates the link rows, not just the labels around them', async () => {
+    // The trap this pins. `LINKS` was a module-level const, evaluated once when the file was
+    // first imported, so its titles held whichever language loaded first and never moved again.
+    // The switch then appeared to work on the rest of the screen and not on these four rows -
+    // worse than not translating them, because it reads as a half-broken app.
+    const w = await screen()
+    expect(w.text()).toContain('My performance')
+
+    await options(w)[1].trigger('click')
+    await flushPromises()
+
+    expect(w.text()).toContain('मेरा प्रदर्शन')
+    expect(w.text()).not.toContain('My performance')
+  })
+
   it('goes back to English just as easily', async () => {
     const w = await screen()
     await options(w)[1].trigger('click')

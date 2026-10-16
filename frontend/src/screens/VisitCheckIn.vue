@@ -11,12 +11,14 @@ import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
-const REASONS = [
-  'Shop has moved',
-  'Met the owner elsewhere',
-  'Shutter down, met outside',
-  'GPS drifting here',
-]
+// Chips a rep taps into their own note. Text, not wire values - whatever is written here is
+// what the note carries up, so a Hindi-speaking rep writes a Hindi note.
+const REASONS = computed(() => [
+  t('Shop has moved'),
+  t('Met the owner elsewhere'),
+  t('Shutter down, met outside'),
+  t('GPS drifting here'),
+])
 
 const route = useRoute()
 const router = useRouter()
@@ -135,7 +137,7 @@ async function onPhoto(event) {
     photo.value = out.dataUrl
     photoKb.value = out.kb
   } catch {
-    error.value = 'Could not read that photo. Try taking it again.'
+    error.value = t('Could not read that photo. Try taking it again.')
   } finally {
     event.target.value = ''
   }
@@ -145,7 +147,7 @@ async function begin({ closeOpen = false } = {}) {
   error.value = ''
   if (!dayOpen.value) return router.push('/day/start')
   if (requirePhoto.value && !photo.value) {
-    error.value = 'Take the photo at the shop before you check in.'
+    error.value = t('Take the photo at the shop before you check in.')
     return
   }
   if (openElsewhere.value && !closeOpen) return backToOpenVisit()
@@ -165,7 +167,7 @@ async function begin({ closeOpen = false } = {}) {
       error.value = e.message
       closing.value = true
     } else {
-      error.value = e instanceof ApiError ? e.message : 'Could not check in. Try again.'
+      error.value = e instanceof ApiError ? e.message : t('Could not check in. Try again.')
     }
   } finally {
     busy.value = false

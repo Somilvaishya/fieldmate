@@ -54,9 +54,9 @@ const firstName = computed(() => (boot.value?.full_name || '').split(' ')[0] || 
 
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
+  if (h < 12) return t('Good morning')
+  if (h < 17) return t('Good afternoon')
+  return t('Good evening')
 })
 
 const dateLabel = computed(() =>
@@ -117,26 +117,29 @@ function rupees(n) {
 const tiles = computed(() => {
   const out = []
   if (openDay.value) {
-    out.push({ to: '/cockpit', icon: 'list', title: 'Today so far',
-               note: 'Calls, orders and cash' })
+    out.push({ to: '/cockpit', icon: 'list', title: t('Today so far'),
+               note: t('Calls, orders and cash') })
   }
   out.push({
-    to: '/outlets', icon: 'store', title: 'Shops',
-    note: totalShops.value ? `${totalShops.value} in your area` : 'Sync to bring yours down',
+    to: '/outlets', icon: 'store', title: t('Shops'),
+    note: totalShops.value ? `${totalShops.value} in your area` : t('Sync to bring yours down'),
   })
   // The Beats screen was built in Phase 3 and nothing ever linked to it - it was reachable
   // only by typing the URL. A rep asking "when do I next walk this route" had nowhere to look.
-  out.push({ to: '/beats', icon: 'directions', title: 'My routes',
-             note: 'When each one runs' })
-  out.push({ to: '/orders', icon: 'cart', title: 'My orders', note: 'Where each one reached' })
+  out.push({ to: '/beats', icon: 'directions', title: t('My routes'),
+             note: t('When each one runs') })
+  out.push({ to: '/orders', icon: 'cart', title: t('My orders'),
+             note: t('Where each one reached') })
   out.push({
-    to: '/money', icon: 'tag', title: 'Collections',
-    note: inHand.value?.count ? `${rupees(inHand.value.total_amount)} with you` : 'What you took',
+    to: '/money', icon: 'tag', title: t('Collections'),
+    note: inHand.value?.count
+      ? t('{amount} with you', { amount: rupees(inHand.value.total_amount) })
+      : t('What you took'),
   })
-  out.push({ to: '/performance', icon: 'target', title: 'My performance',
-             note: 'Targets and the month' })
-  out.push({ to: '/expense', icon: 'receipt', title: 'Claim expenses',
-             note: 'Travel, food, what you spent' })
+  out.push({ to: '/performance', icon: 'target', title: t('My performance'),
+             note: t('Targets and the month') })
+  out.push({ to: '/expense', icon: 'receipt', title: t('Claim expenses'),
+             note: t('Travel, food, what you spent') })
   return out
 })
 
@@ -206,7 +209,7 @@ async function load() {
 
 async function syncNow() {
   if (!online.value) {
-    error.value = 'Still offline. Everything you captured is saved and will sync on its own.'
+    error.value = t('Still offline. Everything you captured is saved and will sync on its own.')
     return
   }
   syncing.value = true

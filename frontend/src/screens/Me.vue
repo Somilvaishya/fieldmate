@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, setCsrfToken } from '../api/client'
 import { getMeta, setMeta, wipe } from '../db'
@@ -14,16 +14,21 @@ const profile = ref(null)
 const loading = ref(true)
 
 // The screens that belong to the rep rather than to a shop or a day.
-const LINKS = [
-  { to: '/performance', icon: 'target', title: 'My performance',
-    note: 'Targets, and what the month is worth' },
-  { to: '/expense', icon: 'receipt', title: 'Claim expenses',
-    note: 'Travel, food and what you spent' },
-  { to: '/cockpit', icon: 'list', title: 'How today is going',
-    note: 'Calls, orders and cash so far' },
-  { to: '/deposit', icon: 'tag', title: 'Hand in cash',
-    note: 'Declare what you are carrying' },
-]
+//
+// A `computed`, not a plain const. A module-level array is built once when the file is first
+// imported, so its labels would hold whichever language was current at that moment and never
+// change again - the switch would appear to work on the rest of the screen and not on these
+// four rows, which is worse than not translating them at all.
+const LINKS = computed(() => [
+  { to: '/performance', icon: 'target', title: t('My performance'),
+    note: t('Targets, and what the month is worth') },
+  { to: '/expense', icon: 'receipt', title: t('Claim expenses'),
+    note: t('Travel, food and what you spent') },
+  { to: '/cockpit', icon: 'list', title: t('How today is going'),
+    note: t('Calls, orders and cash so far') },
+  { to: '/deposit', icon: 'tag', title: t('Hand in cash'),
+    note: t('Declare what you are carrying') },
+])
 
 async function load() {
   // The cached profile first, so this screen is never blank on a market connection.

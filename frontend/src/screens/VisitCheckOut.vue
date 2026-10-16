@@ -12,13 +12,15 @@ import { formatPaise } from '../lib/money'
 const router = useRouter()
 const visit = visitStore.activeVisit
 
-const OUTCOMES = [
-  { value: 'Order Taken', label: 'Order taken', icon: 'check' },
-  { value: 'No Order', label: 'No order', icon: 'close' },
-  { value: 'Outlet Closed', label: 'Shop closed', icon: 'store' },
-  { value: 'Owner Absent', label: 'Owner away', icon: 'person' },
-  { value: 'Stock Sufficient', label: 'Enough stock', icon: 'shelves' },
-]
+// `value` is what the server stores and must never be translated - it is a Select option on
+// FieldMate Visit. Only the label a rep reads changes.
+const OUTCOMES = computed(() => [
+  { value: 'Order Taken', label: t('Order taken'), icon: 'check' },
+  { value: 'No Order', label: t('No order'), icon: 'close' },
+  { value: 'Outlet Closed', label: t('Shop closed'), icon: 'store' },
+  { value: 'Owner Absent', label: t('Owner away'), icon: 'person' },
+  { value: 'Stock Sufficient', label: t('Enough stock'), icon: 'shelves' },
+])
 
 const NOTE_LIMIT = 200
 
@@ -71,15 +73,19 @@ const missing = computed(
  * stopped at a counter.
  */
 const blocker = computed(() => {
-  if (!outcome.value) return 'Pick what came of this visit.'
-  if (needsReason.value && !reasonName.value) return 'Pick why there was no order.'
+  if (!outcome.value) return t('Pick what came of this visit.')
+  if (needsReason.value && !reasonName.value) return t('Pick why there was no order.')
   if (needsWords.value && !note.value.trim()) {
-    return 'No reasons have reached this phone yet, so write what happened in the note instead.'
+    return t('No reasons have reached this phone yet, so write what happened in the note instead.')
   }
-  if (needsNote.value && !note.value.trim()) return 'This reason needs a note.'
+  if (needsNote.value && !note.value.trim()) return t('This reason needs a note.')
   if (missing.value.length) {
     const n = missing.value.length
-    return 'Answer ' + n + ' required ' + (n === 1 ? 'question' : 'questions') + ' in the checklist.'
+    // Whole sentences, not pieces: Hindi puts the count and the verb elsewhere, so there is
+    // nothing to glue together in the right order.
+    return n === 1
+      ? t('Answer {n} required question in the checklist.', { n })
+      : t('Answer {n} required questions in the checklist.', { n })
   }
   return ''
 })
@@ -128,7 +134,7 @@ async function finish() {
     })
     router.replace('/today')
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Could not finish the visit. Try again.'
+    error.value = e instanceof ApiError ? e.message : t('Could not finish the visit. Try again.')
   } finally {
     busy.value = false
   }
@@ -185,12 +191,13 @@ async function finish() {
       </span>
     </label>
     <textarea id="note" v-model="note" rows="3" :maxlength="NOTE_LIMIT"
-              placeholder="What actually happened at the shop" />
+              :placeholder="t('What actually happened at the shop')" />
 
     <p v-if="missing.length" class="blocked">
-      Answer {{ missing.length }} required
-      {{ missing.length === 1 ? 'question' : 'questions' }} before you leave.
-      <RouterLink :to="{ name: 'visit-checklist' }">Open the checklist</RouterLink>
+      {{ missing.length === 1
+          ? t('Answer {n} required question before you leave.', { n: missing.length })
+          : t('Answer {n} required questions before you leave.', { n: missing.length }) }}
+      <RouterLink :to="{ name: 'visit-checklist' }">{{ t('Open the checklist') }}</RouterLink>
     </p>
 
     <p v-if="error" class="err">{{ error }}</p>
