@@ -5,6 +5,7 @@ import { db } from '../db'
 import { enqueue } from '../sync/outbox'
 import * as visitStore from '../stores/visit'
 import Icon from '../components/Icon.vue'
+import { t } from '../lib/i18n'
 
 const router = useRouter()
 const visit = visitStore.activeVisit
@@ -131,7 +132,7 @@ async function save() {
     <div class="top">
       <div class="head">
         <div>
-          <span class="eyebrow">Shelf check</span>
+          <span class="eyebrow">{{ t('Shelf check') }}</span>
           <h2>{{ visit.outletName }}</h2>
         </div>
       </div>
@@ -139,40 +140,57 @@ async function save() {
       <!-- Share of shelf, the number this screen exists to produce. -->
       <div class="card kpi">
         <div class="figures">
-          <div><span class="muted">Ours</span><b class="tnum">{{ ourFacings }}</b></div>
-          <div><span class="muted">Theirs</span><b class="tnum">{{ theirFacings }}</b></div>
-          <div><span class="muted">Share</span><b class="tnum big">{{ share }}%</b></div>
+          <div>
+            <span class="muted">{{ t('Ours') }}</span>
+            <b class="tnum">{{ ourFacings }}</b>
+          </div>
+          <div>
+            <span class="muted">{{ t('Theirs') }}</span>
+            <b class="tnum">{{ theirFacings }}</b>
+          </div>
+          <div>
+            <span class="muted">{{ t('Share') }}</span>
+            <b class="tnum big">{{ share }}%</b>
+          </div>
         </div>
         <div class="bar" v-if="wholeShelf">
           <div class="ours" :style="{ width: share + '%' }"></div>
           <div class="theirs" :style="{ width: (100 - share) + '%' }"></div>
         </div>
         <div class="legend" v-if="wholeShelf">
-          <span class="tnum"><i class="swatch ours"></i> Ours ({{ ourFacings }})</span>
-          <span class="tnum"><i class="swatch theirs"></i> Rest of shelf
-            ({{ wholeShelf - ourFacings }})</span>
+          <span class="tnum">
+            <i class="swatch ours"></i>
+            {{ t('Ours ({n})', { n: ourFacings }) }}
+          </span>
+          <span class="tnum">
+            <i class="swatch theirs"></i>
+            {{ t('Rest of shelf ({n})', { n: wholeShelf - ourFacings }) }}
+          </span>
         </div>
       </div>
 
       <div class="card">
-        <label class="lbl" for="total">Facings on the whole shelf</label>
+        <label class="lbl" for="total">{{ t('Facings on the whole shelf') }}</label>
         <div class="whole">
           <input id="total" v-model="shelfTotal" type="number" inputmode="numeric" min="0"
                  class="tnum" :placeholder="String(ourFacings + theirFacings)" @blur="keep" />
-          <span class="unit">facings</span>
+          <span class="unit">{{ t('facings') }}</span>
         </div>
         <p class="muted hint">
-          Counting the whole shelf is often quicker than listing every rival. Leave it blank
-          and we add up what you entered.
+          {{ t('Counting the whole shelf is often quicker than listing every rival.') }}
+          {{ t('Leave it blank and we add up what you entered.') }}
         </p>
       </div>
 
       <div class="section">
-        <h3>Our products</h3>
-        <span class="pill tnum" v-if="lines.length">{{ present }} of {{ lines.length }} on shelf</span>
+        <h3>{{ t('Our products') }}</h3>
+        <span class="pill tnum" v-if="lines.length">
+          {{ t('{present} of {total} on shelf',
+               { present, total: lines.length }) }}
+        </span>
       </div>
       <p v-if="!lines.length" class="muted pad">
-        No catalogue on this phone yet. Sync once to load it.
+        {{ t('No catalogue on this phone yet. Sync once to load it.') }}
       </p>
 
       <div class="rows">
@@ -185,45 +203,52 @@ async function save() {
             </span>
             <span class="pinfo">
               <b>{{ line.item_name }}</b>
-              <span class="muted tnum" v-if="line.mrp">₹{{ line.mrp }} MRP</span>
-              <span class="muted oos" v-else-if="!line.is_available">Not on shelf</span>
+              <span class="muted tnum" v-if="line.mrp">
+                {{ t('₹{amount} MRP', { amount: line.mrp }) }}
+              </span>
+              <span class="muted oos" v-else-if="!line.is_available">
+                {{ t('Not on shelf') }}
+              </span>
             </span>
           </button>
           <div class="stepper">
-            <button type="button" aria-label="One less facing" :disabled="!line.is_available"
+            <button type="button" :aria-label="t('One less facing')"
+                    :disabled="!line.is_available"
                     @click="step(line, -1)"><Icon name="minus" size="20" /></button>
             <input class="tnum" type="number" inputmode="numeric" min="0"
                    v-model="line.facings" :disabled="!line.is_available"
-                   aria-label="Facings" @blur="keep" />
-            <button type="button" aria-label="One more facing"
+                   :aria-label="t('Facings')" @blur="keep" />
+            <button type="button" :aria-label="t('One more facing')"
                     @click="step(line, 1)"><Icon name="plus" size="20" /></button>
           </div>
         </div>
       </div>
 
       <div class="section">
-        <h3>Competition</h3>
-        <span class="pill tnum" v-if="competitors.length">{{ competitors.length }} tracked</span>
+        <h3>{{ t('Competition') }}</h3>
+        <span class="pill tnum" v-if="competitors.length">
+          {{ t('{n} tracked', { n: competitors.length }) }}
+        </span>
       </div>
 
       <div v-for="(c, i) in competitors" :key="i" class="card comp">
         <div class="crow">
-          <input v-model="c.competitor" placeholder="Brand" @blur="keep" />
-          <input v-model="c.product" placeholder="Product" @blur="keep" />
+          <input v-model="c.competitor" :placeholder="t('Brand')" @blur="keep" />
+          <input v-model="c.product" :placeholder="t('Product')" @blur="keep" />
         </div>
         <div class="crow">
           <div class="money">
             <span class="rs">₹</span>
             <input v-model="c.selling_price" type="number" inputmode="decimal" class="tnum"
-                   placeholder="Shelf price" @blur="keep" />
+                   :placeholder="t('Shelf price')" @blur="keep" />
           </div>
           <div class="stepper">
-            <button type="button" aria-label="One less facing" @click="step(c, -1)">
+            <button type="button" :aria-label="t('One less facing')" @click="step(c, -1)">
               <Icon name="minus" size="20" />
             </button>
             <input class="tnum" type="number" inputmode="numeric" min="0" v-model="c.facings"
-                   aria-label="Competitor facings" @blur="keep" />
-            <button type="button" aria-label="One more facing" @click="step(c, 1)">
+                   :aria-label="t('Competitor facings')" @blur="keep" />
+            <button type="button" :aria-label="t('One more facing')" @click="step(c, 1)">
               <Icon name="plus" size="20" />
             </button>
           </div>
@@ -231,23 +256,27 @@ async function save() {
         <label class="scheme">
           <input type="checkbox" v-model="c.has_scheme" :true-value="1" :false-value="0"
                  @change="keep" />
-          <span>Running a scheme</span>
+          <span>{{ t('Running a scheme') }}</span>
         </label>
-        <input v-if="c.has_scheme" v-model="c.scheme_note" placeholder="What is the offer?"
+        <input v-if="c.has_scheme" v-model="c.scheme_note" :placeholder="t('What is the offer?')"
                @blur="keep" />
-        <button type="button" class="ghost danger" @click="removeCompetitor(i)">Remove</button>
+        <button type="button" class="ghost danger" @click="removeCompetitor(i)">
+          {{ t('Remove') }}
+        </button>
       </div>
 
       <button type="button" class="ghost" @click="addCompetitor">
-        <Icon name="plus" size="20" /> Add a competitor product
+        <Icon name="plus" size="20" /> {{ t('Add a competitor product') }}
       </button>
     </div>
 
     <div class="bottom">
       <button class="btn-primary" :disabled="busy" @click="save">
-        {{ busy ? 'Saving…' : 'Save shelf check' }}
+        {{ busy ? t('Saving…') : t('Save shelf check') }}
       </button>
-      <p class="muted foot">Saved on this phone, then sent when you have signal.</p>
+      <p class="muted foot">
+        {{ t('Saved on this phone, then sent when you have signal.') }}
+      </p>
     </div>
   </div>
 </template>
