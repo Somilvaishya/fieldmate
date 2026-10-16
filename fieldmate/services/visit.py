@@ -477,13 +477,28 @@ def check_out(visit: str, payload: dict) -> dict:
 
 
 def validate_outcome(doc, outcome: str, payload: dict) -> None:
-	"""A visit with no order and no reason teaches nobody anything."""
+	"""A visit with no order and no reason teaches nobody anything.
+
+	Unless there are no reasons to pick. A site where nobody has set up
+	`FieldMate No Order Reason` would otherwise have every non-order visit impossible to close -
+	the phone lists what it was sent, finds nothing, tells the rep to write a note instead, and
+	the server then refused the note. A rep at a counter cannot create a master record, so that
+	is a whole day stuck behind an empty table in the office.
+
+	The note stands in for the reason in that case. It is a worse answer for a report - free text
+	nobody can count - but it is the honest one, and it is what the screen promises.
+	"""
 	if outcome == "Order Taken":
 		return
 
 	reason = payload.get("no_order_reason")
 	if not reason:
-		frappe.throw(frappe._("Choose a reason for the missed order."))
+		if frappe.db.exists("FieldMate No Order Reason", {"is_active": 1}):
+			frappe.throw(frappe._("Choose a reason for the missed order."))
+		if not (payload.get("remarks") or doc.remarks):
+			frappe.throw(frappe._(
+				"No reasons are set up, so say what happened in the note."))
+		return
 
 	requires_note = frappe.db.get_value("FieldMate No Order Reason", reason, "requires_note")
 	if cint(requires_note) and not (payload.get("remarks") or doc.remarks):

@@ -1281,3 +1281,69 @@ class TestThePhotoAtTheShop(VisitFixture):
 		cannot know whether to ask."""
 		self.apply_settings(require_visit_selfie=1)
 		self.assertIs(settings_service.client_settings()["require_visit_selfie"], True)
+
+
+class TestASiteWithNoReasonsSetUp(VisitFixture):
+	"""A visit that took no order, on a site where nobody has created a reason to pick.
+
+	Reported from a handset. The phone lists the reasons it was sent, finds none, and tells the
+	rep in as many words to write what happened in the note instead - and then the server refused
+	the note with "Choose a reason for the missed order."
+
+	A rep standing at a counter cannot create a `FieldMate No Order Reason`. Until somebody in
+	the office does, **every** visit that did not take an order is impossible to close, so the
+	rep cannot finish the shop, cannot end the day, and the whole route stalls behind an empty
+	table. The phone was right; the rule was written as though the master were always populated.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		# The state being tested: nothing active for this rep to pick from.
+		self.existing = frappe.get_all(
+			"FieldMate No Order Reason", filters={"is_active": 1}, pluck="name")
+		for name in self.existing:
+			frappe.db.set_value("FieldMate No Order Reason", name, "is_active", 0,
+			                    update_modified=False)
+		frappe.db.commit()
+
+	def tearDown(self):
+		for name in self.existing:
+			if frappe.db.exists("FieldMate No Order Reason", name):
+				frappe.db.set_value("FieldMate No Order Reason", name, "is_active", 1,
+				                    update_modified=False)
+		frappe.db.commit()
+		super().tearDown()
+
+	def test_a_note_closes_the_visit_when_there_is_nothing_to_pick(self):
+		opened = self.check_in()
+		closed = self.check_out(opened["visit"], visit_outcome="No Order",
+		                        remarks="Shutter down, owner at a wedding.")
+		self.assertEqual(closed["visit_outcome"], "No Order")
+		self.assertTrue(closed["checked_out_at"], "the visit has to actually close")
+		self.assertEqual(closed["remarks"], "Shutter down, owner at a wedding.")
+
+	def test_every_outcome_that_is_not_an_order_can_still_be_closed(self):
+		"""Shop closed and owner absent were stuck in exactly the same way."""
+		for outcome in ("Outlet Closed", "Owner Absent", "Stock Sufficient"):
+			with self.subTest(outcome=outcome):
+				opened = self.check_in()
+				closed = self.check_out(opened["visit"], visit_outcome=outcome,
+				                        remarks=f"Recorded: {outcome}.")
+				self.assertEqual(closed["visit_outcome"], outcome)
+
+	def test_it_still_wants_to_be_told_something(self):
+		"""Without a reason to pick, the note is the only record of what happened - so it is
+		required. A visit with neither teaches nobody anything, which was the original rule."""
+		opened = self.check_in()
+		with self.assertRaises(frappe.ValidationError) as caught:
+			self.check_out(opened["visit"], visit_outcome="No Order", remarks="")
+		self.assertIn("note", str(caught.exception).lower())
+
+	def test_a_reason_is_still_demanded_where_there_is_one_to_pick(self):
+		"""The rule has not gone soft: this only relaxes on a site with nothing configured."""
+		self.make_reason()
+		opened = self.check_in()
+		with self.assertRaises(frappe.ValidationError) as caught:
+			self.check_out(opened["visit"], visit_outcome="No Order",
+			               remarks="A note, but no reason picked.")
+		self.assertIn("reason", str(caught.exception).lower())

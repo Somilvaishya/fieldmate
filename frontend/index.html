@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- `interactive-widget=resizes-content` makes the on-screen keyboard shrink the layout
+         viewport instead of only the visual one, so a bar pinned to the bottom rides above
+         the keyboard and nothing is left measuring a height that no longer applies. -->
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#092850" />
     <!-- iOS ignores the web manifest entirely and reads these two instead. Without them an
          iPhone "Add to Home Screen" gets a screenshot of the page as its icon. -->
