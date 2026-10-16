@@ -43,6 +43,22 @@ class OrderFixture(SchemeFixture):
 		frappe.clear_document_cache("Customer", self.outlet.distributor)
 		self.distributor = frappe.get_doc("Customer", self.outlet.distributor)
 		self.price_item(self.item, 100)
+		# Which depot a directly-billed order ships from. A fixture that books on a party we
+		# bill has to answer this the same way it has to answer which company: ERPNext refuses
+		# a Sales Order whose rows do not say where the stock leaves from, and the service now
+		# says so itself rather than letting that surface as "Source warehouse required".
+		#
+		# Set as the FieldMate Settings default, because that is the answer for everybody;
+		# `Customer.fm_warehouse` is the per-party override and has its own tests.
+		self.apply_settings(default_warehouse=self.leaf_warehouse())
+
+	def leaf_warehouse(self) -> str | None:
+		"""A warehouse stock can actually leave from, in this rep's company.
+
+		A group node is not a place - ERPNext cannot reserve in one - so only a leaf will do.
+		"""
+		return frappe.db.get_value(
+			"Warehouse", {"company": self.rep.company, "is_group": 0}, "name")
 
 	def territory_for_orders(self):
 		if not getattr(self, "_territory", None):
@@ -504,6 +520,46 @@ class TestAnOrderOnAPartyWeBill(OrderFixture):
 			frappe.db.get_value("Sales Order", doc.sales_order, "customer"), self.party,
 			"billed to the party we sold to, not to anybody else")
 		self.assertEqual(result["order_status"], "Approved")
+
+	def test_the_sales_order_says_where_the_stock_leaves_from(self):
+		"""On every row, which is the only place ERPNext looks.
+
+		`Sales Order.validate_warehouse` checks `warehouse` on each item row of a stock item.
+		Setting the header alone does nothing server-side - `validate` calls
+		`reset_default_field_value`, which *clears* the header when the rows disagree with it
+		rather than filling them from it. ERPNext spreads the header over the rows in the
+		form's own script, which a server-side insert never runs.
+		"""
+		created = self.book_party()
+		self.as_rep(order_service.submit_order, created["name"])
+		sales_order = frappe.db.get_value("FieldMate Order", created["name"], "sales_order")
+		self.track("Sales Order", sales_order)
+
+		warehouse = self.leaf_warehouse()
+		self.assertEqual(
+			frappe.db.get_value("Sales Order", sales_order, "set_warehouse"), warehouse)
+		rows = frappe.get_all("Sales Order Item", filters={"parent": sales_order},
+		                      pluck="warehouse")
+		self.assertTrue(rows)
+		self.assertTrue(all(w == warehouse for w in rows),
+		                f"every row has to name the depot, got {rows}")
+
+	def test_with_no_warehouse_set_up_it_says_so_in_words(self):
+		"""Rather than letting ERPNext say "Source warehouse required for stock item ITEM-0042".
+
+		That sentence is true and useless: it names a document field, in a document the rep
+		never sees, about a setting they have never heard of. The order is refused either way -
+		the point is that the refusal names what to go and set.
+		"""
+		self.apply_settings(default_warehouse=None)
+		frappe.db.set_value("Customer", self.party, "fm_warehouse", None,
+		                    update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+
+		created = self.book_party()
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			self.as_rep(order_service.submit_order, created["name"])
+		self.assertIn("default warehouse in FieldMate Settings", str(ctx.exception))
 
 	def test_it_is_not_handed_to_a_distributors_queue(self):
 		"""There is no distributor in a primary sale - we are the seller."""

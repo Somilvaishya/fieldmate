@@ -30,6 +30,7 @@ from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import scheme_compile
 from fieldmate.services import season as season_service
+from fieldmate.services import settings as settings_service
 
 # A booking that has been taken and is waiting for the money that releases it. Its own status
 # rather than Pending Approval: nobody is deciding anything, and a manager looking at a queue of
@@ -729,32 +730,56 @@ def assert_may_amend(doc) -> None:
 		frappe.throw(why)
 
 
-def _warehouse_for(customer: str | None) -> str | None:
-	"""The depot that serves this party, from `Customer.fm_warehouse`.
+def _warehouse_for(customer: str | None, company: str | None = None) -> str | None:
+	"""The depot a directly-billed order ships from.
 
-	A group warehouse is refused rather than passed on: ERPNext cannot reserve stock in one and
-	says so with a message about group warehouses that names nothing a manager can act on.
+	`Customer.fm_warehouse` first, because a party served by a different depot is the whole
+	reason that field exists; then the default in FieldMate Settings, which is what answers for
+	everybody else and which whoever manages Desk can change.
 
-	**KNOWN ISSUE, not yet fixed.** This used to say that leaving it blank lets ERPNext default
-	per line, "which at least works". It does not. Stock Settings' default warehouse is applied
-	by `get_item_details` on the form path, and a Sales Order inserted server-side never goes
-	through it - so for an item with no Item Default row, `Sales Order.validate` raises
-	`WarehouseRequired` naming the item code and the whole primary sale is refused. That is what
-	`TestAnOrderOnAPartyWeBill`, and the booking tests in `test_cockpit`, `test_season`,
-	`test_dispatch`, `test_target` and `test_phone_season` are failing on.
+	Not a convenience. ERPNext's `Sales Order.validate_warehouse` checks `warehouse` on every
+	item row of a stock item and refuses the document without one - and leaving it blank does
+	**not** make ERPNext default per line, which is what was assumed here for a long time. Stock
+	Settings' default is applied by `get_item_details` on the form path only, and a Sales Order
+	inserted server-side never goes through it.
 
-	Filling it from Stock Settings was tried and is not the answer on its own: the header field
-	does not reach the rows (`Sales Order.validate` calls `reset_default_field_value`, which
-	*clears* the header when the rows disagree rather than filling them), and setting the rows
-	from a site-wide default moved the failure rather than removing it. Which warehouse ships a
-	primary sale is a business answer, so it is being asked rather than guessed.
+	A group warehouse is refused rather than passed on, wherever it came from: ERPNext cannot
+	reserve stock in one and says so with a message about group warehouses that names nothing a
+	manager can act on.
+
+	The company check is not pedantry - a warehouse in another company's tree is refused by
+	ERPNext anyway, and a confusing refusal is worse than no answer at all, because the caller
+	below turns no answer into a sentence that names what to set.
 	"""
-	if not customer:
-		return None
-	warehouse = frappe.db.get_value("Customer", customer, "fm_warehouse")
+	warehouse = frappe.db.get_value("Customer", customer, "fm_warehouse") if customer else None
+	if not warehouse:
+		warehouse = settings_service.value("default_warehouse")
+
 	if not warehouse:
 		return None
-	return None if cint(frappe.get_cached_value("Warehouse", warehouse, "is_group")) else warehouse
+	row = frappe.db.get_value("Warehouse", warehouse, ["is_group", "company"], as_dict=True)
+	if not row or cint(row.is_group):
+		return None
+	return None if (company and row.company != company) else warehouse
+
+
+def _needs_a_warehouse(doc) -> bool:
+	"""Whether ERPNext will insist on one for this cart.
+
+	Only a stock item does, which is ERPNext's own rule in `Sales Order.validate_warehouse`.
+	Asked once over the whole cart rather than per line.
+
+	Deliberately not a full copy of that rule - it also counts a product bundle holding a stock
+	item. Missing that case means ERPNext raises its own error for it exactly as before, which is
+	the right way round to be incomplete.
+	"""
+	codes = {row.item_code for row in (doc.items or [])}
+	codes.update(row.item_code for row in (doc.free_goods or []))
+	if not codes:
+		return False
+	return bool(frappe.db.exists(
+		"Item", {"name": ("in", list(codes)), "is_stock_item": 1}
+	))
 
 
 def default_location_for(customer: str | None) -> str | None:
@@ -811,6 +836,21 @@ def _raise_sales_order(doc, seller: dict) -> None:
 	"""The one path where an ERPNext document is correct: we are billing the shop ourselves."""
 	if doc.sales_order:
 		return
+
+	# Resolved once and used twice, on the header and on every row. The rows are the ones that
+	# matter: `Sales Order.validate` calls `reset_default_field_value`, which *clears* the header
+	# field when the rows disagree with it rather than filling them from it. ERPNext spreads the
+	# header over the rows in the form's own script, which a server-side insert never runs.
+	warehouse = _warehouse_for(seller.get("party"), doc.company)
+	if not warehouse and _needs_a_warehouse(doc):
+		# Said here, naming what to set. Left to ERPNext this is "Source warehouse required for
+		# stock item ITEM-0042" - true, and about a setting the reader has never heard of.
+		frappe.throw(frappe._(
+			"This order bills {0} directly, so it has to say which warehouse the stock leaves "
+			"from. Set the default warehouse in FieldMate Settings, or name one on {0} if that "
+			"party ships from somewhere else."
+		).format(seller.get("party") or frappe._("the customer")))
+
 	name = compat.make_sales_order({
 		"customer": seller["party"],
 		"company": doc.company,
@@ -832,9 +872,9 @@ def _raise_sales_order(doc, seller: dict) -> None:
 		# nothing read it; allocation is what needs it, because reserving stock means reserving
 		# it *somewhere* and the somewhere is the warehouse that will actually ship.
 		#
-		# Blank is only safe where every item carries an Item Default row; otherwise ERPNext
-		# refuses the whole Sales Order outright. See the known issue on `_warehouse_for`.
-		"set_warehouse": _warehouse_for(seller.get("party")),
+		# Set so the form reads back the way a human would expect; the rows below are what
+		# ERPNext actually validates. See `_warehouse_for`.
+		"set_warehouse": warehouse,
 		# The branch this sale is made from. On a site that has enabled Location as an Accounting
 		# Dimension this is mandatory on the Sales Order and on everything made from it, and
 		# nothing server-side fills it - ERPNext applies a dimension's default in the form only.
@@ -849,11 +889,12 @@ def _raise_sales_order(doc, seller: dict) -> None:
 			 # Per line, because that is the whole point of booking a season: a party asks for
 			 # part of its order in January and the rest in February, and ERPNext plans and
 			 # reserves against the date it was actually asked for.
-			 "delivery_date": row.delivery_date}
+			 "delivery_date": row.delivery_date,
+			 "warehouse": warehouse}
 			for row in (doc.items or [])
 		] + [
 			{"item_code": row.item_code, "qty": row.qty, "uom": row.uom,
-			 "rate": 0, "is_free_item": 1}
+			 "rate": 0, "is_free_item": 1, "warehouse": warehouse}
 			for row in (doc.free_goods or [])
 		],
 	})

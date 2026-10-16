@@ -507,6 +507,41 @@ code change, only a `translations/hi.csv`, because the 295 translatable calls ar
 #17 scheme simplification (high risk - the JS and Python evaluators have to agree statement for
 statement).
 
+## The warehouse a primary sale ships from
+
+A directly-billed order could not post a Sales Order at all on a site where the items carry no
+Item Default row. `_warehouse_for` returned nothing, and the comment beside it said that leaving
+the warehouse blank "lets ERPNext default per line, which at least works". **It does not.** Stock
+Settings' default warehouse is applied by `get_item_details`, on the form path, and a Sales Order
+inserted server-side never goes through it - so `Sales Order.validate_warehouse` refused the whole
+document with "Source warehouse required for stock item ITEM-0042". A sentence that is true and
+useless: it names a field on a document the rep never sees, about a setting they have never heard
+of.
+
+**The answer is a setting**, `FieldMate Settings.default_warehouse`, which whoever manages Desk can
+change. `Customer.fm_warehouse` stays as the per-party override, for a party served by a different
+depot. With neither set, the service now refuses in its own words and names what to go and set,
+instead of letting ERPNext's message through.
+
+**The rows are what carry it, not the header.** Setting `set_warehouse` alone does nothing
+server-side: `validate` calls `reset_default_field_value`, which *clears* the header when the rows
+disagree with it rather than filling them from it. ERPNext spreads the header over the rows in the
+form's own script, which a server-side insert never runs. The header is set as well, so the form
+reads back the way a human would expect.
+
+**Worth keeping about how this was found.** The per-line diagnosis was right the first time and was
+then reverted on a bad signal: `test_cockpit` went from 5 errors to 9 and that looked like the
+change making things worse. It was not - re-running the *reverted* tree gave 9 as well. The counts
+on this site drift between runs, because `FrappeTestCase` rolls back per class and day, order and
+season records accumulate. Two numbers from two different runs are not a comparison, and a
+conclusion drawn from one is worth less than no conclusion. The run that still showed the failure
+had also started *before* the per-line edit landed, so it was never testing it at all.
+
+A related trap in the same area: counts drifting also made "eight failures, one root cause" look
+true when there were three unrelated causes - the warehouse, `GST Category cannot be set to
+Overseas` (india_compliance, which CI does not install), and `KeyError: 'Lines Per Call'` in
+`test_target`, which descends from `FieldMateTestCase` and never posts a Sales Order at all.
+
 ## #10 — the GPS accuracy nobody read
 
 The field was written on every new shop and read by nothing: no rule, report, geo-fence or

@@ -14,6 +14,7 @@
   "section_general",
   "default_company",
   "default_price_list",
+  "default_warehouse",
   "column_general",
   "support_contact",
   "tab_field",
@@ -88,6 +89,9 @@
   {"fieldname": "section_general", "fieldtype": "Section Break", "label": "General"},
   {"fieldname": "default_company", "fieldtype": "Link", "label": "Default Company", "options": "Company"},
   {"fieldname": "default_price_list", "fieldtype": "Link", "label": "Default Price List", "options": "Price List"},
+  {"fieldname": "default_warehouse", "fieldtype": "Link", "label": "Default Warehouse",
+   "options": "Warehouse",
+   "description": "Which depot a directly-billed order ships from. Required for those orders - ERPNext refuses a Sales Order that does not say where stock leaves from - and unused by the ordinary retailer order, which never becomes one. A party served by a different depot overrides this on its own Customer record."},
   {"fieldname": "column_general", "fieldtype": "Column Break"},
   {
    "fieldname": "support_contact",
