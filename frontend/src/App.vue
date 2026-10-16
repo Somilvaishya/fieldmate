@@ -46,10 +46,10 @@ const TABS = [
     <main class="body"><RouterView /></main>
 
     <nav v-if="chrome" class="tabs">
-      <RouterLink v-for="t in TABS" :key="t.to" :to="t.to" class="tab">
+      <RouterLink v-for="tab in TABS" :key="tab.to" :to="tab.to" class="tab">
         <span class="mark" aria-hidden="true"></span>
-        <Icon :name="t.icon" size="22" />
-        <span class="label">{{ t.label }}</span>
+        <Icon :name="tab.icon" size="22" />
+        <span class="label">{{ tab.label }}</span>
       </RouterLink>
     </nav>
   </div>

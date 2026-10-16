@@ -156,9 +156,9 @@ onMounted(async () => {
     </header>
 
     <div class="chips">
-      <button v-for="t in TYPES" :key="t.key" class="chip"
-              :class="{ on: type === t.key }" @click="type = t.key">
-        {{ t.label }}
+      <button v-for="kind in TYPES" :key="kind.key" class="chip"
+              :class="{ on: type === kind.key }" @click="type = kind.key">
+        {{ kind.label }}
       </button>
     </div>
 

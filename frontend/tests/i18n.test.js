@@ -186,6 +186,27 @@ describe('the catalogue keeps up with the screens', () => {
     expect(joined).toEqual([])
   })
 
+  it('never shadows t with a loop variable', () => {
+    // Twice: `v-for="t in tiles"` in Today.vue and `v-for="t in TERMS"` in OrderReview.vue. The
+    // first was harmless because nothing in that block called `t`; the second block has three
+    // sentences in it. It fails silently either way - `t('...')` in there calls the loop item,
+    // which is an object, and Vue renders whatever comes back without throwing.
+    //
+    // Any single-letter or `t`-named binding in a v-for, a slot or a function parameter is the
+    // same hazard; `t` is the one that actually happens, so that is what this looks for.
+    const shadowed = []
+    for (const file of sources()) {
+      const source = readFileSync(file, 'utf8')
+      for (const pattern of [
+        /v-for\s*=\s*["']\s*t\s+(?:in|of)\s/,
+        /v-for\s*=\s*["']\s*\(\s*t\s*[,)]/,
+      ]) {
+        if (pattern.test(source)) shadowed.push(file.slice(SRC.length + 1))
+      }
+    }
+    expect([...new Set(shadowed)]).toEqual([])
+  })
+
   it('never evaluates a label at import time', () => {
     // The trap a rep found by hand. `Me.vue`'s `LINKS` was a module-level const, evaluated once
     // when the file was first imported, so its titles held whichever language loaded first and

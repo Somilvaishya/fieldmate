@@ -201,11 +201,11 @@ onMounted(load)
 
       <!-- The four -->
       <section v-if="tiles.length" class="grid">
-        <div v-for="t in tiles" :key="t.target_type" class="tile">
-          <div class="label">{{ t.target_type }}</div>
-          <div class="num tnum">{{ Math.round(t.achievement_pct) }}%</div>
-          <div class="dim">{{ show(t) }} of {{ showTarget(t) }}</div>
-          <div class="bar thin"><i :style="{ width: width(t.achievement_pct) }"></i></div>
+        <div v-for="tile in tiles" :key="tile.target_type" class="tile">
+          <div class="label">{{ tile.target_type }}</div>
+          <div class="num tnum">{{ Math.round(tile.achievement_pct) }}%</div>
+          <div class="dim">{{ show(tile) }} of {{ showTarget(tile) }}</div>
+          <div class="bar thin"><i :style="{ width: width(tile.achievement_pct) }"></i></div>
         </div>
       </section>
 

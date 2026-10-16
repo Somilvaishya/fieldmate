@@ -122,9 +122,9 @@ onMounted(load)
     </header>
 
     <div class="tabs">
-      <button v-for="t in TABS" :key="t.key" class="chip"
-              :class="{ on: filter === t.key }" @click="filter = t.key">
-        {{ t.label }}
+      <button v-for="tab in TABS" :key="tab.key" class="chip"
+              :class="{ on: filter === tab.key }" @click="filter = tab.key">
+        {{ tab.label }}
       </button>
     </div>
 

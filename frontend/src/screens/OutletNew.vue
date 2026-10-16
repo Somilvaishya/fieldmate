@@ -167,10 +167,10 @@ function again() {
       <div class="field">
         <label id="typelabel">Shop type</label>
         <div class="chips" role="radiogroup" aria-labelledby="typelabel">
-          <button v-for="t in TYPES" :key="t" type="button" class="chip"
-                  :class="{ on: form.outlet_type === t }" role="radio"
-                  :aria-checked="form.outlet_type === t" @click="form.outlet_type = t">
-            {{ t }}
+          <button v-for="kind in TYPES" :key="kind" type="button" class="chip"
+                  :class="{ on: form.outlet_type === kind }" role="radio"
+                  :aria-checked="form.outlet_type === kind" @click="form.outlet_type = kind">
+            {{ kind }}
           </button>
         </div>
       </div>
