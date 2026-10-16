@@ -31,6 +31,8 @@
    "link_to": "FieldMate Field User", "link_type": "DocType", "onboard": 1, "type": "Link"},
   {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Beats", "link_count": 0,
    "link_to": "FieldMate Beat", "link_type": "DocType", "onboard": 0, "type": "Link"},
+  {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Days", "link_count": 0,
+   "link_to": "FieldMate Day", "link_type": "DocType", "onboard": 0, "type": "Link"},
   {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Visits", "link_count": 0,
    "link_to": "FieldMate Visit", "link_type": "DocType", "onboard": 0, "type": "Link"},
   {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Orders", "link_count": 0,
