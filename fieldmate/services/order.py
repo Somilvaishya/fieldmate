@@ -783,21 +783,36 @@ def _needs_a_warehouse(doc) -> bool:
 
 
 def default_location_for(customer: str | None) -> str | None:
-	"""Which of our branches normally sells to this party, from `Customer.fm_location`.
+	"""Which of our branches a sale to this party is made from.
 
-	The default the rep is offered, not the answer: a party covered by two branches is the whole
-	reason the order carries its own `location`. Read the same way `_warehouse_for` reads the
-	depot, and a group node is refused for the same reason - a Location tree's branches are
-	folders, and posting against one is not a place.
+	`Customer.fm_location` first, for a party a particular branch always handles, then the
+	default in FieldMate Settings. The same order as `_warehouse_for` reads the depot, and for
+	the same reason: the specific answer wins where somebody gave one, and the setting is what
+	answers for everybody else. Without the fallback, a company running one branch had to name
+	it on every Customer it ever created.
+
+	Still the default the rep is *offered*, not the answer - a party covered by two branches is
+	the whole reason the order carries its own `location`, and `create` lets a choice beat this.
+
+	A group node is refused wherever it came from, the party's record or the setting: a Location
+	tree's branches are folders, and posting against one is not posting against a place.
 
 	`None` on a site that has no Locations, which is most of them.
 	"""
-	if not customer or not frappe.get_meta("Customer").has_field("fm_location"):
-		return None
-	location = frappe.db.get_value("Customer", customer, "fm_location")
+	location = None
+	if customer and frappe.get_meta("Customer").has_field("fm_location"):
+		location = frappe.db.get_value("Customer", customer, "fm_location")
+	if not location:
+		location = settings_service.value("default_location")
 	if not location:
 		return None
-	return None if cint(frappe.get_cached_value("Location", location, "is_group")) else location
+	# `db.get_value`, not `get_cached_value`: a setting left pointing at a Location somebody has
+	# since deleted would raise `DoesNotExistError` out of the cached read, and an order refused
+	# because of a stale setting is not the rep's problem to understand.
+	row = frappe.db.get_value("Location", location, ["is_group"], as_dict=True)
+	if not row:
+		return None
+	return None if cint(row.is_group) else location
 
 
 def locations_for(company: str | None = None) -> list[dict]:

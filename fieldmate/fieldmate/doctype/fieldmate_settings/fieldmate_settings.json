@@ -15,6 +15,7 @@
   "default_company",
   "default_price_list",
   "default_warehouse",
+  "default_location",
   "column_general",
   "support_contact",
   "tab_field",
@@ -92,6 +93,8 @@
   {"fieldname": "default_warehouse", "fieldtype": "Link", "label": "Default Warehouse",
    "options": "Warehouse",
    "description": "Which depot a directly-billed order ships from. Required for those orders - ERPNext refuses a Sales Order that does not say where stock leaves from - and unused by the ordinary retailer order, which never becomes one. A party served by a different depot overrides this on its own Customer record."},
+  {"fieldname": "default_location", "fieldtype": "Link", "label": "Default Location", "options": "Location",
+   "description": "Which of our branches a directly-billed sale is made from, where the party does not name one of its own. Only matters on a site that has enabled Location as an Accounting Dimension, where it is mandatory on the Sales Order. A party a particular branch always handles overrides this on its own Customer record."},
   {"fieldname": "column_general", "fieldtype": "Column Break"},
   {
    "fieldname": "support_contact",

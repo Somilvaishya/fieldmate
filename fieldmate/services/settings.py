@@ -89,6 +89,7 @@ def get() -> dict:
 	# how Phase 9 shipped a settlement item the claim code could never see - it is worth a moment
 	# when adding the next one.
 	extra = ("default_company", "default_price_list", "default_warehouse",
+	         "default_location",
 	         "support_contact", "day_start_alert_time",
 	         "claim_settlement_item", "claim_expense_account", "claim_cost_center",
 	         "travel_rate_per_km", "daily_food_allowance", "daily_stay_allowance")
