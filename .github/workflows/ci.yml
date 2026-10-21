@@ -168,3 +168,12 @@ jobs:
           npm ci
           npm test
           npm run build
+
+      - name: Scheme parity, all three pairings
+        working-directory: ci-bench/apps/fieldmate
+        # `npm test` now runs the corpus through the JavaScript engine and `run-tests` runs it
+        # through the Python one, so the two halves are covered above. This step is the harness
+        # itself: it diffs the two engines against each other as canonical bytes and would catch a
+        # field the corpus happens not to pin, and it keeps `scripts/parity.sh` from rotting
+        # unnoticed - a gate script nothing runs is a gate nobody has.
+        run: bash scripts/parity.sh
