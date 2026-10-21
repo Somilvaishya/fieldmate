@@ -29,6 +29,7 @@ from fieldmate import compat
 from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import scheme_compile
+from fieldmate.services import scope as scope_service
 from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
 
@@ -411,7 +412,13 @@ def _write_credit(doc, result: dict) -> None:
 	if doc.credit_status not in ("Overridden", "Approved"):
 		doc.credit_status = "Breach" if breached else "Within Limit"
 
-	rule = pick_approval_rule(doc) if breached or _over_value(doc) else None
+	# One call, not two. This line used to read `pick_approval_rule(doc) if breached or
+	# _over_value(doc) else None`, and `_over_value` was itself `bool(pick_approval_rule(doc))` -
+	# so every order picked the rule twice to answer the same question. The guard was also no
+	# guard: the credit trigger only fires when `credit_status == "Breach"`, which only happens
+	# when `breached`, and a value threshold has to be above zero to match, so neither branch
+	# could catch an order the plain call misses.
+	rule = pick_approval_rule(doc)
 	doc.approval_required = 1 if rule else 0
 	doc.approval_rule = rule
 	if rule and doc.approval_status in (None, "", "Not Required"):
@@ -420,8 +427,15 @@ def _write_credit(doc, result: dict) -> None:
 		doc.approval_status = "Not Required"
 
 
-def _over_value(doc) -> bool:
-	return False if not doc.net_total else bool(pick_approval_rule(doc))
+def discount_share(doc) -> float:
+	"""Total discount as a percentage of gross, which is what a rule's ceiling is measured against.
+
+	Read off the order's own totals rather than recomputed from the schemes. `_write_totals` has
+	just written them from that very result, and a second arithmetic for one figure is a second
+	answer waiting to disagree with the first.
+	"""
+	gross = flt(doc.gross_total)
+	return 0.0 if gross <= 0 else flt(doc.discount_total) / gross * 100.0
 
 
 def pick_approval_rule(doc) -> str | None:
@@ -433,25 +447,34 @@ def pick_approval_rule(doc) -> str | None:
 	outlet = frappe.db.get_value(
 		"FieldMate Outlet", doc.outlet, ["territory", "channel", "outlet_class"], as_dict=True
 	) or frappe._dict()
+	discount_pct = discount_share(doc)
 
 	for rule in frappe.get_all(
 		"FieldMate Order Approval Rule",
 		filters={"is_active": 1},
 		fields=["name", "priority", "territory", "channel", "outlet_class",
-		        "check_order_value", "min_order_value", "on_credit_breach"],
+		        "check_order_value", "min_order_value",
+		        "check_discount_percent", "max_discount_percent", "on_credit_breach"],
 		order_by="priority asc, name asc",
 	):
-		if rule.territory and rule.territory != outlet.territory:
-			continue
-		if rule.channel and rule.channel != outlet.channel:
-			continue
-		if rule.outlet_class and rule.outlet_class != outlet.outlet_class:
+		# `services.scope` rather than three comparisons restated here. It treats a territory as
+		# the tree it is, which is what this field's own description has always promised and what
+		# the name equality that stood here never did: a rule set on North has to catch a shop in
+		# North / Delhi / South Delhi. That docstring says the comparison lives in one place so it
+		# cannot be got subtly wrong in four - and this was the place that had it wrong.
+		if not scope_service.applies_to_outlet(rule, outlet):
 			continue
 		if cint(rule.on_credit_breach) and doc.credit_status == "Breach":
 			return rule.name
 		# The paired check_* switch matters: a Currency column stores 0 for "never set", so an
 		# unswitched threshold would otherwise catch every order ever booked.
 		if cint(rule.check_order_value) and flt(doc.net_total) >= flt(rule.min_order_value) > 0:
+			return rule.name
+		# Until this line, the field above it was decoration. A rule whose only trigger was the
+		# discount ceiling passed `assert_has_a_trigger` and then matched nothing ever, because
+		# the query above did not even fetch the column - so the two stacked schemes it was
+		# written to catch went through unread, with no error anywhere to say so.
+		if cint(rule.check_discount_percent) and discount_pct >= flt(rule.max_discount_percent) > 0:
 			return rule.name
 	return None
 
@@ -559,6 +582,9 @@ def route(doc) -> None:
 	# would overstate trade spend for a sale that never happened.
 	if cint(doc.approval_required) and doc.approval_status != "Approved":
 		doc.db_set("order_status", "Pending Approval", update_modified=False)
+		# Telling them is the other half of the hold. A queue nobody is pointed at is how an
+		# order sits for a week and the rep hears about it from the shopkeeper.
+		notify_approver(doc)
 		return
 
 	# A booking waiting on its advance goes nowhere either, and it is a different kind of waiting
@@ -1061,6 +1087,89 @@ def withdraw(doc) -> None:
 APPROVER_ROLES = ("FieldMate Admin", "FieldMate Sales Head", "System Manager")
 
 
+def rule_approver(doc) -> dict:
+	"""The role and the user the rule that stopped this order names, if it named either."""
+	if not doc.approval_rule:
+		return {}
+	return frappe.db.get_value(
+		"FieldMate Order Approval Rule", doc.approval_rule,
+		["approver_role", "approver_user"], as_dict=True,
+	) or {}
+
+
+def rule_names_approver(doc, approver: str, roles: set) -> bool:
+	"""Whether the rule that stopped this order names this person as somebody who may decide it."""
+	named = rule_approver(doc)
+	if not named:
+		return False
+	if named.get("approver_user") and named["approver_user"] == approver:
+		return True
+	return bool(named.get("approver_role") and named["approver_role"] in roles)
+
+
+def approver_users(doc) -> list[str]:
+	"""Everybody the rule points at, as enabled user ids. For telling them, not for permission.
+
+	A role is expanded here rather than at save time because the people holding it change and
+	the rule does not - which is the whole argument the rule's own description makes for naming
+	a role over a person.
+	"""
+	named = rule_approver(doc)
+	if not named:
+		return []
+
+	wanted = set()
+	if named.get("approver_user"):
+		wanted.add(named["approver_user"])
+	if named.get("approver_role"):
+		wanted.update(frappe.get_all(
+			"Has Role", filters={"role": named["approver_role"], "parenttype": "User"},
+			pluck="parent"))
+
+	wanted.discard("Administrator")
+	wanted.discard("Guest")
+	if not wanted:
+		return []
+
+	# Enabled users asked once, the way `alerts._notify` learned to: a role on a site with a
+	# hundred users was a hundred round trips to find out.
+	return frappe.get_all(
+		"User", filters={"name": ["in", list(wanted)], "enabled": 1}, pluck="name")
+
+
+def notify_approver(doc) -> int:
+	"""Tell whoever the rule names that an order is sitting on them. Returns how many were told.
+
+	A Notification Log rather than an email, for the reason `alerts._notify` gives: an email
+	nobody configured goes nowhere and reports success, and a manager reading this is already
+	inside the Desk app.
+
+	Never raised. An order that is correctly parked in the approval queue must not fail to park
+	because a notification could not be written - the hold is the control, the message is the
+	courtesy.
+	"""
+	told = 0
+	for user in approver_users(doc):
+		try:
+			frappe.get_doc({
+				"doctype": "Notification Log",
+				"for_user": user,
+				"type": "Alert",
+				"document_type": "FieldMate Order",
+				"document_name": doc.name,
+				"subject": frappe._("Order {0} needs your approval").format(doc.name),
+				"email_content": frappe._(
+					"{0} booked {1} for {2}. It was stopped by {3} and is waiting on you."
+				).format(doc.field_user, frappe.format_value(doc.grand_total, {"fieldtype": "Currency"}),
+				         doc.outlet or doc.customer, doc.approval_rule),
+			}).insert(ignore_permissions=True)
+			told += 1
+		except Exception:
+			# One bad recipient must not swallow the rest, and must not take the hold with it.
+			frappe.log_error(title=f"fieldmate approval notify {user}")
+	return told
+
+
 def assert_may_approve(doc, approver: str) -> None:
 	"""Who may decide an order that breached: the rep's own manager, their depot, or an admin.
 
@@ -1074,6 +1183,17 @@ def assert_may_approve(doc, approver: str) -> None:
 	"""
 	roles = set(frappe.get_roles(approver))
 	if roles & set(APPROVER_ROLES):
+		return
+
+	# Whoever the rule that stopped this order names. Until this line the "Who Approves" section
+	# on the rule was decoration: it was validated on save and then read by nothing, so a rule
+	# saying large southern orders go to the RM neither reached the RM nor let them decide.
+	#
+	# An **additional** approver, never the only one. The field's own description argues the case
+	# - a named user is a single point of failure the day they take leave - and narrowing the
+	# chain would strand orders rather than route them. Naming somebody here grants them the
+	# decision and gets them told (`notify_approver`); it takes nothing from anybody.
+	if rule_names_approver(doc, approver, roles):
 		return
 
 	mine = field_user_service.for_user(approver)

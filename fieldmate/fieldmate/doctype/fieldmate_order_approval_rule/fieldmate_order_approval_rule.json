@@ -48,7 +48,7 @@
    "description": "Catch every order that took the distributor past their limit. The order is still booked at the counter and routed here afterwards - refusing it in front of the shopkeeper does not collect the outstanding, it just costs the sale."},
 
   {"fieldname": "section_approver", "fieldtype": "Section Break", "label": "Who Approves",
-   "description": "A role reaches whoever is covering today; a named user is a single point of failure the day they take leave. Prefer the role and name a user only where the decision genuinely belongs to one person."},
+   "description": "Whoever is named here may decide these orders and is told when one arrives. They are an addition, not a replacement: the rep's own manager, the distributor and an administrator can still decide, so an order never sits because the named approver is on leave. A role reaches whoever is covering today; a named user is a single point of failure the day they take leave. Prefer the role and name a user only where the decision genuinely belongs to one person."},
   {"fieldname": "approver_role", "fieldtype": "Link", "label": "Approver Role", "options": "Role", "in_list_view": 1},
   {"fieldname": "column_approver", "fieldtype": "Column Break"},
   {"fieldname": "approver_user", "fieldtype": "Link", "label": "Approver", "options": "User", "in_list_view": 1}

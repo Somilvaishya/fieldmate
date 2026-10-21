@@ -112,6 +112,7 @@ Only an approved payout can be marked paid. This one is {0}.,सिर्फ़ 
 Only one contact can be the primary.,सिर्फ़ एक संपर्क मुख्य हो सकता है।
 "Only {0}'s own manager, their distributor or an administrator can decide this order.","इस ऑर्डर का फ़ैसला सिर्फ़ {0} का अपना मैनेजर, उनका डिस्ट्रीब्यूटर या कोई प्रशासक कर सकता है।"
 "Order value threshold must be above zero, or the rule catches every order rather than the large ones.","ऑर्डर मूल्य की सीमा शून्य से ऊपर होनी चाहिए, वरना नियम बड़े ऑर्डर की जगह हर ऑर्डर पकड़ लेगा।"
+Order {0} needs your approval,ऑर्डर {0} को आपकी मंज़ूरी चाहिए
 Orders,ऑर्डर
 Outcome,नतीजा
 Outside the shop's range,दुकान की सीमा के बाहर
@@ -275,6 +276,8 @@ the customer,ग्राहक
 {0} already covers part of this period for {1}. Cancel it first.,{0} {1} के लिए इस अवधि का हिस्सा पहले से कवर करता है। पहले उसे रद्द करें।
 {0} already has a day open ({1}). Close it before starting another.,{0} का एक दिन पहले से खुला है ({1})। दूसरा शुरू करने से पहले उसे बंद करें।
 {0} already has a snapshot for {1} ({2}).,{0} के पास {1} का स्नैपशॉट पहले से है ({2})।
+{0} booked {1} for {2}. It was stopped by {3} and is waiting on you.,{0} ने {2} के लिए {1} का ऑर्डर लिया। उसे {3} ने रोका है और वो आप पर अटका है।
+"{0} cannot be the approver. Naming a role here lets its holders decide these orders, and a rep releasing another rep's breached order is what the credit hold exists to stop.","{0} मंज़ूरी देने वाला नहीं हो सकता। यहाँ कोई रोल लिखने का मतलब है उसके धारक ये ऑर्डर तय करेंगे, और एक रेप दूसरे रेप का सीमा-पार ऑर्डर छोड़ दे — क्रेडिट होल्ड इसी को रोकने के लिए है।"
 {0} closed for changes on {1}. Ask your manager if this has to be altered.,{0} {1} को बदलाव के लिए बंद हो गया। बदलना ज़रूरी हो तो अपने मैनेजर से कहें।
 "{0} covers {1}, which does not include this beat's territory ({2}).","{0} {1} को कवर करता है, जिसमें इस बीट का क्षेत्र ({2}) नहीं आता।"
 {0} has more than one season booking on {1}. Close one before taking orders.,{1} को {0} की एक से ज़्यादा सीज़न बुकिंग है। ऑर्डर लेने से पहले एक बंद करें।

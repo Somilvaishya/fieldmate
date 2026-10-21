@@ -447,12 +447,13 @@ def row_narrows_anything(row) -> bool:
 
 
 def scope_row_matches(row, outlet) -> bool:
-	"""Whether one scope row covers this shop, on every dimension it names."""
-	if not scope.territory_covers(row.territory, outlet.territory):
-		return False
-	if row.channel and row.channel != outlet.channel:
-		return False
-	if row.outlet_class and row.outlet_class != outlet.outlet_class:
+	"""Whether one scope row covers this shop, on every dimension it names.
+
+	The first three dimensions - territory, channel and class - are the three every scoped master
+	in the app shares, so they go through `services.scope` rather than being written out again
+	here. The three below are this row's own.
+	"""
+	if not scope.applies_to_outlet(row, outlet):
 		return False
 	if row.outlet and row.outlet != outlet.name:
 		return False

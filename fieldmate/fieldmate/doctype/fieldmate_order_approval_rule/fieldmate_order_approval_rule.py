@@ -2,6 +2,11 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import cint, flt
 
+# The one role on the matrix that books these orders rather than deciding them. Named here as a
+# constant because `setup/install.py` is where the matrix lives and a literal in two files is a
+# rename waiting to go wrong.
+ROLE_THAT_CANNOT_APPROVE = "FieldMate Field Rep"
+
 
 class FieldMateOrderApprovalRule(Document):
 	"""Which orders stop for somebody to look at, and who that somebody is.
@@ -16,6 +21,7 @@ class FieldMateOrderApprovalRule(Document):
 		self.assert_has_a_trigger()
 		self.assert_thresholds_are_meaningful()
 		self.assert_has_an_approver()
+		self.assert_the_approver_is_not_a_rep()
 
 	def assert_has_a_trigger(self):
 		"""A rule with no trigger matches every order in its scope.
@@ -56,6 +62,23 @@ class FieldMateOrderApprovalRule(Document):
 				frappe._("Discount ceiling must be above zero, or every order with any scheme "
 				         "on it needs approval.")
 			)
+
+	def assert_the_approver_is_not_a_rep(self):
+		"""A rep may not be named as the approver of other reps' orders.
+
+		Naming a role here grants its holders the decision, and the one thing the credit hold
+		exists to prevent is a rep releasing a breached order - `order.assert_may_approve` was
+		written precisely because any signed-in session used to get through. Field Rep is the one
+		role on the matrix with no Desk access, so somebody reaching for it in this field has
+		almost certainly picked the wrong row of a long list rather than meant it.
+		"""
+		if self.approver_role != ROLE_THAT_CANNOT_APPROVE:
+			return
+		frappe.throw(
+			frappe._("{0} cannot be the approver. Naming a role here lets its holders decide "
+			         "these orders, and a rep releasing another rep's breached order is what "
+			         "the credit hold exists to stop.").format(ROLE_THAT_CANNOT_APPROVE)
+		)
 
 	def assert_has_an_approver(self):
 		# An order routed to nobody is an order that never gets delivered, and the rep finds out

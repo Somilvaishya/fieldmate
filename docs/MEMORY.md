@@ -495,17 +495,97 @@ figure is the fallback and its default of 25 is gone), #4 (Activity), #11
 #1 (autofill from the master doctypes, below), #12 (dynamic UOM, below),
 #10 (`geo_accuracy_m`, below), #16 (the day merged into one document, below).
 
+**Done:** #13 Hindi/English - all 30 screens and the server, `translations/hi.csv` plus 1200-odd
+keys in `locales/hi.js`, guarded by seven checks in `frontend/tests/i18n.test.js` ·
+#18 optimise and remove redundant code - the code half (order pricing 16 lookups down to 6 on an
+eight-line order; the season cockpit four passes per page load down to one), and the "unnecessary
+doctypes" half went with #16 · #9 approval rules and #17 schemes, both below.
+
 **Answered, no work needed:** #6 (Flag Mock Location - it already does what it says).
 
-**In progress:** #13 Hindi/English - 9 of 30 screens and the switch itself; the server needs no
-code change, only a `translations/hi.csv`, because the 295 translatable calls are already there ·
-#18 optimise and remove redundant code - the code half is done (order pricing 16 lookups down to
-6 on an eight-line order; the season cockpit four passes per page load down to one), and the
-"unnecessary doctypes" half went with #16.
+## #9 - the approval rule had three fields that did nothing
 
-**Outstanding:** #9 approval-rule simplification (high risk - it governs money and permissions) ·
-#17 scheme simplification (high risk - the JS and Python evaluators have to agree statement for
-statement).
+Asked for as a simplification, and most of the fix is deletion - but what the reading found first
+was that **three of the rule's fourteen fields were decoration**. Each was validated on save and
+then read by nothing, which is the worst shape a control can have: it reads as configured in Desk
+and enforces nothing in the field.
+
+**The discount ceiling never fired.** `pick_approval_rule` did not fetch `check_discount_percent`
+or `max_discount_percent` at all, so a rule whose only trigger was the ceiling passed
+`assert_has_a_trigger` and then matched nothing, ever. No error anywhere said so. The field exists
+because schemes stack and two legitimate offers on one cart can land well past what anybody
+intended to give away - exactly the orders that were going through unread.
+
+**The named approver was never consulted.** `assert_may_approve` walks a hardcoded chain: the
+admin roles, then the rep's own managers, then the distributor. `approver_role` and `approver_user`
+reached nothing, so a rule saying large southern orders go to the RM neither reached the RM nor
+let them decide.
+
+**Territory was matched by name equality**, although the field's own description has always said
+"matched against the whole branch beneath it, never by name equality". A rule on North missed every
+shop in North / Delhi. And the right implementation was already in the app: `services/scope.py`
+exists, in its own words, "because getting it subtly wrong in four places is how a rep ends up
+answering the wrong survey at the right shop". The approval rule was the fifth place, and the one
+that had it wrong.
+
+**And the picker ran twice per order.** `_over_value(doc)` was `bool(pick_approval_rule(doc))`, and
+the line above it then picked the rule again. Checked branch by branch before collapsing it: the
+credit trigger can only fire when `credit_status == "Breach"`, which only happens when `breached`,
+and a value threshold has to be above zero to match - so neither guard could catch an order the
+plain call misses. One line now.
+
+**Why there was no test.** Fifty-two order tests, and not one of them ever created a rule. With no
+rules on the site the picker correctly returns None, and a trigger it does not read looks exactly
+like a trigger that works. `tests/test_approval_rules.py` is new, and the first thing it does is
+configure a rule.
+
+**The decision the user made**, because it governs who can release money: a named approver is an
+**additional** person who may decide and who gets told, never the only one. Nobody loses an ability
+they have today and no order can sit because the named approver is on leave - the field's own
+description makes that argument against a single point of failure. They are told through a
+Notification Log, the way `alerts._notify` and the cockpit already do it.
+
+One guard added on the way: **a Field Rep may not be named as the approver.** Naming a role grants
+its holders the decision, and a rep releasing another rep's breached order is the whole of what the
+credit hold is for. Field Rep is also the one role on the matrix with no Desk access, so somebody
+reaching for it in that field has almost certainly picked the wrong row of a long list.
+
+## #17 - the scheme duplication is the design, and the gate was half-run
+
+The answer here came out the other way round, and it is worth writing down so nobody reopens it.
+
+**The two engines are a deliberate mirror** - `s1`..`s10` and the same helper names in
+`services/scheme_engine.py` and `frontend/src/scheme/engine.js` - because the rep's phone prices a
+cart with no signal and the server has to reach the same answer to the paisa. Measured before
+touching anything: all three pairings agree on every case, **canonical bytes identical**, and 105
+schemes re-price a 40-line cart in about a millisecond. There is no performance problem and no
+correctness problem the corpus can see.
+
+**ERPNext cannot take this over.** Promotional Scheme and Pricing Rule do slabs, free goods and
+discounts, and they cannot run on a handset with no signal. The whole point is that the number the
+rep says across the counter is the number on the invoice that evening.
+
+**What was actually wrong: `scripts/parity.sh` was in no CI job.** It diffs three pairings and only
+two were ever checked by a machine - `bench run-tests` runs the Python half, and CI never touched
+`src/scheme/engine.js` at all. So the 691 lines that decide which offer a rep reads out across a
+counter were covered by nothing that runs unprompted. `frontend/tests/scheme-parity.test.js` is the
+missing third, deliberately a mirror of the Python test rather than a fresh idea about how to check
+the same thing; `parity.sh` itself is now a CI step as well, because a gate script nothing runs is
+a gate nobody has. Proved by mutation: one character changed in `s5_pick_slab` turns 13 cases red
+and each failure line names the clause it defends.
+
+**Then: what do the hundred cases actually cover?** Measured with stdlib `trace`, so it needed
+nothing installed. Six real statements in the engine were never reached, and every one of them was
+a place where the two engines could drift apart in silence - a cart line with no item, a duplicated
+SKU whose lower `idx` arrives second, a qty that is not a number, a spec with no `scheme_name`
+(a *shape* divergence, the only kind the money columns cannot catch), and the slab tiebreak on a
+shared floor. Five cases now cover them, each expectation derived from `SCHEME_SPEC.md` and written
+down before either engine was asked. **All five agreed on the first run** - these branches were
+right, they were simply unguarded. One statement remains unreached and should stay that way:
+`compare_text`'s equal-strings return, which needs two schemes sharing an id.
+
+The order matters and is the point: coverage first, then simplify. A line the corpus never enters
+is a line where "simplifying" is a guess.
 
 ## The warehouse a primary sale ships from
 
@@ -728,6 +808,42 @@ All on testerp2, all found by the user rather than by a test:
   header, and this site has no GSTIN on the company so india_compliance selects none. Found by
   the Phase 2 gate, which reports it as criterion 5 every run. Three ways out are listed under
   step 10; the choice is the business's and nothing has been changed for it yet.
+
+- **68 of the suite's 76 red lines were one row of site data.** Every one of them raised
+  `Exchange Rate is mandatory. Maybe Currency Exchange record is not created for USD to INR`,
+  across seven modules - `test_allocation`, `test_cockpit`, `test_dispatch`, `test_order`,
+  `test_phone_season`, `test_season`, `test_tax`. On `fieldmate-test.local`,
+  **`Global Defaults.default_currency` was USD** while the default company
+  `_Test Indian Registered Company` is INR, and the site has no USD-to-INR `Currency Exchange`
+  record. Every Price List a fixture creates inherits that global default, so every order that got
+  as far as a Sales Order died in ERPNext's `validate_conversion_rate`.
+
+  **The first fix was the wrong one and is worth recording as such.** `Standard Selling` also
+  carried USD and `Selling Settings` names it, so it looked like the cause; setting just that list
+  to INR changed nothing, because the global default kept minting USD lists - 30 USD selling lists
+  against 1 INR. The lesson is the ordinary one: a wrong value that is downstream of another wrong
+  value looks exactly like a root cause. Both are INR now, set 17 Oct 2026.
+
+  Safe because `Standard Selling` held **zero** `Item Price` rows, checked rather than assumed:
+  changing the currency of a list that did hold prices would silently reinterpret every one of
+  them.
+
+  Confirmed cheaply before re-running everything: `run-tests --app fieldmate --module
+  fieldmate.tests.test_allocation` went from 8 errors to **22 tests OK** in 101 seconds. Passing
+  `--app` *and* `--module` together works - it is `--module` alone that skips ERPNext's
+  `before_tests` and errors wholesale.
+
+  Two things worth keeping from it. **It is site data, not code** - CI builds a fresh site every
+  run, which is exactly why CI stayed green while this site could not verify primary sale, season
+  or dispatch at all. And **a count of red lines is not a count of problems**: 76 lines were seven
+  causes, and six broken fixtures error every test in their class. Group by exception before
+  suspecting any code.
+
+  This does **not** explain the anomaly below. That one discovered a *smaller set of tests*, which
+  is a collection problem; this is a fixture dying inside tests that were found and run normally.
+
+  Also found on the way: **30 leaked `SEASON-PL-%` price lists** from fixtures that never cleaned
+  up. Left alone - each would need its links checked before deletion.
 
 - **The suite failed once in a way nobody has explained.** One run reported 521 tests and 102
   errors, every one of them `setUpClass` in `test_visit`, with `skipped=2` where every other run

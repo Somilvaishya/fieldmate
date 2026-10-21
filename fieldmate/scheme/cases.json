@@ -4197,5 +4197,199 @@
       ],
       "errors": []
     }
+  },
+  {
+    "id": "degenerate-duplicate-lines-the-lower-idx-arrives-second",
+    "why": "The twin of degenerate-duplicate-lines-with-different-rates with the array order reversed and each idx left on its own row. S1 revision 2 fixes the merged rate as the one on the lowest original idx, so the answer has to be the same 244000 gross and 12200 off whichever way round the rows arrive. The existing case only ever ran the branch where the lowest idx also sits first in the array, and the half it skipped is exactly the thing two phones can disagree about.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 2, "item": "SE-1000", "qty": 10, "rate_paise": 12000},
+        {"idx": 1, "item": "SE-1000", "qty": 10, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 20, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 244000,
+      "discount_paise": 12200,
+      "net_paise": 231800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "slab_idx": 1, "measure": 20,
+         "benefit_paise": 12200, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 12200, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-a-line-with-no-item-is-dropped",
+    "why": "S1 drops a line carrying no item rather than pricing it or failing on it. The second row here would be worth 99998001 paise if it were ever kept, so should this branch change the number it reports will be a very loud one. 20 units at 12200 = 244000 gross, five per cent = 244000 x 500 / 10000 = 12200.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 20, "rate_paise": 12200},
+        {"idx": 2, "item": null, "qty": 999, "rate_paise": 99999}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 20, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 244000,
+      "discount_paise": 12200,
+      "net_paise": 231800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "slab_idx": 1, "measure": 20,
+         "benefit_paise": 12200, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 12200, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-a-qty-that-is-not-a-number-counts-as-zero",
+    "why": "A cart that came off the wire with a qty that is not a number must not crash one engine while the other prices it happily: a rep seeing a crash on an order the server took is worse than a scheme quietly not firing. Both sides answer zero for it, by different routes - Python's int() raises and is caught, JavaScript's Number() gives NaN and is replaced - so the merged qty is 0 + 20 = 20, the rate is the one on idx 1, and the order prices at 244000 gross with 12200 off.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": "twenty", "rate_paise": 12200},
+        {"idx": 2, "item": "SE-1000", "qty": 20, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 20, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 244000,
+      "discount_paise": 12200,
+      "net_paise": 231800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "slab_idx": 1, "measure": 20,
+         "benefit_paise": 12200, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 12200, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "degenerate-a-scheme-with-no-name-keeps-the-key-as-null",
+    "why": "A shape case rather than an arithmetic one, and the only kind the money columns cannot catch. A spec carrying no scheme_name at all must still produce a result that has the key, holding null, because JavaScript reads the missing field as undefined and JSON.stringify drops an undefined value out of the object entirely where Python writes null and keeps it. Two results differing only in whether a key is present are two different answers, and this is the branch that decides which. The money is the ordinary 244000 gross and 12200 off.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 20, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00403", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 20, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 244000,
+      "discount_paise": 12200,
+      "net_paise": 231800,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00403", "scheme_name": null, "slab_idx": 1, "measure": 20,
+         "benefit_paise": 12200, "budget_warning": false,
+         "benefits": [
+           {"kind": "Percent Discount", "per": "Slab", "multiplier": 1, "amount_paise": 12200, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
+  },
+  {
+    "id": "slabs-sharing-a-floor-break-the-tie-on-declared-index",
+    "why": "Slabs are validated non-overlapping at save time, so two slabs on one floor should never reach an engine - but both engines carry a tiebreak for it anyway, and an untested tiebreak is where two engines drift apart in silence. S5 keeps the slab that sorts last and compare_slabs breaks an equal floor on the declared index, so slab 2 wins and the benefit is the flat 50000 rather than the 12200 that five per cent of 244000 would have been. Neither slab sits above the measure of 20, so S10 has no nudge to give.",
+    "cart": {
+      "outlet": "FM-OUT-00042",
+      "lines": [
+        {"idx": 1, "item": "SE-1000", "qty": 20, "rate_paise": 12200}
+      ]
+    },
+    "specs": [
+      {
+        "scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "priority": 10,
+        "stacking": "Stackable", "stack_group": null, "basis": "Qty", "measured_over": "Item Set",
+        "qualifying_items": ["SE-1000"],
+        "slabs": [
+          {"idx": 1, "from": 20, "to": null, "benefits": [{"kind": "Percent Discount", "pct_bp": 500, "per": "Slab"}]},
+          {"idx": 2, "from": 20, "to": null, "benefits": [{"kind": "Value Discount", "amount_paise": 50000, "per": "Slab"}]}
+        ],
+        "budget_paise": null, "consumed_paise": 0, "on_exhaust": "Block"
+      }
+    ],
+    "expect": {
+      "cart_gross_paise": 244000,
+      "discount_paise": 50000,
+      "net_paise": 194000,
+      "incentive_paise": 0,
+      "applied": [
+        {"scheme": "FM-SCH-00403", "scheme_name": "Surf Excel Small Slab", "slab_idx": 2, "measure": 20,
+         "benefit_paise": 50000, "budget_warning": false,
+         "benefits": [
+           {"kind": "Value Discount", "per": "Slab", "multiplier": 1, "amount_paise": 50000, "item": null, "qty": 0}
+         ]}
+      ],
+      "free_goods": [],
+      "near_misses": [],
+      "dropped": [],
+      "errors": []
+    }
   }
 ]
