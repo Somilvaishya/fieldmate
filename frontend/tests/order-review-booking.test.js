@@ -100,6 +100,10 @@ vi.mock('../src/stores/order', () => ({
 
 vi.mock('../src/stores/visit', () => ({
   activeVisit: ref(null),
+  // The order path asks for the open visit rather than reading the ref, so that a reload between
+  // check-in and the punch does not send the order with no visit on it. No visit here: these
+  // tests are about the cart's own identity.
+  ensureActive: async () => null,
   recordOrder: vi.fn(),
 }))
 

@@ -1239,7 +1239,9 @@ export async function submit(options = {}) {
 
   // The visit this order came out of. Its server name once it has one, its client id while it has
   // not - `sync._apply` resolves the second through `depends_on` when the batch lands.
-  const openVisit = visitStore.activeVisit.value
+  // Asked for, not read off the ref: see `visitStore.ensureActive`. A reload between check-in
+  // and the punch used to send the order with no visit on it, so it counted towards no call.
+  const openVisit = await visitStore.ensureActive()
   const visitRef = options.visit || openVisit?.serverName || openVisit?.clientUuid || null
   const dependsOn = openVisit && !openVisit.serverName ? openVisit.clientUuid : null
 

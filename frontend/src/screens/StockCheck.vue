@@ -94,7 +94,7 @@ async function save() {
   error.value = ''
   busy.value = true
   try {
-    const open = visitStore.activeVisit.value
+    const open = await visitStore.ensureActive()
     const result = await api.stockSave({
       outlet: sheet.value.outlet,
       visit: open?.serverName || open?.clientUuid || null,
@@ -109,6 +109,9 @@ async function save() {
       })),
     })
     saved.value = result
+    // Tell the visit, or the rep walks back into the hub and reads "None yet" over the count they
+    // just took. Only the server knew about it before this line.
+    await visitStore.markTask('Stock Audit')
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : t('Could not save the count.')
   } finally {
@@ -117,7 +120,7 @@ async function save() {
 }
 
 function done() {
-  const open = visitStore.activeVisit.value
+  const open = visitStore.activeVisit.value  // warm by now: save() asked for it
   router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : '/today')
 }
 </script>
