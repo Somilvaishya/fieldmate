@@ -974,30 +974,35 @@ h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
 .warnword { color: var(--warn); font-weight: 600; }
 
 /* A row, not a card stack. One border, no shadow - DESIGN.md spends border and fill by role. */
+/* One SKU, as dense as it can be and still be read at arm's length in a market.
+   Everything on this card used to be 16px - the name, the code, the per-kg rate, the MRP -
+   so nothing receded and every row stood five lines tall. The scale below is the hierarchy:
+   the pack name and the price lead, and the figures a rep checks second are 13px. */
 .sku { background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-       padding: 12px; display: grid; gap: 10px; }
+       padding: 10px; display: grid; gap: 8px; }
 .sku.inorder { border-color: var(--primary); }
-.skuhead { display: flex; gap: 12px; align-items: flex-start; }
-.thumb { width: 56px; height: 56px; flex: none; border-radius: 6px; background: var(--primary-soft);
+.skuhead { display: flex; gap: 10px; align-items: flex-start; }
+.thumb { width: 46px; height: 46px; flex: none; border-radius: 6px; background: var(--primary-soft);
          color: var(--primary); display: grid; place-items: center; font-weight: 700;
-         font-size: 18px; overflow: hidden; }
+         font-size: 16px; overflow: hidden; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
 .idn { min-width: 0; flex: 1; }
-.name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
-.meta { margin: 2px 0 0; color: var(--muted); font-size: 16px; overflow-wrap: anywhere; }
-.price { margin: 4px 0 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-.price b { font-size: 18px; }
-.per { color: var(--muted); font-size: 16px; }
+.name { font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.meta { margin: 1px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.price { margin: 3px 0 0; display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.price b { font-size: 17px; }
+.per { color: var(--muted); font-size: 12px; }
 .margin { color: var(--ok); font-weight: 600; }
-.noprice { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--warn);
-           font-size: 16px; font-weight: 600; }
+.noprice { display: flex; align-items: center; gap: 5px; margin: 4px 0 0; color: var(--warn);
+           font-size: 13px; font-weight: 600; }
 
-.marks { display: flex; flex-wrap: wrap; gap: 8px; }
+.marks { display: flex; flex-wrap: wrap; gap: 6px; }
+.marks .tag { font-size: 12px; padding: 2px 7px; }
 .marks:empty { display: none; }
-.stock { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ok);
-         font-size: 16px; }
+.stock { display: flex; align-items: center; gap: 5px; margin: 0; color: var(--ok);
+         font-size: 13px; }
 
-.blocked { font-size: 16px; color: var(--muted); }
+.blocked { font-size: 13px; color: var(--muted); }
 
 .quick { display: flex; gap: 8px; }
 .add { flex: 1; min-height: 48px; display: inline-flex; align-items: center;
@@ -1014,13 +1019,13 @@ h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
 /* A real numeric field, so the device's own keypad opens. DESIGN.md UX requirement 7. */
 .qty { width: 72px; min-height: 48px; text-align: center; font-size: 18px; font-weight: 600;
        padding: 0 4px; }
-.qtyuom { font-size: 16px; color: var(--muted); }
+.qtyuom { font-size: 12px; color: var(--muted); }
 .lineside { margin-left: auto; display: grid; justify-items: end; }
-.units { font-size: 16px; color: var(--muted); }
+.units { font-size: 12px; color: var(--muted); }
 .linetotal { font-size: 18px; }
 
-.fired { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 10px;
-         border-radius: 6px; background: var(--ok-soft); color: var(--ok); font-size: 16px; }
+.fired { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 7px 9px;
+         border-radius: 6px; background: var(--ok-soft); color: var(--ok); font-size: 13px; }
 .fired.warnline { background: var(--warn-soft); color: var(--warn); }
 
 .more { width: 100%; min-height: 48px; border: 1px solid var(--primary); color: var(--primary);

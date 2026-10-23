@@ -68,10 +68,10 @@
             <th style="width:32px"></th>
             <th>Order</th>
             <th>Shop</th>
-            <th>Rep</th>
-            <th class="num">Lines</th>
+            <th class="tuck">Rep</th>
+            <th class="num tuck">Lines</th>
             <th class="num">Value</th>
-            <th>Credit</th>
+            <th class="tuck">Credit</th>
             <th>Status</th>
             <th>Action</th>
           </tr>
@@ -208,13 +208,13 @@
           '<div class="dim">' + esc(FM.clock(o.sent_to_distributor_on) || FM.day(o.order_date)) + '</div></td>' +
         '<td><div class="strong">' + esc(o.outlet_name) + '</div>' +
           '<div class="dim">' + esc(o.outlet_territory || o.outlet) + '</div></td>' +
-        '<td>' + esc(o.rep_name) + '</td>' +
-        '<td class="num tnum">' + FM.count(o.total_lines) +
+        '<td class="tuck">' + esc(o.rep_name) + '</td>' +
+        '<td class="num tnum tuck">' + FM.count(o.total_lines) +
           '<div class="dim">' + FM.count(o.total_qty) + ' units</div></td>' +
         '<td class="num tnum strong">' + money(o.net_total) +
           (Number(o.discount_total) ? '<div class="dim">less ' + money(o.discount_total) + '</div>' : '') +
         '</td>' +
-        '<td>' + credit(o) + '</td>' +
+        '<td class="tuck">' + credit(o) + '</td>' +
         '<td>' + pill(o.order_status) +
           (o.distributor_reference ? '<div class="dim mono">' + esc(o.distributor_reference) + '</div>' : '') +
         '</td>' +

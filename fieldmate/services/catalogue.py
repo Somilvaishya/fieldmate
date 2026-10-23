@@ -157,6 +157,14 @@ def item_payload(item_code: str, row, catalogue: str, detail: dict, must_sell,
 		"item_name": detail["item_name"] or row.item_name,
 		"item_group": detail["item_group"],
 		"brand": detail["brand"],
+		# The pack shot, as the path ERPNext stores - the phone is served from the same origin,
+		# so a relative `/files/...` resolves without this having to know the site's host. None
+		# where the item carries no image, which is most items on most sites: the screen draws
+		# the item's initials instead rather than a broken frame.
+		#
+		# Not precached. A pack shot is worth a round trip when there is a signal and worth
+		# nothing in a basement, so offline the initials stand in.
+		"image": detail.get("image") or None,
 
 		"stock_uom": detail["stock_uom"],
 		"sales_uom": detail["sales_uom"],

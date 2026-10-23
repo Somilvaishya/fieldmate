@@ -225,3 +225,57 @@ label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px
   .rail .eyebrow, .rail .foot { display: none; }
   main { padding: 16px; }
 }
+
+/* ---------------------------------------------------------------- on a phone
+
+   Until this block the portal had one breakpoint, at 900px, which moved the rail above the
+   content and stopped. A depot opening this on a handset got a desktop page scaled down: a
+   fixed header with the depot's name and the signed-in user fighting over 360px, a ten-column
+   queue that had to be dragged sideways to reach the Action button, and a rail that wrapped
+   into four rows of links before the first order.
+
+   What a depot does on a phone is read the queue and move an order along, so that is what
+   survives at this width. Rep, line count and credit are tucked away - they are on the row's
+   own drawer, one tap down, and none of them is what the depot came to do. */
+@media (max-width: 600px) {
+  .tuck { display: none !important; }
+
+  /* The header keeps the depot's name and drops the second line of each side. Which depot and
+     which account are the two facts worth 60px; the designation is not. */
+  .head { padding: 0 14px; gap: 10px; }
+  .head .sub, .head .who span { display: none; }
+  .head .title { font-size: 15px; }
+  .head .who { font-size: 13px; }
+
+  /* One scrolling row of links rather than a wrapped block. The whole nav stays one thumb-flick
+     wide and the content starts on the first screen. */
+  .rail { gap: 6px; overflow-x: auto; flex-wrap: nowrap; padding: calc(var(--head) + 8px) 12px 8px;
+          scrollbar-width: none; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail a { flex: 0 0 auto; white-space: nowrap; padding: 8px 12px; }
+
+  main { padding: 14px 14px 40px; }
+  .page-head { gap: 8px; }
+  .page-head h1 { font-size: 20px; }
+
+  .tiles { gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .tile { padding: 10px 12px; }
+  .tile .count { font-size: 20px; }
+
+  thead th { padding: 8px 10px; }
+  tbody td { padding: 9px 10px; }
+
+  /* The drawer is where the tucked facts went, so it gets the room instead. */
+  .drawer .inner { padding: 12px 14px; gap: 12px; }
+  .drawer .meta { gap: 6px 14px; }
+
+  /* A fixed first column at 200px leaves nothing for the value beside it. */
+  .pad { padding: 12px; }
+  .pad table td:first-child { width: auto; }
+  .pad .row label { flex: 1 1 100%; }
+  .pad input[type="date"], .pad input[type="file"] { max-width: 100%; }
+
+  .foot { flex-direction: column; gap: 4px; }
+  .tabs { gap: 2px; }
+  .tabs button { padding: 8px 10px; }
+}

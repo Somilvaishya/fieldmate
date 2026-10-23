@@ -8,7 +8,6 @@ import { pendingPings, configure as configurePinger, resumeIfDayOpen } from '../
 import * as dayStore from '../stores/day'
 import * as visitStore from '../stores/visit'
 import * as photoQueue from '../sync/photos'
-import { localOutlets } from '../stores/outlets'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
@@ -72,12 +71,6 @@ const plannedHours = computed(() => {
   return h ? `${h}h ${mins % 60}m` : `${mins}m`
 })
 
-// Counted from the mirror so the tile has a number with or without a signal. The shops
-// themselves live on the Shops tab - listing them here as well gave the home screen a
-// second, shorter copy of that tab, and left a rep guessing which was the real list.
-const localShops = ref([])
-const totalShops = computed(() => (planned.value?.beat ? shops.value : localShops.value).length)
-
 const onOnline = () => (online.value = true)
 const onOffline = () => (online.value = false)
 
@@ -120,12 +113,10 @@ const tiles = computed(() => {
     out.push({ to: '/cockpit', icon: 'list', title: t('Today so far'),
                note: t('Calls, orders and cash') })
   }
-  out.push({
-    to: '/outlets', icon: 'store', title: t('Shops'),
-    note: totalShops.value
-      ? t('{n} in your area', { n: totalShops.value })
-      : t('Sync to bring yours down'),
-  })
+  // No Shops tile. The shops live on the Shops tab in the bar at the bottom, and a second way
+  // in from here gave the home screen a shorter copy of that tab - a rep had to work out which
+  // list was the real one. Today's route is listed below once the day is running, which is the
+  // only shop list this screen owes anybody.
   // The Beats screen was built in Phase 3 and nothing ever linked to it - it was reachable
   // only by typing the URL. A rep asking "when do I next walk this route" had nowhere to look.
   out.push({ to: '/beats', icon: 'directions', title: t('My routes'),
@@ -196,8 +187,6 @@ async function load() {
     if (!beat.value) beat.value = await getMeta('todayBeat')
   }
   await visitStore.resume()
-  // Read from the mirror, so the count is there with or without a signal.
-  localShops.value = await localOutlets()
   // A planned route the day has not started yet still has shops worth counting.
   if (!openDay.value && planned.value?.beat && !beat.value) {
     beat.value = (await getMeta('todayBeat')) || null
