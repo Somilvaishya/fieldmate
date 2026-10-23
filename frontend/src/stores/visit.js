@@ -285,6 +285,45 @@ export async function saveProgress() {
   }
 }
 
+/** The open visit, read back off the handset if this page has not seen it yet.
+ *
+ * `activeVisit` is a module ref, so it lives exactly as long as the page does - and the installed
+ * app launched from its home-screen icon is a **fresh page**, as is a service-worker update or
+ * Android reclaiming the tab. The visit screens all call `resume()` on mount for that reason. The
+ * order and stock screens did not, and read the empty ref instead: a rep who checked in, left the
+ * app on the catalogue and came back to punch the order sent it with no visit on it at all, and
+ * then found the hub still saying "None yet" over the order they had just taken.
+ *
+ * So anything that acts on behalf of the open visit asks for it through here rather than reading
+ * the ref. Cheap in the ordinary case - the ref is already warm and nothing is read.
+ */
+export async function ensureActive() {
+  if (activeVisit.value) return activeVisit.value
+  return resume()
+}
+
+/** Flip one of the visit's own task rows to Done, and persist it.
+ *
+ * The server creates four rows at check-in - Merchandising, Stock Audit, Collection, Order - and
+ * the hub reads them to say what is still to do in this shop. A screen that saves its work has to
+ * say so here, or the rep comes back to a row that still reads "None yet" over work they just did.
+ * The stock count was doing exactly that: it saved to the server and told the visit nothing.
+ *
+ * Silent where the row is absent, on purpose. A visit created offline has no tasks at all until
+ * the server answers, and the count is the work while the row is only the bookkeeping - taking the
+ * save down over a missing row would lose the rep's count to protect a checkbox.
+ */
+export async function markTask(taskType, status = 'Done') {
+  const visit = await ensureActive()
+  if (!visit) return null
+  const row = (visit.tasks || []).find((t) => t.task_type === taskType)
+  if (!row) return null
+  if (row.status === status) return row
+  row.status = status
+  await saveProgress()
+  return row
+}
+
 /** Record that an order came out of this visit.
  *
  * The cart is emptied the moment it is submitted, so without this the visit hub would go back to
@@ -293,9 +332,14 @@ export async function saveProgress() {
  * because the order may still be sitting in the outbox with no server name at all.
  */
 export async function recordOrder({ clientUuid, name = null, net = 0, offline = false }) {
-  const visit = activeVisit.value
+  const visit = await ensureActive()
   if (!visit) return
   visit.order = { clientUuid, name, net, offline, at: new Date().toISOString() }
+  // The visit's own Order row, which nothing used to flip. The hub card reads `visit.order` and
+  // was right; this row is what the check-out screen and the server's record of the visit read,
+  // so a visit the rep took an order in was closing with "Take the order" still Pending.
+  const row = (visit.tasks || []).find((t) => t.task_type === 'Order')
+  if (row) row.status = 'Done'
   await saveProgress()
   return visit.order
 }

@@ -488,6 +488,10 @@ function setOffline() {
 
 onMounted(async () => {
   if (!outlet.value) return router.replace('/today')
+  // The open visit, read back off the handset if this page is a fresh load - which the installed
+  // app launched from its icon is. Without it the punch went up with no visit on it and the way
+  // out of this screen read "Back to today" to a rep who was standing in a shop.
+  await visitStore.ensureActive()
   window.addEventListener('online', setOnline)
   window.addEventListener('offline', setOffline)
 

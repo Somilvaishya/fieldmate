@@ -448,8 +448,11 @@ def get_item_details(
 		return []
 
 	mrp_field = _item_mrp_field()
+	# `image` is the pack shot. A rep hands the phone across a counter and the shopkeeper
+	# recognises the pack long before they recognise a code, so the catalogue shows it where the
+	# item has one and falls back to the initials where it does not.
 	fields = ["name as item_code", "item_name", "stock_uom", "sales_uom", "item_group",
-	          "brand", "is_stock_item", "disabled"]
+	          "brand", "is_stock_item", "disabled", "image"]
 	if mrp_field:
 		fields.append(f"{mrp_field} as mrp")
 

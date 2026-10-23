@@ -117,9 +117,7 @@ async function save() {
         })),
     }, { dependsOn: visit.value.clientUuid })
 
-    const row = visit.value.tasks.find((t) => t.task_type === 'Merchandising')
-    if (row) row.status = 'Done'
-    await visitStore.saveProgress()
+    await visitStore.markTask('Merchandising')
     router.back()
   } finally {
     busy.value = false

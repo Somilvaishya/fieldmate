@@ -40,7 +40,7 @@ def whoami():
 	# party and no single integer states one.
 	party = frappe.db.get_value(
 		"Customer", row.distributor,
-		["customer_name", "territory", "fm_distributor_code", "fm_delivery_days"],
+		["customer_name", "territory", "fm_delivery_days"],
 		as_dict=True) or {}
 	return ok({
 		"user": row.user,
@@ -53,7 +53,12 @@ def whoami():
 		# Kept under the names the portal pages already read, so that retiring the profile is not
 		# also a rename of everything on the screen.
 		"customer": row.distributor,
-		"distributor_code": party.get("fm_distributor_code"),
+		# The Customer's own id is the code. There was a `fm_distributor_code` field on Customer
+		# for this, filled in by hand and unique, and it answered a question the primary key had
+		# already answered - two names for one party is a reconciliation somebody does at month
+		# end. Nothing on the portal ever rendered this key, so the field it used to read is now
+		# unused; see the note in `setup/install.py` before removing it from a live site.
+		"distributor_code": row.distributor,
 		"territory": party.get("territory"),
 		"credit_days": party_service.credit_days(row.distributor),
 		"delivery_days": party.get("fm_delivery_days"),

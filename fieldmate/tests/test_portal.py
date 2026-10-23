@@ -101,13 +101,22 @@ class TestWhatADepotIsToldAboutItself(PortalFixture):
 
 	def test_the_counter_facts_come_off_the_customer(self):
 		frappe.db.set_value("Customer", self.distributor.name,
-		                    {"fm_distributor_code": "MLX-01", "fm_delivery_days": 3},
-		                    update_modified=False)
+		                    {"fm_delivery_days": 3}, update_modified=False)
 		frappe.clear_document_cache("Customer", self.distributor.name)
 
 		answer = self.as_depot(portal_api.whoami)["data"]
-		self.assertEqual(answer["distributor_code"], "MLX-01")
 		self.assertEqual(answer["delivery_days"], 3)
+
+	def test_the_code_a_depot_is_known_by_is_its_own_id(self):
+		"""Not a second code somebody types in beside it.
+
+		A hand-filled `fm_distributor_code` said what the primary key already said, and two names
+		for one party is a reconciliation somebody does by hand at month end. The portal never
+		rendered it either way.
+		"""
+		answer = self.as_depot(portal_api.whoami)["data"]
+		self.assertEqual(answer["distributor_code"], self.distributor.name)
+		self.assertEqual(answer["customer"], self.distributor.name)
 
 	def test_credit_days_are_derived_from_the_payment_terms(self):
 		"""There is no credit-days field on a Customer. The template is what bills this party,
