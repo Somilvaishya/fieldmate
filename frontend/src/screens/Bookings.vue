@@ -94,12 +94,20 @@ function pctPaid(b) {
   return Math.min(100, Math.round((Number(b.advance_in_hand || 0) / need) * 100))
 }
 
-async function load() {
+const PAGE = 50
+const bookingCount = ref(0)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+
+async function load({ more = false } = {}) {
   loading.value = true
   error.value = ''
   try {
-    const data = await api.orderBookings()
-    bookings.value = data.bookings || []
+    const data = await api.orderBookings(PAGE, { start: more ? bookings.value.length : 0 })
+    const rows = data.bookings || []
+    bookings.value = more ? [...bookings.value, ...rows] : rows
+    bookingCount.value = Number(data.total ?? bookings.value.length)
+    hasMore.value = !!data.has_more
   } catch (e) {
     error.value =
       e instanceof ApiError
@@ -107,6 +115,7 @@ async function load() {
         : t('Could not load the season book. These figures move on the office side, so this list needs signal.')
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
 }
 
@@ -224,6 +233,15 @@ onMounted(load)
           <span v-if="b.tops_up">{{ t('Adds to {name}', { name: b.tops_up }) }}</span>
         </div>
       </div>
+
+      <!-- A button rather than an infinite scroll: on a market uplink a scroll that fetches
+           silently is a scroll that silently fails. -->
+      <button v-if="hasMore && !loading" class="more" type="button"
+              :disabled="loadingMore" @click="load({ more: true })">
+        {{ loadingMore
+            ? t('Loading…')
+            : t('Show more ({n} left)', { n: bookingCount - bookings.length }) }}
+      </button>
     </template>
 
     <div v-else class="empty">
@@ -300,4 +318,7 @@ onMounted(load)
          margin-top: 6px; border-radius: 8px; border: 1px solid var(--line);
          color: var(--primary); text-decoration: none; font-weight: 600; }
 .tnum { font-variant-numeric: tabular-nums; }
+.more { width: 100%; min-height: 48px; border-radius: 8px; font-weight: 600; font-size: 15px;
+        border: 1px solid var(--primary); background: var(--surface); color: var(--primary); }
+.more:disabled { color: var(--muted); border-color: var(--line); }
 </style>

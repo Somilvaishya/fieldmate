@@ -40,6 +40,33 @@ function day(value) {
   return `${d} ${month ? t(month) : ''}`.trim()
 }
 
+const PAGE = 50
+const receiptCount = ref(0)
+const hasMoreReceipts = ref(false)
+const loadingMore = ref(false)
+
+/** The next page of receipts.
+ *
+ * A button rather than an infinite scroll, for the reason the order list gives: on a market
+ * uplink a scroll that fetches silently is a scroll that silently fails.
+ */
+async function moreReceipts() {
+  loadingMore.value = true
+  try {
+    const data = await api.collectionsMine(undefined,
+      { limit: PAGE, start: collections.value.length })
+    collections.value = [...collections.value, ...(data.collections || [])]
+    receiptCount.value = Number(data.total ?? collections.value.length)
+    hasMoreReceipts.value = !!data.has_more
+  } catch (e) {
+    listError.value = e instanceof ApiError
+      ? e.message
+      : t('Could not load more receipts.')
+  } finally {
+    loadingMore.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -48,8 +75,10 @@ async function load() {
     // Cash in hand is the figure the rep is answerable for, so it is the one that must load.
     inHand.value = await api.cashInHand()
     try {
-      const data = await api.collectionsMine()
-      collections.value = data.collections || data || []
+      const data = await api.collectionsMine(undefined, { limit: PAGE, start: 0 })
+      collections.value = data.collections || []
+      receiptCount.value = Number(data.total ?? collections.value.length)
+      hasMoreReceipts.value = !!data.has_more
     } catch (e) {
       // Not swallowed. This used to fall through to an empty list, so a broken call and a rep
       // who has genuinely collected nothing looked exactly alike - and the wrong one of those
@@ -405,6 +434,13 @@ onMounted(async () => {
             <span class="pill" :class="TONE[c.status] || 'flat'">{{ t(c.status) }}</span>
           </div>
         </div>
+
+        <button v-if="hasMoreReceipts" class="more" type="button"
+                :disabled="loadingMore" @click="moreReceipts">
+          {{ loadingMore
+              ? t('Loading…')
+              : t('Show more ({n} left)', { n: receiptCount - collections.length }) }}
+        </button>
       </template>
 
       <p v-else-if="listError" class="note crit">{{ listError }}</p>
@@ -483,4 +519,7 @@ onMounted(async () => {
 .empty b { color: var(--ink); }
 .empty p { margin: 0; }
 .tnum { font-variant-numeric: tabular-nums; }
+.more { width: 100%; min-height: 48px; border-radius: 8px; font-weight: 600; font-size: 15px;
+        border: 1px solid var(--primary); background: var(--surface); color: var(--primary); }
+.more:disabled { color: var(--muted); border-color: var(--line); }
 </style>

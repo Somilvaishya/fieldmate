@@ -7,13 +7,23 @@ import frappe
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import importer as importer_service
 from fieldmate.services import outlet as outlet_service
+from fieldmate.services import paging
 
 
 @frappe.whitelist()
 @endpoint()
-def search(q: str | None = None, beat: str | None = None, limit: int = 50, **kwargs):
-	"""Territory-scoped outlet search, for reps whose patch is too big to mirror."""
-	return ok({"outlets": outlet_service.search(query=q, beat=beat, limit=limit)})
+def search(q: str | None = None, beat: str | None = None, limit: int = 50, start: int = 0,
+           **kwargs):
+	"""Territory-scoped outlet search, for reps whose patch is too big to mirror.
+
+	The one list on this app that genuinely runs to thousands - Gate 1 imports five thousand
+	shops - so it is the one where a cap with no page was most obviously a dead end.
+	"""
+	start, limit = paging.window(start, limit)
+	rows = outlet_service.search(query=q, beat=beat, limit=limit, start=start)
+	return ok({"outlets": rows,
+	           **paging.envelope(rows, outlet_service.count_search(query=q, beat=beat),
+	                             start, limit)})
 
 
 @frappe.whitelist()

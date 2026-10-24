@@ -17,6 +17,7 @@ from frappe.utils import cint, flt, now_datetime
 
 from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import paging
 
 # What a rep is allowed to change from the app. Anything else is ignored silently on update
 # rather than rejected, so a newer app build sending an extra field never breaks an old server.
@@ -51,28 +52,43 @@ DETAIL_FIELDS = [
 ]
 
 
-def search(query: str | None = None, beat: str | None = None, limit: int = 50,
-           user: str | None = None) -> list[dict]:
-	"""Outlets this user may see, newest first, optionally filtered.
-
-	For a rep whose territory is too large to mirror on the device, this is the fallback path.
-	"""
+def _search_filters(query: str | None, beat: str | None) -> tuple[dict, dict | None]:
 	filters = {}
 	if beat:
 		filters["primary_beat"] = beat
-
 	or_filters = None
 	if query:
 		like = f"%{query}%"
 		or_filters = {"outlet_name": ["like", like], "city": ["like", like],
 		              "mobile_no": ["like", like], "name": ["like", like]}
+	return filters, or_filters
+
+
+def count_search(query: str | None = None, beat: str | None = None,
+                 user: str | None = None) -> int:
+	"""How many shops this user may see under the same search. Permission-aware: a rep's count
+	is their own territory's, never the site's."""
+	filters, or_filters = _search_filters(query, beat)
+	return paging.count("FieldMate Outlet", filters=filters, or_filters=or_filters,
+	                    user=user or frappe.session.user)
+
+
+def search(query: str | None = None, beat: str | None = None, limit: int = 50,
+           user: str | None = None, start: int = 0) -> list[dict]:
+	"""Outlets this user may see, newest first, optionally filtered.
+
+	For a rep whose territory is too large to mirror on the device, this is the fallback path.
+	"""
+	filters, or_filters = _search_filters(query, beat)
+	start, limit = paging.window(start, limit)
 
 	return frappe.get_list(
 		"FieldMate Outlet",
 		filters=filters,
 		or_filters=or_filters,
 		fields=LIST_FIELDS,
-		limit_page_length=min(cint(limit) or 50, 200),
+		limit_start=start,
+		limit_page_length=limit,
 		order_by="modified desc",
 		user=user or frappe.session.user,
 	)

@@ -12,10 +12,11 @@ party (ADR-028).
 from __future__ import annotations
 
 import frappe
-from frappe.utils import cint, flt, now_datetime, nowdate
+from frappe.utils import cint, flt, get_first_day, get_last_day, now_datetime, nowdate
 
 from fieldmate import compat
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import paging
 from fieldmate.services import settings as settings_service
 from fieldmate.services import trail as trail_service
 
@@ -251,45 +252,69 @@ def reverse(name: str) -> dict:
 # --------------------------------------------------------------------------------------
 
 
-def mine(field_user: str | None = None, limit: int = 30) -> dict:
+def mine(field_user: str | None = None, limit: int = 30, start: int = 0) -> dict:
     field_user = field_user or field_user_service.for_user()
-    claims = frappe.get_all(
+    claims, total = paging.page(
         "FieldMate Expense Claim",
-        filters={"field_user": field_user, "docstatus": ["<", 2]},
         fields=["name", "claim_date", "expense_type", "claimed_distance_km",
                 "trail_distance_km", "claimed_amount", "approved_amount", "claim_status",
                 "needs_approval", "approval_reason", "rejection_reason", "remarks", "docstatus"],
+        filters={"field_user": field_user, "docstatus": ["<", 2]},
         order_by="claim_date desc, creation desc",
-        limit_page_length=limit,
+        start=start, limit=limit,
     )
 
-    month = nowdate()[:7]
-    approved = sum(flt(c.approved_amount) for c in claims
-                   if c.claim_status in ("Approved", "Settled")
-                   and str(c.claim_date).startswith(month))
-    pending = sum(flt(c.claimed_amount) for c in claims
-                  if c.claim_status == "Pending Approval")
+    today = nowdate()
+    month = today[:7]
+
+    # Summed over the rep's claims, not over the page.
+    #
+    # These were folded out of `claims` while `claims` was "the last thirty" - already an
+    # approximation, and one that became plainly wrong the moment the list started paging: a rep
+    # on page two would have been shown a month's total made of the second page only. A figure a
+    # rep is answerable for has to count everything it claims to count.
+    # A range, not a `like`. `claim_date` is a Date column, and Frappe parses the right-hand
+    # side of a filter against the column's own type - so "2026-10%" went to the date parser
+    # and raised there rather than matching anything.
+    approved = frappe.get_all(
+        "FieldMate Expense Claim",
+        filters={"field_user": field_user, "docstatus": ["<", 2],
+                 "claim_status": ["in", ["Approved", "Settled"]],
+                 "claim_date": ["between", [get_first_day(today), get_last_day(today)]]},
+        fields=["sum(approved_amount) as total"],
+    )
+    pending = frappe.get_all(
+        "FieldMate Expense Claim",
+        filters={"field_user": field_user, "docstatus": ["<", 2],
+                 "claim_status": "Pending Approval"},
+        fields=["sum(claimed_amount) as total"],
+    )
 
     return {
         "claims": claims,
+        "total": total,
         "month": month,
-        "approved_this_month": flt(approved, 2),
-        "awaiting_decision": flt(pending, 2),
+        "approved_this_month": flt(approved[0].total if approved else 0, 2),
+        "awaiting_decision": flt(pending[0].total if pending else 0, 2),
     }
 
 
+PENDING_FIELDS = ["name", "field_user", "claim_date", "expense_type", "trail_distance_km",
+                  "claimed_distance_km", "distance_variance_km", "distance_variance_pct",
+                  "trail_ping_count", "claimed_amount", "computed_amount", "approval_reason",
+                  "receipt", "remarks"]
+
+
+def pending_for_manager_page(limit: int = 100, start: int = 0) -> tuple[list[dict], int]:
+    """A page of what is waiting on somebody at our end, oldest first, and how much there is."""
+    return paging.page("FieldMate Expense Claim", fields=PENDING_FIELDS,
+                       filters={"claim_status": "Pending Approval", "docstatus": 1},
+                       order_by="claim_date asc", start=start, limit=limit)
+
+
 def pending_for_manager(limit: int = 100) -> list[dict]:
-    """Everything waiting on somebody at our end, oldest first."""
-    return frappe.get_all(
-        "FieldMate Expense Claim",
-        filters={"claim_status": "Pending Approval", "docstatus": 1},
-        fields=["name", "field_user", "claim_date", "expense_type", "trail_distance_km",
-                "claimed_distance_km", "distance_variance_km", "distance_variance_pct",
-                "trail_ping_count", "claimed_amount", "computed_amount", "approval_reason",
-                "receipt", "remarks"],
-        order_by="claim_date asc",
-        limit_page_length=limit,
-    )
+    rows, _ = pending_for_manager_page(limit)
+    return rows
 
 
 def summarise(doc) -> dict:

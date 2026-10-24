@@ -181,31 +181,16 @@ CUSTOMER_FIELDS = (
 		"insert_after": "customer_group",
 		"collapsible": 1,
 	},
-	{
-		"fieldname": "fm_distributor_code",
-		"label": "Distributor Code",
-		"fieldtype": "Data",
-		"insert_after": "fm_channel_section",
-		# Unique, because the whole point of a code is that it names one party. Two distributors
-		# sharing one is a reconciliation somebody does by hand at month end, and nothing in the
-		# app would have noticed.
-		#
-		# **Blank is still fine, and that is not an accident of MariaDB.** A unique index rejects a
-		# second empty string, but Frappe converts a blank value on a `unique` field to NULL before
-		# it writes (`base_document.get_valid_dict`), and a unique index allows any number of
-		# NULLs. So every party that has no code - which is all of them until somebody fills one
-		# in - saves exactly as before.
-		"unique": 1,
-		"description": "What this party calls itself in their own books. Shown in the distributor "
-		               "portal header so they can see they are looking at their own account. "
-		               "Must be unique across parties; leave it empty if there is none.",
-	},
+	# No `fm_distributor_code`. It was a Data field somebody filled in by hand, held unique, and
+	# it answered the question the Customer's own id had already answered - two names for one
+	# party is a reconciliation somebody does at month end. The portal prints the id instead.
+	# `patches/drop_the_distributor_code.py` removes it from sites that already have it.
 	{
 		"fieldname": "fm_tier",
 		"label": "Channel Tier",
 		"fieldtype": "Select",
 		"options": "\nCFA\nSuper Stockist\nDistributor\nSub-stockist\nWholesaler\nModern Trade",
-		"insert_after": "fm_distributor_code",
+		"insert_after": "fm_channel_section",
 		"description": "What this party is in the chain. Blank means FieldMate does not sell "
 		               "through them.",
 	},

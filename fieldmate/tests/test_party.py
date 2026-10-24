@@ -201,9 +201,10 @@ class TestRetiringTheDistributorProfile(PartyFixture):
 		cust = self.customer()
 		self.profile(cust, min_order_value=500, distributor_code="MLX-01")
 
-		got = self.carried(cust, "fm_min_order_value", "fm_distributor_code")
+		# `distributor_code` is no longer carried anywhere: the Customer field it used to land in
+		# has been dropped, and a depot is known by its own id. The rest still carries.
+		got = self.carried(cust, "fm_min_order_value")
 		self.assertEqual(got.fm_min_order_value, 500)
-		self.assertEqual(got.fm_distributor_code, "MLX-01")
 
 	def test_delivery_days_becomes_a_lead_time(self):
 		"""The field was Data and the live value was the string "2"; the phone always read it

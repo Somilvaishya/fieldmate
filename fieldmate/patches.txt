@@ -25,3 +25,7 @@ fieldmate.patches.company_from_the_employee
 # #16. A working day was two documents joined by a unique Link; it is now one. The days are
 # carried over keeping their Day Start name, so every record that belonged to one still finds it.
 fieldmate.patches.merge_the_day_into_one_document
+# A depot's code is its Customer id. The hand-filled `fm_distributor_code` said the same thing
+# twice and nothing on the portal ever rendered it, so the field goes - with whatever was typed
+# into it, which is why this one prints what it is about to lose.
+fieldmate.patches.drop_the_distributor_code

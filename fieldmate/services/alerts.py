@@ -22,6 +22,7 @@ from __future__ import annotations
 import frappe
 from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 
+from fieldmate.services import paging
 from fieldmate.services import scope as scope_service
 from fieldmate.services import settings as settings_service
 
@@ -434,15 +435,19 @@ def install_starter_rules() -> int:
 	return made
 
 
+ALERT_FIELDS = ["name", "rule", "exception", "field_user", "occurred_on", "severity",
+                "observed_value", "threshold", "base_value", "consecutive_days", "message"]
+
+
+def recent_page(limit: int = 50, field_user: str | None = None,
+                start: int = 0) -> tuple[list[dict], int]:
+	"""A page of what fired, and how much there is of it."""
+	filters = {"field_user": field_user} if field_user else {}
+	return paging.page("FieldMate Alert Log", fields=ALERT_FIELDS, filters=filters,
+	                   order_by="occurred_on desc, fired_on desc",
+	                   start=start, limit=limit, permissions=False)
+
+
 def recent(limit: int = 50, field_user: str | None = None) -> list[dict]:
-	filters = {}
-	if field_user:
-		filters["field_user"] = field_user
-	return frappe.get_all(
-		"FieldMate Alert Log",
-		filters=filters,
-		fields=["name", "rule", "exception", "field_user", "occurred_on", "severity",
-		        "observed_value", "threshold", "base_value", "consecutive_days", "message"],
-		order_by="occurred_on desc, fired_on desc",
-		limit_page_length=limit,
-	)
+	rows, _ = recent_page(limit, field_user)
+	return rows

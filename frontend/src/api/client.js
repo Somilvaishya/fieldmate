@@ -232,14 +232,18 @@ export const api = {
   orderEstimate: (payload) => call('order.estimate', { payload }, { post: true }),
   orderSubmit: (deviceUuid, payload) =>
     call('order.submit', { device_uuid: deviceUuid, payload }, { post: true }),
-  orderList: (filters = {}) => call('order.list_mine', { limit: 50, ...filters }),
+  // `start` as well as `limit`. The cap on its own told the screen where the server stopped and
+  // nothing about whether there was more, so a rep with two hundred orders saw fifty and a list
+  // that simply ended. The answer now carries `total` and `has_more` beside the rows.
+  orderList: (filters = {}) => call('order.list_mine', { limit: 50, start: 0, ...filters }),
   orderDetail: (name) => call('order.detail', { order: name }),
   orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
 
   // The season book. Its own call rather than a filter on the list above, because what a booking
   // is read for - the advance due, the advance arrived, the cheques held against it and not yet
   // due - is not on the order document at all. One call draws the whole page, one booking or fifty.
-  orderBookings: (limit) => call('order.bookings', { limit: limit || 50 }),
+  orderBookings: (limit, page = {}) =>
+    call('order.bookings', { limit: limit || 50, start: 0, ...page }),
 
   // fieldmate.api.stock.* — the shop count.
   //
@@ -256,7 +260,8 @@ export const api = {
   // (ADR-025). There is deliberately no endpoint here that a rep can call to post a payment.
   outstanding: (outlet) => call('collection.outstanding', { outlet }),
   collectionCreate: (payload) => call('collection.create', { payload }, { post: true }),
-  collectionsMine: (status) => call('collection.list_mine', { status, limit: 50 }),
+  collectionsMine: (status, page = {}) =>
+    call('collection.list_mine', { status, limit: 50, start: 0, ...page }),
   cashInHand: () => call('collection.in_hand'),
   distributors: () => call('collection.distributors'),
   depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),
@@ -273,7 +278,8 @@ export const api = {
   showcaseCatalogues: (party, partyType = 'Customer') =>
     call('showcase.catalogues', { party, party_type: partyType }),
   showcaseShare: (payload) => call('showcase.share', payload, { post: true }),
-  showcaseLinks: (limit) => call('showcase.links', { limit: limit || 50 }),
+  showcaseLinks: (limit, page = {}) =>
+    call('showcase.links', { limit: limit || 50, start: 0, ...page }),
   showcaseWithdraw: (link) => call('showcase.withdraw', { link }, { post: true }),
 
   // ------------------------------------------------------- Phase 7: targets and expenses

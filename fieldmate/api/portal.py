@@ -15,6 +15,7 @@ import frappe
 
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import claim as claim_service
+from fieldmate.services import paging
 from fieldmate.services import party as party_service
 from fieldmate.services import portal as portal_service
 from fieldmate.services import secondary_sales as secondary_sales_service
@@ -72,11 +73,22 @@ def whoami():
 
 @frappe.whitelist()
 @endpoint()
-def distributor_orders(status: str | None = None, search: str | None = None, limit: int = 100):
+def distributor_orders(status: str | None = None, search: str | None = None, limit: int = 100,
+                       start: int = 0):
+	"""The depot's queue, a page at a time.
+
+	`orders` keeps its key and its type: the portal pages are served to browsers that may have
+	the old script cached, and one that has never heard of `start` reads the first page exactly
+	as it always did.
+	"""
 	row = _session()
+	start, limit = paging.window(start, limit, default=100)
+	rows = portal_service.orders(status=status, search=search, limit=limit, row=row, start=start)
 	return ok({
-		"orders": portal_service.orders(status=status, search=search, limit=int(limit), row=row),
+		"orders": rows,
 		"totals": portal_service.queue_totals(row=row),
+		**paging.envelope(rows, portal_service.count_orders(status=status, search=search, row=row),
+		                  start, limit),
 	})
 
 
@@ -126,10 +138,14 @@ def set_fulfilment_bulk(orders=None, action: str = "Accepted", remarks: str | No
 
 @frappe.whitelist()
 @endpoint()
-def claim_status(status: str | None = None, limit: int = 50):
+def claim_status(status: str | None = None, limit: int = 50, start: int = 0):
 	row = _session()
+	start, limit = paging.window(start, limit)
+	claims, total = claim_service.for_distributor_page(row.distributor, status=status,
+	                                                   limit=limit, start=start)
 	return ok({
-		"claims": claim_service.for_distributor(row.distributor, status=status, limit=int(limit)),
+		"claims": claims,
+		**paging.envelope(claims, total, start, limit),
 		"totals": claim_service.totals_for(row.distributor),
 	})
 

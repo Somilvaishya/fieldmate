@@ -31,7 +31,9 @@ CARRY = {
 	# what the distributor pays US and is what ERPNext bills them from - writing an unknown list
 	# there would change what a live party is charged.
 	"price_list": "fm_ptr_price_list",
-	"distributor_code": "fm_distributor_code",
+	# `distributor_code` is deliberately not carried any more: the Customer field it landed in
+	# has been dropped, and the depot's code is its own id. See
+	# `patches/drop_the_distributor_code.py`.
 	"assigned_to": "fm_assigned_to",
 	"warehouse": "fm_warehouse",
 	"min_order_value": "fm_min_order_value",

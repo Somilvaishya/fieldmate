@@ -20,6 +20,7 @@ from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 
 from fieldmate import compat
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import paging
 from fieldmate.services import party as party_service
 from fieldmate.services import settings as settings_service
 
@@ -587,17 +588,30 @@ def summarise(doc) -> dict:
 	}
 
 
-def mine(field_user: str | None = None, status: str | None = None, limit: int = 50) -> list[dict]:
-	field_user = field_user or field_user_service.for_user()
+def _mine_filters(field_user: str, status: str | None) -> dict:
 	filters = {"field_user": field_user, "docstatus": 1}
 	if status:
 		filters["status"] = status
+	return filters
+
+
+def count_mine(field_user: str | None = None, status: str | None = None) -> int:
+	"""How many of this rep's receipts match, so the list can say what it is a page of."""
+	field_user = field_user or field_user_service.for_user()
+	return paging.count("FieldMate Collection", filters=_mine_filters(field_user, status))
+
+
+def mine(field_user: str | None = None, status: str | None = None, limit: int = 50,
+         start: int = 0) -> list[dict]:
+	field_user = field_user or field_user_service.for_user()
+	filters = _mine_filters(field_user, status)
 	return frappe.get_list(
 		"FieldMate Collection",
 		filters=filters,
 		fields=["name", "receipt_no", "collection_date", "party", "party_type", "mode",
 		        "amount", "status", "deposit"],
 		order_by="collection_date desc, creation desc",
+		limit_start=start,
 		limit_page_length=limit,
 		user=frappe.session.user,
 		ignore_permissions=False,

@@ -22,6 +22,7 @@ from frappe.utils import cint, flt, getdate, nowdate
 
 from fieldmate import compat
 from fieldmate.services import catalogue as catalogue_service
+from fieldmate.services import paging
 
 # What a visitor is told when a link will not open. One sentence, no detail: who it was for, when
 # it expired and how often it has been opened are all facts about a conversation they may not
@@ -251,7 +252,12 @@ def shareable_for(party: str, party_type: str = "Customer") -> list[dict]:
 	]
 
 
-def links_of(field_user: str, limit: int = 50) -> list[dict]:
+def count_links(field_user: str) -> int:
+	"""How many links this rep has shared altogether."""
+	return frappe.db.count("FieldMate Share Link", {"field_user": field_user})
+
+
+def links_of(field_user: str, limit: int = 50, start: int = 0) -> list[dict]:
 	"""What this rep has shared, newest first, with how it has been received.
 
 	Enriched here rather than on the screen. A row needs the catalogue's name, the party's name
@@ -262,14 +268,14 @@ def links_of(field_user: str, limit: int = 50) -> list[dict]:
 	closed four ways - switched off, not open yet, expired, or opened more times than allowed -
 	and a list that re-derived any of them would one day disagree with the page itself.
 	"""
-	rows = frappe.get_all(
+	rows, _total = paging.page(
 		"FieldMate Share Link",
-		filters={"field_user": field_user},
 		fields=["name", "token", "catalogue", "party_type", "customer", "outlet",
 		        "valid_from", "valid_to", "max_views", "is_active", "view_count",
 		        "first_opened", "last_opened", "season"],
+		filters={"field_user": field_user},
 		order_by="creation desc",
-		limit_page_length=cint(limit),
+		start=start, limit=limit, permissions=False,
 	)
 
 	for row in rows:

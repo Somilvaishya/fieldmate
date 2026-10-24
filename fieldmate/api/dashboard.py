@@ -15,6 +15,7 @@ from fieldmate.api._base import Err, FieldMateError, endpoint, ok
 from fieldmate.services import alerts as alerts_service
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import kpi as kpi_service
+from fieldmate.services import paging
 
 MANAGER_ROLES = ("FieldMate Area Manager", "FieldMate Regional Manager",
                  "FieldMate Sales Head", "FieldMate Admin", "System Manager")
@@ -166,13 +167,18 @@ def manager_summary(sales_person: str | None = None, from_date: str | None = Non
 
 @frappe.whitelist()
 @endpoint()
-def exceptions(limit: int = 50, field_user: str | None = None):
+def exceptions(limit: int = 50, field_user: str | None = None, start: int = 0):
 	"""What fired recently. A manager sees the team; a rep sees only themselves."""
+	start, limit = paging.window(start, limit)
 	if field_user or set(MANAGER_ROLES) & set(frappe.get_roles()):
 		if field_user:
 			_assert_manager()
-		return ok({"alerts": alerts_service.recent(limit=int(limit), field_user=field_user)})
-	return ok({"alerts": alerts_service.recent(limit=int(limit), field_user=_me())})
+		whose = field_user
+	else:
+		# A rep asking is always asking about themselves, whatever they put in the argument.
+		whose = _me()
+	rows, total = alerts_service.recent_page(limit=limit, field_user=whose, start=start)
+	return ok({"alerts": rows, **paging.envelope(rows, total, start, limit)})
 
 
 # --------------------------------------------------------------------------------------
