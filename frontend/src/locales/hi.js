@@ -1275,4 +1275,6 @@ export default {
   'Show more ({n} left)': 'और दिखाएँ ({n} बाकी)',
   '{shown} of {total} orders': '{total} में से {shown} ऑर्डर',
   'Could not load more receipts.': 'और रसीदें नहीं आ सकीं।',
+  'Could not check what is owed — open it to try again': 'कितना बाकी है, पता नहीं चला — खोलकर दोबारा देखें',
+  'Not checked': 'पता नहीं चला',
 }

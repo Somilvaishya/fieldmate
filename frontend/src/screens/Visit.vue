@@ -19,7 +19,11 @@ const photos = ref(0)
 const shelfDone = ref(false)
 const cart = ref({ lines: 0, units: 0 })
 const stockDone = ref(false)
-const owed = ref(0)
+// What the shop owes, or `null` for "we could not ask". Those are different facts and the card
+// below says so: a failed read used to fall back to 0, and 0 renders as "Nothing outstanding"
+// and a Clear pill - a rep could walk away from a shop that owes money because the app told
+// them it was clear. Not knowing is not the same as nothing.
+const owed = ref(null)
 const collected = ref(false)
 const error = ref('')
 const busy = ref(false)
@@ -107,8 +111,13 @@ const jobs = computed(() => {
     },
     {
       key: 'money', icon: 'tag', title: t('Collect payment'),
-      sub: owed.value ? formatPaise(owed.value * 100) + ' outstanding' : t('Nothing outstanding'),
-      pill: collected.value ? t('Taken') : (owed.value ? t('Due') : t('Clear')),
+      // Three states, not two. Unknown is its own answer and must not read as nothing owed.
+      sub: owed.value === null
+        ? t('Could not check what is owed — open it to try again')
+        : (owed.value ? formatPaise(owed.value * 100) + ' outstanding' : t('Nothing outstanding')),
+      pill: collected.value
+        ? t('Taken')
+        : (owed.value === null ? t('Not checked') : (owed.value ? t('Due') : t('Clear'))),
       tone: collected.value ? 'ok' : (owed.value ? 'warn' : 'muted'),
       pct: collected.value ? 100 : 0,
       to: { name: 'outstanding', params: { outlet: visit.value?.outlet } },
@@ -151,11 +160,12 @@ onMounted(async () => {
     .find((t) => t.task_type === 'Stock Audit' && t.status === 'Done')
   collected.value = !!(visit.value.tasks || [])
     .find((t) => t.task_type === 'Collection' && t.status === 'Done')
-  // Best effort: a rep with no signal still gets the rest of the hub, just without the figure.
+  // Best effort: a rep with no signal still gets the rest of the hub, just without the figure -
+  // and the card says it is missing rather than inventing a zero.
   try {
-    owed.value = (await api.outstanding(visit.value.outlet)).outstanding || 0
+    owed.value = Number((await api.outstanding(visit.value.outlet)).outstanding) || 0
   } catch {
-    owed.value = 0
+    owed.value = null
   }
   shelfDone.value = !!(visit.value.tasks || [])
     .find((t) => t.task_type === 'Merchandising' && t.status === 'Done')
