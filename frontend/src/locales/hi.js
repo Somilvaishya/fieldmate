@@ -1274,4 +1274,5 @@ export default {
   'Cancel this order?': 'यह ऑर्डर रद्द करें?',
   'Show more ({n} left)': 'और दिखाएँ ({n} बाकी)',
   '{shown} of {total} orders': '{total} में से {shown} ऑर्डर',
+  'Could not load more receipts.': 'और रसीदें नहीं आ सकीं।',
 }

@@ -259,7 +259,8 @@ export const api = {
   // (ADR-025). There is deliberately no endpoint here that a rep can call to post a payment.
   outstanding: (outlet) => call('collection.outstanding', { outlet }),
   collectionCreate: (payload) => call('collection.create', { payload }, { post: true }),
-  collectionsMine: (status) => call('collection.list_mine', { status, limit: 50 }),
+  collectionsMine: (status, page = {}) =>
+    call('collection.list_mine', { status, limit: 50, start: 0, ...page }),
   cashInHand: () => call('collection.in_hand'),
   distributors: () => call('collection.distributors'),
   depositDeclare: (payload) => call('collection.deposit', { payload }, { post: true }),

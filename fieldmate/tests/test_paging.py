@@ -21,9 +21,11 @@ And one rule that is a security rule rather than a paging one: a count is **perm
 import frappe
 
 from fieldmate.api import outlet as outlet_api
+from fieldmate.api import portal as portal_api
 from fieldmate.services import paging
 from fieldmate.tests.base import FieldMateTestCase
 from fieldmate.tests.test_outlet import OutletFixture
+from fieldmate.tests.test_portal import PortalFixture
 
 
 class TestWindowClamping(FieldMateTestCase):
@@ -147,3 +149,49 @@ class TestOutletSearchPages(OutletFixture):
 		first page exactly as it always did."""
 		got = self.page()
 		self.assertIsInstance(got["outlets"], list)
+
+
+class TestTheDepotsQueuePages(PortalFixture):
+	"""The depot's queue, and the search that only ever searched the first page.
+
+	`portal_service.orders` read a page and then filtered it **in Python**. So a depot searching
+	for one of their own orders further down the queue was told it did not exist - the search ran
+	over the hundred rows that happened to come back, not over the queue. Moving it into the query
+	is what makes a page and a search true at the same time, and it is what these pin.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.queued = [self.routed(qty=20 + i) for i in range(4)]
+		frappe.db.commit()
+
+	def page(self, **kwargs):
+		return self.as_depot(portal_api.distributor_orders, **kwargs)["data"]
+
+	def test_the_queue_says_how_many_there_are(self):
+		got = self.page(limit=2)
+		self.assertEqual(len(got["orders"]), 2)
+		self.assertGreaterEqual(got["total"], 4)
+		self.assertTrue(got["has_more"])
+
+	def test_the_second_page_is_different_orders(self):
+		first = {o["name"] for o in self.page(limit=2, start=0)["orders"]}
+		second = {o["name"] for o in self.page(limit=2, start=2)["orders"]}
+		self.assertEqual(first & second, set(), "a page repeated is not a page")
+
+	def test_search_reaches_past_the_first_page(self):
+		"""The bug, in one assertion. Looking for the last order in the queue with a page of one
+		found nothing, because the filter ran after the page rather than inside the query."""
+		wanted = self.queued[-1]
+		got = self.page(search=wanted, limit=1)
+		self.assertIn(wanted, [o["name"] for o in got["orders"]])
+
+	def test_a_search_counts_what_it_matched(self):
+		got = self.page(search=self.queued[0], limit=50)
+		self.assertEqual(got["total"], len(got["orders"]))
+		self.assertFalse(got["has_more"])
+
+	def test_the_list_keeps_its_name_and_its_type(self):
+		got = self.page()
+		self.assertIsInstance(got["orders"], list)
+		self.assertIn("totals", got, "the queue's tiles must still travel with it")

@@ -189,9 +189,14 @@ def _scope_doc(doc, user: str | None) -> bool:
 # --------------------------------------------------------------------------------------
 
 
-def orders(status: str | None = None, search: str | None = None, limit: int = 100,
-           row=None) -> list[dict]:
-	row = row or me()
+def _queue_filters(status: str | None, search: str | None, row) -> tuple[dict, dict | None]:
+	"""What this depot may see, and what they asked for.
+
+	The search used to be applied in Python **after** the page came back, which meant it only
+	ever searched the first hundred orders: a depot looking for an order further down their own
+	queue was told it did not exist. It is part of the query now, which is also the only way a
+	page and a search can both be true at once.
+	"""
 	filters = {"distributor": row.distributor, "docstatus": 1}
 	if status:
 		filters["order_status"] = status
@@ -202,22 +207,50 @@ def orders(status: str | None = None, search: str | None = None, limit: int = 10
 		filters["order_status"] = ["in", ["Sent To Distributor", "Accepted", "Invoiced",
 		                                  "Delivered", "Rejected"]]
 
+	or_filters = None
+	if search:
+		like = f"%{search}%"
+		or_filters = {"name": ["like", like], "outlet": ["like", like],
+		              "field_user": ["like", like]}
+	return filters, or_filters
+
+
+def count_orders(status: str | None = None, search: str | None = None, row=None) -> int:
+	"""How many orders match, so the queue can say what it is a page of.
+
+	`frappe.db.count` rather than the permission-aware helper in `services.paging`: a depot login
+	is a Website User with no desk permissions at all, so a permission-filtered count would answer
+	zero. The security boundary here is the `distributor` filter above - the same one the page
+	itself is read through - and it is applied to both.
+	"""
+	row = row or me()
+	filters, or_filters = _queue_filters(status, search, row)
+	if not or_filters:
+		return frappe.db.count("FieldMate Order", filters)
+	# `db.count` takes no or_filters, so the aggregate goes through get_all - which is already
+	# how the page itself is read.
+	got = frappe.get_all("FieldMate Order", filters=filters, or_filters=or_filters,
+	                     fields=["count(name) as total"])
+	return cint(got[0].total) if got else 0
+
+
+def orders(status: str | None = None, search: str | None = None, limit: int = 100,
+           row=None, start: int = 0) -> list[dict]:
+	row = row or me()
+	filters, or_filters = _queue_filters(status, search, row)
+
 	rows = frappe.get_all(
 		"FieldMate Order",
 		filters=filters,
+		or_filters=or_filters,
 		fields=["name", "order_date", "outlet", "field_user", "net_total", "gross_total",
 		        "discount_total", "total_qty", "total_lines", "order_status", "payment_term",
 		        "credit_days", "expected_delivery_date", "sent_to_distributor_on",
 		        "distributor_reference", "credit_status", "remarks", "delivery_instructions"],
 		order_by="sent_to_distributor_on asc, creation asc",
+		limit_start=start,
 		limit_page_length=limit,
 	)
-	if search:
-		needle = search.lower()
-		rows = [r for r in rows
-		        if needle in (r.name or "").lower()
-		        or needle in (r.outlet or "").lower()
-		        or needle in (r.field_user or "").lower()]
 	_decorate(rows)
 	return rows
 

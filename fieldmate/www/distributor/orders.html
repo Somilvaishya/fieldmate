@@ -80,6 +80,7 @@
       </table>
     </div>
     <div class="foot"><span id="summary">Loading…</span><span>Queue refreshes when you ask it to.</span></div>
+    <button type="button" id="more" class="more" hidden>Show more</button>
   </div>
 </main>
 
@@ -130,7 +131,8 @@
   };
   var SHORT = {'Sent To Distributor': 'New'};
 
-  var state = {status: '', search: '', orders: [], totals: null, open: null, chosen: {}};
+  var state = {status: '', search: '', orders: [], totals: null, open: null, chosen: {},
+               total: 0, hasMore: false};
 
   function tiles(totals) {
     var t = totals.tiles, out = [];
@@ -222,7 +224,17 @@
       return row + (open ? drawer(o) : '');
     }).join('');
     document.getElementById('summary').textContent =
-      state.orders.length + ' order' + (state.orders.length === 1 ? '' : 's') + ' shown';
+      state.total && state.total > state.orders.length
+        ? state.orders.length + ' of ' + state.total + ' orders shown'
+        : state.orders.length + ' order' + (state.orders.length === 1 ? '' : 's') + ' shown';
+
+    // A button rather than an endless scroll: a depot works this queue with a keyboard and has
+    // to be able to see where it ends.
+    var more = document.getElementById('more');
+    if (more) {
+      more.hidden = !state.hasMore;
+      more.textContent = 'Show more (' + (state.total - state.orders.length) + ' left)';
+    }
     syncBulk();
   }
 
@@ -297,11 +309,25 @@
     btn.textContent = n ? 'Accept ' + n + ' order' + (n === 1 ? '' : 's') : 'Accept selected';
   }
 
-  function load() {
+  // A page at a time. The queue used to ask for a hundred and stop, with nothing on the screen
+  // to say that a hundred was where the server stopped rather than where the depot's orders
+  // ended - so an order further down the queue simply did not exist as far as this page was
+  // concerned, search included.
+  var PAGE = 100;
+
+  function load(opts) {
+    var more = opts && opts.more;
     FM.busy(true);
-    return FM.call('portal.distributor_orders', {status: state.status, search: state.search})
+    return FM.call('portal.distributor_orders', {
+      status: state.status, search: state.search,
+      limit: PAGE, start: more ? state.orders.length : 0,
+    })
       .then(function (d) {
-        state.orders = d.orders;
+        state.orders = more ? state.orders.concat(d.orders) : d.orders;
+        // A server that predates paging sends neither, and then there is nothing more to ask
+        // for - which is how this page behaved before.
+        state.total = typeof d.total === 'number' ? d.total : state.orders.length;
+        state.hasMore = !!d.has_more;
         state.totals = d.totals;
         // A chosen order that has left the current filter is no longer on screen, and a bulk
         // accept that quietly included it would move something nobody is looking at.
@@ -384,7 +410,8 @@
     });
   }
 
-  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('refresh').addEventListener('click', function () { load(); });
+  document.getElementById('more').addEventListener('click', function () { load({more: true}); });
 
   var timer;
   document.getElementById('search').addEventListener('input', function (e) {
