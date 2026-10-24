@@ -171,48 +171,44 @@ class TestTheItemMrpField(FieldMateTestCase):
 		self.assertEqual(priced, [], "nothing on this site was given an MRP by the installer")
 
 
-class TestTheDistributorCodeIsUnique(FieldMateTestCase):
-	"""A code names one party, or it names nothing.
+class TestTheDistributorCodeIsGone(FieldMateTestCase):
+	"""A depot is known by its Customer id, and by nothing else.
 
-	Two distributors sharing a code is a reconciliation somebody does by hand at month end, and
-	nothing in the app would have noticed. The portal header prints this code back to a depot so
-	they can see whose account they are looking at, which is the one place a collision is actively
-	misleading.
+	`fm_distributor_code` was a Data field filled in by hand and held unique, so that a code would
+	name one party. It did name one party - and so did the primary key sitting beside it. Two names
+	for one party is a reconciliation somebody does at month end, and nothing on the portal ever
+	rendered the second one.
 
-	**Blank has to stay free, and that is not luck.** A unique index rejects a second empty
-	string, so a naive constraint would have refused every party after the first that had no code
-	- which is all of them until somebody fills one in. Frappe converts a blank on a `unique`
-	field to NULL before writing (`base_document.get_valid_dict`), and an index allows any number
-	of NULLs. The second test is there because that behaviour is the whole reason this is safe.
+	`patches/drop_the_distributor_code.py` removes it, printing whatever was typed in first.
 	"""
 
-	def customer(self, **values):
-		doc = frappe.get_doc({
-			"doctype": "Customer",
-			"customer_name": self.uid("DIST"),
-			"customer_type": "Company",
-			"customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
-			"territory": frappe.db.get_value("Territory", {"is_group": 0}, "name"),
-			**values,
-		}).insert(ignore_permissions=True)
-		return self.track("Customer", doc.name)
+	def test_the_installer_does_not_put_it_back(self):
+		"""The installer runs on every migrate, so it is what would undo the patch.
 
-	def test_the_field_is_marked_unique(self):
-		self.assertTrue(frappe.db.get_value(
-			"Custom Field", {"dt": "Customer", "fieldname": "fm_distributor_code"}, "unique"))
+		Self-contained on purpose: a site that has not migrated since the patch landed still has
+		the field sitting there, and a test that only looked would report the leftover as a
+		failure of the installer. So the row goes first, and then the installer gets its chance to
+		recreate it.
+		"""
+		existing = frappe.db.exists(
+			"Custom Field", {"dt": "Customer", "fieldname": "fm_distributor_code"})
+		if existing:
+			frappe.delete_doc("Custom Field", existing, ignore_permissions=True, force=True)
+			frappe.clear_cache(doctype="Customer")
 
-	def test_two_parties_cannot_share_a_code(self):
-		code = self.uid("CODE")[:20]
-		self.customer(fm_distributor_code=code)
-		with self.assertRaises(Exception):
-			self.customer(fm_distributor_code=code)
+		install.create_customer_fields()
 
-	def test_any_number_of_parties_may_have_no_code(self):
-		"""The ordinary case on every site, and the one a unique index would have broken."""
-		self.customer()
-		self.customer()
-		self.customer(fm_distributor_code="")
+		self.assertFalse(
+			frappe.db.exists("Custom Field", {"dt": "Customer", "fieldname": "fm_distributor_code"}),
+			"the installer must not put the field back")
 
-	def test_different_codes_are_fine(self):
-		self.customer(fm_distributor_code=self.uid("A")[:20])
-		self.customer(fm_distributor_code=self.uid("B")[:20])
+	def test_the_tier_still_has_somewhere_to_sit(self):
+		"""`fm_tier` was anchored to the field that has gone. A Custom Field whose `insert_after`
+		names nothing lands at the end of the form instead of in its own section."""
+		install.create_customer_fields()
+		anchor = frappe.db.get_value(
+			"Custom Field", {"dt": "Customer", "fieldname": "fm_tier"}, "insert_after")
+		self.assertTrue(
+			frappe.db.exists("Custom Field", {"dt": "Customer", "fieldname": anchor})
+			or frappe.get_meta("Customer").get_field(anchor),
+			f"fm_tier is anchored to {anchor!r}, which is not on the Customer")
