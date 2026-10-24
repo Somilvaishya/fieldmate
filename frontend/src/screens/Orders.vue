@@ -96,18 +96,42 @@ function day(value) {
   return `${d} ${month ? t(month) : ''}`.trim()
 }
 
-async function load() {
-  loading.value = true
+const PAGE = 50
+// Not `total` - that name is taken by the rupee sum of what is on screen.
+const totalCount = ref(0)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+
+/** A page at a time.
+ *
+ * The list used to ask for fifty and stop there, with nothing on the screen to say that fifty was
+ * where the server stopped rather than where the rep's orders ended. It asks for a page now and
+ * says how many there are altogether.
+ *
+ * A button, not an infinite scroll. On a market uplink a scroll that fetches silently is a scroll
+ * that silently fails, and the rep is left looking at a list they have no reason to distrust.
+ */
+async function load({ more = false } = {}) {
+  if (more) loadingMore.value = true
+  else loading.value = true
   error.value = ''
   try {
-    const data = await api.orderList()
-    orders.value = data.orders || data || []
+    const start = more ? orders.value.length : 0
+    const data = await api.orderList({ limit: PAGE, start })
+    const rows = data.orders || []
+    orders.value = more ? [...orders.value, ...rows] : rows
+    // A build talking to a server that predates paging gets neither field. Then the list is
+    // whatever arrived and there is nothing more to ask for, which is exactly how it behaved
+    // before - no button, no claim about a total.
+    totalCount.value = Number(data.total ?? orders.value.length)
+    hasMore.value = !!data.has_more
   } catch (e) {
     error.value = e instanceof ApiError
       ? e.message
       : t('Could not load your orders. This list lives on the server, so it needs signal.')
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
 }
 
@@ -161,9 +185,11 @@ onMounted(load)
     <template v-else-if="shown.length">
       <div class="sum">
         <span>
-          {{ shown.length === 1
-              ? t('{n} order', { n: shown.length })
-              : t('{n} orders', { n: shown.length }) }}
+          {{ filter || totalCount <= shown.length
+              ? (shown.length === 1
+                  ? t('{n} order', { n: shown.length })
+                  : t('{n} orders', { n: shown.length }))
+              : t('{shown} of {total} orders', { shown: shown.length, total: totalCount }) }}
         </span>
         <b class="tnum">{{ formatRupees(total) }}</b>
       </div>
@@ -191,6 +217,16 @@ onMounted(load)
         <Icon name="chevron" size="20" class="go" />
       </RouterLink>
 
+      <!-- A button rather than an infinite scroll. On a market uplink a scroll that fetches
+           silently is a scroll that silently fails, and the rep is left looking at a list they
+           have no reason to distrust. Hidden while a tab is filtering, because the filter runs
+           over what has been fetched and "load more" would mean something else there. -->
+      <button v-if="hasMore && !filter" class="more" type="button"
+              :disabled="loadingMore" @click="load({ more: true })">
+        {{ loadingMore
+            ? t('Loading…')
+            : t('Show more ({n} left)', { n: totalCount - orders.length }) }}
+      </button>
     </template>
 
     <div v-else class="empty">
@@ -250,6 +286,9 @@ onMounted(load)
        border: 1px solid var(--primary); background: var(--surface); color: var(--primary);
        font-weight: 600; font-size: 14px; text-decoration: none; line-height: 1.2; }
 .way:active { background: var(--primary-soft); }
+.more { width: 100%; min-height: 48px; border-radius: 8px; font-weight: 600; font-size: 15px;
+        border: 1px solid var(--primary); background: var(--surface); color: var(--primary); }
+.more:disabled { color: var(--muted); border-color: var(--line); }
 .note { color: var(--muted); font-size: 14px; text-align: center; padding: 20px 0; }
 .note.crit { color: var(--crit); text-align: left; background: var(--crit-soft);
              border-radius: 8px; padding: 10px 12px; }

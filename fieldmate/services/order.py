@@ -28,7 +28,7 @@ from frappe.utils import cint, flt, getdate, now_datetime, nowdate
 from fieldmate import compat
 from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
-from fieldmate.services import scheme_compile
+from fieldmate.services import paging, scheme_compile
 from fieldmate.services import scope as scope_service
 from fieldmate.services import season as season_service
 from fieldmate.services import settings as settings_service
@@ -1262,7 +1262,7 @@ def approve(name: str, decision: str, remarks: str | None = None,
 # --------------------------------------------------------------------------------------
 
 
-def mine(field_user: str | None = None, limit: int = 50) -> list[dict]:
+def mine(field_user: str | None = None, limit: int = 50, start: int = 0) -> list[dict]:
 	field_user = field_user or field_user_service.for_user()
 	rows = frappe.get_list(
 		"FieldMate Order",
@@ -1278,11 +1278,18 @@ def mine(field_user: str | None = None, limit: int = 50) -> list[dict]:
 		        "order_kind", "season", "expected_delivery_date",
 		        "docstatus", "client_uuid"],
 		order_by="order_date desc, creation desc",
+		limit_start=start,
 		limit_page_length=limit,
 		user=frappe.session.user,
 		ignore_permissions=False,
 	)
 	return with_party_names(rows)
+
+
+def count_mine(field_user: str | None = None) -> int:
+	"""How many orders this rep has altogether, so a list can say what it is a page of."""
+	field_user = field_user or field_user_service.for_user()
+	return paging.count("FieldMate Order", filters={"field_user": field_user})
 
 
 def with_party_names(rows: list[dict]) -> list[dict]:

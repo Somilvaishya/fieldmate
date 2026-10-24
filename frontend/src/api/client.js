@@ -232,7 +232,10 @@ export const api = {
   orderEstimate: (payload) => call('order.estimate', { payload }, { post: true }),
   orderSubmit: (deviceUuid, payload) =>
     call('order.submit', { device_uuid: deviceUuid, payload }, { post: true }),
-  orderList: (filters = {}) => call('order.list_mine', { limit: 50, ...filters }),
+  // `start` as well as `limit`. The cap on its own told the screen where the server stopped and
+  // nothing about whether there was more, so a rep with two hundred orders saw fifty and a list
+  // that simply ended. The answer now carries `total` and `has_more` beside the rows.
+  orderList: (filters = {}) => call('order.list_mine', { limit: 50, start: 0, ...filters }),
   orderDetail: (name) => call('order.detail', { order: name }),
   orderCancel: (name, reason) => call('order.cancel', { order: name, reason }, { post: true }),
 

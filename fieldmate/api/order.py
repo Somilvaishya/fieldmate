@@ -12,6 +12,7 @@ import frappe
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import field_user as field_user_service
 from fieldmate.services import order as order_service
+from fieldmate.services import paging
 from fieldmate.services import portal as portal_service
 
 
@@ -52,8 +53,18 @@ def submit(payload=None):
 
 @frappe.whitelist()
 @endpoint()
-def list_mine(limit: int = 50):
-	return ok({"orders": order_service.mine(_me(), int(limit or 50))})
+def list_mine(limit: int = 50, start: int = 0):
+	"""This rep's orders, a page at a time.
+
+	`orders` keeps its name and its type: `api/_base` holds the envelope to additive changes
+	because old builds stay in the field for weeks, and one that has never heard of `start` reads
+	the first page exactly as it always did. The counts arrive beside it.
+	"""
+	me = _me()
+	start, limit = paging.window(start, limit)
+	rows = order_service.mine(me, limit=limit, start=start)
+	return ok({"orders": rows,
+	           **paging.envelope(rows, order_service.count_mine(me), start, limit)})
 
 
 @frappe.whitelist()

@@ -15,6 +15,7 @@ import frappe
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import collection as collection_service
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import paging
 
 
 def _me() -> str:
@@ -41,8 +42,12 @@ def create(payload=None):
 
 @frappe.whitelist()
 @endpoint()
-def list_mine(status: str | None = None, limit: int = 50):
-	return ok({"collections": collection_service.mine(_me(), status, int(limit or 50))})
+def list_mine(status: str | None = None, limit: int = 50, start: int = 0):
+	me = _me()
+	start, limit = paging.window(start, limit)
+	rows = collection_service.mine(me, status, limit=limit, start=start)
+	return ok({"collections": rows,
+	           **paging.envelope(rows, collection_service.count_mine(me, status), start, limit)})
 
 
 @frappe.whitelist()
