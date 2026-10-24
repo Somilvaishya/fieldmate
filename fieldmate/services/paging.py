@@ -70,6 +70,38 @@ def count(doctype: str, filters=None, or_filters=None, user: str | None = None) 
 	return cint(rows[0].get("total")) if rows else 0
 
 
+def page(doctype: str, fields: list, filters=None, or_filters=None, order_by: str | None = None,
+         start=None, limit=None, user: str | None = None,
+         permissions: bool = True) -> tuple[list, int]:
+	"""One page of a list, and how many there are altogether.
+
+	Every list in this app is the same four lines - clamp the window, read the page, count the
+	whole thing, hand both back - and writing those four lines nine times is how one of them ends
+	up subtly different from the other eight. The count is read with the same filters as the page
+	by construction here, rather than by somebody remembering to keep two call sites in step.
+
+	`permissions=False` is for the lists whose caller is not a desk user at all: a depot login is
+	a Website User with no permissions on FieldMate Order, so a permission-filtered read answers
+	nothing. Those lists carry their own boundary in `filters` - the distributor - and it is
+	applied to the page and the count alike.
+	"""
+	start, limit = window(start, limit)
+	common = {"filters": filters or {}, "or_filters": or_filters}
+
+	if permissions:
+		rows = frappe.get_list(doctype, fields=fields, order_by=order_by, limit_start=start,
+		                       limit_page_length=limit, user=user or frappe.session.user,
+		                       ignore_permissions=False, **common)
+		total = count(doctype, filters=filters, or_filters=or_filters, user=user)
+	else:
+		rows = frappe.get_all(doctype, fields=fields, order_by=order_by, limit_start=start,
+		                      limit_page_length=limit, **common)
+		got = frappe.get_all(doctype, fields=["count(name) as total"], **common)
+		total = cint(got[0].get("total")) if got else 0
+
+	return rows, total
+
+
 def envelope(rows: list, total: int, start: int, limit: int) -> dict:
 	"""The counts that travel beside a page.
 

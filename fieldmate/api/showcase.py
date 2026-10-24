@@ -16,6 +16,7 @@ import frappe
 
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import paging
 from fieldmate.services import showcase as showcase_service
 
 
@@ -97,9 +98,13 @@ def share(catalogue: str | None = None, party: str | None = None,
 
 @frappe.whitelist()
 @endpoint()
-def links(limit: int = 50):
+def links(limit: int = 50, start: int = 0):
 	"""This rep's links, newest first, with how each has been received."""
-	return ok({"links": showcase_service.links_of(_me(), int(limit or 50))})
+	me = _me()
+	start, limit = paging.window(start, limit)
+	rows = showcase_service.links_of(me, limit=limit, start=start)
+	return ok({"links": rows,
+	           **paging.envelope(rows, showcase_service.count_links(me), start, limit)})
 
 
 @frappe.whitelist(methods=["POST"])

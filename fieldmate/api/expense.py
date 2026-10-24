@@ -7,6 +7,7 @@ import frappe
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
 from fieldmate.services import expense as expense_service
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import paging
 
 APPROVER_ROLES = ("FieldMate Area Manager", "FieldMate Regional Manager",
                   "FieldMate Sales Head", "FieldMate Admin", "System Manager")
@@ -46,8 +47,12 @@ def create_claim(payload=None):
 
 @frappe.whitelist()
 @endpoint()
-def my_claims(limit: int = 30):
-	return ok(expense_service.mine(_me(), limit=int(limit)))
+def my_claims(limit: int = 30, start: int = 0):
+	start, limit = paging.window(start, limit, default=30)
+	answer = expense_service.mine(_me(), limit=limit, start=start)
+	answer.update(paging.envelope(answer.get("claims") or [], answer.get("total") or 0,
+	                              start, limit))
+	return ok(answer)
 
 
 @frappe.whitelist()
@@ -60,10 +65,12 @@ def detail(claim: str):
 
 @frappe.whitelist()
 @endpoint()
-def pending(limit: int = 100):
+def pending(limit: int = 100, start: int = 0):
 	"""Everything waiting on a manager, oldest first."""
 	_assert_manager()
-	return ok({"claims": expense_service.pending_for_manager(limit=int(limit))})
+	start, limit = paging.window(start, limit, default=100)
+	rows, total = expense_service.pending_for_manager_page(limit=limit, start=start)
+	return ok({"claims": rows, **paging.envelope(rows, total, start, limit)})
 
 
 @frappe.whitelist(methods=["POST"])

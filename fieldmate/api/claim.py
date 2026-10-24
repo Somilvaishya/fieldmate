@@ -12,6 +12,7 @@ import frappe
 
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok
 from fieldmate.services import claim as claim_service
+from fieldmate.services import paging
 
 # Who may agree that we owe a distributor money. Deliberately short.
 APPROVER_ROLES = ("FieldMate Sales Head", "FieldMate Admin", "System Manager")
@@ -25,21 +26,23 @@ def _assert_approver() -> None:
 
 @frappe.whitelist()
 @endpoint()
-def pending(distributor: str | None = None, limit: int = 100):
+def pending(distributor: str | None = None, limit: int = 100, start: int = 0):
 	"""Everything waiting on somebody at our end."""
 	_assert_approver()
 	filters = {"claim_status": "Pending Approval", "docstatus": 1}
 	if distributor:
 		filters["distributor"] = distributor
-	return ok({"claims": frappe.get_all(
+	start, limit = paging.window(start, limit, default=100)
+	rows, total = paging.page(
 		"FieldMate Claim",
-		filters=filters,
 		fields=["name", "distributor", "claim_date", "from_date", "to_date", "scheme",
 		        "reference_no", "line_count", "outlet_count", "claimed_amount",
 		        "reconciles", "variance_amount", "submitted_on"],
+		filters=filters,
 		order_by="submitted_on asc",
-		limit_page_length=int(limit),
-	)})
+		start=start, limit=limit,
+	)
+	return ok({"claims": rows, **paging.envelope(rows, total, start, limit)})
 
 
 @frappe.whitelist()

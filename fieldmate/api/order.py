@@ -69,14 +69,18 @@ def list_mine(limit: int = 50, start: int = 0):
 
 @frappe.whitelist()
 @endpoint()
-def bookings(limit: int = 50):
+def bookings(limit: int = 50, start: int = 0):
 	"""This rep's season bookings, with what each one still needs up front.
 
 	Its own endpoint rather than a filter on `list_mine`, because the figures a booking is read
 	for - the advance due, the advance arrived, the cheques held against it - are not on the order
 	document at all. See `order_service.my_bookings`.
 	"""
-	return ok({"bookings": order_service.my_bookings(_me(), int(limit or 50))})
+	me = _me()
+	start, limit = paging.window(start, limit)
+	rows = order_service.my_bookings(me, limit=limit, start=start)
+	return ok({"bookings": rows,
+	           **paging.envelope(rows, order_service.count_my_bookings(me), start, limit)})
 
 
 @frappe.whitelist()

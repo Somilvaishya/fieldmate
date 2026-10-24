@@ -141,15 +141,26 @@ function day(value) {
 
 const pulling = ref('')
 
-async function loadLinks() {
+const PAGE = 50
+const linkCount = ref(0)
+const hasMoreLinks = ref(false)
+const loadingMore = ref(false)
+
+async function loadLinks({ more = false } = {}) {
+  if (more) loadingMore.value = true
   try {
-    const data = await api.showcaseLinks()
-    links.value = data.links || []
+    const data = await api.showcaseLinks(PAGE, { start: more ? links.value.length : 0 })
+    const rows = data.links || []
+    links.value = more ? [...links.value, ...rows] : rows
+    linkCount.value = Number(data.total ?? links.value.length)
+    hasMoreLinks.value = !!data.has_more
   } catch (e) {
     error.value =
       e instanceof ApiError
         ? e.message
         : t('Could not load what you have shared. This list lives on the server.')
+  } finally {
+    loadingMore.value = false
   }
 }
 
@@ -357,6 +368,13 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <button v-if="hasMoreLinks" class="more" type="button"
+                :disabled="loadingMore" @click="loadLinks({ more: true })">
+          {{ loadingMore
+              ? t('Loading…')
+              : t('Show more ({n} left)', { n: linkCount - links.length }) }}
+        </button>
       </template>
 
       <div v-else class="empty">
@@ -438,4 +456,7 @@ onMounted(async () => {
 .empty b { color: var(--ink); }
 .empty p { margin: 0; }
 .tnum { font-variant-numeric: tabular-nums; }
+.more { width: 100%; min-height: 48px; border-radius: 8px; font-weight: 600; font-size: 15px;
+        border: 1px solid var(--primary); background: var(--surface); color: var(--primary); }
+.more:disabled { color: var(--muted); border-color: var(--line); }
 </style>

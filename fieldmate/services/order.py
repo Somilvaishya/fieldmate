@@ -1332,7 +1332,15 @@ def with_party_names(rows: list[dict]) -> list[dict]:
 	return rows
 
 
-def my_bookings(field_user: str | None = None, limit: int = 50) -> list[dict]:
+def count_my_bookings(field_user: str | None = None) -> int:
+	"""How many season bookings this rep has, so the list can say what it is a page of."""
+	field_user = field_user or field_user_service.for_user()
+	return paging.count("FieldMate Order",
+	                    filters={"field_user": field_user,
+	                             "order_kind": season_service.BOOKING})
+
+
+def my_bookings(field_user: str | None = None, limit: int = 50, start: int = 0) -> list[dict]:
 	"""This rep's season bookings, each with what it still needs up front.
 
 	A list of its own rather than a filter on `mine`, because the figures that matter about a
@@ -1354,6 +1362,7 @@ def my_bookings(field_user: str | None = None, limit: int = 50) -> list[dict]:
 		        "grand_total", "order_status", "docstatus", "rates_locked_on", "tops_up",
 		        "client_uuid", "currency"],
 		order_by="order_date desc, creation desc",
+		limit_start=start,
 		limit_page_length=cint(limit),
 		user=frappe.session.user,
 		ignore_permissions=False,

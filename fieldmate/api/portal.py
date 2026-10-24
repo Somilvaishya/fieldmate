@@ -138,10 +138,14 @@ def set_fulfilment_bulk(orders=None, action: str = "Accepted", remarks: str | No
 
 @frappe.whitelist()
 @endpoint()
-def claim_status(status: str | None = None, limit: int = 50):
+def claim_status(status: str | None = None, limit: int = 50, start: int = 0):
 	row = _session()
+	start, limit = paging.window(start, limit)
+	claims, total = claim_service.for_distributor_page(row.distributor, status=status,
+	                                                   limit=limit, start=start)
 	return ok({
-		"claims": claim_service.for_distributor(row.distributor, status=status, limit=int(limit)),
+		"claims": claims,
+		**paging.envelope(claims, total, start, limit),
 		"totals": claim_service.totals_for(row.distributor),
 	})
 

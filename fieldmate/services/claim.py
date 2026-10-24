@@ -20,6 +20,7 @@ from fieldmate.fieldmate.doctype.fieldmate_claim.fieldmate_claim import (
 	CLAIMABLE_KINDS,
 	eligible_rows,
 )
+from fieldmate.services import paging
 from fieldmate.services import settings as settings_service
 
 OPEN_STATUSES = ("Draft", "Pending Approval", "Approved")
@@ -267,20 +268,36 @@ def reverse(name: str) -> dict:
 # --------------------------------------------------------------------------------------
 
 
-def for_distributor(distributor: str, status: str | None = None, limit: int = 50) -> list[dict]:
+DEPOT_CLAIM_FIELDS = ["name", "claim_date", "from_date", "to_date", "scheme", "reference_no",
+                      "claim_status", "line_count", "outlet_count", "claimed_amount",
+                      "approved_amount", "reconciles", "variance_amount", "credit_note",
+                      "settled_on", "rejection_reason", "docstatus"]
+
+
+def _depot_filters(distributor: str, status: str | None) -> dict:
 	filters = {"distributor": distributor, "docstatus": ["<", 2]}
 	if status:
 		filters["claim_status"] = status
-	return frappe.get_all(
-		"FieldMate Claim",
-		filters=filters,
-		fields=["name", "claim_date", "from_date", "to_date", "scheme", "reference_no",
-		        "claim_status", "line_count", "outlet_count", "claimed_amount",
-		        "approved_amount", "reconciles", "variance_amount", "credit_note", "settled_on",
-		        "rejection_reason", "docstatus"],
-		order_by="claim_date desc, creation desc",
-		limit_page_length=limit,
-	)
+	return filters
+
+
+def for_distributor_page(distributor: str, status: str | None = None, limit: int = 50,
+                         start: int = 0) -> tuple[list[dict], int]:
+	"""A page of this depot's claims, and how many there are.
+
+	`permissions=False` for the reason the order queue gives: a depot login is a Website User
+	with no desk permissions, so a permission-filtered read answers nothing. The boundary is the
+	`distributor` filter, and the page and the count are read through the same one.
+	"""
+	return paging.page("FieldMate Claim", fields=DEPOT_CLAIM_FIELDS,
+	                   filters=_depot_filters(distributor, status),
+	                   order_by="claim_date desc, creation desc",
+	                   start=start, limit=limit, permissions=False)
+
+
+def for_distributor(distributor: str, status: str | None = None, limit: int = 50) -> list[dict]:
+	rows, _ = for_distributor_page(distributor, status, limit)
+	return rows
 
 
 def totals_for(distributor: str) -> dict:
