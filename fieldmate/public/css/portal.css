@@ -81,8 +81,14 @@ main { padding: calc(var(--head) + 20px) 20px 48px calc(var(--rail) + 20px); }
 /* The page's own measure. The rail is fixed, so `main` was free to run the whole width of
    whatever monitor the depot happens to use: the date fields ran edge to edge and the reference
    table put a hand's width between a column name and the names it accepts. The rail is added back
-   because the padding above starts after it. */
-main { max-width: calc(var(--rail) + 1060px); }
+   because the padding above starts after it.
+
+   1060 was too tight for the screen this portal is actually for. The order queue is ten columns
+   wide and it is what a depot has open all day; capped there, a 1920 monitor showed six hundred
+   pixels of empty page down the right-hand side while the queue itself scrolled sideways. The
+   measure that needed protecting was the Sales File's form, and that is held by the caps on its
+   own inputs below rather than by starving every other page. */
+main { max-width: calc(var(--rail) + 1500px); }
 h2 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
              gap: 12px; margin-bottom: 16px; }
