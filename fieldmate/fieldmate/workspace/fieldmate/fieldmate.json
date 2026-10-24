@@ -38,6 +38,11 @@
   {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Orders", "link_count": 0,
    "link_to": "FieldMate Order", "link_type": "DocType", "onboard": 0, "type": "Link"},
 
+  {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Waiting on approval",
+   "link_count": 0, "link_to": "FieldMate Order", "link_type": "DocType", "onboard": 0,
+   "type": "Link",
+   "description": "Filter Status to Pending Approval. A rule stopped these and nobody has decided yet - the rep's phone reads 'Waiting on your manager' until somebody does. Approve or Reject from the order itself. They are the orange rows in the list."},
+
   {"hidden": 0, "is_query_report": 0, "label": "Money", "link_count": 0, "onboard": 0, "type": "Card Break"},
   {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Collections", "link_count": 0,
    "link_to": "FieldMate Collection", "link_type": "DocType", "onboard": 0, "type": "Link"},
@@ -67,7 +72,7 @@
   {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Season Allocation", "link_count": 0, "link_to": "fieldmate-allocation", "link_type": "Page", "onboard": 0, "type": "Link", "description": "Divide short stock between a season's bookings - advance first, first booked or pro rata. Preview first; applying reserves the stock in ERPNext."},
   {"dependencies": "", "hidden": 0, "is_query_report": 0, "label": "Season Cockpit", "link_count": 0, "link_to": "fieldmate-season-cockpit", "link_type": "Page", "onboard": 0, "type": "Link", "description": "Booked, allocated, delivered and paid, by state, by party and by SKU. Every figure read from the documents that hold it."}
  ],
- "modified": "2026-10-08 14:30:00.000000",
+ "modified": "2026-10-24 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "FieldMate",
  "name": "FieldMate",
