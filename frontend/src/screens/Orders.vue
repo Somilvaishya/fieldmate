@@ -70,8 +70,17 @@ function isBooking(o) {
 }
 
 /** Who the order is for. A primary order has no outlet - it has a party (ADR-033). */
+/** The shop or the party, in words. The server sends both the name and the id now - a list of
+ *  `FM-OUT-00041` made a rep work out which shop each row was. */
 function partyName(o) {
-  return o.outlet_name || o.outlet || o.customer || o.name
+  return o.outlet_name || o.customer_name || o.outlet || o.customer || o.name
+}
+
+/** The id under the name, and nothing when the name *is* the id - a code printed twice is
+ *  a row that looks broken. */
+function partyId(o) {
+  const id = o.outlet || o.customer || ''
+  return id === partyName(o) ? '' : id
 }
 
 const total = computed(() =>
@@ -102,52 +111,8 @@ async function load() {
   }
 }
 
-// ------------------------------------------------------------------------------- cancelling
-
-// A rep can withdraw their own order right up to the point the depot bills it. After that the
-// goods and the paperwork have moved and it is a return, not a cancellation - the server refuses
-// those too, so this list and that rule have to agree.
-const DEPOT_HAS_ACTED = ['Invoiced', 'Delivered']
-const DONE = ['Cancelled', 'Rejected']
-
-function canCancel(o) {
-  return !DEPOT_HAS_ACTED.includes(o.order_status) && !DONE.includes(o.order_status)
-}
-
-const confirming = ref(null)
-const reason = ref('')
-const cancelling = ref(false)
-const cancelError = ref('')
-
-function askCancel(o) {
-  confirming.value = o.name
-  reason.value = ''
-  cancelError.value = ''
-}
-
-function keepIt() {
-  confirming.value = null
-  reason.value = ''
-  cancelError.value = ''
-}
-
-async function doCancel(o) {
-  cancelling.value = true
-  cancelError.value = ''
-  try {
-    await api.orderCancel(o.name, reason.value.trim() || null)
-    keepIt()
-    // Re-read rather than patching the row here: cancelling also hands scheme budget back, and
-    // the server is the only thing that knows what the order looks like afterwards.
-    await load()
-  } catch (e) {
-    cancelError.value = e instanceof ApiError
-      ? e.message
-      : t('Could not cancel it. This needs signal — try again when you have some.')
-  } finally {
-    cancelling.value = false
-  }
-}
+// Cancelling lives on the order's own screen, not here. It is the one destructive action in
+// this app and it used to sit under the thumb on every row of a list a rep scrolls all day.
 
 onMounted(load)
 </script>
@@ -160,19 +125,28 @@ onMounted(load)
         <p class="dim">{{ t('What you booked, and where each one has reached') }}</p>
         <!-- The way into a primary order. It lives here rather than on the tab bar because a
              rep books one a week of these and twenty shop orders a day, and a sixth tab would
-             cost the twenty to serve the one. -->
-        <span class="ways">
-          <RouterLink to="/parties" class="ghost small">
-            {{ t('Order on a distributor') }}
-          </RouterLink>
-          <RouterLink to="/bookings" class="ghost small">{{ t('Season book') }}</RouterLink>
-          <RouterLink to="/showcase" class="ghost small">{{ t('Share the range') }}</RouterLink>
-        </span>
+             cost the twenty to serve the one.
+
+             Drawn as buttons, not as the underlined links they used to be: three sentences
+             underlined in a row read as body text somebody had turned blue, and a rep has to be
+             able to see at a glance that these are the three things this screen can do. -->
       </div>
       <button class="quiet" :disabled="loading" @click="load" :aria-label="t('Refresh')">
         <Icon name="refresh" size="18" />
       </button>
     </header>
+
+    <nav class="ways">
+      <RouterLink to="/parties" class="way">
+        <Icon name="cart" size="18" /><span>{{ t('Order on a distributor') }}</span>
+      </RouterLink>
+      <RouterLink to="/bookings" class="way">
+        <Icon name="tag" size="18" /><span>{{ t('Season book') }}</span>
+      </RouterLink>
+      <RouterLink to="/showcase" class="way">
+        <Icon name="store" size="18" /><span>{{ t('Share the range') }}</span>
+      </RouterLink>
+    </nav>
 
     <div class="tabs">
       <button v-for="tab in TABS" :key="tab.key" class="chip"
@@ -194,10 +168,12 @@ onMounted(load)
         <b class="tnum">{{ formatRupees(total) }}</b>
       </div>
 
-      <div v-for="o in shown" :key="o.name" class="card">
+      <RouterLink v-for="o in shown" :key="o.name" class="card"
+                  :to="{ name: 'order-detail', params: { name: o.name } }">
         <div class="row">
           <div class="left">
-            <b>{{ partyName(o) }}</b>
+            <b class="pname">{{ partyName(o) }}</b>
+            <span class="dim mono">{{ partyId(o) }}</span>
             <span class="dim mono">{{ o.name }} · {{ day(o.order_date) }}</span>
           </div>
           <div class="right">
@@ -207,35 +183,14 @@ onMounted(load)
             </span>
             <!-- Marked, because a booking is not an order the rep forgets about: it is held
                  until its advance is in, and the season book is where that figure lives. -->
-            <RouterLink v-if="isBooking(o)" class="pill book" to="/bookings">
+            <span v-if="isBooking(o)" class="pill book">
               {{ o.season || t('Booking') }}
-            </RouterLink>
+            </span>
           </div>
         </div>
+        <Icon name="chevron" size="20" class="go" />
+      </RouterLink>
 
-        <!-- Two taps, never one. Cancelling gives scheme budget back and withdraws the order
-             from the depot's queue; it is not something a thumb should do by brushing past. -->
-        <button v-if="canCancel(o) && confirming !== o.name" class="undo"
-                @click="askCancel(o)">{{ t('Cancel this order') }}</button>
-
-        <div v-else-if="confirming === o.name" class="sure">
-          <p class="dim">
-            {{ t("This takes it out of the depot's queue and gives back any offer it earned.") }}
-            {{ t('It cannot be undone.') }}
-          </p>
-          <input v-model="reason" type="text" :disabled="cancelling"
-                 :placeholder="t('Why? (optional, the depot sees this)')" />
-          <p v-if="cancelError" class="note crit">{{ cancelError }}</p>
-          <div class="pair">
-            <button class="keep" :disabled="cancelling" @click="keepIt">
-              {{ t('Keep it') }}
-            </button>
-            <button class="go" :disabled="cancelling" @click="doCancel(o)">
-              {{ cancelling ? t('Cancelling…') : t('Yes, cancel') }}
-            </button>
-          </div>
-        </div>
-      </div>
     </template>
 
     <div v-else class="empty">
@@ -264,20 +219,18 @@ onMounted(load)
 .chip.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .sum { display: flex; justify-content: space-between; align-items: baseline;
        color: var(--muted); font-size: 13px; padding: 0 2px; }
+/* The card is the way in. Tapping a row opens the order; it used to carry a Cancel button
+   instead, which put the one destructive action in the app under the thumb on every row of a
+   list a rep scrolls all day. */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-        padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center; gap: 10px; color: inherit; text-decoration: none; }
+.card:active { background: var(--primary-soft); }
+.card .go { color: var(--muted); flex: none; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+       min-width: 0; }
+.pname { font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
 
-.undo { align-self: flex-start; min-height: 44px; padding: 0 12px; border-radius: 8px;
-        border: 1px solid var(--line); background: none; color: var(--muted);
-        font-weight: 600; font-size: 14px; }
-.sure { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line);
-        padding-top: 10px; }
-.sure .dim { margin: 0; }
-.pair { display: flex; gap: 8px; }
-.pair button { flex: 1; min-height: 48px; border-radius: 8px; font-weight: 600; }
-.keep { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
-.go { border: 0; background: var(--crit); color: #fff; }
 .left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
@@ -288,7 +241,15 @@ onMounted(load)
 .pill.crit { background: var(--crit-soft); color: var(--crit); }
 .pill.flat { background: var(--primary-soft); color: var(--primary); }
 .pill.book { background: var(--primary); color: var(--on-primary); text-decoration: none; }
-.ways { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
+/* The three things this screen can do, as buttons. They were underlined links in a sentence
+   row, which read as body text somebody had turned blue. Equal width so the row is a row, and
+   they wrap to two lines on a narrow handset rather than scrolling off. */
+.ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.way { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+       min-height: 48px; padding: 0 10px; border-radius: 8px; text-align: center;
+       border: 1px solid var(--primary); background: var(--surface); color: var(--primary);
+       font-weight: 600; font-size: 14px; text-decoration: none; line-height: 1.2; }
+.way:active { background: var(--primary-soft); }
 .note { color: var(--muted); font-size: 14px; text-align: center; padding: 20px 0; }
 .note.crit { color: var(--crit); text-align: left; background: var(--crit-soft);
              border-radius: 8px; padding: 10px 12px; }

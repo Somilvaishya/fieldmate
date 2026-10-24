@@ -1264,7 +1264,7 @@ def approve(name: str, decision: str, remarks: str | None = None,
 
 def mine(field_user: str | None = None, limit: int = 50) -> list[dict]:
 	field_user = field_user or field_user_service.for_user()
-	return frappe.get_list(
+	rows = frappe.get_list(
 		"FieldMate Order",
 		filters={"field_user": field_user},
 		# `customer` and `party_type` as well as `outlet`: a primary order has no outlet at all
@@ -1282,6 +1282,47 @@ def mine(field_user: str | None = None, limit: int = 50) -> list[dict]:
 		user=frappe.session.user,
 		ignore_permissions=False,
 	)
+	return with_party_names(rows)
+
+
+def with_party_names(rows: list[dict]) -> list[dict]:
+	"""Put the shop's name - and a party's - beside the id each row already carries.
+
+	The order stores `outlet`, which is an id like `FM-OUT-00041`, and the list on the phone drew
+	exactly that: a rep reading their own day saw a column of codes and had to remember which shop
+	each one was. The name is not on the order document, so it is read here.
+
+	**Two queries for the whole page, never one per row.** The depot's queue learned this the same
+	way (`services/portal.py`): a list of fifty orders asking per row is fifty round trips over a
+	market uplink, which is how a screen stops being opened.
+	"""
+	if not rows:
+		return rows
+
+	outlets = {r.get("outlet") for r in rows if r.get("outlet")}
+	parties = {r.get("customer") for r in rows if r.get("customer")}
+
+	shop_names = {}
+	if outlets:
+		shop_names = {
+			o.name: o.outlet_name
+			for o in frappe.get_all("FieldMate Outlet", filters={"name": ["in", list(outlets)]},
+			                        fields=["name", "outlet_name"], limit_page_length=0)
+		}
+	party_names = {}
+	if parties:
+		party_names = {
+			c.name: c.customer_name
+			for c in frappe.get_all("Customer", filters={"name": ["in", list(parties)]},
+			                        fields=["name", "customer_name"], limit_page_length=0)
+		}
+
+	for row in rows:
+		# Falls back to the id rather than to a blank: a row with no name is still a row the rep
+		# has to be able to identify.
+		row["outlet_name"] = shop_names.get(row.get("outlet")) or row.get("outlet")
+		row["customer_name"] = party_names.get(row.get("customer")) or row.get("customer")
+	return rows
 
 
 def my_bookings(field_user: str | None = None, limit: int = 50) -> list[dict]:
@@ -1403,6 +1444,29 @@ def summarise(doc) -> dict:
 		# outlet ever puts a name here.
 		"sales_order": doc.sales_order,
 		"lines": len(doc.items or []),
+		# Who it was for, in words. The ids above are what the order stores; a rep reading an
+		# order back has to see the shop, not `FM-OUT-00041`.
+		"outlet_name": (frappe.db.get_value("FieldMate Outlet", doc.outlet, "outlet_name")
+		                if doc.outlet else None) or doc.outlet,
+		"customer_name": (frappe.db.get_value("Customer", doc.customer, "customer_name")
+		                  if doc.customer else None) or doc.customer,
+		# The lines themselves. `lines` above is a count, and a count is all this ever sent - so
+		# the phone could show that an order had four lines and never what they were. The depot's
+		# drawer has carried the rows since Phase 9; the rep's own order had nowhere to read them.
+		#
+		# `qty_display` and `display_uom` travel with `qty` for the reason the picklist does: an
+		# order taken as 2 cases reads as 2 cases, not as the 24 pieces it converts to.
+		"items": [
+			{"item_code": r.item_code, "item_name": r.item_name,
+			 "qty": flt(r.qty), "qty_display": flt(r.qty_display), "display_uom": r.display_uom,
+			 "uom": r.uom, "stock_uom": r.stock_uom,
+			 "rate": flt(r.rate), "price_list_rate": flt(r.price_list_rate),
+			 "amount": flt(r.amount), "gross_amount": flt(r.gross_amount),
+			 "discount_amount": flt(r.discount_amount),
+			 "is_free_item": cint(r.is_free_item),
+			 "scheme": r.scheme, "scheme_name": r.scheme_name}
+			for r in (doc.items or [])
+		],
 		"free_goods": [{"item": r.item_code, "qty": flt(r.qty)} for r in (doc.free_goods or [])],
 		"schemes": [
 			{"scheme": r.scheme, "name": r.scheme_name, "benefit": flt(r.benefit_amount),
