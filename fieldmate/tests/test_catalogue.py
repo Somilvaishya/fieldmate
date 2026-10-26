@@ -715,3 +715,43 @@ class TestTheUnitsAnOrderMayBeTakenIn(CatalogueFixture):
 				self.assertTrue(units, "a line with no units at all cannot be ordered")
 				self.assertIn(row["order_uom"], units)
 				self.assertEqual(row["conversion_factor"], units[row["order_uom"]])
+
+
+class TestThePackShotTravels(CatalogueFixture):
+	"""The catalogue carries the item's picture, or it says there is none.
+
+	This was reported from the field as "images are not showing", and the failure hid well: the
+	payload carried an `image` key on every line and `None` in every one of them, on a site where
+	five hundred items have a picture. `compat.get_item_details` **selected** the column and then
+	rebuilt each row into a new dict without it - the distance between a column being fetched and
+	a column being answered with.
+
+	A key that is always None looks like data nobody filled in, which is exactly what it was
+	mistaken for. So this asserts the value, never the key.
+	"""
+
+	def row_with_image(self, path="/files/pack.jpg"):
+		item = self.priced_item()
+		frappe.db.set_value("Item", item, "image", path, update_modified=False)
+		frappe.clear_document_cache("Item", item)
+		self.make_catalogue(items=[item])
+		rows = [r for r in self.catalogue_for()["items"] if r["item_code"] == item]
+		self.assertTrue(rows, "the catalogue did not carry the item at all")
+		return rows[0]
+
+	def test_the_image_reaches_the_phone(self):
+		self.assertEqual(self.row_with_image()["image"], "/files/pack.jpg")
+
+	def test_a_path_with_spaces_is_passed_through_as_stored(self):
+		"""Half the pictures on a real site are called "WhatsApp Image 2026-01-24 at 13.45.19".
+		Encoding is the browser's job; re-encoding here would produce a path that 404s."""
+		stored = "/files/WhatsApp Image 2026-01-24 at 13.45.19.jpeg"
+		self.assertEqual(self.row_with_image(stored)["image"], stored)
+
+	def test_an_item_with_no_picture_says_none_rather_than_empty(self):
+		"""None, not "". The screen draws the item's initials where there is no picture, and an
+		empty string is a src the browser would try to fetch and fail."""
+		item = self.priced_item()
+		self.make_catalogue(items=[item])
+		row = next(r for r in self.catalogue_for()["items"] if r["item_code"] == item)
+		self.assertIsNone(row["image"])

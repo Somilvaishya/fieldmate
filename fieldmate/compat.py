@@ -499,6 +499,11 @@ def get_item_details(
 			"mrp": (flt(item.get("mrp")) or None) if mrp_field else None,
 			"item_group": item.item_group,
 			"brand": item.brand,
+			# The pack shot. Selected in the query above and then dropped here, which is the
+			# whole distance between a column being fetched and a column being answered with:
+			# the catalogue carried an `image` key on every item and None in every one of them,
+			# on a site where five hundred items have a picture.
+			"image": item.get("image") or None,
 			"is_stock_item": bool(item.is_stock_item),
 			"disabled": bool(item.disabled),
 			"price_list_rate": flt(row.price_list_rate) if row else None,
