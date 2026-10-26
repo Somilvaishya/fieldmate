@@ -19,3 +19,13 @@ frontend/dist/
 
 # The testing manual is handed over as a file, deliberately not tracked here.
 docs/user-manual.html
+
+# The trial week's own paperwork: a plan, a tester manual in two forms and the flow script they
+# are read alongside. Written for the three people testing one site for one week, handed over as
+# files, and out of date the moment that week ends - which is the whole reason they are not here.
+# Named one by one rather than by pattern: docs/MANUAL_TESTS_PHASE*.md next door are the
+# repository's own and stay tracked.
+docs/TRIAL_WEEK_PLAN.md
+docs/TESTING_GUIDE_HINGLISH.md
+docs/MANUAL_TESTS_FULL_FLOW.md
+docs/trial-manual.html
