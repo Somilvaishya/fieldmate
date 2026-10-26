@@ -99,7 +99,8 @@ function todayStamp() {
 
 async function open(name) {
   const held = cart.outlet.value === name && !!cart.catalogue.value
-  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }),
+                     loadCredit(name, partyType.value)])
   await maybePrefill(name)
 }
 
@@ -329,6 +330,22 @@ const marginNote = computed(() => {
 
 const creditView = computed(() => assessCredit(credit.value, totals.value.net_paise))
 
+/** Which of the two debts this order breaks, named.
+ *
+ * The headline here said "{distributor} is over the limit" for any breach, and the note under it
+ * said "this order takes the shop past its limit" for the same one - so on a single screen the
+ * same verdict was attributed to both parties, and neither sentence was checked against which
+ * figure had actually moved. They are different problems: the distributor pays us, the shop pays
+ * the distributor.
+ */
+const overWho = computed(() => {
+  const c = creditView.value
+  if (c.shop_over && c.party_over) return 'both'
+  if (c.shop_over) return 'shop'
+  if (c.party_over) return 'party'
+  return null
+})
+
 const bar = computed(() => {
   const view = creditView.value
   if (view.state !== 'within' && view.state !== 'breach') return null
@@ -414,8 +431,12 @@ function blockerLines(blocker) {
         <div class="crow">
           <!-- Whose limit. This said "this shop" over the distributor's own figures. -->
           <b v-if="creditView.state === 'breach'">
-            {{ t('{party} is over the limit',
-                 { party: creditView.party_name || t('The distributor') }) }}
+            {{ overWho === 'shop'
+                ? t('This shop is over its limit')
+                : overWho === 'both'
+                  ? t('Both are over the limit')
+                  : t('{party} is over the limit',
+                      { party: creditView.party_name || t('The distributor') }) }}
           </b>
           <b v-else-if="creditView.state === 'within'">
             {{ t('Safe zone · under limit') }}
@@ -466,7 +487,10 @@ function blockerLines(blocker) {
           </p>
           <p class="cnote">
             <span v-if="creditView.state === 'breach'">
-              {{ t('This order takes the shop past its limit.') }}
+              {{ overWho === 'party'
+                  ? t('This order takes {party} past their limit with us.',
+                      { party: creditView.party_name || t('the distributor') })
+                  : t('This order takes the shop past what its distributor allows it.') }}
               {{ t('You can still book it — your manager sees it flagged and decides.') }}
             </span>
             <span v-else class="tnum">

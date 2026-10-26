@@ -92,12 +92,17 @@ function shape(detail) {
  * Never throws. A screen's `onMounted` has nowhere to put a rejection, and an expired session on
  * this call used to surface elsewhere in the app as a silent unhandled promise.
  */
-export async function loadCredit(outlet) {
+export async function loadCredit(outlet, partyType = null) {
   const mine = ++token
   if (!outlet) {
     credit.value = null
     return null
   }
+
+  // A primary order is on a Customer, which `outlet.detail` cannot answer for. It used to be
+  // called anyway: the refusal was swallowed, the reading stayed empty, and the screen told the
+  // rep there was no limit recorded for a distributor who had one.
+  const isParty = partyType === 'Customer'
 
   const cached = await getMeta(key(outlet))
   if (mine !== token) return credit.value
@@ -106,7 +111,7 @@ export async function loadCredit(outlet) {
   creditOffline.value = false
 
   try {
-    const data = await api.outlet(outlet)
+    const data = isParty ? await api.partyCredit(outlet) : await api.outlet(outlet)
     if (mine !== token) return credit.value
     credit.value = shape(data)
     creditFetchedAt.value = Date.now()
@@ -156,7 +161,21 @@ export function assessCredit(reading, orderPaise = 0) {
   const after = headroom - order
   // Rupee precision, matching the server: "you are 0.000001 over" is not something anybody can say
   // to a shopkeeper, and a paisa of float noise is not a credit decision.
-  const over = Math.round(-after / 100) > 0
+  const partyOver = Math.round(-after / 100) > 0
+
+  // The shop's own debt to its distributor, counted the same way.
+  //
+  // **This was read, carried and drawn, and then left out of the verdict.** A shop with a seven
+  // thousand limit and a nineteen thousand cart sat under a green card, because the distributor
+  // behind it had room with us - and `credit.check` on the server takes the worse of the two, so
+  // the order was refused at the till over a figure the rep had just read as fine. The server's
+  // own note says it: the rep must not read "within limit" off a screen and say so out loud.
+  const shopAfter = reading.shop_has_limit
+    ? reading.shop_headroom_paise - order
+    : null
+  const shopOver = shopAfter !== null && Math.round(-shopAfter / 100) > 0
+
+  const over = partyOver || shopOver
 
   const used = Math.max(0, Math.min(100, Math.round(((reading.outstanding_paise + order) / limit) * 100)))
   const tone = over ? 'crit' : after < limit * 0.2 ? 'warn' : 'ok'
@@ -164,6 +183,12 @@ export function assessCredit(reading, orderPaise = 0) {
   return {
     state: over ? 'breach' : 'within',
     tone,
+    // Which of the two is over, because they are different problems with different remedies:
+    // the distributor pays us, and the shop pays the distributor. `credit.check` keeps the same
+    // distinction server-side for the same reason.
+    party_over: partyOver,
+    shop_over: shopOver,
+    shop_after_paise: shopAfter,
     limit_paise: limit,
     outstanding_paise: reading.outstanding_paise,
     headroom_paise: headroom,

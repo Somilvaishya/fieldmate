@@ -170,6 +170,35 @@ def check(outlet, field_user: str | None = None, order_value=0,
 	return result
 
 
+def reading(party, field_user: str | None = None, party_type: str | None = None) -> dict:
+	"""The standing credit position, in the shape every screen reads.
+
+	One builder, because this dict has been assembled by hand in more than one place before and
+	the copies disagreed by construction - `outlet.detail` once measured the distributor and
+	labelled the figure as the shop's. The note in that function is worth keeping; this is the
+	part of it that stops it happening again.
+
+	Standing, so `order_value` is zero: what this cart does to the position is arithmetic the
+	phone does itself, offline, as quantities change. The server answers what is owed today.
+
+	Works for either side of the order. A shop resolves to the distributor who bills it and
+	carries its own debt under `shop`; a party we bill ourselves has only the one debt, and
+	`shop` is None there because there is no second level to measure.
+	"""
+	verdict = check(party, field_user, 0, party_type)
+	return {
+		"credit_limit": verdict["limit"],
+		"outstanding": verdict["outstanding"],
+		"headroom": verdict["headroom"],
+		"unlimited": not bool(verdict["limit"]),
+		"status": verdict["status"],
+		"message": verdict["message"],
+		"party": verdict["party"],
+		"party_name": verdict["party_name"],
+		"shop": verdict.get("shop"),
+	}
+
+
 def _party_level(outlet, field_user: str | None = None, order_value=0,
                  party_type: str | None = None) -> dict:
 	"""What the party we bill owes us, read from ERPNext's own receivable."""

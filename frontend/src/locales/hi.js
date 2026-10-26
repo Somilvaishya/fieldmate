@@ -1277,4 +1277,12 @@ export default {
   'Could not load more receipts.': 'और रसीदें नहीं आ सकीं।',
   'Could not check what is owed — open it to try again': 'कितना बाकी है, पता नहीं चला — खोलकर दोबारा देखें',
   'Not checked': 'पता नहीं चला',
+  'This shop may still take': 'यह दुकान अभी और ले सकती है',
+  'of {limit} · {owed} owed': '{limit} में से · {owed} बाकी',
+  'This order puts the shop over what its distributor allows it. The depot decides whether to serve it.': 'इस ऑर्डर से दुकान अपने डिस्ट्रीब्यूटर की दी हुई सीमा पार कर जाती है। माल देना है या नहीं, यह डिपो तय करेगा।',
+  'This shop is over its limit': 'यह दुकान अपनी सीमा पार कर चुकी है',
+  'Both are over the limit': 'दोनों सीमा पार कर चुके हैं',
+  'This order takes {party} past their limit with us.': 'इस ऑर्डर से {party} हमारे यहाँ अपनी सीमा पार कर जाते हैं।',
+  'This order takes the shop past what its distributor allows it.': 'इस ऑर्डर से दुकान अपने डिस्ट्रीब्यूटर की दी हुई सीमा पार कर जाती है।',
+  'Choose branch': 'शाखा चुनें',
 }

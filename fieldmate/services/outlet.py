@@ -125,20 +125,9 @@ def detail(outlet: str, user: str | None = None) -> dict:
 	# The four keys three screens already read keep their names and their meaning, so nothing on
 	# a phone that has not been updated changes. What is added is the rest of the verdict, and
 	# the shop's own position with its distributor, which no screen could see before.
-	verdict = credit_service.check(doc.name, field_user_service.for_user(user), 0)
-	credit = {
-		"credit_limit": verdict["limit"],
-		"outstanding": verdict["outstanding"],
-		"headroom": verdict["headroom"],
-		"unlimited": not bool(verdict["limit"]),
-		"status": verdict["status"],
-		"message": verdict["message"],
-		"party": verdict["party"],
-		"party_name": verdict["party_name"],
-		# What this shop owes its distributor - our own count, and it says so. None on a party
-		# we bill ourselves, where there is only one debt.
-		"shop": verdict.get("shop"),
-	}
+	# Built by `credit.reading` rather than here, so that this block and the one the primary
+	# order screen reads cannot drift apart - which is exactly what the note above is about.
+	credit = credit_service.reading(doc.name, field_user_service.for_user(user))
 
 	return {
 		"outlet": {f: doc.get(f) for f in DETAIL_FIELDS if f != "name"} | {"name": doc.name},

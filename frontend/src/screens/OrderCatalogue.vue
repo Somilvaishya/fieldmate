@@ -85,7 +85,8 @@ async function open(name) {
   // three round trips on a market uplink.
   const held = cart.outlet.value === name && !!cart.catalogue.value
   shownCount.value = PAGE
-  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }),
+                     loadCredit(name, partyType.value)])
 }
 
 onMounted(() => open(outlet.value))
@@ -470,7 +471,7 @@ async function refresh() {
   busy.value = true
   try {
     await cart.refreshAll()
-    await loadCredit(outlet.value)
+    await loadCredit(outlet.value, partyType.value)
   } finally {
     busy.value = false
   }
@@ -479,6 +480,12 @@ async function refresh() {
 // ------------------------------------------------------------------------------------- credit
 
 const creditView = computed(() => assessCredit(credit.value, totals.value.net_paise))
+
+// What is left of the shop's own limit, floored at zero: a negative headroom is said in words
+// on the line below rather than printed as a minus figure a rep has to interpret at a counter.
+const shopRoom = computed(() =>
+  Math.max(0, Number(creditView.value.shop_after_paise) || 0)
+)
 
 const creditAge = computed(() => ageWords(creditFetchedAt.value))
 const catalogueAge = computed(() => ageWords(dataAge.value.catalogue.fetchedAt))
@@ -543,7 +550,28 @@ const emptyReason = computed(() => {
            read the distributor's limit as that kirana's. The shop's own debt to its distributor
            is a different number and sits on the line below. -->
       <div class="credit" :class="creditView.tone">
-        <div class="crow">
+        <!-- The shop first. A rep is standing in it, the figure that stops this order is most
+             often its own, and it used to be the smallest line on the card - under a headline
+             about a distributor who is not in the room. Only where somebody has set a limit: a
+             zero cannot be told from a blank, and treating the default as a ceiling would put
+             every shop over on the day it was onboarded. -->
+        <div v-if="creditView.shop_has_limit" class="crow">
+          <span>{{ t('This shop may still take') }}</span>
+          <b class="tnum" :class="{ bad: creditView.shop_over }">
+            {{ money(shopRoom) }}
+          </b>
+        </div>
+        <p v-if="creditView.shop_has_limit" class="cnote tnum">
+          {{ t('of {limit} · {owed} owed', {
+               limit: money(creditView.shop_limit_paise),
+               owed: money(creditView.shop_outstanding_paise) }) }}
+          &middot; <em>{{ t('our own count') }}</em>
+        </p>
+        <p v-if="creditView.shop_over" class="cnote bad">
+          {{ t('This order puts the shop over what its distributor allows it. The depot decides whether to serve it.') }}
+        </p>
+
+        <div class="crow second">
           <span>
             {{ t('{party} owes us',
                  { party: creditView.party_name || t('The distributor') }) }}
@@ -572,15 +600,6 @@ const emptyReason = computed(() => {
             : t('No credit limit is recorded for this distributor.') }}
         </p>
 
-        <!-- This shop's own debt, where somebody has set it a limit. A zero limit cannot be told
-             from no limit at all, so a shop nobody has given one is not shown as having no room.
-             Our own count, and it says so. -->
-        <p v-if="creditView.shop_has_limit" class="cnote tnum shop">
-          {{ t('This shop owes {owed} of {limit}', {
-               owed: money(creditView.shop_outstanding_paise),
-               limit: money(creditView.shop_limit_paise) }) }}
-          &middot; <em>{{ t('our own count') }}</em>
-        </p>
       </div>
 
       <p v-if="credit && !credit.can_take_order" class="flag crit" role="alert">
@@ -1052,4 +1071,7 @@ h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
 .btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px;
                min-height: 52px; padding: 14px; border-radius: 6px; text-decoration: none;
                font-size: 16px; }
+.crow.second { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.cnote.bad, .tnum.bad { color: var(--crit); }
+.tnum.bad { font-weight: 700; }
 </style>

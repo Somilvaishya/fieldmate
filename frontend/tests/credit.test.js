@@ -80,3 +80,60 @@ describe('the distributor’s own arithmetic', () => {
     expect(view.state).not.toBe('breach')
   })
 })
+
+describe('the verdict counts both debts, not just the distributor’s', () => {
+  /**
+   * Reported from the field: a shop with a ₹7,000 limit, a ₹19,114 cart, and a card that stayed
+   * green - because the distributor behind it had ₹50,000 of room with us. `credit.check` on the
+   * server takes the worse of the two, so that order was refused at the till over a figure the
+   * rep had just read as fine and said out loud to the shopkeeper.
+   *
+   * The shop's position was read, carried into the reading and drawn on the screen. It was the
+   * verdict that ignored it.
+   */
+  const SHOP_OVER = { limit: 7000, outstanding: 0, headroom: 7000 }
+
+  it('turns on the shop even when the distributor has room', () => {
+    const got = assessCredit(reading({ limit: 50000, shop: SHOP_OVER }), 19114 * 100)
+
+    expect(got.state).toBe('breach')
+    expect(got.tone).toBe('crit')
+  })
+
+  it('says which of the two is over', () => {
+    // Different problems with different remedies: the distributor pays us, the shop pays the
+    // distributor. A screen that only knows "something breached" cannot tell a rep what to do.
+    const got = assessCredit(reading({ limit: 50000, shop: SHOP_OVER }), 19114 * 100)
+
+    expect(got.shop_over).toBe(true)
+    expect(got.party_over).toBe(false)
+  })
+
+  it('still breaches on the distributor when the shop is fine', () => {
+    const got = assessCredit(
+      reading({ limit: 500, outstanding: 400, shop: { limit: 90000, outstanding: 0, headroom: 90000 } }),
+      5000 * 100,
+    )
+
+    expect(got.state).toBe('breach')
+    expect(got.party_over).toBe(true)
+    expect(got.shop_over).toBe(false)
+  })
+
+  it('leaves a shop with no limit out of it', () => {
+    // A Currency column is NOT NULL DEFAULT 0, so a zero cannot be told from a blank. Treating
+    // the default as a ceiling would put every shop over on the day it was onboarded.
+    const got = assessCredit(reading({ limit: 50000, shop: null }), 19114 * 100)
+
+    expect(got.state).toBe('within')
+    expect(got.shop_over).toBe(false)
+  })
+
+  it('counts the order against the shop, not just what it already owes', () => {
+    const under = assessCredit(reading({ limit: 50000, shop: SHOP_OVER }), 6000 * 100)
+    const over = assessCredit(reading({ limit: 50000, shop: SHOP_OVER }), 8000 * 100)
+
+    expect(under.state).toBe('within')
+    expect(over.state).toBe('breach')
+  })
+})
