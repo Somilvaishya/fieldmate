@@ -747,6 +747,82 @@ def confirm_deposit(name: str, confirmed_by: str | None = None) -> dict:
 	return summarise_deposit(frappe.get_doc("FieldMate Collection Deposit", name))
 
 
+def _references_for(doc) -> list[dict]:
+	"""What this money is paid against, named in ERPNext's own documents.
+
+	A rep allocates a collection against what they can see - an invoice, or a FieldMate Order -
+	and only the first of those is a document ERPNext knows. The second used to be dropped here,
+	and that is how a season advance became a loose credit on the customer: the money reached the
+	ledger, nothing tied it to the booking it had been collected for, the Sales Order read
+	`advance_paid` zero, and the office could not tell a paid booking from an unpaid one. Worse on
+	a party with older money sitting unallocated - the invoice, when it came, could consume that
+	instead, so the advance was not traceable to its booking even in principle.
+
+	A primary order carries the Sales Order it posted, and that is what ERPNext tracks an advance
+	against. So the order is translated into its Sales Order rather than discarded.
+
+	Two cases are still passed over, and both leave the money on account, which is the honest
+	answer rather than a wrong link:
+
+	- **No Sales Order.** A secondary order posts none - the distributor billed the shop and our
+	  books are not in it (ADR-023) - and a booking still held for approval has not posted one
+	  yet. There is nothing of ours to pay against.
+	- **The Sales Order is billed to somebody else.** A party set to buy from its parent has the
+	  sale raised on the parent, and ERPNext refuses a reference whose party is not the payer.
+	  Refusing here too would fail the whole deposit confirmation and keep the money out of the
+	  ledger altogether, which is a worse outcome than an unlinked receipt.
+
+	An advance larger than the order it is paid against is **capped**, not refused. A party that
+	pays for a whole season up front has handed over more than any one of its orders is worth, and
+	ERPNext will not allocate past a Sales Order's own outstanding. So each order takes what it
+	can carry and the rest stays on account, where the next delivery's invoice can draw on it.
+	"""
+	rows = []
+	# Per Sales Order, because two allocation rows can name orders that posted onto one, and
+	# ERPNext measures the second row against an outstanding the first has already eaten into.
+	room = {}
+
+	for row in doc.allocations or []:
+		amount = flt(row.allocated_amount)
+		if not row.reference_name or not amount:
+			continue
+
+		doctype, name = row.reference_type, row.reference_name
+
+		if doctype == "FieldMate Order":
+			order = frappe.db.get_value("FieldMate Order", name, ["sales_order"], as_dict=True)
+			if not order or not order.sales_order:
+				continue
+			sales_order = frappe.db.get_value(
+				"Sales Order", order.sales_order,
+				["name", "customer", "docstatus", "grand_total", "rounded_total", "advance_paid"],
+				as_dict=True)
+			if not sales_order or sales_order.docstatus != 1:
+				continue
+			if sales_order.customer != doc.party:
+				continue
+
+			doctype, name = "Sales Order", sales_order.name
+			if name not in room:
+				# The same subtraction ERPNext makes when it validates the row, so the figure
+				# sent is one it will accept rather than one it has to refuse.
+				total = flt(sales_order.rounded_total) or flt(sales_order.grand_total)
+				room[name] = max(0.0, total - flt(sales_order.advance_paid))
+			amount = min(amount, room[name])
+			if not amount:
+				continue
+			room[name] -= amount
+
+		elif doctype != "Sales Invoice":
+			# "On Account" is the rep saying this money is against no particular bill. It is a
+			# real answer and ERPNext records it as the unallocated part of the receipt.
+			continue
+
+		rows.append({"reference_doctype": doctype, "reference_name": name,
+		             "allocated_amount": amount})
+	return rows
+
+
 def post_payment(collection: str, deposit) -> str | None:
 	"""One Payment Entry for one distributor collection, with its references.
 
@@ -775,12 +851,7 @@ def post_payment(collection: str, deposit) -> str | None:
 		"reference_date": doc.instrument_date or deposit.deposit_date,
 		"bank_account": deposit.bank_account,
 		"fm_source_key": doc.name,
-		"references": [
-			{"reference_doctype": row.reference_type, "reference_name": row.reference_name,
-			 "allocated_amount": flt(row.allocated_amount)}
-			for row in (doc.allocations or [])
-			if row.reference_type == "Sales Invoice" and row.reference_name
-		],
+		"references": _references_for(doc),
 	})
 
 	frappe.db.set_value("FieldMate Collection", doc.name,

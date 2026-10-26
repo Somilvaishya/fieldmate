@@ -134,6 +134,14 @@ onMounted(load)
       </button>
     </header>
 
+    <!-- In the header, not in the empty state. It used to live only where the list was empty, so
+         the way to book anything disappeared the moment a rep had booked one thing - and a season
+         is precisely the stretch where they book many, on many parties, over weeks. -->
+    <RouterLink :to="{ name: 'parties', query: { for: 'season' } }" class="make">
+      <Icon name="plus" size="18" />
+      {{ t('New season order') }}
+    </RouterLink>
+
     <div class="tabs">
       <button v-for="tab in TABS" :key="tab.key" class="chip"
               :class="{ on: filter === tab.key }" @click="filter = tab.key">
@@ -252,7 +260,9 @@ onMounted(load)
           ? t('Try another tab.')
           : t('A primary order dated inside an open season books it. There is nothing open, or nothing booked yet.') }}
       </p>
-      <RouterLink to="/parties" class="ghost">{{ t('Order on a distributor') }}</RouterLink>
+      <RouterLink :to="{ name: 'parties', query: { for: 'season' } }" class="ghost">
+        {{ t('New season order') }}
+      </RouterLink>
     </div>
   </div>
 </template>
@@ -317,6 +327,11 @@ onMounted(load)
 .ghost { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px;
          margin-top: 6px; border-radius: 8px; border: 1px solid var(--line);
          color: var(--primary); text-decoration: none; font-weight: 600; }
+/* Full width and 48px, because this is the one thing a rep comes to this screen to start and it
+   has to be reachable with a thumb on a phone held in one hand. */
+.make { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center;
+        gap: 8px; border-radius: 8px; background: var(--primary); color: var(--on-primary);
+        text-decoration: none; font-weight: 600; font-size: 15px; }
 .tnum { font-variant-numeric: tabular-nums; }
 .more { width: 100%; min-height: 48px; border-radius: 8px; font-weight: 600; font-size: 15px;
         border: 1px solid var(--primary); background: var(--surface); color: var(--primary); }

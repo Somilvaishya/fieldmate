@@ -13,12 +13,20 @@
  * return.
  */
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { getMeta } from '../db'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
+const route = useRoute()
 const boot = ref(null)
 const loading = ref(true)
+
+// The season book sends a rep here to start a booking. Same screen and same list - a booking *is*
+// a primary order dated inside an open window - but arriving from there with the heading still
+// reading "Order on a distributor" made it look like a different feature the rep had wandered
+// into, and the way back to the season book was the browser's back button.
+const forSeason = computed(() => route.query.for === 'season')
 
 onMounted(async () => {
   try {
@@ -53,9 +61,11 @@ function termsFor(party) {
 <template>
   <div class="screen">
     <header class="head">
-      <h1>{{ t('Order on a distributor') }}</h1>
+      <h1>{{ forSeason ? t('New season order') : t('Order on a distributor') }}</h1>
       <p class="sub">
-        {{ t('A sale we invoice ourselves, not one the distributor bills a shop for.') }}
+        {{ forSeason
+          ? t('Pick the party. An order dated inside an open booking window books that season.')
+          : t('A sale we invoice ourselves, not one the distributor bills a shop for.') }}
       </p>
     </header>
 
@@ -67,10 +77,18 @@ function termsFor(party) {
       {{ t('Ask your manager if that is wrong.') }}
     </p>
 
-    <p v-else-if="!parties.length" class="notice">
-      {{ t('No distributor is set up against your territory yet, so there is nobody here to order on.') }}
-      {{ t('Ask your manager.') }}
-    </p>
+    <!-- It used to blame the territory, which was one of several reasons and usually not the
+         one. A rep cannot fix any of these from a market, so it names all three for whoever they
+         ask rather than sending them off with a wrong diagnosis. -->
+    <div v-else-if="!parties.length" class="notice">
+      <p>{{ t('There is nobody here to order on yet.') }}</p>
+      <p>{{ t('A party reaches this list in one of three ways. Ask your manager to set one:') }}</p>
+      <ul class="ways">
+        <li>{{ t('your name on their Sales Team') }}</li>
+        <li>{{ t('a channel tier on them, inside your territory') }}</li>
+        <li>{{ t('they supply the shops you serve') }}</li>
+      </ul>
+    </div>
 
     <ul v-else class="list">
       <li v-for="party in parties" :key="party.distributor">
@@ -81,6 +99,13 @@ function termsFor(party) {
                  query: { party: 'Customer' } }">
           <span class="idn">
             <b>{{ party.distributor_name }}</b>
+            <!-- Why this one is here. A list a rep cannot explain is how one party appeared with
+                 nobody able to say on what grounds - and how an empty one got blamed on the
+                 territory. `why_label` is new, so an older handset simply shows the name. -->
+            <span class="tags">
+              <em v-if="party.why_label" class="tag">{{ t(party.why_label) }}</em>
+              <em v-if="party.tier" class="tag quiet">{{ t(party.tier) }}</em>
+            </span>
             <em v-if="termsFor(party)" class="muted">{{ termsFor(party) }}</em>
           </span>
           <Icon name="chevron" size="20" />
@@ -103,4 +128,12 @@ function termsFor(party) {
 .idn { display: flex; flex-direction: column; gap: 2px; }
 .muted { color: var(--muted, #666); font-style: normal; font-size: 0.9em; }
 .notice { margin: 16px; padding: 12px; border-radius: 8px; background: var(--notice, #fff6e5); }
+.notice p { margin: 0 0 6px; }
+.ways { margin: 0; padding-left: 18px; color: var(--muted, #666); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-style: normal; font-size: 0.78em; font-weight: 600; letter-spacing: 0.02em;
+       padding: 2px 8px; border-radius: 999px; background: var(--chip, #eef2ff);
+       color: var(--primary, #26348c); }
+.tag.quiet { background: transparent; color: var(--muted, #666); font-weight: 500;
+             border: 1px solid var(--line, #eee); }
 </style>

@@ -6,6 +6,7 @@ from fieldmate.patches import carry_distributor_profile_to_customer as carry
 from fieldmate.services import party as party_service
 from fieldmate.services import settings as settings_service
 from fieldmate.tests.base import FieldMateTestCase
+from fieldmate.tests.test_outlet import OutletFixture
 
 
 class PartyFixture(FieldMateTestCase):
@@ -282,3 +283,138 @@ class TestRetiringTheDistributorProfile(PartyFixture):
 		carry.execute()
 		self.assertFalse(frappe.get_meta("Customer").has_field("fm_credit_days"))
 		self.assertIsNone(party_service.credit_days(cust))
+
+
+class TestWhichPartiesARepCanSellTo(OutletFixture):
+	"""Four ways onto a rep's list, and the reason carried with each.
+
+	There used to be one: the `distributor` column on outlets in the rep's territory, matched
+	**exactly**. So a rep saw whoever supplied their shops and nobody else - a party they owned
+	the account for was invisible, and a manager standing on an area saw nothing at all, because
+	their own node holds no shops. The screen then blamed the territory whatever the real reason
+	was, which is how a list nobody could explain became a list nobody could fix.
+	"""
+
+	def sales_person(self) -> str:
+		doc = frappe.get_doc({
+			"doctype": "Sales Person", "sales_person_name": self.uid("SP"),
+			"parent_sales_person": frappe.db.get_value(
+				"Sales Person", {"is_group": 1, "parent_sales_person": ("in", ("", None))},
+				"name"),
+		}).insert(ignore_permissions=True)
+		return self.track("Sales Person", doc.name)
+
+	def setUp(self):
+		super().setUp()
+		self.area = self.make_territory()
+		self.mine = self.make_territory(parent=self.area)
+		self.theirs = self.make_territory(parent=self.area)
+		self.rep = self.make_field_user(territory=self.mine)
+
+	def reached(self):
+		return party_service.reachable(self.rep.name)
+
+	# ---------------------------------------------------------------- the four ways
+
+	def test_a_party_whose_sales_team_names_this_rep(self):
+		person = self.sales_person()
+		frappe.db.set_value("FieldMate Field User", self.rep.name, "sales_person", person)
+		party = self.make_distributor()
+		# Deliberately in somebody else's territory: an account is owned wherever it sits.
+		frappe.db.set_value("Customer", party,
+		                    {"fm_tier": "Distributor", "territory": self.theirs})
+		doc = frappe.get_doc("Customer", party)
+		doc.append("sales_team", {"sales_person": person, "allocated_percentage": 100})
+		doc.save(ignore_permissions=True)
+
+		self.assertEqual(self.reached().get(party), party_service.BY_ACCOUNT)
+
+	def test_a_tiered_party_in_the_reps_own_territory(self):
+		party = self.make_distributor()
+		frappe.db.set_value("Customer", party, {"fm_tier": "Distributor", "territory": self.mine})
+		self.assertEqual(self.reached().get(party), party_service.BY_TERRITORY)
+
+	def test_a_party_that_supplies_the_shops_this_rep_serves(self):
+		"""The rule that was here before, kept. On a route-selling site it is the true one."""
+		outlet = self.make_outlet(territory=self.mine)
+		self.assertEqual(self.reached().get(outlet.distributor), party_service.BY_SHOPS)
+
+	def test_the_party_named_on_the_reps_own_record(self):
+		"""So a rep with no shops yet does not start on an empty screen."""
+		party = self.make_distributor()
+		frappe.db.set_value("FieldMate Field User", self.rep.name, "distributor", party)
+		self.assertEqual(self.reached().get(party), party_service.BY_ASSIGNMENT)
+
+	# ---------------------------------------------------------------- the edges
+
+	def test_a_manager_sees_the_whole_subtree_below_them(self):
+		"""The bug this fixes. An area node holds no shops and no parties - every one of them
+		sits on a child - so an exact match left a manager with nothing."""
+		manager = self.make_field_user(territory=self.area, designation="Area Manager")
+		outlet = self.make_outlet(territory=self.mine)
+		party = self.make_distributor()
+		frappe.db.set_value("Customer", party, {"fm_tier": "Distributor", "territory": self.theirs})
+
+		reached = party_service.reachable(manager.name)
+		self.assertIn(outlet.distributor, reached)
+		self.assertIn(party, reached, "a child's party is in the area the manager covers")
+
+	def test_a_rep_does_not_see_the_next_territory_along(self):
+		party = self.make_distributor()
+		frappe.db.set_value("Customer", party,
+		                    {"fm_tier": "Distributor", "territory": self.theirs})
+		self.assertNotIn(party, self.reached())
+
+	def test_an_untiered_customer_in_the_territory_is_not_one_of_ours(self):
+		"""Most Customers on an ERPNext site have nothing to do with FieldMate, and a party
+		FieldMate cannot place in the chain is a door that opens onto a refusal."""
+		party = self.make_distributor()
+		frappe.db.set_value("Customer", party, {"fm_tier": None, "territory": self.mine})
+		self.assertNotIn(party, self.reached())
+
+	def test_a_disabled_party_is_off_the_list_however_it_got_on(self):
+		person = self.sales_person()
+		frappe.db.set_value("FieldMate Field User", self.rep.name, "sales_person", person)
+		party = self.make_distributor()
+		frappe.db.set_value("Customer", party, {"fm_tier": "Distributor", "territory": self.mine})
+		doc = frappe.get_doc("Customer", party)
+		doc.append("sales_team", {"sales_person": person, "allocated_percentage": 100})
+		doc.save(ignore_permissions=True)
+		self.assertIn(party, self.reached(), "set up first, so the next line proves the disable")
+
+		frappe.db.set_value("Customer", party, "disabled", 1)
+		self.assertNotIn(party, self.reached())
+
+	def test_the_most_specific_reason_wins(self):
+		"""A party reached two ways is named by the one that says the most about it."""
+		person = self.sales_person()
+		frappe.db.set_value("FieldMate Field User", self.rep.name, "sales_person", person)
+		outlet = self.make_outlet(territory=self.mine)
+		doc = frappe.get_doc("Customer", outlet.distributor)
+		doc.fm_tier = "Distributor"
+		doc.territory = self.mine
+		doc.append("sales_team", {"sales_person": person, "allocated_percentage": 100})
+		doc.save(ignore_permissions=True)
+
+		self.assertEqual(self.reached().get(outlet.distributor), party_service.BY_ACCOUNT)
+
+	def test_a_rep_with_nothing_set_up_gets_an_empty_list_not_an_error(self):
+		self.assertEqual(self.reached(), {})
+
+	# ---------------------------------------------------------------- what the phone reads
+
+	def test_the_reason_travels_to_the_phone_in_words(self):
+		"""The screen shows this beside the name. Without it the rep is back to a list they
+		cannot explain."""
+		outlet = self.make_outlet(territory=self.mine)
+		rows = {r["distributor"]: r for r in party_service.counter_facts(self.rep.name)}
+		row = rows[outlet.distributor]
+		self.assertEqual(row["why"], party_service.BY_SHOPS)
+		self.assertEqual(row["why_label"], party_service.WHY[party_service.BY_SHOPS])
+
+	def test_the_old_keys_are_all_still_there(self):
+		"""Additive only. Builds already in the field read these and must go on working."""
+		self.make_outlet(territory=self.mine)
+		row = party_service.counter_facts(self.rep.name)[0]
+		for key in ("distributor", "distributor_name", "delivery_days", "credit_days"):
+			self.assertIn(key, row)

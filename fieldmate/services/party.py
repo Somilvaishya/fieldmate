@@ -66,26 +66,116 @@ def payment_terms_template(customer: str | None) -> str | None:
 # --------------------------------------------------------------------------------------
 
 
-def distributors_of(field_user: str | None) -> list[str]:
-	"""The parties this rep sells through.
+# Why a party is on a rep's list. Carried through to the phone and shown beside the name, because
+# a list nobody can explain is the defect this replaced: one party appeared, nobody could say on
+# what grounds, and when none appeared the screen blamed the territory - which on most sites was
+# not the reason at all.
+BY_ACCOUNT = "account"
+BY_TERRITORY = "territory"
+BY_SHOPS = "shops"
+BY_ASSIGNMENT = "assigned"
 
-	Derived from the shops they actually serve rather than from a field on the rep: a rep works
-	whoever supplies their beat, and the `distributor` column on FieldMate Field User is empty on
-	most sites. The rep's own is folded in when it is set, so a rep with no outlets yet is not
-	left with an empty list.
+WHY = {
+	BY_ACCOUNT: "Your account",
+	BY_TERRITORY: "In your territory",
+	BY_SHOPS: "Supplies your shops",
+	BY_ASSIGNMENT: "Assigned to you",
+}
+
+
+def _territory_subtree(territory: str | None) -> list[str]:
+	"""A territory and everything under it.
+
+	The whole tree, not the one node. A rep covering a leaf sees only that leaf either way, but a
+	manager standing on an area saw **nothing** when this was an exact match - their own node
+	holds no shops and no parties, every one of those sits on a child.
+	"""
+	if not territory:
+		return []
+	bounds = frappe.db.get_value("Territory", territory, ["lft", "rgt"], as_dict=True)
+	if not bounds:
+		return [territory]
+	return frappe.get_all(
+		"Territory",
+		filters={"lft": [">=", bounds.lft], "rgt": ["<=", bounds.rgt]},
+		pluck="name",
+	) or [territory]
+
+
+def reachable(field_user: str | None) -> dict[str, str]:
+	"""The parties this rep may sell to directly, each with the reason it is on the list.
+
+	A rep's book and a rep's map are different things, and a site keeps one, the other, or both.
+	So there is no single rule here - there are four ways on, and a party needs only one:
+
+	- **Their own account.** The rep's `sales_person` named on the Customer's Sales Team. This is
+	  the answer wherever somebody owns the relationship: the party is theirs wherever it sits on
+	  the map.
+	- **Their territory.** A party with a channel tier anywhere in the rep's territory subtree.
+	- **It supplies their shops.** The `distributor` behind outlets in that same subtree. This was
+	  the only rule before, and it is kept: on a route-selling site it is still the true one.
+	- **Assigned on their record.** `FieldMate Field User.distributor`, for a rep who has no shops
+	  yet and would otherwise start with an empty screen.
+
+	The first two are new, and both require `fm_tier` - a Customer FieldMate cannot place in the
+	chain cannot be ordered on at all, so listing one is a door that opens onto a refusal. The
+	third deliberately does not: it has never required a tier, and quietly dropping a party a rep
+	has been ordering on for months is not a fix.
+
+	A party reached more than one way is named by the most specific reason, which is the order
+	these are written in.
 	"""
 	if not field_user:
-		return []
+		return {}
 
-	territory = frappe.db.get_value("FieldMate Field User", field_user, "territory")
-	names = set(frappe.get_all("FieldMate Outlet", filters={"territory": territory},
-	                           pluck="distributor"))
-	own = frappe.db.get_value("FieldMate Field User", field_user, "distributor")
-	if own:
-		names.add(own)
-	names.discard(None)
-	names.discard("")
-	return sorted(names)
+	rep = frappe.db.get_value(
+		"FieldMate Field User", field_user, ["territory", "sales_person", "distributor"],
+		as_dict=True)
+	if not rep:
+		return {}
+
+	territories = _territory_subtree(rep.territory)
+	found: dict[str, str] = {}
+
+	def take(names, why):
+		for name in names:
+			if name and name not in found:
+				found[name] = why
+
+	if rep.sales_person:
+		take(frappe.get_all(
+			"Sales Team",
+			filters={"parenttype": "Customer", "sales_person": rep.sales_person},
+			pluck="parent",
+		), BY_ACCOUNT)
+
+	if territories:
+		take(frappe.get_all(
+			"Customer",
+			filters={"territory": ["in", territories], "fm_tier": ["is", "set"],
+			         "disabled": 0},
+			pluck="name",
+		), BY_TERRITORY)
+
+		take(frappe.get_all(
+			"FieldMate Outlet", filters={"territory": ["in", territories]}, pluck="distributor",
+		), BY_SHOPS)
+
+	if rep.distributor:
+		take([rep.distributor], BY_ASSIGNMENT)
+
+	# An account route can name a party that is not a Customer we sell to at all - a Sales Team
+	# row survives its party being disabled. Checked once, at the end, rather than per route.
+	live = set(frappe.get_all(
+		"Customer", filters={"name": ["in", list(found)], "disabled": 0}, pluck="name",
+	)) if found else set()
+
+	return {name: why for name, why in found.items() if name in live}
+
+
+def distributors_of(field_user: str | None) -> list[str]:
+	"""Just the names, for callers that do not draw a screen."""
+	return sorted(reachable(field_user))
 
 
 def counter_facts(field_user: str | None) -> list[dict]:
@@ -102,14 +192,14 @@ def counter_facts(field_user: str | None) -> list[dict]:
 	a FieldMate endpoint decides exactly which Customer fields leave the server, where registering
 	Customer for sync would have had to hand a handset read access to the whole master.
 	"""
-	names = distributors_of(field_user)
-	if not names:
+	why = reachable(field_user)
+	if not why:
 		return []
 
 	rows = frappe.get_all(
 		"Customer",
-		filters={"name": ["in", names]},
-		fields=["name", "customer_name", "fm_delivery_days"],
+		filters={"name": ["in", list(why)]},
+		fields=["name", "customer_name", "fm_delivery_days", "fm_tier"],
 		limit_page_length=0,
 	)
 	return [
@@ -119,6 +209,13 @@ def counter_facts(field_user: str | None) -> list[dict]:
 			# A lead time in days, not a list of weekdays - see `fm_delivery_days`.
 			"delivery_days": cint(row.fm_delivery_days) or None,
 			"credit_days": credit_days(row.name),
+			# Where in the chain they sit, so the screen can say "Distributor" rather than leave
+			# a rep guessing which of several names in front of them is which.
+			"tier": row.fm_tier or None,
+			# Why this one is on this rep's list, as a code and as words. Additive, so a handset
+			# that has not updated simply does not read them.
+			"why": why[row.name],
+			"why_label": WHY.get(why[row.name]) or "",
 		}
 		for row in rows
 	]
