@@ -197,3 +197,27 @@ describe('when there is nothing to show', () => {
     expect(wrapper.text()).toContain('signal')
   })
 })
+
+describe('the way to book another one', () => {
+  // The defect: the only link to start a booking lived inside the empty state, so it vanished the
+  // moment a rep had booked one thing - and a season is precisely the stretch where they book
+  // many, on many parties, over weeks. There was then no way to reach the party list from here at
+  // all, on the one screen a rep opens to work a season.
+  it('is on the screen when there are no bookings', async () => {
+    const wrapper = await screen([])
+    expect(wrapper.text()).toContain('New season order')
+  })
+
+  it('is still on the screen once something has been booked', async () => {
+    const wrapper = await screen([booking()])
+    expect(wrapper.text()).toContain('Mahalaxmi Distributors')
+    expect(wrapper.text()).toContain('New season order')
+  })
+
+  it('is on the screen under a filter that happens to match nothing', async () => {
+    const wrapper = await screen([booking()])
+    const chips = wrapper.findAll('.chip')
+    await chips[chips.length - 1].trigger('click')
+    expect(wrapper.text()).toContain('New season order')
+  })
+})

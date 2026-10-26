@@ -1285,4 +1285,28 @@ export default {
   'This order takes {party} past their limit with us.': 'इस ऑर्डर से {party} हमारे यहाँ अपनी सीमा पार कर जाते हैं।',
   'This order takes the shop past what its distributor allows it.': 'इस ऑर्डर से दुकान अपने डिस्ट्रीब्यूटर की दी हुई सीमा पार कर जाती है।',
   'Choose branch': 'शाखा चुनें',
+
+  // The season book's own way in, and the party list it opens.
+  'New season order': 'नया सीज़न ऑर्डर',
+  'Pick the party. An order dated inside an open booking window books that season.':
+    'पार्टी चुनें। खुली बुकिंग विंडो की तारीख़ वाला ऑर्डर उसी सीज़न में बुक होता है।',
+  'There is nobody here to order on yet.': 'अभी यहाँ ऑर्डर करने के लिए कोई नहीं है।',
+  'A party reaches this list in one of three ways. Ask your manager to set one:':
+    'कोई पार्टी इस सूची में तीन में से किसी एक तरीके से आती है। मैनेजर से कोई एक सेट करवाएँ:',
+  'your name on their Sales Team': 'उनकी Sales Team में आपका नाम',
+  'a channel tier on them, inside your territory': 'आपके क्षेत्र में, उन पर चैनल टियर',
+  'they supply the shops you serve': 'वे आपकी दुकानों को माल देते हैं',
+
+  // Why a party is on the list. Sent by the server as words and translated here, so an older
+  // handset shows the English it was given rather than nothing.
+  'Your account': 'आपका खाता',
+  'In your territory': 'आपके क्षेत्र में',
+  'Supplies your shops': 'आपकी दुकानों को माल देते हैं',
+  'Assigned to you': 'आपको सौंपा गया',
+
+  // Where a party sits in the chain.
+  'Distributor': 'डिस्ट्रीब्यूटर',
+  'Super Stockist': 'सुपर स्टॉकिस्ट',
+  'CFA': 'सीएफ़ए',
+  'Retailer': 'रिटेलर',
 }
