@@ -12,10 +12,12 @@ FieldMate Collection looks fine while the books are being credited for money we 
 """
 
 import frappe
-from frappe.utils import add_days, today
+from frappe.utils import add_days, flt, today
 
 from fieldmate.services import collection as collection_service
+from fieldmate.services import order as order_service
 from fieldmate.tests.test_order import OrderFixture
+from fieldmate.tests.test_scheme_compile import default_selling_price_list
 
 
 class CollectionFixture(OrderFixture):
@@ -430,3 +432,131 @@ class TestADistributorsFileSupersedesOurOrders(CollectionFixture):
 		position = self.owed()
 		self.assertEqual(position["outstanding"], 700.0)
 		self.assertEqual(len(position["bills"]), 1, "one day, one bill")
+
+
+class TestAnAdvanceAgainstWhatItPaysFor(CollectionFixture):
+	"""A primary sale's advance, tied to the Sales Order it was collected against.
+
+	It used to arrive in ERPNext as a loose credit on the customer. `post_payment` passed only
+	the `Sales Invoice` rows of a collection's allocations, so an advance allocated to a
+	FieldMate Order - which is how a season booking's advance is always taken, because the
+	invoice does not exist yet - was dropped on the way through. The money reached the ledger and
+	nothing said what for: the Sales Order read `advance_paid` zero, and on a party with older
+	unallocated money the invoice could later consume that instead, so the advance was not
+	traceable to its booking even in principle.
+	"""
+
+	SETTINGS = ("enable_secondary_sales", "enable_primary_sales")
+
+	def setUp(self):
+		super().setUp()
+		self._before = {k: self.fresh_settings().get(k) for k in self.SETTINGS}
+		self.apply_settings(enable_secondary_sales=1, enable_primary_sales=1)
+		self.party = self.outlet.distributor
+		frappe.db.set_value("Customer", self.party, {
+			"fm_tier": "Super Stockist", "fm_buys_from": "Company",
+			"default_price_list": default_selling_price_list(),
+		}, update_modified=False)
+		frappe.clear_document_cache("Customer", self.party)
+
+	def tearDown(self):
+		self.apply_settings(**self._before)
+		super().tearDown()
+
+	def primary_order(self, qty=10):
+		created = self.as_rep(order_service.create, {
+			"party_type": "Customer", "customer": self.party,
+			"lines": self.cart(qty), "client_uuid": self.uid("PORD"),
+		}, self.rep.name)
+		self.track("FieldMate Order", created["name"])
+		self.as_rep(order_service.submit_order, created["name"])
+		sales_order = frappe.db.get_value("FieldMate Order", created["name"], "sales_order")
+		self.assertTrue(sales_order, "the fixture is pointless without a posted Sales Order")
+		self.track("Sales Order", sales_order)
+		return created, sales_order
+
+	def pay(self, order, amount):
+		collection = self.collect(
+			party_type="Distributor", amount=amount,
+			allocations=[{"reference_type": "FieldMate Order", "reference_name": order,
+			              "allocated_amount": amount}],
+		)
+		deposit = self.as_rep(collection_service.declare_deposit, {
+			"collections": [collection["name"]], "reference_no": self.uid("REF"),
+			"client_uuid": self.uid("DEP"),
+		}, self.rep.name)
+		collection_service.confirm_deposit(deposit["name"], confirmed_by=self.manager())
+		entry = frappe.db.get_value("FieldMate Collection", collection["name"], "payment_entry")
+		self.assertTrue(entry, "a distributor's money posts on confirmation")
+		self.track("Payment Entry", entry)
+		return collection, entry
+
+	def test_the_payment_names_the_sales_order(self):
+		order, sales_order = self.primary_order()
+		_, entry = self.pay(order["name"], 250)
+
+		rows = frappe.get_all("Payment Entry Reference", filters={"parent": entry},
+		                      fields=["reference_doctype", "reference_name", "allocated_amount"])
+		self.assertEqual(
+			[(r.reference_doctype, r.reference_name, r.allocated_amount) for r in rows],
+			[("Sales Order", sales_order, 250.0)],
+			"the order the rep allocated against is carried through as its Sales Order")
+
+	def test_the_sales_order_knows_it_has_been_part_paid(self):
+		"""The figure the office actually reads. Nothing else on this screen says a booking has
+		been paid for."""
+		order, sales_order = self.primary_order()
+		self.pay(order["name"], 250)
+		self.assertEqual(
+			flt(frappe.db.get_value("Sales Order", sales_order, "advance_paid")), 250.0)
+
+	def test_none_of_it_is_left_loose_on_the_customer(self):
+		"""An unallocated receipt is money the next invoice may take for something else."""
+		order, _ = self.primary_order()
+		_, entry = self.pay(order["name"], 250)
+		self.assertEqual(
+			flt(frappe.db.get_value("Payment Entry", entry, "unallocated_amount")), 0.0)
+
+	def test_a_shop_order_has_no_sales_order_to_point_at(self):
+		"""A secondary sale is the distributor's and posts nothing of ours (ADR-023), so money
+		against one stays on account rather than being tied to a document that does not exist."""
+		shop_order = self.book(qty=20)
+		_, entry = self.pay(shop_order["name"], 250)
+
+		self.assertFalse(
+			frappe.get_all("Payment Entry Reference", filters={"parent": entry}),
+			"there is nothing of ours for this to be paid against")
+		self.assertEqual(
+			flt(frappe.db.get_value("Payment Entry", entry, "unallocated_amount")), 250.0)
+
+	def test_a_sale_billed_to_a_parent_is_not_forced_onto_the_payer(self):
+		"""A party buying through its parent has the sale raised on the parent. ERPNext refuses a
+		reference whose party is not the one paying, and refusing here would fail the whole
+		deposit and keep the money out of the ledger - so it stays on account and is said to be."""
+		order, sales_order = self.primary_order()
+		frappe.db.set_value("Sales Order", sales_order, "customer", self.make_distributor(),
+		                    update_modified=False)
+		_, entry = self.pay(order["name"], 250)
+
+		self.assertFalse(frappe.get_all("Payment Entry Reference", filters={"parent": entry}))
+		self.assertEqual(
+			flt(frappe.db.get_value("Payment Entry", entry, "unallocated_amount")), 250.0)
+
+	def test_more_than_the_order_is_worth_is_capped_not_refused(self):
+		"""A party that paid for a whole season up front.
+
+		ERPNext will not allocate past a Sales Order's own outstanding, and refusing the receipt
+		over it would keep the money out of the ledger entirely. So the order takes what it can
+		carry and the rest stays on account for the deliveries still to come.
+		"""
+		order, sales_order = self.primary_order()
+		total = flt(frappe.db.get_value("Sales Order", sales_order, "grand_total"))
+		_, entry = self.pay(order["name"], total + 5000)
+
+		rows = frappe.get_all("Payment Entry Reference", filters={"parent": entry},
+		                      fields=["reference_name", "allocated_amount"])
+		self.assertEqual([(r.reference_name, flt(r.allocated_amount)) for r in rows],
+		                 [(sales_order, total)], "the order takes exactly what it is worth")
+		self.assertEqual(
+			flt(frappe.db.get_value("Payment Entry", entry, "unallocated_amount")), 5000.0,
+			"and the balance is still money we have, waiting for the next bill")
