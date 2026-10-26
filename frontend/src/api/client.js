@@ -148,6 +148,11 @@ export const api = {
 
   outlets: (q, beat) => call('outlet.search', { q, beat, limit: 200 }),
   outlet: (name) => call('outlet.detail', { outlet: name }),
+  // The credit position for a party we bill ourselves. `outlet.detail` takes an outlet and a
+  // primary order has none, so that call answered nothing and the screen read the silence as
+  // "no limit recorded".
+  partyCredit: (party, partyType = 'Customer') =>
+    call('credit.position', { party, party_type: partyType }),
   createOutlet: (payload) => call('outlet.create', { payload }, { post: true }),
   updateOutlet: (name, payload) => call('outlet.update', { outlet: name, payload }, { post: true }),
 

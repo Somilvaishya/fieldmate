@@ -85,7 +85,8 @@ async function open(name) {
   // three round trips on a market uplink.
   const held = cart.outlet.value === name && !!cart.catalogue.value
   shownCount.value = PAGE
-  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }),
+                     loadCredit(name, partyType.value)])
 }
 
 onMounted(() => open(outlet.value))
@@ -470,7 +471,7 @@ async function refresh() {
   busy.value = true
   try {
     await cart.refreshAll()
-    await loadCredit(outlet.value)
+    await loadCredit(outlet.value, partyType.value)
   } finally {
     busy.value = false
   }

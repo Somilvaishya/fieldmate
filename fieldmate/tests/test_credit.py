@@ -3,6 +3,8 @@ from unittest.mock import patch
 import frappe
 from frappe.utils import flt
 
+from fieldmate.api import credit as credit_api
+from fieldmate.api._base import Err
 from fieldmate.services import credit as credit_service
 from fieldmate.services import settings as settings_service
 from fieldmate.tests.test_outlet import OutletFixture
@@ -334,3 +336,86 @@ class TestWhichSideBreached(CreditFixture):
 			answer = credit_service.check(self.outlet.name, self.rep.name, 1_000)
 		self.assertNotIn("our own count", answer["party_message"])
 		self.assertIn("our own count", answer["message"])
+
+
+class TestThePrimaryPartysCredit(CreditFixture):
+	"""The credit on a party we bill ourselves, which the phone could not ask for.
+
+	`outlet.detail` was the only way to read a credit position and it takes an outlet. A primary
+	order is on a Customer, so that call answered nothing - and the screen read the silence as
+	**"No credit limit is recorded for this distributor"**, over a distributor with a limit on
+	their Customer record. Not knowing and there being nothing to know are different facts, and
+	the screen had no way to tell them apart because the question was never asked.
+	"""
+
+	LIMIT = 50000
+
+	def setUp(self):
+		super().setUp()
+		self.outlet = self.make_outlet()
+		self.distributor = self.outlet.distributor
+		# A Customer with no channel tier is not a party we know how to bill - `_from_customer`
+		# refuses it by name. That is the rule, not a fixture convenience: it is also the first
+		# thing to check on a live site where a primary order quotes no credit.
+		frappe.db.set_value("Customer", self.distributor, {"fm_tier": "Distributor",
+		                                                   "fm_buys_from": "Company"})
+		self.set_credit_limit(self.distributor, self.LIMIT)
+		frappe.db.commit()
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+		super().tearDown()
+
+	def call(self, **kwargs):
+		frappe.set_user(self.rep.user)
+		try:
+			return credit_api.position(**kwargs)
+		finally:
+			frappe.set_user("Administrator")
+
+	def ask(self, party, party_type="Customer"):
+		return self.call(party=party, party_type=party_type)["data"]["credit"]
+
+	def test_it_answers_for_a_customer(self):
+		got = self.ask(self.distributor)
+		self.assertEqual(got["party"], self.distributor)
+		self.assertFalse(got["unlimited"], "the party has a limit and it must not read as none")
+
+	def test_the_limit_is_the_one_on_the_customer(self):
+		got = self.ask(self.distributor)
+		self.assertEqual(flt(got["credit_limit"]), flt(self.LIMIT))
+
+	def test_a_party_we_bill_has_no_second_debt(self):
+		"""`shop` is the shop's debt to its distributor. On a party we bill ourselves there is
+		only one debt, and inventing a second would be a figure about nobody."""
+		self.assertIsNone(self.ask(self.distributor)["shop"])
+
+	def test_a_party_that_is_not_there_is_named_as_such(self):
+		"""Never a blank that a screen would draw as a zero."""
+		got = self.call(party="NO-SUCH-PARTY-9999")
+		self.assertFalse(got["ok"])
+		self.assertEqual(got["code"], Err.BAD_REQUEST)
+
+	def test_no_party_at_all_is_refused_rather_than_guessed(self):
+		got = self.call()
+		self.assertFalse(got["ok"])
+		self.assertEqual(got["code"], Err.BAD_REQUEST)
+
+	def test_the_shape_matches_what_the_outlet_call_returns(self):
+		"""One reader on the phone handles both calls, so the two answers have to agree on their
+		keys - they are built by one function for exactly this reason."""
+		party = self.ask(self.distributor)
+		shop = credit_service.reading(self.outlet.name, self.rep.name)
+		self.assertEqual(set(party), set(shop))
+
+	def test_a_party_with_no_channel_tier_says_so_rather_than_nothing(self):
+		"""The live failure this whole endpoint was chased down from.
+
+		A Customer with no `fm_tier` is not a party FieldMate knows how to bill, so there is no
+		limit to read - and the figures come back zero, which a screen will happily draw as
+		"no credit limit". The answer has to carry the reason, because the remedy is one field
+		on the Customer and the rep cannot guess it.
+		"""
+		frappe.db.set_value("Customer", self.distributor, "fm_tier", None)
+		got = self.ask(self.distributor)
+		self.assertTrue(got["message"], "a party we cannot bill must come back with a reason")

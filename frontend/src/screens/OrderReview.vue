@@ -604,6 +604,19 @@ async function send() {
   }
 }
 
+/** Take the rep to the branch picker and open it.
+ *
+ * `focus()` as well as the scroll: on a handset the select has to be tapped to open, and landing
+ * next to it having been told to pick something is one tap short of helpful.
+ */
+function goToLocation() {
+  const el = document.getElementById('location')
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  // After the scroll settles, or the keyboard opening fights it on some handsets.
+  setTimeout(() => el.focus(), 350)
+}
+
 function finish() {
   const open = activeVisit.value
   router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : '/today')
@@ -1187,9 +1200,16 @@ function finish() {
         </button>
       </template>
       <template v-else>
-        <p v-if="needsLocation && !location" class="gate tnum">
+        <!-- The gate points at the control, and gets the rep to it.
+             It used to be a sentence: a disabled button at the bottom of a long screen, telling
+             a rep to pick something whose picker was several screens up and out of sight. With
+             seventy-four branches on a real site and no default set, that is a dead end that
+             reads like a broken Send button. -->
+        <button v-if="needsLocation && !location" type="button" class="gate gatelink"
+                @click="goToLocation">
           {{ t('Pick which of our branches this sale is from.') }}
-        </p>
+          <span class="gatego">{{ t('Choose branch') }}</span>
+        </button>
         <p v-else-if="!readBack" class="gate tnum">
           {{ t('Read the order back to the shopkeeper, then tick the box above.') }}
         </p>
@@ -1357,4 +1377,9 @@ textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var
 .btn-primary:disabled { opacity: 0.55; }
 .btn-plain { background: none; border: 1px solid var(--line); color: var(--ink); width: 100%;
              min-height: 48px; }
+.gatelink { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            width: 100%; text-align: left; background: var(--warn-soft); color: var(--warn);
+            border: 1px solid var(--warn); border-radius: 8px; min-height: 48px; padding: 8px 12px;
+            font: inherit; }
+.gatego { font-weight: 700; white-space: nowrap; text-decoration: underline; }
 </style>

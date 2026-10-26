@@ -92,12 +92,17 @@ function shape(detail) {
  * Never throws. A screen's `onMounted` has nowhere to put a rejection, and an expired session on
  * this call used to surface elsewhere in the app as a silent unhandled promise.
  */
-export async function loadCredit(outlet) {
+export async function loadCredit(outlet, partyType = null) {
   const mine = ++token
   if (!outlet) {
     credit.value = null
     return null
   }
+
+  // A primary order is on a Customer, which `outlet.detail` cannot answer for. It used to be
+  // called anyway: the refusal was swallowed, the reading stayed empty, and the screen told the
+  // rep there was no limit recorded for a distributor who had one.
+  const isParty = partyType === 'Customer'
 
   const cached = await getMeta(key(outlet))
   if (mine !== token) return credit.value
@@ -106,7 +111,7 @@ export async function loadCredit(outlet) {
   creditOffline.value = false
 
   try {
-    const data = await api.outlet(outlet)
+    const data = isParty ? await api.partyCredit(outlet) : await api.outlet(outlet)
     if (mine !== token) return credit.value
     credit.value = shape(data)
     creditFetchedAt.value = Date.now()

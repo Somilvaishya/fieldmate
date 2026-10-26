@@ -99,7 +99,8 @@ function todayStamp() {
 
 async function open(name) {
   const held = cart.outlet.value === name && !!cart.catalogue.value
-  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }), loadCredit(name)])
+  await Promise.all([cart.openOutlet(name, { refresh: !held, type: partyType.value }),
+                     loadCredit(name, partyType.value)])
   await maybePrefill(name)
 }
 

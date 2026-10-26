@@ -1284,4 +1284,5 @@ export default {
   'Both are over the limit': 'दोनों सीमा पार कर चुके हैं',
   'This order takes {party} past their limit with us.': 'इस ऑर्डर से {party} हमारे यहाँ अपनी सीमा पार कर जाते हैं।',
   'This order takes the shop past what its distributor allows it.': 'इस ऑर्डर से दुकान अपने डिस्ट्रीब्यूटर की दी हुई सीमा पार कर जाती है।',
+  'Choose branch': 'शाखा चुनें',
 }
