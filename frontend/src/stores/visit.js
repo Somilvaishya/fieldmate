@@ -331,10 +331,17 @@ export async function markTask(taskType, status = 'Done') {
  * ask them to pick an outcome the app already knows. Kept on the visit rather than looked up,
  * because the order may still be sitting in the outbox with no server name at all.
  */
-export async function recordOrder({ clientUuid, name = null, net = 0, offline = false }) {
+export async function recordOrder({ clientUuid, name = null, net = 0, total = null,
+                                    offline = false }) {
   const visit = await ensureActive()
   if (!visit) return
-  visit.order = { clientUuid, name, net, offline, at: new Date().toISOString() }
+  // `total` is what the party is billed - goods plus GST - and it is what the hub shows. `net` is
+  // kept beside it rather than replaced: a visit saved by an older build has only `net`, and that
+  // draft is sitting in IndexedDB on a handset that will go on reading it after this update.
+  visit.order = {
+    clientUuid, name, net, total: total === null ? net : total,
+    offline, at: new Date().toISOString(),
+  }
   // The visit's own Order row, which nothing used to flip. The hub card reads `visit.order` and
   // was right; this row is what the check-out screen and the server's record of the visit read,
   // so a visit the rep took an order in was closing with "Take the order" still Pending.
