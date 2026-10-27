@@ -1309,4 +1309,10 @@ export default {
   'Super Stockist': 'सुपर स्टॉकिस्ट',
   'CFA': 'सीएफ़ए',
   'Retailer': 'रिटेलर',
+
+  // The stock count, in the item's own units.
+  '{n} {base} per {uom}': '{n} {base} प्रति {uom}',
+
+  // The shelf check, where our range is already listed and only needs finding.
+  'Find a product': 'प्रोडक्ट खोजें',
 }
