@@ -40,6 +40,14 @@ def sheet_for(outlet, field_user: str | None = None) -> dict:
 			"stock_uom": item.get("stock_uom"),
 			"order_uom": item.get("order_uom"),
 			"conversion_factor": item.get("conversion_factor") or 1,
+			# Every unit this item can be counted in, which is every unit it can be ordered in -
+			# `catalogue.order_units` builds it from the item's own UOM conversion table, narrowed
+			# by the catalogue's units. Carried rather than re-derived: the count screen sent two
+			# units, the stock UOM and the order UOM, and an item sold in pieces, boxes and cases
+			# could only be counted in two of the three. A rep holding a carton then counted it in
+			# whichever of the two was nearer and the number was wrong by a factor nobody could
+			# see afterwards.
+			"order_uoms": item.get("order_uoms") or [],
 			"is_focus": item.get("is_focus"),
 			"is_must_sell": item.get("is_must_sell"),
 			"last_qty": was.get("qty"),

@@ -43,14 +43,36 @@ onMounted(async () => {
     return
   }
   // Seeded from the catalogue this phone already holds, so the rep ticks rather than types.
+  //
+  // All of it, and in a settled order. It used to be `.slice(0, 60)` over whatever order
+  // IndexedDB happened to return: a range of more than sixty lost the rest with nothing on the
+  // screen saying so, there was no way to add a product back, and *which* sixty survived could
+  // change between two visits to the same shop. A shelf check that cannot see a product cannot
+  // report it missing, which is the one thing it exists to do.
   const items = await db.records.where('doctype').equals('FieldMate Catalogue Item').toArray()
-  lines.value = items.slice(0, 60).map((i) => ({
-    item_code: i.item_code || i.name,
-    item_name: i.item_name || i.item_code || i.name,
-    mrp: i.mrp || null,
-    is_available: 0,
-    facings: 0,
-  }))
+  lines.value = items
+    .map((i) => ({
+      item_code: i.item_code || i.name,
+      item_name: i.item_name || i.item_code || i.name,
+      mrp: i.mrp || null,
+      is_available: 0,
+      facings: 0,
+    }))
+    .sort((a, b) => a.item_name.localeCompare(b.item_name))
+})
+
+// Typing beats scrolling once the list is the whole range. Ticked products stay visible whatever
+// is typed: a rep who filters, ticks, then filters again must be able to see what they have
+// already counted, or they count it twice.
+const query = ref('')
+const shown = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!q) return lines.value
+  return lines.value.filter(
+    (l) => l.is_available ||
+      l.item_name.toLowerCase().includes(q) ||
+      String(l.item_code).toLowerCase().includes(q)
+  )
 })
 
 function toggle(line) {
@@ -191,8 +213,13 @@ async function save() {
         {{ t('No catalogue on this phone yet. Sync once to load it.') }}
       </p>
 
+      <!-- Nothing is added here: the whole range is already listed and the rep ticks what is on
+           the shelf. The search is how they reach a product without scrolling the range. -->
+      <input v-if="lines.length > 12" v-model="query" type="search" class="find"
+             :placeholder="t('Find a product')" :aria-label="t('Find a product')" />
+
       <div class="rows">
-        <div v-for="line in lines" :key="line.item_code" class="prow"
+        <div v-for="line in shown" :key="line.item_code" class="prow"
              :class="{ off: !line.is_available }">
           <button type="button" class="tick" role="checkbox"
                   :aria-checked="!!line.is_available" @click="toggle(line)">
@@ -314,6 +341,9 @@ h3 { margin: 0; font-size: 16px; }
         pointer-events: none; font-size: 14px; }
 .hint { margin: 6px 0 0; }
 
+.find { width: calc(100% - 32px); margin: 0 16px 8px; min-height: 48px; padding: 0 12px;
+        border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+        color: var(--text); font-size: 15px; }
 .section { display: flex; justify-content: space-between; align-items: center; gap: 8px;
            margin-top: 8px; }
 .pill { flex: none; font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 4px;

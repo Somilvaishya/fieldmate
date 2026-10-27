@@ -1247,12 +1247,16 @@ export async function submit(options = {}) {
 
   const doc = buildOrderDoc({ ...options, visit: visitRef, clientUuid, deviceId: device })
 
+  // Both, because they answer different questions. `net` is what credit and the scheme engine
+  // count; `grand` is what the party is billed and what the rep read out at the counter, so it is
+  // the figure the visit hub shows back.
   const net = totals.value.net_paise
+  const grand = totals.value.grand_paise
 
   try {
     const data = await api.orderSubmit(device, doc)
     await rememberName(clientUuid, 'FieldMate Order', data.order)
-    await visitStore.recordOrder({ clientUuid, name: data.order, net, offline: false })
+    await visitStore.recordOrder({ clientUuid, name: data.order, net, total: grand, offline: false })
     await clear()
     return { order: data.order, client_uuid: clientUuid, offline: false, queued: false, server: data }
   } catch (e) {
@@ -1267,7 +1271,7 @@ export async function submit(options = {}) {
     { ...doc, created_offline: 1 },
     { clientUuid, dependsOn }
   )
-  await visitStore.recordOrder({ clientUuid, name: null, net, offline: true })
+  await visitStore.recordOrder({ clientUuid, name: null, net, total: grand, offline: true })
   await clear()
   return { order: clientUuid, client_uuid: clientUuid, offline: true, queued: true }
 }

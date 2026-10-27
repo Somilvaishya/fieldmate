@@ -54,7 +54,11 @@ const orderCard = computed(() => {
   if (booked) {
     return {
       pill: booked.offline ? t('Saved on phone') : t('Booked'),
-      sub: `₹${formatPaise(booked.net)} — ${booked.offline ? 'will sync by itself' : 'sent to the distributor'}`,
+      // The billed figure, goods plus GST. It used to be the net, so the hub showed a smaller
+      // number than the one the rep had read out to the shopkeeper on the review screen thirty
+      // seconds earlier - and smaller than the one on the orders list and the season book, which
+      // have always printed what the party is billed. `?? net` for a draft an older build saved.
+      sub: `₹${formatPaise(booked.total ?? booked.net)} — ${booked.offline ? 'will sync by itself' : 'sent to the distributor'}`,
       tone: 'ok',
       pct: 100,
     }

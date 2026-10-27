@@ -159,3 +159,66 @@ class TestDistributorOfftake(StockFixture):
 	def test_a_period_that_ends_before_it_starts_is_refused(self):
 		with self.assertRaises(frappe.ValidationError):
 			self.stock(opening_qty=1, from_date=today(), to_date=add_days(today(), -5))
+
+
+class TestTheUnitsAShopIsCountedIn(StockFixture):
+	"""Every unit the item can be counted in, not two of them.
+
+	The sheet sent `stock_uom` and `order_uom` and nothing else, and the count screen drew two
+	buttons over them reading "Cases" and "Pcs" - words, not the item's own units. So an item sold
+	in pieces, boxes and cartons could be counted in two of the three, and the button said "Cases"
+	over a number being stored as boxes. A rep holding a carton counted it as whichever of the two
+	was nearer, and the number was then wrong by a factor nobody could see afterwards.
+
+	The list already existed: `catalogue.order_units` builds it from the item's own UOM conversion
+	table. It simply never reached this payload.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.base = self.base_uom()
+		# Made, not named. "Box" and "Carton" happen to exist on one bench and not the next, and a
+		# fixture that assumes a site master is a test that passes where it was written.
+		self.box = self.make_uom()
+		self.carton = self.make_uom()
+		self.many = self.make_item(uoms=[
+			{"uom": self.box, "conversion_factor": 12},
+			{"uom": self.carton, "conversion_factor": 144},
+		])
+		self.price_item(self.many, 100)
+		self.make_catalogue([self.many])
+
+	def sheet(self):
+		rows = self.as_rep(stock_service.sheet_for, self.outlet.name, self.rep.name)["items"]
+		return {row["item_code"]: row for row in rows}
+
+	def units_on(self, item):
+		row = self.sheet().get(item)
+		self.assertIsNotNone(row, f"{item} is not on the sheet at all")
+		return {u["uom"]: u["conversion_factor"] for u in row["order_uoms"]}
+
+	def test_every_unit_the_item_converts_is_offered(self):
+		self.assertEqual(self.units_on(self.many),
+		                 {self.base: 1.0, self.box: 12.0, self.carton: 144.0})
+
+	def test_the_factors_come_with_them(self):
+		"""The screen multiplies by these. A unit with no factor is a count nobody can convert."""
+		for uom, factor in self.units_on(self.many).items():
+			self.assertTrue(factor, f"{uom} came through with no conversion factor")
+
+	def test_the_base_unit_is_always_there(self):
+		"""Whatever else an item is sold in, it can be counted in pieces."""
+		self.assertIn(self.base, self.units_on(self.many))
+
+	def test_an_item_sold_only_in_its_base_unit_offers_just_the_one(self):
+		plain = self.make_item()
+		self.price_item(plain, 100)
+		self.make_catalogue([plain])
+		self.assertEqual(list(self.units_on(plain)), [self.base])
+
+	def test_the_old_keys_are_still_there(self):
+		"""Additive. A handset that has not updated reads these two and must go on working."""
+		row = self.sheet()[self.many]
+		self.assertEqual(row["stock_uom"], self.base)
+		self.assertIn("order_uom", row)
+		self.assertIn("conversion_factor", row)

@@ -294,3 +294,54 @@ describe('a stock count saved during a visit', () => {
     await expect(visitStore.markTask('Stock Audit')).resolves.not.toThrow()
   })
 })
+
+describe('the figure the hub shows back', () => {
+  /**
+   * The rep reads a total out to the shopkeeper on the review screen - goods **plus GST** - and
+   * then walks back to the hub. It used to print the net there: a smaller number, over the same
+   * order, thirty seconds later, and smaller than the orders list and the season book which have
+   * always shown what the party is billed.
+   */
+  async function aTaxedCart() {
+    const taxed = payload()
+    taxed.items[0].tax_bps = 1200
+    catalogue.mockResolvedValue(taxed)
+    await cart.openOutlet(SHOP, { type: null })
+    await cart.addItem('AL-21', { qty: 2 })
+  }
+
+  it('is what the party is billed, not the goods alone', async () => {
+    await standingInTheShop()
+    await aTaxedCart()
+    orderSubmit.mockResolvedValue({ order: 'FM-ORD-000002' })
+
+    await cart.submit()
+
+    const order = visitStore.activeVisit.value.order
+    // 2 x 1100 = 2200 of goods, 12% on top.
+    expect(order.net).toBe(220000)
+    expect(order.total).toBe(246400)
+  })
+
+  it('keeps the goods figure beside it, for whatever counts in net', async () => {
+    await standingInTheShop()
+    await aTaxedCart()
+    orderSubmit.mockResolvedValue({ order: 'FM-ORD-000003' })
+    await cart.submit()
+
+    const back = await reopenTheApp()
+    expect(back.order.net).toBe(220000)
+    expect(back.order.total).toBe(246400)
+  })
+
+  it('reads an older draft that only ever stored the net', async () => {
+    // A visit saved by the build before this one is sitting in IndexedDB on a handset that is
+    // about to update. The hub falls back rather than showing a blank where a figure was.
+    const visit = await standingInTheShop()
+    visit.order = { clientUuid: 'c-1', name: 'FM-ORD-000004', net: 220000, offline: false }
+    await db.visits.put(visit)
+
+    const back = await reopenTheApp()
+    expect(back.order.total ?? back.order.net).toBe(220000)
+  })
+})
