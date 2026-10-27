@@ -53,7 +53,11 @@ onMounted(async () => {
       // Sent explicitly rather than inferred from the number. A shelf counted at zero and a
       // shelf nobody looked at are opposite facts, and a blank number cannot tell them apart.
       is_counted: false,
-      unit: 'display',
+      // The unit he is counting in, by name. It used to be a two-way flag between the stock UOM
+      // and the order UOM, which is fine for an item sold in pieces and cases and wrong for one
+      // sold in pieces, boxes and cases - the third unit could not be chosen at all, so a rep
+      // holding a carton counted it as whichever of the two was nearer.
+      uom: item.order_uom || item.stock_uom,
     }))
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : t('Could not load the product list.')
@@ -75,19 +79,36 @@ function setQty(row, value) {
   row.is_counted = true
 }
 
+function unitsFor(row) {
+  const list = (row.order_uoms || [])
+    .map((u) => ({ uom: u.uom, factor: Number(u.conversion_factor) || 1 }))
+    .filter((u) => u.uom)
+  if (list.length) return list
+  // A site that has not taken the update yet sends only the two. Kept so a handset that updates
+  // first still counts in something real rather than in nothing.
+  const out = [{ uom: row.stock_uom, factor: 1 }]
+  if (row.order_uom && row.order_uom !== row.stock_uom) {
+    out.push({ uom: row.order_uom, factor: Number(row.conversion_factor) || 1 })
+  }
+  return out.filter((u) => u.uom)
+}
+
 function sameAsLast(row) {
   if (!row.has_history) return
   row.qty_display = row.last_display_qty ?? row.last_qty ?? 0
-  row.unit = row.last_uom === row.order_uom ? 'display' : row.unit
+  // In the unit it was counted in last time, where that unit is still on offer. Counting 14 of
+  // something in cases when last time it was boxes is not "same as last time".
+  if (row.last_uom && unitsFor(row).some((u) => u.uom === row.last_uom)) row.uom = row.last_uom
   row.is_counted = true
 }
 
 function factorFor(row) {
-  return row.unit === 'base' ? 1 : (row.conversion_factor || 1)
+  const found = unitsFor(row).find((u) => u.uom === row.uom)
+  return found ? found.factor : 1
 }
 
 function uomFor(row) {
-  return row.unit === 'base' ? row.stock_uom : (row.order_uom || row.stock_uom)
+  return row.uom || row.stock_uom
 }
 
 async function save() {
@@ -196,8 +217,11 @@ function done() {
                  class="row" :class="{ done: row.is_counted }">
           <div class="rtop">
             <span class="code">{{ row.item_code }}</span>
-            <span class="muted tnum">
-              {{ t('{n} per case', { n: row.conversion_factor }) }}
+            <!-- Named, not "per case". The factor describes a particular unit, and saying "per
+                 case" over an item sold in boxes was the same lie the buttons told. -->
+            <span v-if="factorFor(row) > 1" class="muted tnum">
+              {{ t('{n} {base} per {uom}',
+                   { n: factorFor(row), base: row.stock_uom, uom: uomFor(row) }) }}
             </span>
             <span v-if="row.is_counted && !row.qty_display" class="chip crit">
               {{ t('Out of stock') }}
@@ -217,12 +241,14 @@ function done() {
               :placeholder="t('Enter count')"
               @input="setQty(row, $event.target.value)"
             />
-            <div class="units" role="group" :aria-label="t('Unit for {item}', { item: row.item_name })">
-              <button type="button" :class="{ on: row.unit === 'display' }"
-                      @click="row.unit = 'display'">{{ t('Cases') }}</button>
-              <button type="button" :class="{ on: row.unit === 'base' }"
-                      @click="row.unit = 'base'">{{ t('Pcs') }}</button>
-            </div>
+            <!-- The item's own units, by their own names. Two buttons reading "Cases" and "Pcs"
+                 stood here: hardcoded words, so an item sold in boxes had a button saying Cases
+                 over a number that was being stored as boxes, and a third unit could not be
+                 reached at all. -->
+            <select class="units" v-model="row.uom"
+                    :aria-label="t('Unit for {item}', { item: row.item_name })">
+              <option v-for="u in unitsFor(row)" :key="u.uom" :value="u.uom">{{ u.uom }}</option>
+            </select>
           </div>
 
           <div class="rfoot">
@@ -292,10 +318,10 @@ h1 { margin: 0; font-size: 20px; }
 
 .entry { display: flex; gap: 8px; }
 .qty { flex: 1; font-size: 20px; font-weight: 700; }
-.units { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.units button { min-width: 62px; min-height: 48px; border: 0; background: var(--surface);
-                color: var(--muted); font-weight: 600; border-radius: 0; }
-.units button.on { background: var(--primary); color: var(--on-primary); }
+/* 48px of target and room for a real unit name - "Carton" does not fit in 62px. */
+.units { min-width: 92px; min-height: 48px; padding: 0 10px; border-radius: 6px;
+         border: 1px solid var(--line); background: var(--surface); color: var(--text);
+         font-weight: 600; font-size: 15px; }
 
 .rfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px;
          margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; }
