@@ -222,3 +222,40 @@ class TestTheUnitsAShopIsCountedIn(StockFixture):
 		self.assertEqual(row["stock_uom"], self.base)
 		self.assertIn("order_uom", row)
 		self.assertIn("conversion_factor", row)
+
+
+class TestThePackShotOnTheCountSheet(StockFixture):
+	"""The picture, carried through from the catalogue.
+
+	A rep counting a shelf is matching a pack in his hand against a column of names, and at arm's
+	length two names differing by "250 g" are the same name. The catalogue has carried `image`
+	since the item list was built; the count sheet simply dropped it on the way through, so the
+	one screen where a rep is looking at the goods was the one screen with no picture of them.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.shot = "/files/pack-shot.png"
+		self.pictured = self.make_item(image=self.shot)
+		self.plain = self.make_item()
+		for item in (self.pictured, self.plain):
+			self.price_item(item, 100)
+		self.make_catalogue([self.pictured, self.plain])
+
+	def sheet(self):
+		rows = self.as_rep(stock_service.sheet_for, self.outlet.name, self.rep.name)["items"]
+		return {row["item_code"]: row for row in rows}
+
+	def test_the_image_reaches_the_sheet(self):
+		self.assertEqual(self.sheet()[self.pictured]["image"], self.shot)
+
+	def test_an_item_with_no_picture_says_so_rather_than_omitting_the_key(self):
+		"""The screen checks the value. A missing key would make every row look like a 404."""
+		row = self.sheet()[self.plain]
+		self.assertIn("image", row)
+		self.assertFalse(row["image"])
+
+	def test_the_path_is_passed_through_untouched(self):
+		"""Relative, as ERPNext stores it. The phone is served from the same origin, so rewriting
+		it here would only be a chance to get the host wrong."""
+		self.assertTrue(self.sheet()[self.pictured]["image"].startswith("/files/"))

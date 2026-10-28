@@ -299,6 +299,7 @@ export default {
   'This has come off this shop’s list since it was added, so it has no price.': 'जोड़ने के बाद से यह इस दुकान की सूची से हट गया है, इसलिए इसका दाम नहीं है।',
   'No price on this shop’s list yet, so this cannot be totalled.': 'इस दुकान की सूची में अभी दाम नहीं है, इसलिए इसका जोड़ नहीं बन सकता।',
   'Unit for {item}': '{item} की यूनिट',
+  'Count of {item}': '{item} की गिनती',
   'This is being ordered in {uom}, not cases — no pack size is set for it.': 'यह {uom} में ऑर्डर हो रहा है, केस में नहीं — इसका पैक साइज़ तय नहीं है।',
   'Check the quantity.': 'मात्रा देख लें।',
   'Take {item} off this order?': '{item} को इस ऑर्डर से हटाएँ?',

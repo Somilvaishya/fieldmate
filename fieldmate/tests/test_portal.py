@@ -516,7 +516,16 @@ class TestAClaimIsArithmeticNobodyDid(ClaimFixture):
 class TestSettlement(ClaimFixture):
 	def setUp(self):
 		super().setUp()
-		self.company = frappe.db.get_value("Company", {}, "name")
+		# The company the credit note will actually be raised in, not whichever one the site
+		# happens to list first. `settle_claim` takes the claim's company, which comes from the
+		# scheme ledger rows - the rep's. A cost centre belonging to a different company is
+		# refused by ERPNext ("Cost Center X does not belong to Company Y"), and every test in
+		# this class then dies on a chart-of-accounts error that has nothing to do with claims.
+		from fieldmate.services import settings as settings_service
+
+		self.company = (frappe.db.get_value("FieldMate Field User", self.rep.name, "company")
+		                or settings_service.value("default_company")
+		                or frappe.db.get_value("Company", {}, "name"))
 		self.expense = self.an_account()
 		self.cost_center = frappe.db.get_value("Company", self.company, "cost_center")
 		self.settlement_item = self.make_item(item_name="Scheme Claim Settlement")

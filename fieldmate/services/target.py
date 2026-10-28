@@ -311,7 +311,7 @@ def reconcile(plan_name: str) -> dict:
 		for row in frappe.get_all("FieldMate Target Line",
 		                          filters={"parent": leaf, "parenttype": "FieldMate Target Plan"},
 		                          fields=["target_type", "target_value", "item_group", "brand"]):
-			if row.item_group or row.brand:
+			if narrowing(row.item_group) or row.brand:
 				continue
 			if TARGET_TYPES.get(row.target_type, True):
 				summed[row.target_type] = summed.get(row.target_type, 0) + to_units(
@@ -321,7 +321,7 @@ def reconcile(plan_name: str) -> dict:
 
 	report = {}
 	for line in root.lines:
-		if line.item_group or line.brand:
+		if narrowing(line.item_group) or line.brand:
 			continue
 		wanted = to_units(line.target_value, line.target_type)
 		if cint(line.is_additive):
@@ -385,6 +385,9 @@ def measure(sales_person: str, from_date, to_date, item_group=None, brand=None) 
 	covered "in tea" is a different question from the one the coverage target asks, and
 	answering it here would make two lines on the same plan mean different things.
 	"""
+	# Here as well as in `compute`, because this is called straight from the gate scripts and the
+	# nightly job, and a root category must mean the same thing down every one of those paths.
+	item_group = narrowing(item_group)
 	scoped = bool(item_group or brand)
 	orders = _orders_under(sales_person, from_date, to_date)
 	users = _field_users_under(sales_person)
@@ -431,6 +434,25 @@ def measure(sales_person: str, from_date, to_date, item_group=None, brand=None) 
 	}
 
 
+def narrowing(item_group: str | None) -> str | None:
+	"""The item group, unless it is the root - in which case it narrows nothing.
+
+	Frappe fills an empty Link to a tree from the session default, and for Item Group that
+	default is the root, `All Item Groups`. A manager who left the category blank therefore ends
+	up with a line that *looks* scoped, and the scoped path then filters order items on a group
+	no item is ever in - every item sits in a leaf. The target measured zero and nothing said
+	why: the plan showed a category nobody typed, over a figure that should have counted
+	everything.
+
+	The root means "all of it", which is the same question the unscoped path already answers, so
+	it is collapsed to None rather than given a filter of its own.
+	"""
+	if not item_group:
+		return None
+	parent = frappe.db.get_value("Item Group", item_group, "parent_item_group")
+	return None if not parent else item_group
+
+
 def _scoped_value_and_volume(order_names: list[str], item_group, brand) -> tuple[float, float]:
 	if not order_names:
 		return 0.0, 0.0
@@ -467,16 +489,20 @@ def compute(plan_name: str) -> str:
 	doc.order_count = overall["_orders"]
 
 	for line in plan.lines:
-		if line.item_group or line.brand:
+		item_group = narrowing(line.item_group)
+		if item_group or line.brand:
 			actual = measure(plan.sales_person, plan.from_date, plan.to_date,
-			                 item_group=line.item_group, brand=line.brand)[line.target_type]
+			                 item_group=item_group, brand=line.brand)[line.target_type]
 		else:
 			actual = overall[line.target_type]
 
 		target = flt(line.target_value)
 		doc.append("lines", {
 			"target_type": line.target_type,
-			"item_group": line.item_group,
+			# What was actually measured, not what the form happened to carry. A row saying
+			# "All Item Groups" over a figure counted across every group is a row that has to be
+			# matched against a scheme saying nothing at all, and the two never meet.
+			"item_group": item_group,
 			"brand": line.brand,
 			"target_value": target,
 			"actual_value": actual,
@@ -499,7 +525,7 @@ def _headline(doc) -> float:
 	an average of a rupee target and a lines-per-call target is not a quantity.
 	"""
 	for row in doc.lines:
-		if row.target_type == "Value" and not (row.item_group or row.brand):
+		if row.target_type == "Value" and not (narrowing(row.item_group) or row.brand):
 			return flt(row.achievement_pct)
 	return flt(doc.lines[0].achievement_pct) if doc.lines else 0.0
 

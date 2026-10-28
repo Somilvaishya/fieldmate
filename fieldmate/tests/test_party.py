@@ -17,7 +17,12 @@ class PartyFixture(FieldMateTestCase):
 		# which would make "nobody has said" answer with a number. Blanked for the duration and
 		# put back in tearDown - explicitly, because `FieldMateTestCase.tearDown` commits, so a
 		# change left for the rollback to undo would outlive this class instead.
+		# The same chain `_template_for` walks, in the same order. It used to end at "whichever
+		# company this site lists first", and where FieldMate has no default company set that is
+		# a different company from the one the code goes on to read - so the test wrote terms on
+		# one company and asked about another, and the company fallback answered None.
 		self._company = settings_service.value("default_company") \
+			or frappe.defaults.get_global_default("company") \
 			or frappe.db.get_value("Company", {}, "name")
 		self._company_terms = frappe.db.get_value("Company", self._company, "payment_terms") \
 			if self._company else None

@@ -23,6 +23,7 @@ import frappe
 from frappe.utils import cint, flt, getdate, now_datetime, nowdate
 
 from fieldmate.services import scope as scope_service
+from fieldmate.services import target as target_service
 
 
 def to_paise(rupees) -> int:
@@ -185,9 +186,15 @@ def _under(node: str | None, ancestor: str) -> bool:
 
 
 def _achievement_line(achievement, measured_on: str, item_group=None, brand=None):
+	# The scheme's side gets the same treatment the achievement row already had: a blank category
+	# that Frappe filled with the root is not a narrower scheme, and matching the two literally
+	# left a scheme skipped for want of a target that was sitting right there.
+	# Both sides, because the row cannot be trusted to have kept the blank either: writing None
+	# into a Link field only invites the same default back on the next save.
+	item_group = target_service.narrowing(item_group)
 	for row in achievement.lines:
 		if (row.target_type == measured_on
-		        and (row.item_group or None) == (item_group or None)
+		        and target_service.narrowing(row.item_group) == item_group
 		        and (row.brand or None) == (brand or None)):
 			return row
 	return None

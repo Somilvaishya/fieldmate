@@ -752,17 +752,41 @@ const emptyReason = computed(() => {
                   <span class="per">{{ t('per {uom}', { uom: item.order_uom }) }}</span>
                 </p>
                 <p class="meta tnum">
-                  {{ t('{rate} per {uom}',
-                       { rate: money(item.rate_paise), uom: item.stock_uom }) }}
+                  <!-- Only where it is a different sentence. An item ordered in its own base
+                       unit printed "₹8.20 per Nos" directly under "₹8.20 per Nos", which reads
+                       as two prices on a screen whose whole job is to carry one. -->
+                  <template v-if="item.order_uom !== item.stock_uom">
+                    {{ t('{rate} per {uom}',
+                         { rate: money(item.rate_paise), uom: item.stock_uom }) }}
+                    <template v-if="item.mrp || marginPct(item)">&middot;</template>
+                  </template>
                   <template v-if="item.mrp">
-                    &middot; {{ t('MRP') }} <s>{{ money(toPaise(item.mrp)) }}</s>
+                    {{ t('MRP') }} <s>{{ money(toPaise(item.mrp)) }}</s>
                   </template>
                   <template v-if="marginPct(item)">
-                    &middot; <span class="margin">{{ t('{n}% margin', { n: marginPct(item) }) }}</span>
+                    <template v-if="item.mrp">&middot;</template>
+                    <span class="margin">{{ t('{n}% margin', { n: marginPct(item) }) }}</span>
                   </template>
                 </p>
               </template>
             </div>
+
+            <!-- One button, in the corner, where a cart app puts it. There were two - the
+                 minimum and twice it - sitting in a strip of their own below the card. The
+                 second tap was never the common one: a rep who wants four taps plus, and the
+                 strip cost every priced item a full 48px row whether it was wanted or not. -->
+            <button
+              v-if="!item.unpriceable && !item.above_mrp && !heldQty(item.item_code)"
+              type="button"
+              class="add"
+              @click="addUnits(item, quickAdds(item)[0])"
+            >
+              <span class="adtop">
+                <Icon name="plus" size="18" />
+                <span class="tnum">{{ quickAdds(item)[0] }}</span>
+              </span>
+              <span class="aduom">{{ uomLabel(quickAdds(item)[0], item.order_uom) }}</span>
+            </button>
           </div>
 
           <div class="marks">
@@ -802,19 +826,7 @@ const emptyReason = computed(() => {
             {{ t('Ask your manager to correct it.') }}
           </div>
 
-          <div v-else-if="!heldQty(item.item_code)" class="quick">
-            <button
-              v-for="n in quickAdds(item)"
-              :key="n"
-              type="button"
-              class="add"
-              @click="addUnits(item, n)"
-            >
-              <Icon name="plus" size="20" /> {{ n }} {{ uomLabel(n, item.order_uom) }}
-            </button>
-          </div>
-
-          <div v-else class="stepper">
+          <div v-else-if="heldQty(item.item_code)" class="stepper">
             <button
               type="button"
               class="step"
@@ -998,10 +1010,10 @@ h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
    so nothing receded and every row stood five lines tall. The scale below is the hierarchy:
    the pack name and the price lead, and the figures a rep checks second are 13px. */
 .sku { background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-       padding: 10px; display: grid; gap: 8px; }
+       padding: 8px 10px; display: grid; gap: 6px; }
 .sku.inorder { border-color: var(--primary); }
 .skuhead { display: flex; gap: 10px; align-items: flex-start; }
-.thumb { width: 46px; height: 46px; flex: none; border-radius: 6px; background: var(--primary-soft);
+.thumb { width: 44px; height: 44px; flex: none; border-radius: 6px; background: var(--primary-soft);
          color: var(--primary); display: grid; place-items: center; font-weight: 700;
          font-size: 16px; overflow: hidden; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -1023,11 +1035,16 @@ h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
 
 .blocked { font-size: 13px; color: var(--muted); }
 
-.quick { display: flex; gap: 8px; }
-.add { flex: 1; min-height: 48px; display: inline-flex; align-items: center;
-       justify-content: center; gap: 6px; font-size: 16px; font-weight: 600;
+/* In the corner of the card rather than in a strip under it, and a fixed track so a long item
+   name cannot squeeze it: `flex: none` alone would still let the name push it off the edge. */
+.add { flex: 0 0 84px; min-width: 0; min-height: 48px; padding: 0 6px;
+       display: inline-flex; flex-direction: column; align-items: center;
+       justify-content: center; line-height: 1.15; font-size: 15px; font-weight: 700;
        background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary);
        border-radius: 6px; }
+.adtop { display: inline-flex; align-items: center; gap: 2px; }
+.aduom { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
+         max-width: 100%; white-space: nowrap; }
 
 .stepper { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .step { width: 48px; height: 48px; flex: none; display: grid; place-items: center;

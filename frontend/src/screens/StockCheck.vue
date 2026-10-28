@@ -79,6 +79,31 @@ function setQty(row, value) {
   row.is_counted = true
 }
 
+/**
+ * The pack shot, or the initials standing in for one.
+ *
+ * Same rule as the item list: most items on most sites carry no image, and a broken frame beside
+ * a count box is worse than no picture at all. An image that fails to load joins `broken` and the
+ * row falls back to the same tinted box, so a dead `/files/...` path cannot leave a hole in a
+ * list a rep is working down.
+ */
+const broken = ref(new Set())
+
+function imageFor(row) {
+  return row.image && !broken.value.has(row.item_code) ? row.image : null
+}
+
+function onImageError(row) {
+  broken.value = new Set([...broken.value, row.item_code])
+}
+
+function initials(row) {
+  const words = String(row.item_name || row.item_code || '').trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return '?'
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[1][0]).toUpperCase()
+}
+
 function unitsFor(row) {
   const list = (row.order_uoms || [])
     .map((u) => ({ uom: u.uom, factor: Number(u.conversion_factor) || 1 }))
@@ -213,58 +238,73 @@ function done() {
           </span>
         </h2>
 
-        <article v-for="row in group.items" :key="row.item_code"
-                 class="row" :class="{ done: row.is_counted }">
-          <div class="rtop">
-            <span class="code">{{ row.item_code }}</span>
-            <!-- Named, not "per case". The factor describes a particular unit, and saying "per
-                 case" over an item sold in boxes was the same lie the buttons told. -->
-            <span v-if="factorFor(row) > 1" class="muted tnum">
-              {{ t('{n} {base} per {uom}',
-                   { n: factorFor(row), base: row.stock_uom, uom: uomFor(row) }) }}
+        <!-- One list, hairlines between rows, rather than a bordered card each. Six products
+             used to fill two screens: every line carried its own border, its own heading and a
+             footer strip, and a rep counting a shelf of thirty scrolled more than he counted.
+             Each row is now two columns - what it is on the left, what he types on the right. -->
+        <div class="list">
+          <article v-for="row in group.items" :key="row.item_code"
+                   class="row" :class="{ done: row.is_counted }">
+            <span class="thumb" aria-hidden="true">
+              <img v-if="imageFor(row)" :src="imageFor(row)" alt="" @error="onImageError(row)" />
+              <template v-else>{{ initials(row) }}</template>
             </span>
-            <span v-if="row.is_counted && !row.qty_display" class="chip crit">
-              {{ t('Out of stock') }}
-            </span>
-            <span v-if="row.is_must_sell" class="chip">{{ t('Must sell') }}</span>
-          </div>
-          <h3>{{ row.item_name }}</h3>
+            <div class="idn">
+              <h3>{{ row.item_name }}</h3>
+              <p class="meta tnum">
+                <span class="code">{{ row.item_code }}</span>
+                <!-- Named, not "per case". The factor describes a particular unit, and saying
+                     "per case" over an item sold in boxes was the same lie the buttons told. -->
+                <span v-if="factorFor(row) > 1">
+                  {{ t('{n} {base} per {uom}',
+                       { n: factorFor(row), base: row.stock_uom, uom: uomFor(row) }) }}
+                </span>
+                <span v-if="row.is_counted && !row.qty_display" class="chip crit">
+                  {{ t('Out of stock') }}
+                </span>
+                <span v-if="row.is_must_sell" class="chip">{{ t('Must sell') }}</span>
+              </p>
+              <p class="meta last tnum">
+                <template v-if="row.has_history">
+                  <span>{{ t('Last visit: {qty} {uom}', {
+                             qty: row.last_display_qty ?? row.last_qty,
+                             uom: row.last_uom }) }}</span>
+                  <!-- Icon only, with the sentence left on the label. The words were a
+                       full-width button under every line; a rep who wants them reads the
+                       figure beside it, which says the same thing. -->
+                  <button type="button" class="again" @click="sameAsLast(row)"
+                          :aria-label="t('Same as last time')"
+                          :title="t('Same as last time')">
+                    <Icon name="copy" size="16" />
+                  </button>
+                </template>
+                <template v-else>{{ t('Never counted here') }}</template>
+              </p>
+            </div>
 
-          <div class="entry">
-            <!-- A keypad, not a stepper. He is typing 14, not tapping plus fourteen times. -->
-            <input
-              class="qty tnum"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              :value="row.qty_display"
-              :placeholder="t('Enter count')"
-              @input="setQty(row, $event.target.value)"
-            />
-            <!-- The item's own units, by their own names. Two buttons reading "Cases" and "Pcs"
-                 stood here: hardcoded words, so an item sold in boxes had a button saying Cases
-                 over a number that was being stored as boxes, and a third unit could not be
-                 reached at all. -->
-            <select class="units" v-model="row.uom"
-                    :aria-label="t('Unit for {item}', { item: row.item_name })">
-              <option v-for="u in unitsFor(row)" :key="u.uom" :value="u.uom">{{ u.uom }}</option>
-            </select>
-          </div>
-
-          <div class="rfoot">
-            <span class="muted tnum">
-              <template v-if="row.has_history">
-                {{ t('Last visit: {qty} {uom}', {
-                     qty: row.last_display_qty ?? row.last_qty,
-                     uom: row.last_uom }) }}
-              </template>
-              <template v-else>{{ t('Never counted here') }}</template>
-            </span>
-            <button v-if="row.has_history" type="button" class="again" @click="sameAsLast(row)">
-              <Icon name="copy" size="16" /><span>{{ t('Same as last time') }}</span>
-            </button>
-          </div>
-        </article>
+            <div class="entry">
+              <!-- A keypad, not a stepper. He is typing 14, not tapping plus fourteen times. -->
+              <input
+                class="qty tnum"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                :value="row.qty_display"
+                :aria-label="t('Count of {item}', { item: row.item_name })"
+                placeholder="0"
+                @input="setQty(row, $event.target.value)"
+              />
+              <!-- The item's own units, by their own names. Two buttons reading "Cases" and
+                   "Pcs" stood here: hardcoded words, so an item sold in boxes had a button
+                   saying Cases over a number that was being stored as boxes, and a third unit
+                   could not be reached at all. -->
+              <select class="units" v-model="row.uom"
+                      :aria-label="t('Unit for {item}', { item: row.item_name })">
+                <option v-for="u in unitsFor(row)" :key="u.uom" :value="u.uom">{{ u.uom }}</option>
+              </select>
+            </div>
+          </article>
+        </div>
       </section>
 
       <p v-if="error" class="err" role="alert"><Icon name="alert" size="18" /> {{ error }}</p>
@@ -308,28 +348,47 @@ h1 { margin: 0; font-size: 20px; }
          margin: 0 0 8px; font-size: 14px; text-transform: uppercase;
          letter-spacing: 0.04em; color: var(--muted); }
 
-.row { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line);
-       border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+        overflow: hidden; }
+.row { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+       border-left: 3px solid transparent; }
+.row + .row { border-top: 1px solid var(--line); }
 .row.done { border-left-color: var(--ok); }
-.rtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+/* 40px, not the item list's 46: that screen is a shelf of pack shots to browse, this one is a
+   list to work down, and the picture is here to confirm a name rather than to sell anything. */
+.thumb { width: 40px; height: 40px; flex: none; border-radius: 6px;
+         background: var(--primary-soft); color: var(--primary); display: grid;
+         place-items: center; font-weight: 700; font-size: 14px; overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.idn { flex: 1; min-width: 0; }
+.row h3 { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3;
+          overflow-wrap: anywhere; }
+.meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin: 2px 0 0;
+        font-size: 13px; color: var(--muted); }
+.meta.last { margin-top: 1px; }
 .code { font-weight: 600; background: var(--primary-soft); color: var(--primary);
-        padding: 1px 6px; border-radius: 4px; }
-.row h3 { margin: 4px 0 10px; font-size: 16px; }
+        padding: 0 5px; border-radius: 4px; }
 
-.entry { display: flex; gap: 8px; }
-.qty { flex: 1; font-size: 20px; font-weight: 700; }
-/* 48px of target and room for a real unit name - "Carton" does not fit in 62px. */
-.units { min-width: 92px; min-height: 48px; padding: 0 10px; border-radius: 6px;
-         border: 1px solid var(--line); background: var(--surface); color: var(--text);
-         font-weight: 600; font-size: 15px; }
+/* The count box and the unit box share a fixed track, and both widths are stated. A bare
+   `select` carries `width: 100%` from the global sheet, which as a flex item reads as a basis
+   of the whole row; the count box, asked only for what was left over, was left a sliver too
+   narrow to tap or to read two digits in. */
+.entry { display: flex; gap: 6px; align-items: stretch; flex: 0 0 158px; min-width: 0; }
+/* Basis zero, not `auto`. A text input's intrinsic width is about twenty characters, so `auto`
+   made this pair 260px wide; a flex item will not shrink below its content, so the declared
+   158px was ignored and the item name was crushed to one letter per line instead. */
+.qty { flex: 1 1 0; width: 0; min-width: 0; padding: 0 6px;
+       font-size: 18px; font-weight: 700; text-align: center; }
+/* Room for a real unit name - "Carton" does not fit in 62px. */
+.units { flex: 0 0 88px; width: 88px; min-width: 0; min-height: 48px; padding: 0 6px;
+         border-radius: 6px; border: 1px solid var(--line); background: var(--surface);
+         color: var(--text); font-weight: 600; font-size: 14px; }
 
-.rfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px;
-         margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; }
-.again { display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 10px;
-         background: var(--primary-soft); color: var(--primary); border: 0;
-         font-size: 14px; font-weight: 600; }
+/* Still a 44px target, but it sits inside the meta line rather than owning a strip of its own. */
+.again { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -12px 0;
+         padding: 0; background: none; color: var(--primary); border: 0; }
 
-.chip { font-size: 13px; font-weight: 600; padding: 1px 7px; border-radius: 4px;
+.chip { font-size: 12px; font-weight: 600; padding: 0 6px; border-radius: 4px;
         background: var(--primary-soft); color: var(--primary); }
 .chip.crit { background: var(--crit-soft); color: var(--crit); }
 
