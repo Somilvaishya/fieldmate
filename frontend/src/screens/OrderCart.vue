@@ -218,6 +218,32 @@ const itemIndex = computed(
 function nameFor(code) {
   return itemIndex.value.get(code)?.item_name || code
 }
+
+/**
+ * The pack shot, or the initials standing in for one.
+ *
+ * Read from the catalogue rather than stored on the cart line: a cart saved before this existed
+ * would carry no image for ever, and an item whose picture changed would show the old one until
+ * the rep removed and re-added it. The index is already here for the name, which is the same
+ * argument. An image that fails to load joins `brokenImages` and the row falls back to the box.
+ */
+const brokenImages = ref(new Set())
+
+function imageFor(line) {
+  const src = itemIndex.value.get(line.item_code)?.image
+  return src && !brokenImages.value.has(line.item_code) ? src : null
+}
+
+function onImageError(line) {
+  brokenImages.value = new Set([...brokenImages.value, line.item_code])
+}
+
+function initials(line) {
+  const words = String(line.item_name || line.item_code || '').trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return '?'
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[1][0]).toUpperCase()
+}
 function freeUomFor(code) {
   return itemIndex.value.get(code)?.stock_uom || null
 }
@@ -616,7 +642,15 @@ function blockerLines(blocker) {
 
         <article v-for="line in lines" :key="line.item_code" class="line"
                  :class="{ bad: line.unpriceable }">
+          <!-- Name and amount on one line, the way a bill reads, with everything that used to
+               have a line of its own - the code, the pack size, the rate, the base quantity -
+               folded into the one grey strip under it. Four stacked blocks per line meant three
+               products filled the screen and the total was always somewhere below the fold. -->
           <div class="lhead">
+            <span class="thumb" aria-hidden="true">
+              <img v-if="imageFor(line)" :src="imageFor(line)" alt="" @error="onImageError(line)" />
+              <template v-else>{{ initials(line) }}</template>
+            </span>
             <div class="idn">
               <b class="name">{{ line.item_name }}</b>
               <p class="meta tnum">
@@ -626,8 +660,14 @@ function blockerLines(blocker) {
                        qty: qtyWords(line.conversion_factor, line.base_uom),
                        uom: line.display_uom }) }}
                 </template>
+                <template v-if="!line.unpriceable">
+                  &middot; {{ t('{rate} per {uom}',
+                               { rate: symbol + line.display_rate, uom: line.display_uom }) }}
+                  &middot; {{ qtyWords(line.qty, line.base_uom) }}
+                </template>
               </p>
             </div>
+            <b v-if="!line.unpriceable" class="amount tnum">{{ symbol }}{{ line.gross }}</b>
             <button type="button" class="drop"
                     :aria-label="t('Remove {item}', { item: line.item_name })"
                     @click="confirming = confirming === line.item_code ? null : line.item_code">
@@ -678,14 +718,6 @@ function blockerLines(blocker) {
                       @click="bump(line, 1)">
                 <Icon name="plus" size="22" />
               </button>
-            </div>
-            <div class="amounts">
-              <span class="meta tnum">
-                {{ t('{rate} per {uom}',
-                     { rate: symbol + line.display_rate, uom: line.display_uom }) }}
-              </span>
-              <b class="amount tnum">{{ symbol }}{{ line.gross }}</b>
-              <span class="meta tnum">{{ qtyWords(line.qty, line.base_uom) }}</span>
             </div>
           </div>
 
@@ -911,28 +943,37 @@ h3 { margin: 0; font-size: 16px; }
 .muted { color: var(--muted); font-size: 16px; }
 
 .line { background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-        padding: 12px; display: grid; gap: 10px; }
+        padding: 8px 10px; display: grid; gap: 6px; }
 .line.bad { border-color: var(--warn); }
 .lhead { display: flex; gap: 8px; align-items: flex-start; }
+/* The same box the item list draws, one size down - a line already chosen needs less selling. */
+.thumb { width: 40px; height: 40px; flex: none; border-radius: 6px;
+         background: var(--primary-soft); color: var(--primary); display: grid;
+         place-items: center; font-weight: 700; font-size: 14px; overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
 .idn { flex: 1; min-width: 0; }
-.name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
-.meta { margin: 2px 0 0; color: var(--muted); font-size: 16px; overflow-wrap: anywhere; }
-.drop { width: 48px; height: 48px; flex: none; margin: -6px -6px 0 0; display: grid;
+.name { font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+/* One grey strip, so the code, the pack size, the rate and the base quantity cost one line
+   between them instead of three. 14px: it is reference, read once, not read across a counter. */
+.meta { margin: 2px 0 0; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.drop { width: 44px; height: 44px; flex: none; margin: -8px -8px 0 0; display: grid;
         place-items: center; background: none; border: 0; color: var(--muted); }
 
 .noprice { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: var(--warn);
            font-size: 16px; }
 
-.lrow { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
-.stepper { display: flex; align-items: center; gap: 8px; }
-.step { width: 48px; height: 48px; flex: none; display: grid; place-items: center;
+/* The quantity control sits at the right, where the amount above it is, so the eye runs down
+   one column instead of zig-zagging. */
+.lrow { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.step { width: 44px; height: 44px; flex: none; display: grid; place-items: center;
         background: var(--surface); border: 1px solid var(--primary); color: var(--primary);
         border-radius: 6px; }
 .step:disabled { border-color: var(--line); color: var(--muted); }
 .qtybox { display: grid; justify-items: center; }
-.qty { width: 72px; min-height: 48px; text-align: center; font-size: 18px; font-weight: 600;
+.qty { width: 64px; min-height: 44px; text-align: center; font-size: 18px; font-weight: 600;
        padding: 0 4px; }
-.qtyuom { font-size: 16px; color: var(--muted); }
+.qtyuom { font-size: 14px; color: var(--muted); }
 /* A dropdown that has to read as part of the quantity box rather than as a form control bolted
    beside it, and still be big enough for a thumb - 44px, the same floor as the steppers. */
 .unitpick { border: 0; background: none; padding: 0 18px 0 0; min-height: 44px;
@@ -943,8 +984,7 @@ h3 { margin: 0; font-size: 16px; }
             background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
 .unitpick:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px;
                           border-radius: 4px; }
-.amounts { margin-left: auto; display: grid; justify-items: end; gap: 1px; }
-.amount { font-size: 18px; }
+.amount { flex: none; font-size: 17px; white-space: nowrap; }
 
 .confirm { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px;
            font-size: 16px; }
