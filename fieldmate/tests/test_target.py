@@ -25,7 +25,13 @@ class TargetFixture(OrderFixture):
 	def setUp(self):
 		super().setUp()
 		self.root_person = self.make_sales_person("ROOT")
-		self.company = frappe.db.get_value("Company", {}, "name")
+		# The rep's own company, not whichever one the site happens to list first. An incentive
+		# scheme is filtered on company - correctly, a scheme for one company must not pay a rep
+		# in another - so a fixture that picks arbitrarily builds a scheme no rep is inside, and
+		# every payout test then fails on an empty list for a reason that has nothing to do with
+		# payouts. Reps move company on this bench: a patch reassigns them from their Employee.
+		self.company = (frappe.db.get_value("FieldMate Field User", self.rep.name, "company")
+		                or frappe.db.get_value("Company", {}, "name"))
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
@@ -688,3 +694,70 @@ class TestPayouts(TargetFixture):
 
 		with self.assertRaises(frappe.ValidationError):
 			incentive_service.mark_paid(name, "")
+
+
+class TestACategoryNobodyTyped(TargetFixture):
+	"""A blank category is not a narrow target.
+
+	Frappe fills an empty Link to a tree from the session default, and for Item Group that
+	default is the root, `All Item Groups`. A plan line left blank therefore arrives at the
+	measurement looking scoped, and the scoped path filters order items on a group no item is
+	ever in - every item sits in a leaf. The target measured zero, the plan showed a category
+	nobody had typed, and nothing anywhere said why.
+
+	This is the same shape as the territory and customer group defaults that have bitten before.
+	It is written against the measurement rather than the form, because the form is only one of
+	the ways a root gets in: the nightly job and the gate scripts call `measure` directly.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.person = self.make_sales_person("CAT", parent=self.root_person, is_group=0)
+		frappe.db.set_value("FieldMate Field User", self.rep.name, "sales_person", self.person)
+		self.booked = self.book(qty=20)
+
+	def root_group(self) -> str:
+		return frappe.db.get_value("Item Group", {"parent_item_group": ["is", "not set"]}, "name")
+
+	def measured(self, plan):
+		target_service.compute(plan.name)
+		doc = frappe.get_doc("FieldMate Achievement", {"target_plan": plan.name})
+		return doc.lines[0]
+
+	def test_the_root_category_counts_everything(self):
+		plan = self.plan_for(self.person, lines=[
+			{"target_type": "Value", "target_value": 10000, "item_group": self.root_group()}])
+		self.assertAlmostEqual(flt(self.measured(plan).actual_value),
+		                       flt(self.booked["net_total"]), places=2)
+
+	def test_a_scheme_with_no_category_finds_the_row(self):
+		"""A payout matches a scheme against this row by category, and the row cannot be relied
+		on to have kept the blank - writing None into a Link only invites the default back on the
+		next save. So the match narrows both sides, or a scheme is skipped for want of a target
+		that is sitting right there."""
+		from fieldmate.services.incentive import _achievement_line
+
+		plan = self.plan_for(self.person, lines=[
+			{"target_type": "Value", "target_value": 10000, "item_group": self.root_group()}])
+		target_service.compute(plan.name)
+		achievement = frappe.get_doc("FieldMate Achievement", {"target_plan": plan.name})
+
+		self.assertIsNotNone(_achievement_line(achievement, "Value"))
+		self.assertIsNotNone(_achievement_line(achievement, "Value",
+		                                       item_group=self.root_group()))
+
+	def test_a_real_category_still_narrows(self):
+		"""The fix must not turn every scoped target into a total."""
+		other = self.make_item_group()
+		plan = self.plan_for(self.person, lines=[
+			{"target_type": "Value", "target_value": 10000, "item_group": other}])
+		self.assertEqual(flt(self.measured(plan).actual_value), 0.0,
+		                 "nothing was sold in that category")
+
+	def test_measure_collapses_the_root_on_its_own(self):
+		"""The nightly job and the gate scripts call this directly, without a plan in hand."""
+		window = (today(), add_days(today(), 29))
+		at_root = target_service.measure(self.person, *window, item_group=self.root_group())
+		unscoped = target_service.measure(self.person, *window)
+		self.assertEqual(at_root["Value"], unscoped["Value"])
+		self.assertGreater(unscoped["Value"], 0)
