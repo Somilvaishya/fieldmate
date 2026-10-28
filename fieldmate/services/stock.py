@@ -37,6 +37,11 @@ def sheet_for(outlet, field_user: str | None = None) -> dict:
 			"item_code": item["item_code"],
 			"item_name": item["item_name"],
 			"item_group": item.get("item_group"),
+			# The pack shot, carried through from the catalogue as the path ERPNext stores. A rep
+			# counting a shelf is matching what is in his hand against a list of names, and two
+			# names that differ by "250g" are the same name at arm's length. None on most items
+			# on most sites, and the screen draws the initials instead of a broken frame.
+			"image": item.get("image"),
 			"stock_uom": item.get("stock_uom"),
 			"order_uom": item.get("order_uom"),
 			"conversion_factor": item.get("conversion_factor") or 1,
