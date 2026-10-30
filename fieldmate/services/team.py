@@ -228,3 +228,162 @@ def decide_geo_fence(name: str, decision: str, notes: str | None = None,
 	doc.submit()
 	return {"name": doc.name, "status": doc.status, "approved_by": doc.approved_by,
 	        "decided_on": str(doc.decided_on)}
+
+
+# --------------------------------------------------------------------------------------
+# one rep: the profile, their orders, and what their phone could not send
+# --------------------------------------------------------------------------------------
+#
+# The last three things Area and Regional Managers did in Desk. Each is held to the same right
+# Desk gave, read off the DocType permission rather than restated here - a Regional Manager edits
+# a Field User and an Area Manager does not; an Area Manager cancels an order and a Regional
+# Manager does not; only the Area Manager (and Admin) touches sync conflicts. If that matrix
+# changes, this changes with it.
+
+# What a manager may change about a rep from the phone. Login, company, employee and the target
+# tree stay with whoever administers them.
+MEMBER_FIELDS = ("mobile_no", "designation", "status", "territory", "reports_to", "distributor",
+                 "daily_target_calls", "can_create_outlet", "can_collect_payment", "notes")
+
+# A conflict resolution the phone offers. "Keep Client" and "Merged" are left out on purpose:
+# resolving a conflict only records the decision, it does not replay what the phone sent, so
+# those two would say something had been applied when nothing had.
+PHONE_RESOLUTIONS = ("Keep Server", "Discarded")
+
+RECENT_ORDERS = 20
+
+
+def member(field_user: str, user: str | None = None) -> dict:
+	"""One rep, as a manager needs them: who they are, their recent orders, their phone's trouble."""
+	from fieldmate.services import order as order_service
+
+	user = user or frappe.session.user
+	field_user_service.assert_in_team(field_user, user)
+	doc = frappe.get_doc("FieldMate Field User", field_user)
+
+	can_edit = bool(frappe.has_permission("FieldMate Field User", "write", doc=doc, user=user))
+	can_cancel = bool(frappe.has_permission("FieldMate Order", "cancel", user=user))
+	can_resolve = bool(frappe.has_permission("FieldMate Sync Conflict", "write", user=user))
+
+	orders = order_service.with_party_names(frappe.get_all(
+		"FieldMate Order", filters={"field_user": field_user, "docstatus": ["<", 2]},
+		fields=["name", "order_date", "outlet", "party_type", "customer", "grand_total",
+		        "net_total", "order_status", "docstatus"],
+		order_by="order_date desc, creation desc", limit_page_length=RECENT_ORDERS))
+	for o in orders:
+		o["can_cancel"] = can_cancel and cint(o["docstatus"]) == 1 \
+			and o["order_status"] not in (*order_service.DEPOT_HAS_ACTED, "Cancelled", "Rejected")
+
+	conflicts = frappe.get_all(
+		"FieldMate Sync Conflict", filters={"user": doc.user, "status": "Open"},
+		fields=["name", "conflict_type", "reference_doctype", "client_uuid", "creation",
+		        "resolution_notes"],
+		order_by="creation desc", limit_page_length=50) if can_resolve else []
+
+	return {
+		"profile": {f: doc.get(f) for f in ("name", "full_name", "user", *MEMBER_FIELDS)},
+		"can_edit": can_edit,
+		"can_cancel_orders": can_cancel,
+		"can_resolve_conflicts": can_resolve,
+		"options": _member_options(doc, user) if can_edit else None,
+		"orders": orders,
+		"conflicts": conflicts,
+	}
+
+
+def _member_options(doc, user: str) -> dict:
+	from fieldmate.services import party as party_service
+	from fieldmate.services import plan as plan_service
+
+	meta = frappe.get_meta("FieldMate Field User")
+	mine = field_user_service.for_user(user)
+	below = set(field_user_service.team_of(doc.name))
+	# Somebody this rep may report to: the manager asking, or a manager in their team - never the
+	# rep themselves or anybody already below them, which would close a loop.
+	candidates = [n for n in [mine, *(field_user_service.team_scope(user) or [])] if n]
+	managers = [m for m in frappe.get_all(
+		"FieldMate Field User",
+		filters={"name": ["in", candidates or [""]], "designation": ["!=", "Field Rep"],
+		         "status": "Active"},
+		fields=["name", "full_name"], order_by="full_name asc")
+		if m.name != doc.name and m.name not in below]
+	return {
+		"designation": (meta.get_field("designation").options or "").split("\n"),
+		"status": (meta.get_field("status").options or "").split("\n"),
+		"territory": plan_service.territories(user),
+		"reports_to": [{"name": m.name, "full_name": m.full_name or m.name} for m in managers],
+		"distributor": party_service.distributors_of(doc.name),
+	}
+
+
+def update_member(field_user: str, payload: dict, user: str | None = None) -> dict:
+	"""Change a rep's profile from the phone. The Field User controller holds its own rules -
+	no reporting loops, a usable login - and its refusals come back as they are."""
+	user = user or frappe.session.user
+	field_user_service.assert_in_team(field_user, user)
+	doc = frappe.get_doc("FieldMate Field User", field_user)
+	if not frappe.has_permission("FieldMate Field User", "write", doc=doc, user=user):
+		frappe.throw(frappe._("Only a Regional Manager or above can change a rep's profile."),
+		             frappe.PermissionError)
+
+	changes = {f: payload[f] for f in MEMBER_FIELDS if f in payload}
+	options = _member_options(doc, user)
+	if changes.get("territory") and changes["territory"] != doc.territory \
+			and changes["territory"] not in options["territory"]:
+		frappe.throw(frappe._("{0} is outside your territory.").format(changes["territory"]),
+		             frappe.PermissionError)
+	if changes.get("reports_to") and changes["reports_to"] != doc.reports_to \
+			and changes["reports_to"] not in [m["name"] for m in options["reports_to"]]:
+		frappe.throw(frappe._("{0} cannot be this rep's manager.").format(changes["reports_to"]),
+		             frappe.PermissionError)
+
+	doc.update(changes)
+	doc.flags.ignore_permissions = True
+	doc.save()
+	return member(field_user, user)
+
+
+def cancel_order(order: str, reason: str | None = None, user: str | None = None) -> dict:
+	"""A manager withdrawing a team member's order - the Area Manager's Desk right."""
+	from fieldmate.services import order as order_service
+
+	user = user or frappe.session.user
+	doc = frappe.get_doc("FieldMate Order", order)
+	field_user_service.assert_in_team(doc.field_user, user)
+	if not frappe.has_permission("FieldMate Order", "cancel", user=user):
+		frappe.throw(frappe._("Only an Area Manager or an administrator can cancel a rep's order."),
+		             frappe.PermissionError)
+	if not (reason or "").strip():
+		frappe.throw(frappe._("Say why. The rep and the depot will both read this."))
+	return order_service.withdraw_and_cancel(doc, f"{reason.strip()} (by {user})")
+
+
+def resolve_conflict(name: str, resolution: str, notes: str | None = None,
+                     user: str | None = None) -> dict:
+	"""Close something a team member's phone could not send.
+
+	The reason it failed was written into `resolution_notes` when the conflict was raised; a
+	manager's note is added beneath it rather than over it, so the record keeps both.
+	"""
+	user = user or frappe.session.user
+	if resolution not in PHONE_RESOLUTIONS:
+		frappe.throw(frappe._("That is not a way to close this from the phone."))
+	if not frappe.has_permission("FieldMate Sync Conflict", "write", user=user):
+		frappe.throw(frappe._("You cannot resolve sync problems."), frappe.PermissionError)
+
+	conflict = frappe.get_doc("FieldMate Sync Conflict", name)
+	owner = frappe.db.get_value("FieldMate Field User", {"user": conflict.user}, "name")
+	if not owner:
+		frappe.throw(frappe._("This sync problem belongs to nobody in your team."),
+		             frappe.PermissionError)
+	field_user_service.assert_in_team(owner, user)
+	if conflict.status != "Open":
+		frappe.throw(frappe._("This has already been closed."))
+
+	conflict.resolution = resolution
+	conflict.status = "Discarded" if resolution == "Discarded" else "Resolved"
+	if notes:
+		conflict.resolution_notes = "\n".join(filter(None, [conflict.resolution_notes, notes]))
+	conflict.flags.ignore_permissions = True
+	conflict.save()
+	return {"name": conflict.name, "status": conflict.status, "resolution": conflict.resolution}

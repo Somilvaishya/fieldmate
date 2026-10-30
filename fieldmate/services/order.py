@@ -1050,7 +1050,16 @@ def cancel(name: str, reason: str | None = None) -> dict:
 	"""Withdraw the order from the distributor's queue and give the budget back."""
 	doc = frappe.get_doc("FieldMate Order", name)
 	assert_owner(doc)
+	return withdraw_and_cancel(doc, reason)
 
+
+def withdraw_and_cancel(doc, reason: str | None = None) -> dict:
+	"""The cancel itself, for whoever has already been allowed to ask for it.
+
+	Shared by the rep's own cancel and a manager's (`team.cancel_order`), so the depot check and
+	the ledger reversal are written once. The caller checks who may; this checks what may.
+	"""
+	name = doc.name
 	if doc.docstatus == 2:
 		return summarise(doc)
 

@@ -121,11 +121,14 @@ function progress(m) {
 
       <div v-for="m in members" :key="m.field_user" class="card">
         <div class="top">
-          <div class="who">
-            <b class="name">{{ m.full_name }}</b>
+          <!-- The way into the rep's page: profile, orders, what their phone could not send.
+               The name rather than the whole card, because the card also holds a Call link and
+               a link inside a link is two taps fighting for one thumb. -->
+          <RouterLink class="who" :to="{ name: 'team-member', params: { rep: m.field_user } }">
+            <b class="name">{{ m.full_name }} <Icon name="chevron" size="14" class="go" /></b>
             <span v-if="repeated.has(m.full_name)" class="dim login">{{ m.field_user }}</span>
             <span class="dim">{{ m.beat || m.territory }}</span>
-          </div>
+          </RouterLink>
           <span class="pill" :class="STATUS[m.day_status].tone">
             {{ STATUS[m.day_status].word }}<template v-if="m.day_status === 'Working' && m.started_at">
               · {{ clock(m.started_at) }}</template>
@@ -189,7 +192,9 @@ function progress(m) {
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
         padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.who { display: flex; flex-direction: column; min-width: 0; }
+.who { display: flex; flex-direction: column; min-width: 0; min-height: 44px; color: inherit;
+       text-decoration: none; }
+.who .go { color: var(--muted); vertical-align: middle; }
 .name { font-size: 16px; overflow-wrap: anywhere; }
 .login { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
          overflow-wrap: anywhere; }

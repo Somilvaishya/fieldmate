@@ -335,6 +335,14 @@ export const api = {
          { post: true }),
   decideGeoFence: (exception, decision, notes) =>
     call('team.decide_geo_fence', { exception, decision, notes }, { post: true }),
+  // One rep's page. What the caller may do there - edit, cancel, close a sync jam - comes back
+  // with it, read off the same permissions Desk used.
+  teamMember: (fieldUser) => call('team.member', { field_user: fieldUser }),
+  teamUpdateMember: (fieldUser, payload) =>
+    call('team.update_member', { field_user: fieldUser, payload }, { post: true }),
+  teamCancelOrder: (order, reason) => call('team.cancel_order', { order, reason }, { post: true }),
+  teamResolveConflict: (conflict, resolution, notes) =>
+    call('team.resolve_conflict', { conflict, resolution, notes }, { post: true }),
 
   // The Plan tab: the team's month and its beats. Online only, like the approvals - a plan is
   // something the rep's phone pulls, and one sitting unsent on the manager's is a plan nobody has.

@@ -140,7 +140,7 @@ describe('the team board', () => {
   async function board(members, totals = {}) {
     today = { members, totals: { members: members.length, started: 0, visits: 0, order_value: 0,
                                  ...totals } }
-    const w = mount(Team, { global: { stubs: { Icon: true, RouterLink: true } } })
+    const w = mount(Team, { global: { stubs: { Icon: true, RouterLink: { template: '<a><slot/></a>' } } } })
     await flushPromises()
     return w
   }

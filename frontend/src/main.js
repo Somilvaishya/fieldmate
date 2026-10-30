@@ -108,6 +108,8 @@ const router = createRouter({
     // rep should land somewhere useful rather than on a screen of refusals.
     { path: '/team', component: () => import('./screens/Team.vue'), name: 'team',
       meta: { manager: true } },
+    { path: '/team/:rep', component: () => import('./screens/TeamMember.vue'), name: 'team-member',
+      meta: { manager: true } },
     { path: '/approvals', component: () => import('./screens/Approvals.vue'), name: 'approvals',
       meta: { manager: true } },
     // The month and the routes. The rep and the beat are in the path because a manager links

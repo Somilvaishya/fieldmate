@@ -332,3 +332,11 @@ Which territory?,कौन सा इलाका?
 You cannot plan against holiday list {0}.,आप छुट्टियों की लिस्ट {0} पर प्लान नहीं बना सकते।
 "{0} is already approved for {1} to {2}. Cancel that plan, or pick dates outside it.","{0} पहले से {1} से {2} तक मंज़ूर है। वह प्लान रद्द करें, या उसके बाहर की तारीख़ें चुनें।"
 {0} does not supply this rep's shops.,{0} इस रेप की दुकानों को माल नहीं देता।
+Only a Regional Manager or above can change a rep's profile.,रेप की प्रोफ़ाइल सिर्फ़ रीजनल मैनेजर या उससे ऊपर बदल सकते हैं।
+Only an Area Manager or an administrator can cancel a rep's order.,रेप का ऑर्डर सिर्फ़ एरिया मैनेजर या एडमिन रद्द कर सकते हैं।
+Say why. The rep and the depot will both read this.,वजह लिखें। रेप और डिपो दोनों यह पढ़ेंगे।
+That is not a way to close this from the phone.,इसे फ़ोन से इस तरह बंद नहीं किया जा सकता।
+This has already been closed.,यह पहले ही बंद हो चुका है।
+This sync problem belongs to nobody in your team.,यह सिंक की दिक्कत आपकी टीम के किसी की नहीं है।
+You cannot resolve sync problems.,आप सिंक की दिक्कतें नहीं सुलझा सकते।
+{0} cannot be this rep's manager.,{0} इस रेप का मैनेजर नहीं हो सकता।
