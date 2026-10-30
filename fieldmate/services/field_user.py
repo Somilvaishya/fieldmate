@@ -195,6 +195,51 @@ def managers_of(field_user: str) -> list[str]:
 		chain.append(current)
 
 
+# Roles that answer for the whole company rather than for a team. The same three that may decide
+# any order (`order.APPROVER_ROLES`): a Sales Head sits above every reporting line, and an
+# administrator has no line at all.
+COMPANY_WIDE_ROLES = ("FieldMate Sales Head", "FieldMate Admin", "System Manager")
+
+
+def team_of(field_user: str) -> list[str]:
+	"""Everyone below this person in the reporting line, at any depth. `managers_of` reversed.
+
+	The same line an order's approval walks up, so the people a manager sees in the app are
+	exactly the people whose orders they may decide - one definition, not two that drift.
+
+	Loop-safe for the same reason `managers_of` is.
+	"""
+	team, frontier, seen = [], [field_user], {field_user}
+	while frontier:
+		below = frappe.get_all("FieldMate Field User",
+		                       filters={"reports_to": ["in", frontier]}, pluck="name")
+		frontier = [name for name in below if name not in seen]
+		seen.update(frontier)
+		team.extend(frontier)
+	return team
+
+
+def team_scope(user: str | None = None) -> list[str] | None:
+	"""The field users a manager answers for, or None for somebody who answers for all of them.
+
+	An empty list is a real answer, not "everyone": a manager nobody reports to yet has a team of
+	nobody, and must see nothing rather than the whole company.
+	"""
+	user = user or frappe.session.user
+	if user == "Administrator" or set(frappe.get_roles(user)) & set(COMPANY_WIDE_ROLES):
+		return None
+	mine = for_user(user)
+	return team_of(mine) if mine else []
+
+
+def assert_in_team(field_user: str, user: str | None = None) -> None:
+	"""Refuse a decision about somebody outside the caller's reporting line."""
+	scope = team_scope(user)
+	if scope is not None and field_user not in scope:
+		frappe.throw(frappe._("{0} is not in your team.").format(field_user),
+		             frappe.PermissionError)
+
+
 def location_trail_query(user: str | None = None) -> str:
 	"""A rep's own trail, and nobody else's.
 

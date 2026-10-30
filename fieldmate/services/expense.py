@@ -157,6 +157,11 @@ def approve(name: str, decision: str, approved_amount=None, remarks: str | None 
         # is the same as a rep stating their own mileage.
         frappe.throw(
             frappe._("You cannot approve your own claim."), frappe.PermissionError)
+    # Somebody else's team is not yours to pay. This used to stop only at the claimant's own
+    # name, so any Area Manager could approve any rep's mileage anywhere in the company - hidden
+    # while managers worked in Desk lists filtered by territory, and in plain view once the app
+    # shows a manager a queue.
+    field_user_service.assert_in_team(doc.field_user)
 
     if decision == "Rejected":
         if not remarks:
@@ -305,10 +310,19 @@ PENDING_FIELDS = ["name", "field_user", "claim_date", "expense_type", "trail_dis
                   "receipt", "remarks"]
 
 
-def pending_for_manager_page(limit: int = 100, start: int = 0) -> tuple[list[dict], int]:
-    """A page of what is waiting on somebody at our end, oldest first, and how much there is."""
-    return paging.page("FieldMate Expense Claim", fields=PENDING_FIELDS,
-                       filters={"claim_status": "Pending Approval", "docstatus": 1},
+def pending_for_manager_page(limit: int = 100, start: int = 0,
+                             user: str | None = None) -> tuple[list[dict], int]:
+    """A page of what is waiting on this manager, oldest first, and how much there is.
+
+    Their own team's, not the company's - the same line `approve` now holds.
+    """
+    filters = {"claim_status": "Pending Approval", "docstatus": 1}
+    scope = field_user_service.team_scope(user)
+    if scope is not None:
+        if not scope:
+            return [], 0
+        filters["field_user"] = ["in", scope]
+    return paging.page("FieldMate Expense Claim", fields=PENDING_FIELDS, filters=filters,
                        order_by="claim_date asc", start=start, limit=limit)
 
 

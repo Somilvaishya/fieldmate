@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client'
 import { deviceUuid, setMeta } from '../db'
 import { startLanguage, t } from '../lib/i18n'
 import Icon from '../components/Icon.vue'
+import * as role from '../stores/role'
 
 const router = useRouter()
 const usr = ref('')
@@ -28,7 +29,8 @@ onMounted(async () => {
   try {
     const data = await api.bootstrap()
     await setMeta('profile', data)
-    router.replace('/today')
+    role.remember(data)
+    router.replace(role.homeRoute.value)
   } catch {
     // Not signed in, or no signal to ask. Either way the form is the right answer.
   } finally {
@@ -47,9 +49,10 @@ async function submit() {
       device_name: navigator.userAgent.slice(0, 60),
     })
     await setMeta('profile', data)
+    role.remember(data)
     // What this login's User record says, unless this handset has already been set otherwise.
     startLanguage(data?.language)
-    router.push('/today')
+    router.push(role.homeRoute.value)
   } catch (e) {
     // Errors say what happened in plain words - a rep reads this in a market with no
     // support line available. Signing in is the one action that genuinely needs the

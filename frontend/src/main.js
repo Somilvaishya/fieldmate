@@ -16,6 +16,7 @@ import VisitMerchandising from './screens/VisitMerchandising.vue'
 import VisitCheckOut from './screens/VisitCheckOut.vue'
 import { startLanguage } from './lib/i18n'
 import { getMeta } from './db'
+import * as role from './stores/role'
 import './style.css'
 
 // The language before the first screen draws. A rep who set Hindi must not watch the app render
@@ -29,7 +30,8 @@ const router = createRouter({
   // server-side rewrite is needed and the service worker can serve it offline.
   history: createWebHashHistory(),
   routes: [
-    { path: '/', redirect: '/today' },
+    // Home depends on who is signed in; the guard below sends `/` to the right one.
+    { path: '/', component: Today, name: 'home' },
     { path: '/login', component: Login, name: 'login' },
     { path: '/today', component: Today, name: 'today' },
     { path: '/outlets', component: Outlets, name: 'outlets' },
@@ -100,7 +102,32 @@ const router = createRouter({
     { path: '/showcase', component: () => import('./screens/Showcase.vue'), name: 'showcase' },
     { path: '/money', component: () => import('./screens/Money.vue'), name: 'money' },
     { path: '/me', component: () => import('./screens/Me.vue'), name: 'me' },
+
+    // The manager's two. A manager has no Desk, so these hold every decision they used to take
+    // there. `manager` marks them for the guard below - the server refuses a rep anyway, but a
+    // rep should land somewhere useful rather than on a screen of refusals.
+    { path: '/team', component: () => import('./screens/Team.vue'), name: 'team',
+      meta: { manager: true } },
+    { path: '/team/:rep', component: () => import('./screens/TeamMember.vue'), name: 'team-member',
+      meta: { manager: true } },
+    { path: '/approvals', component: () => import('./screens/Approvals.vue'), name: 'approvals',
+      meta: { manager: true } },
+    // The month and the routes. The rep and the beat are in the path because a manager links
+    // from one to the other; the month stays a query so the back button keeps it.
+    { path: '/plan', component: () => import('./screens/Plan.vue'), name: 'plan',
+      meta: { manager: true } },
+    { path: '/plan/rep/:rep', component: () => import('./screens/PlanRep.vue'), name: 'plan-rep',
+      meta: { manager: true } },
+    { path: '/plan/beat/:name', component: () => import('./screens/BeatEdit.vue'), name: 'plan-beat',
+      meta: { manager: true } },
   ],
+})
+
+router.beforeEach(async (to) => {
+  await role.ready()
+  if (to.name === 'home') return role.homeRoute.value
+  if (to.meta.manager && !role.isManager.value) return '/today'
+  return true
 })
 
 createApp(App).use(router).mount('#app')

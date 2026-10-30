@@ -7,11 +7,25 @@ import * as outbox from '../sync/outbox'
 import * as photoQueue from '../sync/photos'
 import { pendingPings, flush as flushPings } from '../sync/pinger'
 import Icon from '../components/Icon.vue'
+import * as role from '../stores/role'
 import { t, language, setLanguage, LANGUAGES } from '../lib/i18n'
 
 const router = useRouter()
 const profile = ref(null)
 const loading = ref(true)
+
+// `bootstrap` nests the rep's own facts under `field_user` and the site's under `settings`. This
+// screen used to read all of them off the top level, where only `sales_mode` also happens to sit -
+// so every login read "Field Rep" whatever its designation, and territory, the call target and
+// the support line never showed at all.
+const rep = computed(() => {
+  const fu = profile.value?.field_user
+  return fu && typeof fu === 'object' ? fu : {}
+})
+const supportContact = computed(() => profile.value?.settings?.support_contact)
+// Only a rep falls back to "Field Rep". A manager with no Field User row is not one.
+const designation = computed(() =>
+  rep.value.designation || (profile.value?.is_field_rep ? t('Field Rep') : ''))
 
 // The screens that belong to the rep rather than to a shop or a day.
 //
@@ -36,6 +50,7 @@ async function load() {
   try {
     const live = await api.bootstrap()
     await setMeta('profile', live)
+    role.remember(live)
     profile.value = live
   } catch {
     // Cached is fine. Nothing on this screen is worth an error message for.
@@ -92,6 +107,8 @@ async function finishSignOut() {
   // handed-back handset that looks like it belongs to the last rep.
   setCsrfToken(null)
   await wipe().catch(() => {})
+  // A manager signing out and a rep signing in on the same handset must not inherit the tabs.
+  role.forget()
   router.push('/login')
 }
 
@@ -103,10 +120,11 @@ onMounted(load)
     <header class="who">
       <div class="avatar"><Icon name="person" size="26" /></div>
       <div>
-        <h1>{{ profile?.full_name || profile?.field_user || t('You') }}</h1>
+        <h1>{{ profile?.full_name || rep.field_user || t('You') }}</h1>
         <p class="dim">
-          {{ profile?.designation || t('Field Rep') }}
-          <template v-if="profile?.territory"> · {{ profile.territory }}</template>
+          {{ designation }}
+          <template v-if="designation && rep.territory"> · </template>
+          <template v-if="rep.territory">{{ rep.territory }}</template>
         </p>
       </div>
     </header>
@@ -120,12 +138,12 @@ onMounted(load)
            are different claims, and only the second is something a rep can walk. -->
       <div class="fact">
         <span class="dim">
-          {{ profile.daily_target_basis === 'route'
+          {{ rep.daily_target_basis === 'route'
               ? t("On today's route")
               : t('Calls a day') }}
         </span>
-        <b class="tnum">{{ profile.daily_target_calls || '—' }}</b>
-        <em v-if="profile.daily_target_beat" class="dim">{{ profile.daily_target_beat }}</em>
+        <b class="tnum">{{ rep.daily_target_calls || '—' }}</b>
+        <em v-if="rep.daily_target_beat" class="dim">{{ rep.daily_target_beat }}</em>
       </div>
     </div>
 
@@ -158,8 +176,8 @@ onMounted(load)
     </RouterLink>
 
     <div class="foot">
-      <p class="dim fine" v-if="profile?.support_contact">
-        {{ t('Stuck? {contact}', { contact: profile.support_contact }) }}
+      <p class="dim fine" v-if="supportContact">
+        {{ t('Stuck? {contact}', { contact: supportContact }) }}
       </p>
       <template v-if="!confirmWipe">
         <button class="out" :disabled="signingOut" @click="signOut">

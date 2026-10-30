@@ -57,9 +57,32 @@ class TestRoles(FieldMateTestCase):
 			self.assertTrue(frappe.db.exists("Role", role_name), f"{role_name} missing")
 
 	def test_field_roles_have_no_desk_access(self):
-		"""Rep and Distributor live in the PWA and the portal, never in Desk."""
-		for role_name in ("FieldMate Field Rep", "FieldMate Distributor"):
+		"""Rep and Distributor live in the PWA and the portal, never in Desk - and since the
+		manager's app, nor do Area and Regional Managers."""
+		for role_name in ("FieldMate Field Rep", "FieldMate Distributor",
+		                  "FieldMate Area Manager", "FieldMate Regional Manager"):
 			self.assertEqual(frappe.db.get_value("Role", role_name, "desk_access"), 0)
+
+	def test_the_sales_head_and_dispatch_planner_keep_desk(self):
+		for role_name in ("FieldMate Sales Head", "FieldMate Admin", "FieldMate Dispatch Planner"):
+			self.assertEqual(frappe.db.get_value("Role", role_name, "desk_access"), 1)
+
+	def test_a_manager_who_already_had_desk_loses_it_on_migrate(self):
+		"""The flag is not enough. A user's type is worked out when the Role is saved; a direct
+		write to the flag left every existing Area Manager a System User with Desk."""
+		role = "FieldMate Area Manager"
+		frappe.db.set_value("Role", role, "desk_access", 1)
+		email = f"{self.uid('am').lower()}@fieldmate.test"
+		user = frappe.get_doc({"doctype": "User", "email": email, "first_name": "Area",
+		                       "send_welcome_email": 0,
+		                       "roles": [{"role": role}]}).insert(ignore_permissions=True)
+		self.track("User", user.name)
+		self.assertEqual(frappe.db.get_value("User", user.name, "user_type"), "System User")
+
+		install.create_roles()
+
+		self.assertEqual(frappe.db.get_value("Role", role, "desk_access"), 0)
+		self.assertEqual(frappe.db.get_value("User", user.name, "user_type"), "Website User")
 
 	def test_creating_roles_twice_is_safe(self):
 		before = frappe.db.count("Role", {"role_name": ["like", "FieldMate%"]})

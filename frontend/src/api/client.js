@@ -317,4 +317,49 @@ export const api = {
   monthDashboard: (fromDate, toDate) =>
     call('dashboard.rep_month', { from_date: fromDate, to_date: toDate }),
   kpiTrend: (days) => call('dashboard.rep_trend', { days }),
+
+  // ------------------------------------------------------------- the manager's phone
+  //
+  // Area and Regional Managers work from the app rather than Desk, so every decision they used
+  // to take in a Desk form is here. All of them are online-only on purpose: an approval is an
+  // answer somebody else is waiting on, and one queued on a phone in a basement is an answer
+  // nobody has.
+  teamToday: () => call('team.today'),
+  teamInbox: () => call('team.inbox'),
+  decideOutlet: (outlet, decision, notes) =>
+    call('outlet.approve', { outlet, decision, notes }, { post: true }),
+  decideOrder: (order, decision, remarks) =>
+    call('order.approve', { order, decision, remarks }, { post: true }),
+  decideExpense: (claim, decision, approvedAmount, remarks) =>
+    call('expense.decide', { claim, decision, approved_amount: approvedAmount, remarks },
+         { post: true }),
+  decideGeoFence: (exception, decision, notes) =>
+    call('team.decide_geo_fence', { exception, decision, notes }, { post: true }),
+  // One rep's page. What the caller may do there - edit, cancel, close a sync jam - comes back
+  // with it, read off the same permissions Desk used.
+  teamMember: (fieldUser) => call('team.member', { field_user: fieldUser }),
+  teamUpdateMember: (fieldUser, payload) =>
+    call('team.update_member', { field_user: fieldUser, payload }, { post: true }),
+  teamCancelOrder: (order, reason) => call('team.cancel_order', { order, reason }, { post: true }),
+  teamResolveConflict: (conflict, resolution, notes) =>
+    call('team.resolve_conflict', { conflict, resolution, notes }, { post: true }),
+
+  // The Plan tab: the team's month and its beats. Online only, like the approvals - a plan is
+  // something the rep's phone pulls, and one sitting unsent on the manager's is a plan nobody has.
+  planOverview: (month, territory) => call('plan.overview', { month, territory }),
+  planTerritories: () => call('plan.territories'),
+  planHolidayLists: (fieldUser) => call('plan.holiday_lists', { field_user: fieldUser }),
+  planDays: (plan) => call('plan.days', { plan }),
+  // A range and a holiday list, as Desk's form has. Both optional: with neither, the server plans
+  // the calendar month against the rep's own holiday list.
+  planBuild: (fieldUser, { month, fromDate, toDate, holidayList } = {}) =>
+    call('plan.build', { field_user: fieldUser, month, from_date: fromDate, to_date: toDate,
+                         holiday_list: holidayList }, { post: true }),
+  planApprove: (plan) => call('plan.approve', { plan }, { post: true }),
+  planCancel: (plan) => call('plan.cancel', { plan }, { post: true }),
+  planBeats: (fieldUser, territory) => call('plan.beats', { field_user: fieldUser, territory }),
+  planBeatOptions: (fieldUser) => call('plan.beat_options', { field_user: fieldUser }),
+  planBeat: (name) => call('plan.beat', { name }),
+  planFreeOutlets: (territory, q) => call('plan.free_outlets', { territory, q }),
+  planSaveBeat: (payload) => call('plan.save_beat', { payload }, { post: true }),
 }

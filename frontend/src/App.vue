@@ -5,6 +5,8 @@ import Icon from './components/Icon.vue'
 import OfflineStrip from './components/OfflineStrip.vue'
 import * as auto from './sync/auto'
 import * as dayStore from './stores/day'
+import { isManager } from './stores/role'
+import { t } from './lib/i18n'
 
 const route = useRoute()
 
@@ -25,13 +27,26 @@ const chrome = computed(() => route.name !== 'login')
 // Five, because that is what a rep's day is made of: the day itself, the shops, what they
 // sold, what they collected, and their own numbers. Each one opens a screen that exists - a
 // tab leading nowhere is worse than one tab fewer.
-const TABS = [
+const REP_TABS = [
   { to: '/today', icon: 'list', label: 'Today' },
   { to: '/outlets', icon: 'store', label: 'Shops' },
   { to: '/orders', icon: 'cart', label: 'Orders' },
   { to: '/money', icon: 'tag', label: 'Collect' },
   { to: '/me', icon: 'person', label: 'Me' },
 ]
+
+// A manager's day is their team, the decisions waiting on them, and the shops - not a beat of
+// their own. Same app and the same screens underneath, so a manager who does go into the market
+// with a rep still has the visit and the order.
+const MANAGER_TABS = [
+  { to: '/team', icon: 'team', label: 'Team' },
+  { to: '/approvals', icon: 'check', label: 'Approvals' },
+  { to: '/plan', icon: 'route', label: 'Plan' },
+  { to: '/outlets', icon: 'store', label: 'Shops' },
+  { to: '/me', icon: 'person', label: 'Me' },
+]
+
+const tabs = computed(() => (isManager.value ? MANAGER_TABS : REP_TABS))
 </script>
 
 <template>
@@ -46,10 +61,10 @@ const TABS = [
     <main class="body"><RouterView /></main>
 
     <nav v-if="chrome" class="tabs">
-      <RouterLink v-for="tab in TABS" :key="tab.to" :to="tab.to" class="tab">
+      <RouterLink v-for="tab in tabs" :key="tab.to" :to="tab.to" class="tab">
         <span class="mark" aria-hidden="true"></span>
         <Icon :name="tab.icon" size="22" />
-        <span class="label">{{ tab.label }}</span>
+        <span class="label">{{ t(tab.label) }}</span>
       </RouterLink>
     </nav>
   </div>

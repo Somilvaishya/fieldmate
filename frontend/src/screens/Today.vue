@@ -7,6 +7,7 @@ import { pull, drain, pendingCount } from '../sync/outbox'
 import { pendingPings, configure as configurePinger, resumeIfDayOpen } from '../sync/pinger'
 import * as dayStore from '../stores/day'
 import * as visitStore from '../stores/visit'
+import * as role from '../stores/role'
 import * as photoQueue from '../sync/photos'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
@@ -150,6 +151,7 @@ async function load() {
   try {
     const profile = await api.bootstrap()
     await setMeta('profile', profile)
+    role.remember(profile)
     boot.value = profile
     stale.value = false
     configurePinger(profile.settings || {})

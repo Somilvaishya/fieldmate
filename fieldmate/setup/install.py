@@ -20,8 +20,11 @@ from fieldmate.compat import (
 # desk_access False means the role lives only in the PWA / portal, never in Frappe Desk.
 ROLES = [
 	("FieldMate Field Rep", False),
-	("FieldMate Area Manager", True),
-	("FieldMate Regional Manager", True),
+	# Area and Regional Managers work from the app: their team, their approvals, their plans and
+	# their reps' pages are all there now. Desk stays with the Sales Head and above, who own the
+	# configuration a manager on a market visit never needs.
+	("FieldMate Area Manager", False),
+	("FieldMate Regional Manager", False),
 	("FieldMate Sales Head", True),
 	("FieldMate Admin", True),
 	("FieldMate Distributor", False),
@@ -106,7 +109,13 @@ def create_roles() -> None:
 			continue
 
 		if frappe.db.get_value("Role", role_name, "desk_access") != wanted:
-			frappe.db.set_value("Role", role_name, "desk_access", wanted)
+			# Saved, not `db.set_value`. The flag alone does nothing for people who already hold
+			# the role: Frappe re-evaluates each holder's user type in Role.on_update, and a
+			# direct write skips it - so an Area Manager given the app instead of Desk would have
+			# kept Desk, as a System User, for as long as nobody happened to re-save their login.
+			role = frappe.get_doc("Role", role_name)
+			role.desk_access = wanted
+			role.save(ignore_permissions=True)
 
 
 # Where a caller's idempotency key is kept on the ERPNext documents we post. Custom Fields rather
