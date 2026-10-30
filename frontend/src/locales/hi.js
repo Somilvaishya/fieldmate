@@ -1316,4 +1316,165 @@ export default {
 
   // The shelf check, where our range is already listed and only needs finding.
   'Find a product': 'प्रोडक्ट खोजें',
+
+  // The bottom bar. Translated now that it is drawn through `t()`; it was English for everybody.
+  'Orders': 'ऑर्डर',
+  'Me': 'मैं',
+  'Team': 'टीम',
+
+  // The manager's team board.
+  'My team': 'मेरी टीम',
+  'Where everybody is today': 'आज कौन कहाँ है',
+  'Could not load your team. This needs signal - it is read live from the office.':
+    'टीम लोड नहीं हुई। इसके लिए सिग्नल चाहिए - यह सीधे ऑफ़िस से पढ़ा जाता है।',
+  '{n} thing is waiting on you': '{n} चीज़ आपका इंतज़ार कर रही है',
+  '{n} things are waiting on you': '{n} चीज़ें आपका इंतज़ार कर रही हैं',
+  'Shops, orders, expenses and check-ins': 'दुकानें, ऑर्डर, खर्च और चेक-इन',
+  'Out today': 'आज निकले',
+  'Visits': 'विज़िट',
+  'Not started': 'शुरू नहीं किया',
+  'Working': 'काम पर',
+  'Day ended': 'दिन ख़त्म',
+  '{done} of {planned} visits': '{planned} में से {done} विज़िट',
+  '{n} visits': '{n} विज़िट',
+  '{n} with an order': '{n} में ऑर्डर',
+  'Last check-in {time}': 'आख़िरी चेक-इन {time}',
+  'Nobody reports to you yet': 'अभी आपको कोई रिपोर्ट नहीं करता',
+  'Ask your admin to set Reports To on your reps. Until then there is nobody to show here.':
+    'अपने एडमिन से कहें कि आपके रेप्स पर Reports To भरें। तब तक यहाँ दिखाने को कोई नहीं है।',
+
+  // The manager's approvals.
+  'Approvals': 'मंज़ूरी',
+  'Waiting on you, oldest first': 'आपके फ़ैसले का इंतज़ार, सबसे पुराना पहले',
+  'Expenses': 'खर्च',
+  'Check-ins': 'चेक-इन',
+  'Could not load your approvals. This needs signal.':
+    'मंज़ूरियाँ लोड नहीं हुईं। इसके लिए सिग्नल चाहिए।',
+  'Added by {rep} on {date}': '{rep} ने {date} को जोड़ा',
+  'No location pinned': 'लोकेशन पिन नहीं है',
+  '{rep} · {date} · {n} lines': '{rep} · {date} · {n} लाइन',
+  'Owes {owed} against a limit of {limit}': '{limit} की लिमिट में {owed} बकाया',
+  'Claimed {claimed} km, GPS trail {trail} km': 'दावा {claimed} km, GPS ट्रेल {trail} km',
+  'Approve at': 'इतने पर मंज़ूर',
+  '{rep} · {date}': '{rep} · {date}',
+  'Checked in {m} m from the shop': 'दुकान से {m} m दूर चेक-इन',
+  'Why? The rep will read this.': 'क्यों? रेप यह पढ़ेगा।',
+  'Say why. The rep will read this.': 'वजह लिखें। रेप यह पढ़ेगा।',
+  'Back': 'वापस',
+  'Refuse': 'मना करें',
+  'Approve': 'मंज़ूर करें',
+  'Approved.': 'मंज़ूर हो गया।',
+  'Refused.': 'मना कर दिया।',
+  'No signal. Nothing was decided - try again when you have one.':
+    'सिग्नल नहीं है। कुछ तय नहीं हुआ - सिग्नल आने पर फिर करें।',
+  'That did not go through.': 'यह नहीं हो पाया।',
+  'Nothing waiting': 'कुछ बाकी नहीं',
+  'When your team needs a decision, it lands here.':
+    'जब आपकी टीम को फ़ैसला चाहिए, वह यहाँ आएगा।',
+
+  // The manager's Plan tab: the month and the beats.
+  'Plan': 'प्लान',
+  "Your team's routes and their month": 'आपकी टीम के रूट और उनका महीना',
+  'Journey plans': 'जर्नी प्लान',
+  'Beats': 'बीट',
+  'This month': 'इस महीने',
+  'Next month': 'अगले महीने',
+  'Could not load the plans. This needs signal.': 'प्लान लोड नहीं हुए। इसके लिए सिग्नल चाहिए।',
+  'Could not load the beats. This needs signal.': 'बीट लोड नहीं हुईं। इसके लिए सिग्नल चाहिए।',
+  'Could not load the plan. This needs signal.': 'प्लान लोड नहीं हुआ। इसके लिए सिग्नल चाहिए।',
+  'Could not load the beat. This needs signal.': 'बीट लोड नहीं हुई। इसके लिए सिग्नल चाहिए।',
+  'Could not load the shops. This needs signal.': 'दुकानें लोड नहीं हुईं। इसके लिए सिग्नल चाहिए।',
+  'Not planned': 'प्लान नहीं बना',
+  'Draft - not approved': 'ड्राफ़्ट - मंज़ूर नहीं',
+  '1 beat': '1 बीट',
+  '{n} beats': '{n} बीट',
+  '{days} of {working} working days have a beat · {visits} visits':
+    '{working} में से {days} कामकाजी दिनों पर बीट · {visits} विज़िट',
+  '1 working day with no beat': '1 कामकाजी दिन पर कोई बीट नहीं',
+  '{n} working days with no beat': '{n} कामकाजी दिनों पर कोई बीट नहीं',
+  'No beats yet - make one before planning the month.':
+    'अभी कोई बीट नहीं - महीना बनाने से पहले एक बीट बनाएँ।',
+  'Every {day}': 'हर {day}',
+  '{day}, every other week': '{day}, हर दूसरे हफ़्ते',
+  '{day}, week {n} of the month': '{day}, महीने का हफ़्ता {n}',
+  '1 shop': '1 दुकान',
+  'Switched off': 'बंद',
+  'No beats yet': 'अभी कोई बीट नहीं',
+  'A beat is a route: the shops one rep walks on one day.':
+    'बीट एक रूट है: वे दुकानें जो एक रेप एक दिन में घूमता है।',
+
+  // One rep's month.
+  'No plan for this month yet': 'इस महीने का प्लान अभी नहीं बना',
+  'Build it from their {n} beats. Holidays and approved leave are left off by themselves.':
+    'इसे उनकी {n} बीट से बनाएँ। छुट्टियाँ और मंज़ूर लीव अपने आप हट जाती हैं।',
+  'They have no beats yet. Make one first, from Beats.':
+    'इनकी अभी कोई बीट नहीं है। पहले बीट में जाकर एक बनाएँ।',
+  'Building…': 'बन रहा है…',
+  'Build the month': 'महीना बनाएँ',
+  'Build again': 'फिर से बनाएँ',
+  'Working days': 'कामकाजी दिन',
+  'With a beat': 'बीट वाले',
+  '1 working day has no beat. Add a beat for that weekday, then build again.':
+    '1 कामकाजी दिन पर बीट नहीं है। उस दिन के लिए बीट जोड़ें, फिर दोबारा बनाएँ।',
+  '{n} working days have no beat. Add a beat for those weekdays, then build again.':
+    '{n} कामकाजी दिनों पर बीट नहीं है। उन दिनों के लिए बीट जोड़ें, फिर दोबारा बनाएँ।',
+  'On leave': 'लीव पर',
+  'No beat': 'कोई बीट नहीं',
+  'Approve the month': 'महीना मंज़ूर करें',
+  'Approved. It is on their phone.': 'मंज़ूर हो गया। यह उनके फ़ोन पर है।',
+  'Withdraw this plan': 'यह प्लान वापस लें',
+  'No signal. Nothing was changed - try again when you have one.':
+    'सिग्नल नहीं है। कुछ नहीं बदला - सिग्नल आने पर फिर करें।',
+
+  // A beat from the phone.
+  'New beat': 'नई बीट',
+  'Beat name': 'बीट का नाम',
+  'e.g. Rohini Monday': 'जैसे रोहिणी सोमवार',
+  'Rep': 'रेप',
+  'Pick a rep': 'रेप चुनें',
+  'Day': 'दिन',
+  'How often': 'कितनी बार',
+  'Every week': 'हर हफ़्ते',
+  'Every other week': 'हर दूसरे हफ़्ते',
+  'Once a month': 'महीने में एक बार',
+  'Which week': 'कौन सा हफ़्ता',
+  'Default': 'डिफ़ॉल्ट',
+  'Week 1': 'हफ़्ता 1',
+  'Week 2': 'हफ़्ता 2',
+  'Week 3': 'हफ़्ता 3',
+  'Week 4': 'हफ़्ता 4',
+  'Beat is in use': 'बीट चालू है',
+  '1 shop, in walking order': '1 दुकान, चलने के क्रम में',
+  '{n} shops, in walking order': '{n} दुकानें, चलने के क्रम में',
+  'Move up': 'ऊपर करें',
+  'Add shops': 'दुकानें जोड़ें',
+  'Search': 'खोजें',
+  'No free shops here. A shop can be on one active beat at a time.':
+    'यहाँ कोई खाली दुकान नहीं। एक दुकान एक समय में एक ही चालू बीट पर हो सकती है।',
+  'Pick the rep first - the shops come from their territory.':
+    'पहले रेप चुनें - दुकानें उनके इलाके से आती हैं।',
+  'Save beat': 'बीट सेव करें',
+  'No signal. Nothing was saved - try again when you have one.':
+    'सिग्नल नहीं है। कुछ सेव नहीं हुआ - सिग्नल आने पर फिर करें।',
+
+  // The rest of Desk's journey plan and beat forms, on the phone.
+  'Territory': 'इलाका',
+  'All my territories': 'मेरे सारे इलाके',
+  'From': 'से',
+  'To': 'तक',
+  'Holiday list': 'छुट्टियों की लिस्ट',
+  'None': 'कोई नहीं',
+  'Build the plan': 'प्लान बनाएँ',
+  'Pick both dates first.': 'पहले दोनों तारीख़ें चुनें।',
+  'To date is before from date.': '"तक" की तारीख़ "से" वाली तारीख़ से पहले है।',
+  'Pick a territory': 'इलाका चुनें',
+  'Pick the rep first': 'पहले रेप चुनें',
+  'optional': 'ज़रूरी नहीं',
+  'No distributor for this rep': 'इस रेप का कोई डिस्ट्रीब्यूटर नहीं',
+  'Starts from': 'कब से शुरू',
+  'Notes': 'नोट्स',
+  'Where to start, what to watch for': 'कहाँ से शुरू करें, किस बात का ध्यान रखें',
+  'A beat needs a name, a rep and a territory.': 'बीट के लिए नाम, रेप और इलाका चाहिए।',
+  'Plans already built from this beat keep their old dates. After changing the day, build those months again.':
+    'इस बीट से पहले बने प्लान पुरानी तारीख़ों पर ही रहेंगे। दिन बदलने के बाद वे महीने दोबारा बनाएँ।',
 }

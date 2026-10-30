@@ -317,3 +317,18 @@ the customer,ग्राहक
 "{0} plans were cascaded from this one. Cancel those first, or the targets below stop adding up to anything.","इसी से {0} प्लान नीचे बाँटे गए थे। पहले उन्हें रद्द करें, वरना नीचे के लक्ष्य किसी जोड़ में नहीं बैठेंगे।"
 {0} sales are switched off for this company. Ask your manager.,इस कंपनी के लिए {0} बिक्री बंद है। अपने मैनेजर से कहें।
 {0} {1} was not found.,{0} {1} नहीं मिला।
+A geo-fence exception is either Approved or Rejected.,जियो-फ़ेंस छूट या तो मंज़ूर होती है या नामंज़ूर।
+Say why. A refused exception with no reason is a grievance.,वजह लिखें। बिना वजह मना की गई छूट शिकायत बन जाती है।
+This exception has already been decided.,इस छूट पर फ़ैसला हो चुका है।
+You cannot excuse your own check-in.,आप अपना चेक-इन ख़ुद माफ़ नहीं कर सकते।
+{0} is not in your team.,{0} आपकी टीम में नहीं है।
+Give the beat a name the rep will recognise.,बीट को ऐसा नाम दें जिसे रेप पहचान ले।
+Only a Regional Manager or above can withdraw an approved plan.,मंज़ूर प्लान सिर्फ़ रीजनल मैनेजर या उससे ऊपर वापस ले सकते हैं।
+Say which rep walks this beat.,बताएँ यह बीट कौन सा रेप चलेगा।
+That is not a schedule a beat can run on.,बीट इस शेड्यूल पर नहीं चल सकती।
+This plan is not a draft.,यह प्लान ड्राफ़्ट नहीं है।
+Which territory?,कौन सा इलाका?
+{0} is outside your territory.,{0} आपके इलाके से बाहर है।
+You cannot plan against holiday list {0}.,आप छुट्टियों की लिस्ट {0} पर प्लान नहीं बना सकते।
+"{0} is already approved for {1} to {2}. Cancel that plan, or pick dates outside it.","{0} पहले से {1} से {2} तक मंज़ूर है। वह प्लान रद्द करें, या उसके बाहर की तारीख़ें चुनें।"
+{0} does not supply this rep's shops.,{0} इस रेप की दुकानों को माल नहीं देता।
