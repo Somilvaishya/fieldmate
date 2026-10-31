@@ -24,6 +24,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as role from '../stores/role'
 
 import { t } from '../lib/i18n'
 import { db } from '../db'
@@ -368,7 +369,7 @@ async function refresh() {
 }
 
 onMounted(async () => {
-  if (!outlet.value) return router.replace('/today')
+  if (!outlet.value) return router.replace(role.homeRoute.value)
   // Already open on this shop: the rep walked in from the cart and everything is priced. Opening
   // again would spend a round trip and re-read a cart that is already on the screen.
   if (cart.outlet.value !== outlet.value || !catalogue.value) {

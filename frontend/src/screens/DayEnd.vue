@@ -7,6 +7,7 @@ import { pendingCount } from '../sync/outbox'
 import { pendingPings } from '../sync/pinger'
 import * as photoQueue from '../sync/photos'
 import * as dayStore from '../stores/day'
+import * as role from '../stores/role'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
@@ -107,7 +108,7 @@ async function finish() {
       ...fix,
       odometer_end: odometer.value ? Number(odometer.value) : null,
     })
-    router.replace('/today')
+    router.replace(role.homeRoute.value)
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : t('Could not finish your day. Try again.')
   } finally {

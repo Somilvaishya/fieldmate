@@ -110,6 +110,45 @@ class TestTheBoard(TeamLine, VisitFixture):
 		self.assertEqual(members[0]["field_user"], idle.name)
 
 
+class TestTheManagersOwnDay(TeamLine, VisitFixture):
+	"""An Area Manager in the market starts and ends a day like a rep: attendance, an HR
+	check-in and the trail their travel is paid on. Signed in as the manager, with only the
+	manager's own role - the Day permission row gives them no create, so this is the proof the
+	service does not lean on it."""
+
+	def setUp(self):
+		super().setUp()
+		self.build_line()
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+		for name in frappe.get_all("FieldMate Day", filters={"field_user": self.am.name},
+		                           pluck="name"):
+			self._drop("FieldMate Day", name)
+		frappe.db.commit()
+		super().tearDown()
+
+	def test_a_manager_starts_and_ends_their_own_day(self):
+		from fieldmate.services import day as day_service
+		from fieldmate.tests.test_day import DELHI
+
+		where = {"latitude": DELHI[0], "longitude": DELHI[1], "accuracy_m": 8,
+		         "selfie": "/files/test.jpg"}
+		started = self.as_user(self.am.user, day_service.start, self.am.name, where)
+		self.assertTrue(started["created"])
+		self.assertEqual(frappe.db.get_value("FieldMate Day", started["day"], "field_user"),
+		                 self.am.name)
+
+		ended = self.as_user(self.am.user, day_service.end, self.am.name, where)
+		self.assertEqual(frappe.db.get_value("FieldMate Day", started["day"], "status"), "Closed")
+		self.assertTrue(ended)
+
+	def test_the_manager_is_not_counted_among_their_own_team(self):
+		"""Their day is theirs; the board is the people below them."""
+		names = [m["field_user"] for m in self.as_user(self.am.user, team_service.today)["members"]]
+		self.assertNotIn(self.am.name, names)
+
+
 # ------------------------------------------------------------------------------ the inbox
 
 

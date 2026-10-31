@@ -1,15 +1,35 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
+import { isSignedOut } from '../lib/session'
+import { getMeta } from '../db'
+import { configure as configurePinger } from '../sync/pinger'
+import * as dayStore from '../stores/day'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
+
+// The manager's own day. An Area Manager is in the market most days - with a rep, at a shop, at
+// a depot - and their attendance, their HR check-in and the kilometres their travel claim is paid
+// on all come from Day Start and the GPS trail it opens, exactly as a rep's do. The manager's
+// tabs have no Today, so the way in is here, on the screen they open first. A Regional Manager or
+// Sales Head who works from an office simply never taps it.
+const myDay = dayStore.openDay
+const dayKnown = dayStore.loaded
+const myStart = computed(() => myDay.value?.started_at ? String(myDay.value.started_at).slice(11, 16) : '')
+
+// The trail's settings, as Today applies them for a rep. App.vue resumes the pinger for an open
+// day on every screen, but only Today ever told it the company's interval or that the trail is
+// switched off - so a manager who never opens Today would be tracked against the defaults.
+getMeta('profile').then((p) => configurePinger(p?.settings || {})).catch(() => {})
 
 // A manager's home: who is out, how far each of them has got, and what is waiting on a decision.
 //
 // Live, not last night's snapshot. The question this answers is "it is ten o'clock and Ravi has
 // not started", which is worth nothing tomorrow. The server sorts the team so the rep who needs a
 // call is at the top - nobody out yet, then least done - and this screen keeps that order.
+const router = useRouter()
 const board = ref(null)
 const waiting = ref(0)
 const loading = ref(true)
@@ -25,6 +45,7 @@ async function load() {
     board.value = today.value
     waiting.value = inbox.status === 'fulfilled' ? Number(inbox.value.total || 0) : 0
   } catch (e) {
+    if (isSignedOut(e)) return router.replace('/login')
     error.value = e instanceof ApiError
       ? e.message
       : t('Could not load your team. This needs signal - it is read live from the office.')
@@ -86,6 +107,19 @@ function progress(m) {
         <Icon name="refresh" size="18" />
       </button>
     </header>
+
+    <!-- My own day: Day Start, Day End and the trail, the same screens a rep uses. -->
+    <section class="myday" :class="{ on: myDay }">
+      <Icon :name="myDay ? 'clock' : 'pin'" size="20" />
+      <span class="body">
+        <b>{{ myDay ? t('My day started at {time}', { time: myStart }) : t('My day') }}</b>
+        <em>{{ myDay
+              ? t('Your attendance and travel are being recorded.')
+              : t('Going into the market? Start your day for attendance and travel.') }}</em>
+      </span>
+      <RouterLink v-if="myDay" to="/day/end" class="daybtn ghost">{{ t('End day') }}</RouterLink>
+      <RouterLink v-else-if="dayKnown" to="/day/start" class="daybtn">{{ t('Start my day') }}</RouterLink>
+    </section>
 
     <!-- The way to the decisions, only when there are some. A count of zero on a banner is a
          banner a manager learns to stop reading. -->
@@ -177,6 +211,17 @@ function progress(m) {
 .dim { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
 .quiet { border: 0; background: none; color: var(--muted); min-height: 44px; padding: 0 6px; }
 
+.myday { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 10px;
+         border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.myday.on { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+.myday .body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.myday b { color: var(--ink); font-size: 15px; }
+.myday em { font-style: normal; font-size: 13px; }
+.daybtn { flex: none; display: inline-flex; align-items: center; justify-content: center;
+          min-height: 44px; padding: 0 14px; border-radius: 8px; font-weight: 700;
+          font-size: 14px; text-decoration: none; background: var(--primary);
+          color: var(--on-primary); }
+.daybtn.ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
 .waiting { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 10px;
            background: var(--warn-soft); color: var(--warn); text-decoration: none;
            min-height: 56px; }

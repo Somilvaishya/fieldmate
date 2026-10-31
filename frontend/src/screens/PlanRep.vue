@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
+import { isSignedOut } from '../lib/session'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
@@ -11,6 +12,7 @@ import { t } from '../lib/i18n'
 // it is approved. The days are shown before the button so a manager approves what they have read,
 // not what they assume - a working day with no beat on it is a hole in the route, and it shows.
 const route = useRoute()
+const router = useRouter()
 const rep = route.params.rep
 const month = route.query.month
 
@@ -52,6 +54,7 @@ async function load() {
       ? [plan.value.from_date, plan.value.to_date]
       : monthBounds(month)
   } catch (e) {
+    if (isSignedOut(e)) return router.replace('/login')
     error.value = e instanceof ApiError ? e.message : t('Could not load the plan. This needs signal.')
   } finally {
     loading.value = false

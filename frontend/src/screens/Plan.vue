@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
+import { isSignedOut } from '../lib/session'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
@@ -52,6 +53,7 @@ async function loadMonth() {
   try {
     overview.value = await api.planOverview(month.value, territory.value || undefined)
   } catch (e) {
+    if (isSignedOut(e)) return router.replace('/login')
     error.value = e instanceof ApiError ? e.message : t('Could not load the plans. This needs signal.')
   } finally {
     loading.value = false
@@ -64,6 +66,7 @@ async function loadBeats() {
   try {
     beats.value = (await api.planBeats(undefined, territory.value || undefined)).beats || []
   } catch (e) {
+    if (isSignedOut(e)) return router.replace('/login')
     error.value = e instanceof ApiError ? e.message : t('Could not load the beats. This needs signal.')
   } finally {
     loading.value = false

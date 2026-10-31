@@ -19,6 +19,7 @@
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as role from '../stores/role'
 
 import { t } from '../lib/i18n'
 import { api, ApiError } from '../api/client'
@@ -487,7 +488,7 @@ function setOffline() {
 }
 
 onMounted(async () => {
-  if (!outlet.value) return router.replace('/today')
+  if (!outlet.value) return router.replace(role.homeRoute.value)
   // The open visit, read back off the handset if this page is a fresh load - which the installed
   // app launched from its icon is. Without it the punch went up with no visit on it and the way
   // out of this screen read "Back to today" to a rep who was standing in a shop.
@@ -619,7 +620,7 @@ function goToLocation() {
 
 function finish() {
   const open = activeVisit.value
-  router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : '/today')
+  router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : role.homeRoute.value)
 }
 </script>
 

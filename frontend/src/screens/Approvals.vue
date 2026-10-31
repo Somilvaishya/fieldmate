@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import { formatRupees } from '../lib/money'
+import { isSignedOut } from '../lib/session'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
@@ -11,6 +13,7 @@ import { t } from '../lib/i18n'
 // Online only, deliberately. Each of these is an answer somebody else is waiting on - a rep at
 // the counter, a depot holding a truck - and an approval queued on a phone in a basement is an
 // answer nobody has. A failure says so, and the row stays where it was.
+const router = useRouter()
 const box = ref(null)
 const kind = ref('outlets')
 const loading = ref(true)
@@ -45,6 +48,7 @@ async function load() {
       kind.value = KINDS.value.find((k) => counts[k.key])?.key || kind.value
     }
   } catch (e) {
+    if (isSignedOut(e)) return router.replace('/login')
     error.value = e instanceof ApiError
       ? e.message
       : t('Could not load your approvals. This needs signal.')
