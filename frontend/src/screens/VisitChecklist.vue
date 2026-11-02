@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import * as role from '../stores/role'
 import { t } from '../lib/i18n'
 import * as visitStore from '../stores/visit'
 
@@ -19,7 +20,7 @@ const percent = computed(() =>
 
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
-  if (!visit.value) router.replace('/today')
+  if (!visit.value) router.replace(role.homeRoute.value)
 })
 
 function setText(q, value) {

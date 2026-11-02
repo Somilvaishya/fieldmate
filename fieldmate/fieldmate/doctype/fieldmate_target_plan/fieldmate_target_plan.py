@@ -112,3 +112,53 @@ class FieldMateTargetPlan(Document):
 	@property
 	def has_children(self) -> bool:
 		return cint(self.child_count) > 0
+
+
+# --------------------------------------------------------------------------------------
+# the form's buttons
+# --------------------------------------------------------------------------------------
+#
+# The Sales Head ran every one of these from the browser console. They call the same services as
+# `api/target.py`, but from here a refusal is a `frappe.throw` that Desk shows as a sentence -
+# the API's envelope reaches Desk as a bare 400 with nothing on screen. The right to press each
+# one is the DocType permission, so the button and the server agree on who may.
+
+
+@frappe.whitelist()
+def cascade_plan(name: str) -> dict:
+	"""Split this plan down the Sales Person tree, to every person below it."""
+	from fieldmate.services import target as target_service
+
+	frappe.has_permission("FieldMate Target Plan", "submit", throw=True)
+	return target_service.cascade(name)
+
+
+@frappe.whitelist()
+def check_totals(name: str) -> dict:
+	"""Do the plans below still add up to this one?"""
+	from fieldmate.services import target as target_service
+
+	frappe.has_permission("FieldMate Target Plan", "read", doc=name, throw=True)
+	return target_service.reconcile(name)
+
+
+@frappe.whitelist()
+def measure_now(name: str) -> dict:
+	"""Last night's achievement job, for this plan and every plan below it, now."""
+	from fieldmate.services import target as target_service
+
+	frappe.has_permission("FieldMate Target Plan", "submit", throw=True)
+	plans = [name, *target_service.leaves_of(name)]
+	measured = [target_service.compute(p) for p in dict.fromkeys(plans)]
+	return {"measured": len(measured)}
+
+
+@frappe.whitelist()
+def compute_payouts(name: str, dry_run: int = 1) -> dict:
+	"""Every rep's incentive for this plan's period. A dry run first says what it would make."""
+	from fieldmate.services import incentive as incentive_service
+
+	frappe.has_permission("FieldMate Incentive Payout", "create", throw=True)
+	plan = frappe.get_doc("FieldMate Target Plan", name)
+	return incentive_service.compute_period(plan.from_date, plan.to_date,
+	                                        dry_run=bool(cint(dry_run)))

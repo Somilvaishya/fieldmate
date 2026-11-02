@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as role from '../stores/role'
 import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
@@ -138,7 +139,7 @@ async function submit() {
 
 function finish() {
   const open = visitStore.activeVisit.value
-  router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : '/today')
+  router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : role.homeRoute.value)
 }
 </script>
 

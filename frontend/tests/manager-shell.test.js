@@ -25,15 +25,29 @@ vi.mock('../src/api/client', () => ({
   ApiError: class extends Error {},
   api: {
     teamInbox: async () => JSON.parse(JSON.stringify(inbox)),
-    teamToday: async () => today,
+    teamToday: async () => { if (today instanceof Error) throw today; return today },
     decideOutlet: (...a) => decideOutlet(...a),
     decideExpense: (...a) => decideExpense(...a),
   },
 }))
 vi.mock('../src/db', () => ({ getMeta: async () => null, setMeta: vi.fn() }))
 vi.mock('../src/sync/auto', () => ({ start: vi.fn(), stop: vi.fn() }))
-vi.mock('../src/stores/day', () => ({ ensure: async () => {} }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ name: 'team' }) }))
+// The manager's own day, settable per test. `vi.hoisted` because vi.mock factories run before
+// the imports above them and cannot reach an ordinary module-level variable.
+const day = vi.hoisted(() => ({ open: null, loaded: null }))
+vi.mock('../src/stores/day', async () => {
+  const { ref } = await import('vue')
+  day.open = ref(null)
+  day.loaded = ref(true)
+  return { ensure: async () => {}, openDay: day.open, loaded: day.loaded }
+})
+vi.mock('../src/sync/pinger', () => ({ configure: vi.fn() }))
+const replace = vi.hoisted(() => ({ fn: null }))
+vi.mock('vue-router', async () => {
+  const { vi: v } = await import('vitest')
+  replace.fn = v.fn()
+  return { useRoute: () => ({ name: 'team' }), useRouter: () => ({ replace: replace.fn }) }
+})
 
 const role = await import('../src/stores/role')
 const { default: App } = await import('../src/App.vue')
@@ -163,5 +177,44 @@ describe('the team board', () => {
   it('order value reads as money, with a rupee sign, even at zero', async () => {
     const w = await board([member({})], { order_value: 0 })
     expect(w.find('.facts').text()).toContain('₹0')
+  })
+})
+
+describe("the manager's own day", () => {
+  async function board() {
+    today = { members: [], totals: {} }
+    const w = mount(Team, { global: { stubs: { Icon: true,
+      RouterLink: { props: ['to'], template: '<a :data-to="to"><slot/></a>' } } } })
+    await flushPromises()
+    return w
+  }
+
+  it('a manager who has not started is offered Day Start, the same screen a rep uses', async () => {
+    day.open.value = null
+    const w = await board()
+    expect(w.find('.myday a').attributes('data-to')).toBe('/day/start')
+  })
+
+  it('once started, it says since when and offers Day End', async () => {
+    day.open.value = { started_at: '2026-10-31 09:41:12', day_date: '2026-10-31' }
+    const w = await board()
+    expect(w.find('.myday').text()).toContain('09:41')
+    expect(w.find('.myday a').attributes('data-to')).toBe('/day/end')
+    day.open.value = null
+  })
+})
+
+describe('a manager whose session has gone', () => {
+  // Seen on testerp2: taking Desk from a manager changes their user type, and Frappe ends every
+  // session of a user whose type changes. The next morning the board printed "Please sign in
+  // again" with nowhere to do it.
+  it('is sent to sign in, not left on a dead screen', async () => {
+    const { ApiError } = await import('../src/api/client')
+    today = Object.assign(new ApiError('Please sign in again.'), { code: 'AUTH_REQUIRED' })
+    replace.fn.mockClear()
+    mount(Team, { global: { stubs: { Icon: true, RouterLink: { template: '<a><slot/></a>' } } } })
+    await flushPromises()
+    expect(replace.fn).toHaveBeenCalledWith('/login')
+    today = { members: [], totals: {} }
   })
 })

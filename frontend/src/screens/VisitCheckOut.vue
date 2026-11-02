@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import * as role from '../stores/role'
 import { ApiError } from '../api/client'
 import { getPosition } from '../lib/geo'
 import * as visitStore from '../stores/visit'
@@ -111,7 +112,7 @@ const captured = computed(() => {
 
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
-  if (!visit.value) return router.replace('/today')
+  if (!visit.value) return router.replace(role.homeRoute.value)
   note.value = visit.value.remarks || ''
   reasons.value = await visitStore.noOrderReasons()
   photos.value = await photoQueue.pendingCount(visit.value.clientUuid)
@@ -132,7 +133,7 @@ async function finish() {
       remarks: note.value || null,
       fix,
     })
-    router.replace('/today')
+    router.replace(role.homeRoute.value)
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : t('Could not finish the visit. Try again.')
   } finally {
