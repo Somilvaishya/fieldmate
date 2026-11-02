@@ -39,3 +39,24 @@ class FieldMateIncentivePayout(Document):
 				         "cancelling the record of it.").format(self.payment_reference
 				                                                or self.paid_on))
 		self.db_set("payout_status", "Cancelled", update_modified=False)
+
+
+# The form's buttons. Submit is Desk's own; deciding and recording the payment were console-only.
+# Called from here rather than through `api/target.py` so a refusal reaches Desk as a sentence.
+# Held to the DocType's submit right - the Sales Head and Admin - which is who Desk lets submit.
+
+
+@frappe.whitelist()
+def decide(name: str, decision: str, remarks: str | None = None) -> dict:
+	from fieldmate.services import incentive as incentive_service
+
+	frappe.has_permission("FieldMate Incentive Payout", "submit", throw=True)
+	return incentive_service.approve(name, decision, remarks=remarks)
+
+
+@frappe.whitelist()
+def mark_paid(name: str, reference: str, paid_on: str | None = None) -> dict:
+	from fieldmate.services import incentive as incentive_service
+
+	frappe.has_permission("FieldMate Incentive Payout", "submit", throw=True)
+	return incentive_service.mark_paid(name, reference, paid_on=paid_on)
