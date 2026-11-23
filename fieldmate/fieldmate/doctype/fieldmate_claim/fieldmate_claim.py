@@ -214,3 +214,41 @@ def eligible_rows(distributor: str, from_date, to_date, scheme: str | None = Non
 		limit_page_length=0,
 	)
 	return [r for r in rows if not r.claim or (claim and r.claim == claim)]
+
+
+# --------------------------------------------------------------------------------------
+# the form's buttons
+# --------------------------------------------------------------------------------------
+#
+# Approving a distributor's claim, raising its credit note and reversing one were reachable only
+# through the API, which the Sales Head drove from the browser console. These call the same
+# service, held to the DocType's submit right - the Sales Head and Admin, the same short list
+# `api/claim.py` keeps - and a refusal comes back as a sentence Desk can show.
+
+
+@frappe.whitelist()
+def decide(name: str, decision: str, approved_amount=None, remarks: str | None = None,
+           settle: int = 1) -> dict:
+	from frappe.utils import cint
+
+	from fieldmate.services import claim as claim_service
+
+	frappe.has_permission("FieldMate Claim", "submit", throw=True)
+	return claim_service.approve(name, decision, approved_amount=approved_amount,
+	                             remarks=remarks, settle=bool(cint(settle)))
+
+
+@frappe.whitelist()
+def raise_credit_note(name: str, posting_date: str | None = None) -> dict:
+	from fieldmate.services import claim as claim_service
+
+	frappe.has_permission("FieldMate Claim", "submit", throw=True)
+	return claim_service.settle_claim(name, posting_date=posting_date)
+
+
+@frappe.whitelist()
+def reverse_credit_note(name: str) -> dict:
+	from fieldmate.services import claim as claim_service
+
+	frappe.has_permission("FieldMate Claim", "submit", throw=True)
+	return claim_service.reverse(name)

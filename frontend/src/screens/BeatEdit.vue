@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
+import { isSignedOut } from '../lib/session'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
 
@@ -88,6 +89,7 @@ onMounted(async () => {
     // picked may be outside it, which the server will say on save.
     watch(() => form.value.assigned_to, (rep) => loadOptions(rep, false))
   } catch (e) {
+    if (isSignedOut(e)) return router.replace('/login')
     error.value = e instanceof ApiError ? e.message : t('Could not load the beat. This needs signal.')
   } finally {
     loading.value = false

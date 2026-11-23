@@ -1504,4 +1504,12 @@ export default {
   'Say why. The rep and the depot will both read this.': 'वजह लिखें। रेप और डिपो दोनों यह पढ़ेंगे।',
   'Cancel order': 'ऑर्डर रद्द करें',
   'Order cancelled.': 'ऑर्डर रद्द हो गया।',
+
+  // The manager's own market day, on the Team board.
+  'My day': 'मेरा दिन',
+  'My day started at {time}': 'मेरा दिन {time} पर शुरू हुआ',
+  'Your attendance and travel are being recorded.': 'आपकी हाज़िरी और सफ़र दर्ज हो रहे हैं।',
+  'Going into the market? Start your day for attendance and travel.':
+    'मार्केट जा रहे हैं? हाज़िरी और सफ़र के लिए दिन शुरू करें।',
+  'End day': 'दिन ख़त्म करें',
 }

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import * as role from '../stores/role'
 import { db } from '../db'
 import { enqueue } from '../sync/outbox'
 import * as visitStore from '../stores/visit'
@@ -33,7 +34,7 @@ const present = computed(() => lines.value.filter((l) => l.is_available).length)
 
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
-  if (!visit.value) return router.replace('/today')
+  if (!visit.value) return router.replace(role.homeRoute.value)
 
   const draft = await db.meta.get('merch:' + visit.value.clientUuid)
   if (draft?.value) {

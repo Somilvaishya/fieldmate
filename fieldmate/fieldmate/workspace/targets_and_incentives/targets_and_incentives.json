@@ -1,0 +1,142 @@
+{
+ "doctype": "Workspace",
+ "name": "Targets and Incentives",
+ "label": "Targets and Incentives",
+ "title": "Targets and Incentives",
+ "module": "FieldMate",
+ "icon": "star",
+ "public": 1,
+ "is_hidden": 0,
+ "hide_custom": 0,
+ "for_user": "",
+ "parent_page": "FieldMate",
+ "sequence_id": 40.4,
+ "docstatus": 0,
+ "idx": 0,
+ "owner": "Administrator",
+ "modified_by": "Administrator",
+ "creation": "2026-11-23 19:00:00.000000",
+ "modified": "2026-11-23 19:00:00.000000",
+ "roles": [],
+ "quick_lists": [],
+ "charts": [
+  {
+   "chart_name": "FieldMate Value By Rep",
+   "label": "Value sold by rep, this month"
+  }
+ ],
+ "number_cards": [
+  {
+   "number_card_name": "FieldMate Value This Month",
+   "label": "Value sold this month"
+  },
+  {
+   "number_card_name": "FieldMate Productive Calls This Month",
+   "label": "Productive calls this month"
+  }
+ ],
+ "shortcuts": [
+  {
+   "color": "Purple",
+   "doc_view": "List",
+   "format": "{} waiting",
+   "label": "Payouts to approve",
+   "link_to": "FieldMate Incentive Payout",
+   "stats_filter": "{\"payout_status\": \"Pending Approval\", \"docstatus\": 1}",
+   "type": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Targets",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Target Plans",
+   "link_count": 0,
+   "link_to": "FieldMate Target Plan",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Achievement",
+   "link_count": 0,
+   "link_to": "FieldMate Achievement",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Incentives",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Incentive Schemes",
+   "link_count": 0,
+   "link_to": "FieldMate Incentive Scheme",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Incentive Payouts",
+   "link_count": 0,
+   "link_to": "FieldMate Incentive Payout",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Trade schemes",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Schemes",
+   "link_count": 0,
+   "link_to": "FieldMate Scheme",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheme Ledger",
+   "link_count": 0,
+   "link_to": "FieldMate Scheme Ledger",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "content": "[{\"id\":\"targets_and_incentives-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Waiting on a decision</b></span>\",\"col\":12}},{\"id\":\"targets_and_incentives-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Payouts to approve\",\"col\":3}},{\"id\":\"targets_and_incentives-3\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"targets_and_incentives-4\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>At a glance</b></span>\",\"col\":12}},{\"id\":\"targets_and_incentives-5\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Value sold this month\",\"col\":4}},{\"id\":\"targets_and_incentives-6\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Productive calls this month\",\"col\":4}},{\"id\":\"targets_and_incentives-7\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"targets_and_incentives-8\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Trends</b></span>\",\"col\":12}},{\"id\":\"targets_and_incentives-9\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Value sold by rep, this month\",\"col\":12}},{\"id\":\"targets_and_incentives-10\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"targets_and_incentives-11\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters and transactions</b></span>\",\"col\":12}},{\"id\":\"targets_and_incentives-12\",\"type\":\"card\",\"data\":{\"card_name\":\"Targets\",\"col\":4}},{\"id\":\"targets_and_incentives-13\",\"type\":\"card\",\"data\":{\"card_name\":\"Incentives\",\"col\":4}},{\"id\":\"targets_and_incentives-14\",\"type\":\"card\",\"data\":{\"card_name\":\"Trade schemes\",\"col\":4}}]"
+}

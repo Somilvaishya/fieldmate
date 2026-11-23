@@ -6,6 +6,7 @@ import { getPosition } from '../lib/geo'
 import { compress } from '../lib/image'
 import { getMeta } from '../db'
 import * as dayStore from '../stores/day'
+import * as role from '../stores/role'
 import { t } from '../lib/i18n'
 import Icon from '../components/Icon.vue'
 
@@ -93,7 +94,8 @@ async function begin() {
       selfie: selfie.value,
       odometer_start: odometer.value ? Number(odometer.value) : null,
     })
-    router.replace('/today')
+    // Home, which is Today for a rep and the Team board for a manager who starts a market day.
+    router.replace(role.homeRoute.value)
   } catch (e) {
     error.value = e instanceof ApiError
       ? e.message

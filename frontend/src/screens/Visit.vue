@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import * as role from '../stores/role'
 import { getMeta } from '../db'
 import { compress } from '../lib/image'
 import { getPosition } from '../lib/geo'
@@ -152,7 +153,7 @@ function clock() {
 
 onMounted(async () => {
   if (!visit.value) await visitStore.resume()
-  if (!visit.value) return router.replace('/today')
+  if (!visit.value) return router.replace(role.homeRoute.value)
   await loadShots()
   // A photo left waiting from earlier in this visit, or from before the app was reopened.
   if (shots.value.some((s) => s.state === 'queued' || s.state === 'failed')) watchShots()

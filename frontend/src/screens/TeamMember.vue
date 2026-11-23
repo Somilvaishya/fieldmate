@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
+import { isSignedOut } from '../lib/session'
 import { formatRupees } from '../lib/money'
 import Icon from '../components/Icon.vue'
 import { t } from '../lib/i18n'
@@ -13,6 +14,7 @@ import { t } from '../lib/i18n'
 // Manager edits the profile, an Area Manager cancels an order and clears a sync jam. A button the
 // server would refuse is not drawn.
 const route = useRoute()
+const router = useRouter()
 const rep = route.params.rep
 
 const page = ref(null)
@@ -26,6 +28,7 @@ async function load() {
   try {
     page.value = await api.teamMember(rep)
   } catch (e) {
+    if (isSignedOut(e)) return router.replace('/login')
     error.value = e instanceof ApiError ? e.message : t('Could not load this rep. This needs signal.')
   } finally {
     loading.value = false

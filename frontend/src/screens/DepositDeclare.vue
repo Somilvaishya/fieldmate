@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import * as role from '../stores/role'
 import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import { formatRupees } from '../lib/money'
@@ -120,7 +121,7 @@ async function submit() {
       </div>
     </div>
     <div class="bottom">
-      <button class="btn-primary" @click="router.replace('/today')">
+      <button class="btn-primary" @click="router.replace(role.homeRoute.value)">
         {{ t('Done') }}
       </button>
     </div>

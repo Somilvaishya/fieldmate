@@ -11,15 +11,15 @@ app_license = "mit"
 required_apps = ["erpnext"]  # hrms is optional - probed via fieldmate.compat.capabilities()
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "fieldmate",
-# 		"logo": "/assets/fieldmate/logo.png",
-# 		"title": "FieldMate",
-# 		"route": "/fieldmate",
-# 		"has_permission": "fieldmate.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "fieldmate",
+		"logo": "/assets/fieldmate/images/fieldmate-logo.png",
+		"title": "FieldMate",
+		"route": "/app/fieldmate",
+		"has_permission": "fieldmate.permissions.check_app_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------

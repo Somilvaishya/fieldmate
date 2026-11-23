@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as role from '../stores/role'
 import { api, ApiError } from '../api/client'
 import { deviceUuid } from '../db'
 import * as visitStore from '../stores/visit'
@@ -167,7 +168,7 @@ async function save() {
 
 function done() {
   const open = visitStore.activeVisit.value  // warm by now: save() asked for it
-  router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : '/today')
+  router.replace(open ? { name: 'visit', params: { uuid: open.clientUuid } } : role.homeRoute.value)
 }
 </script>
 

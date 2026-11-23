@@ -31,7 +31,10 @@ const api = {
 }
 
 vi.mock('../src/api/client', () => ({ ApiError: class extends Error {}, api }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ params: { rep: 'rep1@x.test' } }) }))
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ params: { rep: 'rep1@x.test' } }),
+  useRouter: () => ({ replace: () => {} }),
+}))
 
 const { default: TeamMember } = await import('../src/screens/TeamMember.vue')
 

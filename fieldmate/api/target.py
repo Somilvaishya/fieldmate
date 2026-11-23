@@ -31,6 +31,19 @@ def _assert_manager() -> None:
 		raise FieldMateError(Err.PERMISSION_DENIED, "That is a manager's decision.")
 
 
+def _assert_can(doctype: str, ptype: str) -> None:
+	"""The DocType's own right, not membership of the manager list.
+
+	Every write below used to check `_assert_manager`, and that list holds the Area and Regional
+	Managers - who have read and nothing else on Target Plan and Incentive Payout. So any Area
+	Manager could cascade a plan, approve any rep's payout company-wide, or record it as paid,
+	by calling the endpoint Desk would never have let them reach.
+	"""
+	if not frappe.has_permission(doctype, ptype):
+		raise FieldMateError(Err.PERMISSION_DENIED,
+		                     "That is the Sales Head's decision, not a manager's.")
+
+
 # --------------------------------------------------------------------------------------
 # the performance screen
 # --------------------------------------------------------------------------------------
@@ -73,7 +86,7 @@ def my_payouts(limit: int = 12):
 @endpoint()
 def cascade(plan: str):
 	"""Split a plan down the tree. Re-runnable."""
-	_assert_manager()
+	_assert_can("FieldMate Target Plan", "submit")
 	return ok(target_service.cascade(plan))
 
 
@@ -89,7 +102,7 @@ def reconcile(plan: str):
 @endpoint()
 def recompute(plan: str | None = None, as_on: str | None = None):
 	"""Measure one plan, or every live one. The nightly job by hand."""
-	_assert_manager()
+	_assert_can("FieldMate Target Plan", "submit")
 	if plan:
 		return ok({"achievement": target_service.compute(plan)})
 	return ok(target_service.compute_all(as_on=as_on))
@@ -98,7 +111,7 @@ def recompute(plan: str | None = None, as_on: str | None = None):
 @frappe.whitelist(methods=["POST"])
 @endpoint()
 def compute_payouts(from_date: str, to_date: str, dry_run: int = 0):
-	_assert_manager()
+	_assert_can("FieldMate Incentive Payout", "create")
 	return ok(incentive_service.compute_period(from_date, to_date,
 	                                           dry_run=bool(frappe.utils.cint(dry_run))))
 
@@ -106,12 +119,12 @@ def compute_payouts(from_date: str, to_date: str, dry_run: int = 0):
 @frappe.whitelist(methods=["POST"])
 @endpoint()
 def decide_payout(payout: str, decision: str, remarks: str | None = None):
-	_assert_manager()
+	_assert_can("FieldMate Incentive Payout", "submit")
 	return ok(incentive_service.approve(payout, decision, remarks=remarks))
 
 
 @frappe.whitelist(methods=["POST"])
 @endpoint()
 def mark_payout_paid(payout: str, reference: str, paid_on: str | None = None):
-	_assert_manager()
+	_assert_can("FieldMate Incentive Payout", "submit")
 	return ok(incentive_service.mark_paid(payout, reference, paid_on=paid_on))
