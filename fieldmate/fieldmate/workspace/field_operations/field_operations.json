@@ -1,0 +1,194 @@
+{
+ "doctype": "Workspace",
+ "name": "Field Operations",
+ "label": "Field Operations",
+ "title": "Field Operations",
+ "module": "FieldMate",
+ "icon": "users",
+ "public": 1,
+ "is_hidden": 0,
+ "hide_custom": 0,
+ "for_user": "",
+ "parent_page": "FieldMate",
+ "sequence_id": 40.1,
+ "docstatus": 0,
+ "idx": 0,
+ "owner": "Administrator",
+ "modified_by": "Administrator",
+ "creation": "2026-11-23 19:00:00.000000",
+ "modified": "2026-11-23 19:00:00.000000",
+ "roles": [],
+ "quick_lists": [],
+ "charts": [
+  {
+   "chart_name": "FieldMate Productive Calls By Day",
+   "label": "Productive calls by day"
+  },
+  {
+   "chart_name": "FieldMate Visit Outcomes",
+   "label": "Visit outcomes, this month"
+  }
+ ],
+ "number_cards": [
+  {
+   "number_card_name": "FieldMate Reps Out Today",
+   "label": "Reps out today"
+  },
+  {
+   "number_card_name": "FieldMate Visits Today",
+   "label": "Visits today"
+  },
+  {
+   "number_card_name": "FieldMate New Shops This Month",
+   "label": "New shops this month"
+  }
+ ],
+ "shortcuts": [
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "format": "{} waiting",
+   "label": "Shops to approve",
+   "link_to": "FieldMate Outlet",
+   "stats_filter": "{\"approval_status\": \"Pending Approval\"}",
+   "type": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shops and beats",
+   "link_count": 4,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Outlets",
+   "link_count": 0,
+   "link_to": "FieldMate Outlet",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Beats",
+   "link_count": 0,
+   "link_to": "FieldMate Beat",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Journey Plans",
+   "link_count": 0,
+   "link_to": "FieldMate Journey Plan",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Geo-fence Exceptions",
+   "link_count": 0,
+   "link_to": "FieldMate Geo Fence Exception",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "People and visits",
+   "link_count": 4,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Field Users",
+   "link_count": 0,
+   "link_to": "FieldMate Field User",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Days",
+   "link_count": 0,
+   "link_to": "FieldMate Day",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visits",
+   "link_count": 0,
+   "link_to": "FieldMate Visit",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Merchandising Audits",
+   "link_count": 0,
+   "link_to": "FieldMate Merchandising Audit",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attendance and travel",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attendance Summary",
+   "link_count": 0,
+   "link_to": "FieldMate Attendance Summary",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Location Trail",
+   "link_count": 0,
+   "link_to": "FieldMate Location Trail",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "content": "[{\"id\":\"field_operations-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Waiting on a decision</b></span>\",\"col\":12}},{\"id\":\"field_operations-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shops to approve\",\"col\":3}},{\"id\":\"field_operations-3\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"field_operations-4\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>At a glance</b></span>\",\"col\":12}},{\"id\":\"field_operations-5\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Reps out today\",\"col\":4}},{\"id\":\"field_operations-6\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Visits today\",\"col\":4}},{\"id\":\"field_operations-7\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"New shops this month\",\"col\":4}},{\"id\":\"field_operations-8\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"field_operations-9\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Trends</b></span>\",\"col\":12}},{\"id\":\"field_operations-10\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Productive calls by day\",\"col\":6}},{\"id\":\"field_operations-11\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visit outcomes, this month\",\"col\":6}},{\"id\":\"field_operations-12\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"field_operations-13\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters and transactions</b></span>\",\"col\":12}},{\"id\":\"field_operations-14\",\"type\":\"card\",\"data\":{\"card_name\":\"Shops and beats\",\"col\":4}},{\"id\":\"field_operations-15\",\"type\":\"card\",\"data\":{\"card_name\":\"People and visits\",\"col\":4}},{\"id\":\"field_operations-16\",\"type\":\"card\",\"data\":{\"card_name\":\"Attendance and travel\",\"col\":4}}]"
+}

@@ -1,0 +1,132 @@
+{
+ "doctype": "Workspace",
+ "name": "Orders and Stock",
+ "label": "Orders and Stock",
+ "title": "Orders and Stock",
+ "module": "FieldMate",
+ "icon": "sell",
+ "public": 1,
+ "is_hidden": 0,
+ "hide_custom": 0,
+ "for_user": "",
+ "parent_page": "FieldMate",
+ "sequence_id": 40.2,
+ "docstatus": 0,
+ "idx": 0,
+ "owner": "Administrator",
+ "modified_by": "Administrator",
+ "creation": "2026-11-23 19:00:00.000000",
+ "modified": "2026-11-23 19:00:00.000000",
+ "roles": [],
+ "quick_lists": [],
+ "charts": [
+  {
+   "chart_name": "FieldMate Value By Day",
+   "label": "Value sold by day"
+  },
+  {
+   "chart_name": "FieldMate Value By Rep",
+   "label": "Value sold by rep, this month"
+  },
+  {
+   "chart_name": "FieldMate Orders By Status",
+   "label": "Orders by status, this month"
+  }
+ ],
+ "number_cards": [
+  {
+   "number_card_name": "FieldMate Value This Month",
+   "label": "Value sold this month"
+  },
+  {
+   "number_card_name": "FieldMate Orders This Month",
+   "label": "Orders this month"
+  }
+ ],
+ "shortcuts": [
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "format": "{} waiting",
+   "label": "Orders to approve",
+   "link_to": "FieldMate Order",
+   "stats_filter": "{\"approval_status\": \"Pending\", \"docstatus\": 1}",
+   "type": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Orders",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Orders",
+   "link_count": 0,
+   "link_to": "FieldMate Order",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Secondary Sales",
+   "link_count": 0,
+   "link_to": "FieldMate Secondary Sales",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Share Links",
+   "link_count": 0,
+   "link_to": "FieldMate Share Link",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "description": "Price links sent to a party. Switch one off to withdraw it."
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Stock",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Stock",
+   "link_count": 0,
+   "link_to": "FieldMate Retailer Stock",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Distributor Stock",
+   "link_count": 0,
+   "link_to": "FieldMate Distributor Stock",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "content": "[{\"id\":\"orders_and_stock-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Waiting on a decision</b></span>\",\"col\":12}},{\"id\":\"orders_and_stock-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Orders to approve\",\"col\":3}},{\"id\":\"orders_and_stock-3\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"orders_and_stock-4\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>At a glance</b></span>\",\"col\":12}},{\"id\":\"orders_and_stock-5\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Value sold this month\",\"col\":4}},{\"id\":\"orders_and_stock-6\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Orders this month\",\"col\":4}},{\"id\":\"orders_and_stock-7\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"orders_and_stock-8\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Trends</b></span>\",\"col\":12}},{\"id\":\"orders_and_stock-9\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Value sold by day\",\"col\":12}},{\"id\":\"orders_and_stock-10\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Value sold by rep, this month\",\"col\":6}},{\"id\":\"orders_and_stock-11\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Orders by status, this month\",\"col\":6}},{\"id\":\"orders_and_stock-12\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"orders_and_stock-13\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters and transactions</b></span>\",\"col\":12}},{\"id\":\"orders_and_stock-14\",\"type\":\"card\",\"data\":{\"card_name\":\"Orders\",\"col\":4}},{\"id\":\"orders_and_stock-15\",\"type\":\"card\",\"data\":{\"card_name\":\"Stock\",\"col\":4}}]"
+}

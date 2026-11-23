@@ -1,0 +1,143 @@
+{
+ "doctype": "Workspace",
+ "name": "Money",
+ "label": "Money",
+ "title": "Money",
+ "module": "FieldMate",
+ "icon": "accounting",
+ "public": 1,
+ "is_hidden": 0,
+ "hide_custom": 0,
+ "for_user": "",
+ "parent_page": "FieldMate",
+ "sequence_id": 40.3,
+ "docstatus": 0,
+ "idx": 0,
+ "owner": "Administrator",
+ "modified_by": "Administrator",
+ "creation": "2026-11-23 19:00:00.000000",
+ "modified": "2026-11-23 19:00:00.000000",
+ "roles": [],
+ "quick_lists": [],
+ "charts": [
+  {
+   "chart_name": "FieldMate Collections By Day",
+   "label": "Cash collected by day"
+  },
+  {
+   "chart_name": "FieldMate Collections By Mode",
+   "label": "Collected by mode, this month"
+  }
+ ],
+ "number_cards": [
+  {
+   "number_card_name": "FieldMate Cash Collected This Month",
+   "label": "Cash collected this month"
+  }
+ ],
+ "shortcuts": [
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "format": "{} waiting",
+   "label": "Expenses to approve",
+   "link_to": "FieldMate Expense Claim",
+   "stats_filter": "{\"claim_status\": \"Pending Approval\", \"docstatus\": 1}",
+   "type": "DocType"
+  },
+  {
+   "color": "Red",
+   "doc_view": "List",
+   "format": "{} waiting",
+   "label": "Claims to decide",
+   "link_to": "FieldMate Claim",
+   "stats_filter": "{\"claim_status\": \"Pending Approval\", \"docstatus\": 1}",
+   "type": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Collections",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Collections",
+   "link_count": 0,
+   "link_to": "FieldMate Collection",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Deposits",
+   "link_count": 0,
+   "link_to": "FieldMate Collection Deposit",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Outstanding",
+   "link_count": 0,
+   "link_to": "FieldMate Outstanding Snapshot",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Claims and expenses",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheme Claims",
+   "link_count": 0,
+   "link_to": "FieldMate Claim",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Expense Claims",
+   "link_count": 0,
+   "link_to": "FieldMate Expense Claim",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheme Ledger",
+   "link_count": 0,
+   "link_to": "FieldMate Scheme Ledger",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "content": "[{\"id\":\"money-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Waiting on a decision</b></span>\",\"col\":12}},{\"id\":\"money-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Expenses to approve\",\"col\":3}},{\"id\":\"money-3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Claims to decide\",\"col\":3}},{\"id\":\"money-4\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"money-5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>At a glance</b></span>\",\"col\":12}},{\"id\":\"money-6\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Cash collected this month\",\"col\":4}},{\"id\":\"money-7\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"money-8\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Trends</b></span>\",\"col\":12}},{\"id\":\"money-9\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Cash collected by day\",\"col\":6}},{\"id\":\"money-10\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Collected by mode, this month\",\"col\":6}},{\"id\":\"money-11\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"money-12\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters and transactions</b></span>\",\"col\":12}},{\"id\":\"money-13\",\"type\":\"card\",\"data\":{\"card_name\":\"Collections\",\"col\":4}},{\"id\":\"money-14\",\"type\":\"card\",\"data\":{\"card_name\":\"Claims and expenses\",\"col\":4}}]"
+}

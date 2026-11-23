@@ -1,0 +1,23 @@
+{
+ "aggregate_function_based_on": "amount",
+ "color": "#FF8B3D",
+ "creation": "2026-11-23 19:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "FieldMate Collection",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"FieldMate Collection\", \"docstatus\", \"=\", 1, false], [\"FieldMate Collection\", \"collection_date\", \"Timespan\", \"this month\", false]]",
+ "function": "Sum",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Cash collected this month",
+ "modified": "2026-11-23 19:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FieldMate",
+ "name": "FieldMate Cash Collected This Month",
+ "owner": "Administrator",
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Monthly",
+ "type": "Document Type"
+}
