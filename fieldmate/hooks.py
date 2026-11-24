@@ -109,8 +109,9 @@ after_migrate = [
 # Uninstallation
 # ------------
 
-# before_uninstall = "fieldmate.uninstall.before_uninstall"
-# after_uninstall = "fieldmate.uninstall.after_uninstall"
+# What Frappe's own uninstall leaves on other apps' records: territory permissions, scheduled
+# jobs, attached photos, custom fields. See uninstall.py for why each one matters.
+before_uninstall = "fieldmate.uninstall.before_uninstall"
 
 # Integration Setup
 # ------------------
