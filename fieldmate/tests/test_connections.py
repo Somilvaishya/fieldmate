@@ -61,6 +61,18 @@ class TestEveryConnectionResolves(OutletFixture):
 		missing = sorted(d for d in pointed_at & set(module_doctypes()) if not tab(d).transactions)
 		self.assertEqual(missing, [])
 
+	def tearDown(self):
+		# `get_open_count` sets `max_statement_time = 1` on the session and never puts it back.
+		# A browser request gets a fresh session; a test run shares one, so every query for the
+		# rest of the suite was held to a second. Deleting a User scans dynamic links across big
+		# tables, crossed that second, failed silently in cleanup - and the logins left behind
+		# tripped Frappe's sixty-users-an-hour throttle for some seven hundred tests.
+		self.lift_the_ceiling()
+		super().tearDown()
+
+	def lift_the_ceiling(self):
+		frappe.db.set_execution_timeout(0)
+
 	def test_the_counts_run_for_a_real_rep_and_shop(self):
 		rep = self.make_field_user()
 		outlet = self.make_outlet()
@@ -68,3 +80,13 @@ class TestEveryConnectionResolves(OutletFixture):
 			counts = get_open_count(doctype, name)["count"]
 			found = {row["doctype"] for row in counts["external_links_found"]}
 			self.assertIn("FieldMate Visit", found, doctype)
+
+	def test_the_statement_timeout_is_put_back(self):
+		"""The trap above, pinned: after the counts, a session runs without a ceiling again."""
+		get_open_count("FieldMate Outlet", self.make_outlet().name)
+		self.assertEqual(
+			float(frappe.db.sql("select @@session.max_statement_time")[0][0]), 1.0,
+			"if Frappe stops setting it, this test and the tearDown can go")
+		self.lift_the_ceiling()
+		self.assertEqual(
+			float(frappe.db.sql("select @@session.max_statement_time")[0][0]), 0.0)
