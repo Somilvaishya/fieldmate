@@ -641,6 +641,9 @@ def readable_party(party, party_type: str | None = None, user: str | None = None
 		["name", "customer_name", "territory", "default_price_list", "disabled"], as_dict=True)
 	if not row:
 		raise frappe.DoesNotExistError(frappe._("That party no longer exists."))
+	from fieldmate.services import party as party_service
+
+	party_service.assert_reachable(row.name, user)
 	if row.disabled:
 		frappe.throw(frappe._("{0} is disabled, so nothing can be ordered on them.")
 		             .format(row.customer_name or name))

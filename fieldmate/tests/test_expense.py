@@ -311,6 +311,41 @@ class TestSettlement(ExpenseFixture):
 		self.assertEqual(frappe.db.count("GL Entry"), before)
 
 
+class TestReversing(ExpenseFixture):
+	"""`reverse` undoes a settlement, so it is held to the same three refusals as `approve`."""
+
+	def submitted(self):
+		self.lay_a_trail(km=48)
+		claim = self.file()
+		self.as_rep(expense_service.submit_claim, claim["name"], self.rep.name)
+		return claim["name"]
+
+	def test_a_settled_claim_goes_back_to_approved(self):
+		name = self.submitted()
+		expense_service.settle_claim(name)
+		self.assertEqual(expense_service.reverse(name)["claim_status"], "Approved")
+
+	def test_a_claim_that_was_never_settled_is_refused(self):
+		# Found in the Phase 10 security pass: a Rejected claim came back "Approved", with no
+		# approver on it, and `approve` would then pay it.
+		name = self.submitted()
+		frappe.db.set_value("FieldMate Expense Claim", name, "claim_status", "Rejected")
+		with self.assertRaises(frappe.ValidationError):
+			expense_service.reverse(name)
+		self.assertEqual(frappe.db.get_value("FieldMate Expense Claim", name, "claim_status"), "Rejected")
+
+	def test_a_manager_outside_the_team_is_refused(self):
+		name = self.submitted()
+		expense_service.settle_claim(name)
+		frappe.set_user(self.manager())
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				expense_service.reverse(name)
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual(frappe.db.get_value("FieldMate Expense Claim", name, "claim_status"), "Settled")
+
+
 class TestWhatTheRepSees(ExpenseFixture):
 	def test_the_estimate_fills_the_screen_without_creating_anything(self):
 		self.lay_a_trail(km=48)

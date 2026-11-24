@@ -28,14 +28,14 @@
   {"fieldname": "trail", "fieldtype": "Long Text", "label": "Trail (JSON)",
    "description": "The whole day's path on one row. At 250 reps pinging every 90 seconds, a row per ping would add roughly 30 million rows a year; this adds 65 thousand."}
  ],
- "index_web_pages_for_search": 0, "links": [], "modified": "2026-09-22 09:00:00.000000",
+ "index_web_pages_for_search": 0, "links": [], "modified": "2026-11-23 20:00:00.000000",
  "modified_by": "Administrator", "module": "FieldMate", "name": "FieldMate Location Trail",
  "owner": "Administrator", "permissions": [
   {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
   {"role": "FieldMate Admin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1},
-  {"role": "FieldMate Sales Head", "read": 1, "write": 1, "create": 1, "report": 1},
-  {"role": "FieldMate Regional Manager", "read": 1, "write": 1, "create": 1, "report": 1},
-  {"role": "FieldMate Area Manager", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "FieldMate Sales Head", "read": 1, "report": 1},
+  {"role": "FieldMate Regional Manager", "read": 1, "report": 1},
+  {"role": "FieldMate Area Manager", "read": 1, "report": 1},
   {"role": "FieldMate Field Rep", "read": 1}
  ],
  "search_fields": "field_user,trail_date", "sort_field": "trail_date", "sort_order": "DESC",

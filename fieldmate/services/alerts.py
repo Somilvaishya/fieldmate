@@ -440,9 +440,18 @@ ALERT_FIELDS = ["name", "rule", "exception", "field_user", "occurred_on", "sever
 
 
 def recent_page(limit: int = 50, field_user: str | None = None,
-                start: int = 0) -> tuple[list[dict], int]:
-	"""A page of what fired, and how much there is of it."""
-	filters = {"field_user": field_user} if field_user else {}
+                start: int = 0, field_users: list[str] | None = None) -> tuple[list[dict], int]:
+	"""A page of what fired, and how much there is of it.
+
+	`field_users` narrows it to a team. An empty list is a team of nobody and finds nothing -
+	never "no filter", which is what a manager nobody reports to used to get.
+	"""
+	if field_user:
+		filters = {"field_user": field_user}
+	elif field_users is not None:
+		filters = {"field_user": ["in", field_users or ["__nobody__"]]}
+	else:
+		filters = {}
 	return paging.page("FieldMate Alert Log", fields=ALERT_FIELDS, filters=filters,
 	                   order_by="occurred_on desc, fired_on desc",
 	                   start=start, limit=limit, permissions=False)

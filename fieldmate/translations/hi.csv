@@ -352,3 +352,19 @@ Source,स्रोत
 Sync,सिंक
 Targets,लक्ष्य
 Team,टीम
+This login is not an active field user. Ask your manager.,यह लॉगिन सक्रिय फ़ील्ड यूज़र नहीं है। अपने मैनेजर से पूछें।
+Only a settled claim can be reversed. This one is {0}.,सिर्फ़ सेटल हुआ दावा ही वापस लिया जा सकता है। यह दावा {0} है।
+You cannot reverse your own claim.,आप अपना ख़ुद का दावा वापस नहीं ले सकते।
+You can only declare your own collections.,आप सिर्फ़ अपनी ख़ुद की वसूली जमा घोषित कर सकते हैं।
+Collection {0} was taken by somebody else and cannot go into this deposit.,वसूली {0} किसी और ने ली थी और इस जमा में नहीं जा सकती।
+Collection {0} is already in deposit {1}.,वसूली {0} पहले से जमा {1} में है।
+{0} is not one of your parties.,{0} आपकी पार्टियों में से नहीं है।
+"Order {0} is not {1}'s, so this money cannot be put against it.","ऑर्डर {0} {1} का नहीं है, इसलिए यह पैसा इसके सामने नहीं लगाया जा सकता।"
+{0} already has your earlier requests and will be in touch.,{0} के पास आपके पिछले अनुरोध पहले से हैं और वे आपसे संपर्क करेंगे।
+That is more than can be asked for here. {0} can take a bigger order directly.,यह यहाँ से माँगी जा सकने वाली मात्रा से ज़्यादा है। बड़ा ऑर्डर {0} सीधे ले सकते हैं।
+You can only share under your own name.,आप सिर्फ़ अपने नाम से शेयर कर सकते हैं।
+{0} is not offered to this party.,{0} इस पार्टी के लिए उपलब्ध नहीं है।
+A link can stand for at most {0} days.,एक लिंक ज़्यादा से ज़्यादा {0} दिन चल सकता है।
+The number of opens cannot be negative.,खोलने की संख्या नेगेटिव नहीं हो सकती।
+You can only record your own stock counts.,आप सिर्फ़ अपनी ख़ुद की स्टॉक गिनती दर्ज कर सकते हैं।
+That visit is not yours at this shop.,इस दुकान पर यह विज़िट आपकी नहीं है।

@@ -45,8 +45,11 @@ class FieldMateVisit(Document):
 		mine = field_user_service.for_user()
 		if not mine or self.field_user == mine:
 			return
-		# Managers legitimately record on behalf of their team; write access is what marks them.
+		# Managers legitimately record on behalf of their team; write access is what marks them -
+		# and the team is theirs. Write alone let an Area Manager record a visit for any rep in the
+		# company (Phase 10 security pass).
 		if frappe.has_permission("FieldMate Visit", "write"):
+			field_user_service.assert_in_team(self.field_user)
 			return
 		frappe.throw(
 			frappe._("You can only record your own visits."), frappe.PermissionError

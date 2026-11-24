@@ -243,6 +243,17 @@ def reverse(name: str) -> dict:
     back-links before it runs on_cancel.
     """
     doc = frappe.get_doc("FieldMate Expense Claim", name)
+    # The same three refusals as `approve`, which this undoes. Without them any manager could
+    # cancel another team's HR settlement, or turn a Rejected claim into an Approved one with no
+    # approver on it - and `approve` then pays an Approved claim.
+    if doc.claim_status != "Settled":
+        frappe.throw(
+            frappe._("Only a settled claim can be reversed. This one is {0}.")
+            .format(doc.claim_status.lower()))
+    if doc.field_user == field_user_service.for_user():
+        frappe.throw(frappe._("You cannot reverse your own claim."), frappe.PermissionError)
+    field_user_service.assert_in_team(doc.field_user)
+
     posted = doc.hrms_expense_claim
     if posted:
         doc.db_set("hrms_expense_claim", None, update_modified=False)

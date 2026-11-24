@@ -30,6 +30,11 @@ from fieldmate.services import paging
 CLOSED = "This link is not available."
 
 
+def closed() -> dict:
+	"""The one refusal a visitor ever sees. The literal is repeated so it can be translated."""
+	return {"ok": False, "message": frappe._("This link is not available.")}
+
+
 def make_link(catalogue: str, party: str, field_user: str, party_type: str = "Customer",
               **fields) -> str:
 	"""Create a share link for one party. Returns its name; the token is on the document."""
@@ -74,7 +79,7 @@ def page(token: str, ip: str | None = None) -> dict:
 	"""
 	link = link_for(token)
 	if not link:
-		return {"ok": False, "message": frappe._(CLOSED)}
+		return closed()
 
 	link.note_an_open(ip)
 
@@ -166,22 +171,45 @@ def self_order(token: str, lines: list[dict], note: str | None = None) -> dict:
 	"""
 	link = link_for(token)
 	if not link:
-		return {"ok": False, "message": frappe._(CLOSED)}
+		return closed()
+
+	rep_user = frappe.db.get_value("FieldMate Field User", link.field_user, "user")
+	if not rep_user:
+		return closed()
+
+	rep_name = (frappe.db.get_value("FieldMate Field User", link.field_user, "full_name")
+	            or frappe._("Your representative"))
+	thanks = frappe._("Thank you. {0} has it and will be in touch.").format(rep_name)
+
+	# A link is a URL anybody can be forwarded, and each ask is a priced draft in somebody's
+	# queue. So a link holds a few unread asks at most; past that the visitor is told the rep
+	# already has them, which is true, rather than adding a fourth (Phase 10 security pass).
+	waiting = frappe.db.count("FieldMate Order", {
+		"client_uuid": ["like", f"SHARE-{link.token}-%"], "docstatus": 0})
+	if waiting >= MAX_OPEN_ASKS:
+		return {"ok": False, "message": frappe._(
+			"{0} already has your earlier requests and will be in touch.").format(rep_name)}
 
 	allowed = {row["item_code"] for row in _items(
 		frappe.get_cached_doc("FieldMate Product Catalogue", link.catalogue), link)}
 
-	wanted = []
-	for row in lines or []:
-		code = (row or {}).get("item")
-		qty = flt((row or {}).get("qty"))
+	wanted: dict[str, float] = {}
+	for row in (lines or [])[:MAX_LINES]:
+		if not isinstance(row, dict):
+			continue
+		code = row.get("item")
+		qty = flt(row.get("qty"))
 		# Only what this link actually shows, and only a positive quantity. An item code the
 		# visitor supplied that is not on the page is somebody trying it on.
 		if code in allowed and qty > 0:
-			wanted.append({"item": code, "qty": qty})
+			wanted[code] = wanted.get(code, 0) + qty
 
 	if not wanted:
 		return {"ok": False, "message": frappe._("Choose how much of something you would like.")}
+	if any(qty > MAX_QTY for qty in wanted.values()):
+		return {"ok": False, "message": frappe._(
+			"That is more than can be asked for here. {0} can take a bigger order directly.")
+			.format(rep_name)}
 
 	from fieldmate.services import order as order_service
 
@@ -190,31 +218,45 @@ def self_order(token: str, lines: list[dict], note: str | None = None) -> dict:
 		"party_type": link.party_type,
 		"customer": party if link.party_type == "Customer" else None,
 		"outlet": party if link.party_type == "Outlet" else None,
-		"lines": wanted,
+		"lines": [{"item": code, "qty": qty} for code, qty in wanted.items()],
 		"client_uuid": f"SHARE-{link.token}-{frappe.generate_hash(length=10)}",
 		"remarks": _remarks(link, note),
 	}
 
-	# As the server, not as the visitor. There is no session here at all, and the rep who sent
-	# the link is the one the draft belongs to.
+	# As the rep who sent the link, never as Administrator. The draft is theirs, and it passes the
+	# same checks as an order they typed themselves - a link to a party who is no longer theirs
+	# makes no draft at all. Administrator was every permission on the site, handed to a stranger
+	# with a URL (Phase 10 security pass).
 	was = frappe.session.user
+	frappe.db.savepoint("fm_showcase_ask")
 	try:
-		frappe.set_user("Administrator")
+		frappe.set_user(rep_user)
 		created = order_service.create(payload, link.field_user)
+	except Exception:
+		# The visitor gets a sentence; whatever went wrong goes to the error log, not to them.
+		frappe.db.rollback(save_point="fm_showcase_ask")
+		frappe.set_user(was)
+		frappe.log_error(title="fieldmate: a showcase ask could not become a draft")
+		return closed()
 	finally:
 		frappe.set_user(was)
 
-	return {"ok": True, "order": created["name"],
-	        "message": frappe._("Thank you. {0} has it and will be in touch.").format(
-		        frappe.db.get_value("FieldMate Field User", link.field_user, "full_name")
-		        or frappe._("Your representative"))}
+	return {"ok": True, "order": created["name"], "message": thanks}
+
+
+# What one stranger with one link may send. Generous for a real buyer, useless for a flood.
+MAX_OPEN_ASKS = 3
+MAX_LINES = 200
+MAX_QTY = 100000
+MAX_NOTE = 500
 
 
 def _remarks(link, note: str | None) -> str:
 	"""Say on the order where it came from. A draft nobody can explain is a draft nobody acts on."""
 	words = frappe._("Asked for through the shared catalogue on {0}.").format(
 		frappe.utils.formatdate(nowdate()))
-	return f"{words}\n{note.strip()}" if (note or "").strip() else words
+	note = (note or "").strip()[:MAX_NOTE] if isinstance(note, str) else ""
+	return f"{words}\n{note}" if note else words
 
 
 def url_for(token: str) -> str:

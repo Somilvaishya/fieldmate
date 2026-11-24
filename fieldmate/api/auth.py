@@ -42,6 +42,11 @@ def login(usr: str | None = None, pwd: str | None = None, device_uuid: str | Non
 		login_manager = frappe.auth.LoginManager()
 		login_manager.authenticate(user=usr, pwd=pwd)
 		login_manager.post_login()
+	except field_user_service.NotAnActiveFieldUser as e:
+		raise FieldMateError(
+			Err.PERMISSION_DENIED,
+			"This login is not an active field user. Ask your manager.",
+		) from e
 	except frappe.AuthenticationError as e:
 		raise FieldMateError(Err.LOGIN_FAILED, "Wrong username or password.") from e
 

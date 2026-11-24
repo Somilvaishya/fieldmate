@@ -22,9 +22,36 @@ class FieldMateRetailerStock(Document):
 	"""
 
 	def validate(self):
+		self.hold_a_rep_to_their_own_shops()
 		self.link_to_previous()
 		self.normalise_lines()
 		self.roll_up()
+
+	def hold_a_rep_to_their_own_shops(self):
+		"""A rep counts their own shops, on their own visits.
+
+		A count has no territory of its own, so the territory permission never reached it: a rep
+		could file one for any shop in the company - and it became that shop's "last count" on
+		the real rep's screen and fed its offtake - against any colleague's visit, whose stock
+		task was then ticked Done (Phase 10 security pass). Here rather than in the service,
+		because a count taken offline arrives through `sync.push`.
+		"""
+		from fieldmate.services import catalogue as catalogue_service
+		from fieldmate.services import field_user as field_user_service
+
+		mine = field_user_service.rep_only()
+		if not mine:
+			return
+		if self.field_user != mine:
+			frappe.throw(frappe._("You can only record your own stock counts."),
+			             frappe.PermissionError)
+		catalogue_service.readable_outlet(self.outlet)
+		if self.visit:
+			visit = frappe.db.get_value(
+				"FieldMate Visit", self.visit, ["field_user", "outlet"], as_dict=True)
+			if not visit or visit.field_user != mine or visit.outlet != self.outlet:
+				frappe.throw(frappe._("That visit is not yours at this shop."),
+				             frappe.PermissionError)
 
 	def link_to_previous(self):
 		previous = frappe.db.get_value(

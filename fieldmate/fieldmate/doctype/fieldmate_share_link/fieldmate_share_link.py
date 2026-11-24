@@ -26,6 +26,10 @@ from frappe.utils import add_days, cint, getdate, now_datetime, nowdate
 # having this week, and a price that outlives the conversation is a price being quoted by nobody.
 DEFAULT_DAYS = 30
 
+# The longest anybody may make one stand. A season is booked over a few months; a quotation older
+# than that is a price nobody is still offering.
+MAX_DAYS = 90
+
 # Long enough that guessing is not a strategy. `frappe.generate_hash` is urandom-backed.
 TOKEN_LENGTH = 32
 
@@ -38,7 +42,34 @@ class FieldMateShareLink(Document):
 		self.settle_the_party()
 		self.check_the_catalogue()
 		self.default_the_window()
+		if self.is_new():
+			self.hold_a_rep_to_their_own_parties()
 		self.resolve_the_price_list()
+
+	def hold_a_rep_to_their_own_parties(self):
+		"""A rep shares with their own parties, under their own name, what is meant for them.
+
+		Inserted under `ignore_permissions`, so nothing else asked: a rep could publish any
+		party's prices in the company on a public URL, under any catalogue, signed by anybody
+		(Phase 10 security pass). The catalogue has to be one `shareable_for` offers that party -
+		the list the phone already shows - so a region's prices are never put in front of a
+		party from another one.
+		"""
+		from fieldmate.services import field_user as field_user_service
+		from fieldmate.services import showcase as showcase_service
+
+		mine = field_user_service.rep_only()
+		if not mine:
+			return
+		if self.field_user != mine:
+			frappe.throw(frappe._("You can only share under your own name."),
+			             frappe.PermissionError)
+		party = self.customer if self.party_type == "Customer" else self.outlet
+		# `shareable_for` reads the party through `readable_party`, which is the scope check.
+		offered = {row["name"] for row in showcase_service.shareable_for(party, self.party_type)}
+		if self.catalogue not in offered:
+			frappe.throw(frappe._("{0} is not offered to this party.").format(self.catalogue),
+			             frappe.PermissionError)
 
 	def settle_the_party(self):
 		"""Exactly one party, and `party_type` agreeing with it.
@@ -80,6 +111,12 @@ class FieldMateShareLink(Document):
 			self.valid_to = add_days(self.valid_from, DEFAULT_DAYS)
 		if getdate(self.valid_to) < getdate(self.valid_from):
 			frappe.throw(frappe._("This link would expire before it starts."))
+		# A quotation, not a price list. A rep could set 2099 and the party would hold the company
+		# to a price nobody had agreed for years (Phase 10 security pass).
+		if frappe.utils.date_diff(self.valid_to, self.valid_from) > MAX_DAYS:
+			frappe.throw(frappe._("A link can stand for at most {0} days.").format(MAX_DAYS))
+		if cint(self.max_views) < 0:
+			frappe.throw(frappe._("The number of opens cannot be negative."))
 
 	def resolve_the_price_list(self):
 		"""Fix the price list when the link is made, and never move it.

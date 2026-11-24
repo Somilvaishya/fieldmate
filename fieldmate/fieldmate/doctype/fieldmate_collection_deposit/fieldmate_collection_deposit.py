@@ -21,8 +21,24 @@ class FieldMateCollectionDeposit(Document):
 	"""
 
 	def validate(self):
+		self.hold_a_rep_to_their_own_name()
 		self.pull_the_lines()
 		self.roll_up()
+
+	def hold_a_rep_to_their_own_name(self):
+		"""A rep declares as themselves. Nothing else on the form says who is declaring.
+
+		`confirm_deposit` refuses the person who declared - by comparing with this field. A rep who
+		could type a colleague's name here could then confirm their own deposit and post the
+		Payment Entry alone (Phase 10 security pass). Through `/api/resource` they could.
+		"""
+		from fieldmate.services import field_user as field_user_service
+
+		mine = field_user_service.rep_only()
+		if mine and self.field_user != mine:
+			frappe.throw(
+				frappe._("You can only declare your own collections."), frappe.PermissionError
+			)
 
 	def pull_the_lines(self):
 		"""Read each collection rather than trusting what the phone said it was worth."""
@@ -31,11 +47,25 @@ class FieldMateCollectionDeposit(Document):
 				continue
 			source = frappe.db.get_value(
 				"FieldMate Collection", row.collection,
-				["party", "mode", "amount", "instrument_no", "posts_to_ledger", "status"],
+				["party", "mode", "amount", "instrument_no", "posts_to_ledger", "status",
+				 "field_user", "deposit"],
 				as_dict=True,
 			)
 			if not source:
 				frappe.throw(frappe._("Collection {0} no longer exists.").format(row.collection))
+			# One person's money in one deposit. A colleague's collections put here were marked
+			# Deposited and dropped out of the colleague's cash in hand without them knowing.
+			if source.field_user != self.field_user:
+				frappe.throw(
+					frappe._("Collection {0} was taken by somebody else and cannot go into this "
+					         "deposit.").format(row.collection),
+					frappe.PermissionError,
+				)
+			if source.deposit and source.deposit != self.name:
+				frappe.throw(
+					frappe._("Collection {0} is already in deposit {1}.")
+					.format(row.collection, source.deposit)
+				)
 			if source.status in ("Cancelled", "Bounced"):
 				frappe.throw(
 					frappe._("Collection {0} is {1} and cannot go into a deposit.")
@@ -102,5 +132,6 @@ def confirm(deposit: str) -> dict:
 	"""
 	from fieldmate.services import collection as collection_service
 
-	frappe.has_permission("FieldMate Collection Deposit", "submit", doc=deposit, throw=True)
+	# Who may is the service's to decide, for this button and the API alike. It used to ask for
+	# `submit` here - which a rep holds on a deposit they created.
 	return collection_service.confirm_deposit(deposit)

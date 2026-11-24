@@ -158,11 +158,37 @@ def manager_summary(sales_person: str | None = None, from_date: str | None = Non
 			Err.BAD_REQUEST,
 			"No sales person to summarise. Say which one, or set one on your own profile.")
 
+	_assert_my_branch(sales_person)
+
 	anchor = getdate(to_date or nowdate())
 	window = (getdate(from_date) if from_date else get_first_day(anchor), anchor)
+	if window[0] > window[1]:
+		raise FieldMateError(Err.BAD_REQUEST, "The start date is after the end date.")
+	if (window[1] - window[0]).days > MAX_SUMMARY_DAYS:
+		raise FieldMateError(Err.BAD_REQUEST, "At most a year at a time.")
 
 	result = kpi_service.for_team(sales_person, *window)
 	return ok({**result, "metrics": kpi_service.core_metrics(result["totals"])})
+
+
+# One request reads every snapshot in the window for every rep under the node.
+MAX_SUMMARY_DAYS = 366
+
+
+def _assert_my_branch(sales_person: str) -> None:
+	"""A manager summarises their own node of the tree or one below it, never a cousin's.
+
+	Any Area Manager could pass the root and read every rep in the company (Phase 10 security
+	pass). Sales Head and the office answer for everybody and are not narrowed.
+	"""
+	if field_user_service.team_scope() is None:
+		return
+	from fieldmate.services import target as target_service
+
+	mine = field_user_service.for_user()
+	own = frappe.db.get_value("FieldMate Field User", mine, "sales_person") if mine else None
+	if not own or sales_person not in target_service.subtree(own):
+		raise FieldMateError(Err.PERMISSION_DENIED, "That part of the team is not yours.")
 
 
 @frappe.whitelist()
@@ -170,14 +196,22 @@ def manager_summary(sales_person: str | None = None, from_date: str | None = Non
 def exceptions(limit: int = 50, field_user: str | None = None, start: int = 0):
 	"""What fired recently. A manager sees the team; a rep sees only themselves."""
 	start, limit = paging.window(start, limit)
+	team = None
 	if field_user or set(MANAGER_ROLES) & set(frappe.get_roles()):
 		if field_user:
 			_assert_manager()
+			# Somebody else's rep is not yours to read, by name or otherwise (Phase 10).
+			field_user_service.assert_in_team(field_user)
+		else:
+			# None for Sales Head and the office; the reporting line for everybody else. It used
+			# to be None for every manager, which read the whole company's alert log.
+			team = field_user_service.team_scope()
 		whose = field_user
 	else:
 		# A rep asking is always asking about themselves, whatever they put in the argument.
 		whose = _me()
-	rows, total = alerts_service.recent_page(limit=limit, field_user=whose, start=start)
+	rows, total = alerts_service.recent_page(limit=limit, field_user=whose, start=start,
+	                                         field_users=team)
 	return ok({"alerts": rows, **paging.envelope(rows, total, start, limit)})
 
 
@@ -186,21 +220,57 @@ def exceptions(limit: int = 50, field_user: str | None = None, start: int = 0):
 # --------------------------------------------------------------------------------------
 
 
+# The most these two will do in one request. They are the nightly jobs, run inside a web request
+# that commits per rep: `2000-01-01 .. today` was ten thousand days for every rep in the company,
+# open to any Area Manager (Phase 10 security pass). A month is what a manager ever needs to
+# restate; anything longer is a `bench execute` for somebody with the server.
+MAX_MACHINERY_DAYS = 31
+
+
+def _window_days(from_date, to_date) -> int:
+	days = (getdate(to_date) - getdate(from_date)).days + 1
+	if days < 1:
+		raise FieldMateError(Err.BAD_REQUEST, "The start date is after the end date.")
+	if days > MAX_MACHINERY_DAYS:
+		raise FieldMateError(
+			Err.BAD_REQUEST,
+			f"At most {MAX_MACHINERY_DAYS} days at a time. Run a longer stretch month by month.")
+	return days
+
+
+def _assert_company_wide() -> None:
+	if not set(field_user_service.COMPANY_WIDE_ROLES) & set(frappe.get_roles()) \
+			and frappe.session.user != "Administrator":
+		raise FieldMateError(
+			Err.PERMISSION_DENIED, "Only the Sales Head or an admin can run this for everybody.")
+
+
 @frappe.whitelist(methods=["POST"])
 @endpoint()
 def rebuild(from_date: str, to_date: str, field_user: str | None = None, force: int = 0):
-	"""Recompute snapshots for a window. The nightly job, on demand."""
+	"""Recompute snapshots for a window. The nightly job, on demand.
+
+	For one rep, any manager whose team they are in. For the whole company, only the roles that
+	answer for the whole company.
+	"""
 	_assert_manager()
+	days = _window_days(from_date, to_date)
 	force = bool(frappe.utils.cint(force))
 	if field_user:
+		field_user_service.assert_in_team(field_user)
 		return ok(kpi_service.roll_up_range(field_user, from_date, to_date, force=force))
 
-	days = (getdate(to_date) - getdate(from_date)).days + 1
-	return ok(kpi_service.roll_up_all(on_date=to_date, days_back=max(days, 1), force=force))
+	_assert_company_wide()
+	return ok(kpi_service.roll_up_all(on_date=to_date, days_back=days, force=force))
 
 
 @frappe.whitelist(methods=["POST"])
 @endpoint()
 def run_alerts(on_date: str | None = None, days_back: int = 1):
-	_assert_manager()
-	return ok(alerts_service.evaluate_all(on_date=on_date, days_back=int(days_back)))
+	"""Every rule over every rep, so company-wide roles only, and a month at most."""
+	_assert_company_wide()
+	days_back = frappe.utils.cint(days_back)
+	if not 1 <= days_back <= MAX_MACHINERY_DAYS:
+		raise FieldMateError(
+			Err.BAD_REQUEST, f"days_back must be between 1 and {MAX_MACHINERY_DAYS}.")
+	return ok(alerts_service.evaluate_all(on_date=on_date, days_back=days_back))

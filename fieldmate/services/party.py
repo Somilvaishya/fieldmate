@@ -178,6 +178,23 @@ def distributors_of(field_user: str | None) -> list[str]:
 	return sorted(reachable(field_user))
 
 
+def assert_reachable(customer: str, user: str | None = None) -> None:
+	"""Refuse a Field Rep a Customer that is not on their own list.
+
+	`readable_outlet` has always held a rep to their shops. A party we bill had no such check, so
+	any rep could read any distributor's credit limit, receivable and price book, or book an order
+	on them, by typing a name (Phase 10 security pass). The list is `reachable` - the same one the
+	phone already shows - so nothing a rep can pick on screen is refused.
+
+	Managers and the office are not limited here, as they are not on shops.
+	"""
+	from fieldmate.services import field_user as field_user_service
+
+	mine = field_user_service.rep_only(user)
+	if mine and customer not in reachable(mine):
+		raise frappe.PermissionError(frappe._("{0} is not one of your parties.").format(customer))
+
+
 def counter_facts(field_user: str | None) -> list[dict]:
 	"""What a rep reads out at a counter about whoever supplies the shop they are standing in.
 

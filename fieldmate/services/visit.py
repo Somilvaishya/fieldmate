@@ -563,6 +563,8 @@ def assert_owner(doc) -> None:
 		return
 	if not frappe.has_permission("FieldMate Visit", "write", doc=doc.name):
 		raise frappe.PermissionError(frappe._("This is not your visit."))
+	# A manager's write reaches their own team's visits, not every visit in the company.
+	field_user_service.assert_in_team(doc.field_user)
 
 
 def history(field_user: str, date=None, limit: int = 50) -> list[dict]:

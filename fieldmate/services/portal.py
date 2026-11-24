@@ -19,6 +19,9 @@ import frappe
 from frappe.utils import cint, now_datetime
 
 PORTAL_ROLE = "FieldMate Distributor"
+# What `distributor_of` answers for a portal login with no active mapping. Not a name any
+# Customer can have, so a filter on it matches nothing.
+NO_DEPOT = "__no_distributor__"
 
 # What the depot may do to an order, and from where. A transition missing from this table is not
 # refused by an `if` somewhere downstream - it is simply not reachable, which is the difference
@@ -81,8 +84,12 @@ def distributor_of(user: str | None = None) -> str | None:
 		return None
 	if PORTAL_ROLE not in frappe.get_roles(user):
 		return None
+	# A portal login with no active mapping is a depot of nobody, not "no depot". None here is
+	# the answer for a manager - no filter - so a Distributor whose mapping was switched off, or
+	# never made, read every depot's orders and claims (Phase 10 security pass). Deactivating
+	# somebody widened what they could see.
 	return frappe.db.get_value(
-		"FieldMate Portal User", {"user": user, "is_active": 1}, "distributor")
+		"FieldMate Portal User", {"user": user, "is_active": 1}, "distributor") or NO_DEPOT
 
 
 def touch(row) -> None:

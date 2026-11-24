@@ -19,8 +19,18 @@ class FieldMateJourneyPlan(Document):
 				.format(MAX_PLAN_DAYS)
 			)
 
+		self.hold_a_manager_to_their_team()
 		self.validate_no_overlap()
 		self.roll_up()
+
+	def hold_a_manager_to_their_team(self):
+		"""A manager plans their own reps. The app's `plan` API always checked; the document did
+		not, so the same manager could plan anybody in the company through Desk or REST
+		(Phase 10 security pass). A plan of one's own, and the scheduler, pass untouched."""
+		from fieldmate.services import field_user as field_user_service
+
+		if self.field_user and self.field_user != field_user_service.for_user():
+			field_user_service.assert_in_team(self.field_user)
 
 	def validate_no_overlap(self):
 		"""Two submitted plans covering one date would make 'today's beat' ambiguous."""
@@ -64,6 +74,10 @@ def build_days(field_user: str, from_date, to_date, holiday_list: str | None = N
 	beat, so the rep's phone said "No route planned" every morning for ever.
 	"""
 	frappe.has_permission("FieldMate Journey Plan", "write", throw=True)
+	# Building the rows reads the rep's beats and every shop on them.
+	from fieldmate.services import field_user as field_user_service
+
+	field_user_service.assert_in_team(field_user)
 
 	# Both of the document's date checks, repeated here so the button answers with a sentence.
 	# `journey.build_days` raises a bare ValueError for a reversed window, which would reach the

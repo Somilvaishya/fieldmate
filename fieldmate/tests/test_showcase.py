@@ -8,6 +8,8 @@ The page is drawn too, not just its context built. `/distributor/sales` had a te
 `get_context` and stopped, and it passed for weeks over a page that answered 500 on every load.
 """
 
+from unittest.mock import patch
+
 import frappe
 from frappe.utils import add_days, today
 
@@ -216,6 +218,116 @@ class TestAskingForSomething(ShowcaseFixture):
 			link.token, [{"item": self.item, "qty": 3, "rate": 1}])
 		order = frappe.get_doc("FieldMate Order", self.track("FieldMate Order", answer["order"]))
 		self.assertEqual(order.items[0].rate, 100)
+
+
+class TestWhatARepMayShare(ShowcaseFixture):
+	"""M4, Phase 10 security pass. A link is inserted past permissions, so it checks for itself
+	whose party, whose name and how long."""
+
+	def share_as_rep(self, **kwargs):
+		from fieldmate.api import showcase as showcase_api
+
+		args = {"catalogue": self.catalogue, "party": self.party, "party_type": "Customer"}
+		args.update(kwargs)
+		frappe.set_user(self.rep.user)
+		try:
+			answer = showcase_api.share(**args)
+		finally:
+			frappe.set_user("Administrator")
+		if answer.get("ok"):
+			self.track("FieldMate Share Link", answer["data"]["link"])
+		return answer
+
+	def test_my_own_party_can_be_sent_a_link(self):
+		self.assertTrue(self.share_as_rep()["ok"])
+
+	def test_somebody_elses_party_cannot(self):
+		far = frappe.get_doc({
+			"doctype": "Customer", "customer_name": self.uid("Far"),
+			"customer_group": frappe.db.get_value("Customer", self.party, "customer_group"),
+			"territory": self.make_territory(), "fm_tier": "Distributor",
+		}).insert(ignore_permissions=True)
+		self.track("Customer", far.name)
+		answer = self.share_as_rep(party=far.name)
+		self.assertEqual(answer["code"], "PERMISSION_DENIED")
+
+	def test_a_catalogue_not_offered_to_the_party_cannot(self):
+		frappe.db.set_value("FieldMate Product Catalogue", self.catalogue, "is_active", 0)
+		answer = self.share_as_rep()
+		self.assertEqual(answer["code"], "PERMISSION_DENIED")
+
+	def test_a_link_that_stands_for_years_is_refused(self):
+		answer = self.share_as_rep(valid_to="2099-12-31")
+		self.assertFalse(answer["ok"])
+		self.assertIn("at most", answer["message"])
+
+	def test_the_limit_holds_in_desk_too(self):
+		with self.assertRaises(frappe.ValidationError):
+			self.share(valid_to=add_days(today(), 365))
+
+
+class TestAStrangerWithALink(ShowcaseFixture):
+	"""Phase 10 security pass. The link is a URL anybody can be forwarded, so what one visitor
+	can make with it is bounded."""
+
+	def ask(self, link, qty=5, note=None):
+		answer = showcase_service.self_order(link.token, [{"item": self.item, "qty": qty}], note)
+		if answer.get("order"):
+			self.track("FieldMate Order", answer["order"])
+		return answer
+
+	def test_the_draft_is_made_as_the_rep_and_not_as_administrator(self):
+		order = frappe.get_doc("FieldMate Order", self.ask(self.share())["order"])
+		self.assertEqual(order.owner, self.rep.user)
+
+	def test_a_link_holds_a_few_unread_asks_and_no_more(self):
+		link = self.share()
+		for _ in range(showcase_service.MAX_OPEN_ASKS):
+			self.assertTrue(self.ask(link)["ok"])
+		fourth = self.ask(link)
+		self.assertFalse(fourth["ok"])
+		self.assertIn("earlier requests", fourth["message"])
+
+	def test_an_absurd_quantity_is_refused(self):
+		answer = self.ask(self.share(), qty=showcase_service.MAX_QTY + 1)
+		self.assertFalse(answer["ok"])
+
+	def test_the_same_item_twice_is_one_line(self):
+		answer = showcase_service.self_order(
+			self.share().token, [{"item": self.item, "qty": 2}, {"item": self.item, "qty": 3}]
+		)
+		order = frappe.get_doc("FieldMate Order", self.track("FieldMate Order", answer["order"]))
+		self.assertEqual([(r.item_code, r.qty) for r in order.items], [(self.item, 5)])
+
+	def test_a_long_note_is_cut_short(self):
+		answer = self.ask(self.share(), note="x" * 5000)
+		order = frappe.get_doc("FieldMate Order", answer["order"])
+		self.assertLess(len(order.remarks), showcase_service.MAX_NOTE + 200)
+
+	def test_rubbish_gets_a_sentence_not_a_traceback(self):
+		from fieldmate.www import showcase as page
+
+		link = self.share()
+		frappe.set_user("Guest")
+		try:
+			for lines in ("not json", '{"a": 1}', '["x", 3]'):
+				answer = page.ask(token=link.token, lines=lines)
+				self.assertFalse(answer["ok"])
+				self.assertIsInstance(answer["message"], str)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_a_party_no_longer_the_reps_makes_no_draft(self):
+		"""Run as the rep, the draft meets the rep's own checks: a party they can no longer sell
+		to gets the plain refusal, and nothing lands in anybody's queue."""
+		link = self.share()
+		with patch("fieldmate.services.party.reachable", return_value={}):
+			answer = self.ask(link)
+		self.assertFalse(answer["ok"])
+		self.assertEqual(answer["message"], showcase_service.CLOSED)
+		self.assertFalse(
+			frappe.db.exists("FieldMate Order", {"client_uuid": ["like", f"SHARE-{link.token}-%"]})
+		)
 
 
 class TestThePageActuallyRenders(ShowcaseFixture):

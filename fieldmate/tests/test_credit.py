@@ -352,7 +352,10 @@ class TestThePrimaryPartysCredit(CreditFixture):
 
 	def setUp(self):
 		super().setUp()
-		self.outlet = self.make_outlet()
+		# In the rep's own territory, so its distributor is one of the rep's parties: a rep may
+		# not read the credit of a party that is not theirs (Phase 10 security pass), and that
+		# refusal has its own test in test_security.
+		self.outlet = self.make_outlet(territory=self.rep.territory)
 		self.distributor = self.outlet.distributor
 		# A Customer with no channel tier is not a party we know how to bill - `_from_customer`
 		# refuses it by name. That is the rule, not a fixture convenience: it is also the first

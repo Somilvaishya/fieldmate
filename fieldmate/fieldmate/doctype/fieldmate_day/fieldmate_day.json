@@ -397,7 +397,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-16 09:00:00.000000",
+ "modified": "2026-11-23 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "FieldMate",
  "name": "FieldMate Day",
@@ -438,7 +438,7 @@
   {
    "role": "FieldMate Area Manager",
    "read": 1,
-   "write": 1,
+   "write": 0,
    "report": 1
   },
   {

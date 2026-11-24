@@ -45,6 +45,7 @@ class FieldMateOrder(Document):
 		from fieldmate.services import order as order_service
 
 		self.settle_the_party()
+		self.hold_a_rep_to_their_own_parties()
 		if self.items:
 			order_service.price(self)
 		# After the repricing, because `price` is what decides this is a booking at all. Refused
@@ -56,6 +57,27 @@ class FieldMateOrder(Document):
 		# the submit of an ordinary new booking - which is how a season with an early change
 		# cutoff came to refuse every booking taken in its last few open days.
 		order_service.assert_may_amend(self)
+
+	def hold_a_rep_to_their_own_parties(self):
+		"""A rep books on their own shops and their own parties, and nobody else's.
+
+		A shop always was held, through the territory permission on Outlet. A party we bill was
+		not - an Order has no territory of its own - so a rep could raise an ERPNext Sales Order
+		on any distributor in the company by naming them (Phase 10 security pass). Only a draft
+		is checked: an order a rep booked months ago is not refused at approval because their
+		territory moved since.
+		"""
+		from fieldmate.services import catalogue as catalogue_service
+		from fieldmate.services import field_user as field_user_service
+		from fieldmate.services import party as party_service
+
+		# `is_new` too: an order submitted straight from the phone is inserted at docstatus 1.
+		if not (self.is_new() or self.docstatus == 0) or not field_user_service.rep_only():
+			return
+		if self.party_type == "Customer":
+			party_service.assert_reachable(self.customer)
+		elif self.outlet:
+			catalogue_service.readable_outlet(self.outlet)
 
 	def settle_the_party(self):
 		"""Exactly one party, and `party_type` agreeing with it.

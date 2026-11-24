@@ -212,6 +212,30 @@ class TestADepotSeesOnlyItsOwn(PortalFixture):
 		with self.assertRaises(frappe.PermissionError):
 			self.as_depot(portal_service.me)
 
+	def test_a_deactivated_login_sees_nothing_round_the_service_either(self):
+		"""M7, Phase 10. The hooks answered "no filter" once the mapping was off, so a REST
+		list or a report gave a switched-off depot every depot's orders."""
+		name = self.routed()
+		frappe.db.set_value("FieldMate Portal User", self.depot.name, "is_active", 0)
+		frappe.set_user(self.depot.user)
+		try:
+			listed = frappe.get_list("FieldMate Order", filters={"name": name}, pluck="name")
+			self.assertFalse(frappe.has_permission("FieldMate Order", "read", doc=name))
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual(listed, [])
+
+	def test_a_distributor_login_never_mapped_sees_nothing(self):
+		name = self.routed()
+		stray = self.make_user(role="FieldMate Distributor")
+		frappe.set_user(stray)
+		try:
+			self.assertEqual(frappe.get_list("FieldMate Order", filters={"name": name},
+			                                 pluck="name"), [])
+			self.assertEqual(frappe.get_list("FieldMate Claim", limit=5, pluck="name"), [])
+		finally:
+			frappe.set_user("Administrator")
+
 	def test_a_desk_administrator_cannot_be_given_a_depot(self):
 		"""A scoped login that carries permissions from elsewhere is not scoped."""
 		admin = frappe.get_doc({

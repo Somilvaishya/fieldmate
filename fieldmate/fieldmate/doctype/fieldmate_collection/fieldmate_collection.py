@@ -21,6 +21,7 @@ class FieldMateCollection(Document):
 
 	def validate(self):
 		self.resolve_party()
+		self.hold_a_rep_to_their_own_parties()
 		self.allocate()
 		self.check_the_money_adds_up()
 		self.stamp_receipt()
@@ -46,6 +47,42 @@ class FieldMateCollection(Document):
 			self.company = frappe.db.get_value("FieldMate Field User", self.field_user, "company")
 		if not self.currency and self.company:
 			self.currency = frappe.db.get_value("Company", self.company, "default_currency")
+
+	def hold_a_rep_to_their_own_parties(self):
+		"""A rep records money from their own shops and parties, against their bills.
+
+		Here, not in the service, because a collection taken offline arrives through `sync.push`
+		and never meets a service. Before the Phase 10 security pass a rep could record a
+		collection from any party, and allocate it to any FieldMate Order - and an allocation
+		releases a held season booking the moment it is submitted, before any money is
+		confirmed. Anybody's booking, by naming it.
+		"""
+		from fieldmate.services import catalogue as catalogue_service
+		from fieldmate.services import field_user as field_user_service
+		from fieldmate.services import party as party_service
+
+		if not field_user_service.rep_only():
+			return
+
+		if self.party_type == "Outlet":
+			catalogue_service.readable_outlet(self.outlet)
+		else:
+			party_service.assert_reachable(self.distributor)
+
+		for row in self.allocations or []:
+			if row.reference_type != "FieldMate Order" or not row.reference_name:
+				continue
+			# The distributor too: a distributor paying against a shop order they supply is real,
+			# and `_references_for` keeps that money on account rather than refusing it.
+			order = frappe.db.get_value(
+				"FieldMate Order", row.reference_name, ["outlet", "customer", "distributor"],
+				as_dict=True)
+			if not order or self.party not in (order.outlet, order.customer, order.distributor):
+				frappe.throw(
+					frappe._("Order {0} is not {1}'s, so this money cannot be put against it.")
+					.format(row.reference_name, self.party),
+					frappe.PermissionError,
+				)
 
 	def distributor_behind(self, outlet) -> str | None:
 		"""Whose money this is. The outlet names its billing party directly (step 2d)."""

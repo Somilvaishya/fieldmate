@@ -9,6 +9,7 @@ shows before anything is written.
 """
 
 import frappe
+from frappe.rate_limiter import rate_limit
 
 from fieldmate.services import showcase as showcase_service
 
@@ -40,11 +41,22 @@ def get_context(context):
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=20, seconds=60 * 60, methods=["POST"])
 def ask(token: str | None = None, lines: str | None = None, note: str | None = None):
 	"""A party asks for what they have been looking at.
 
 	Guest-accessible by necessity, which is why it takes one thing - a token - and reads nothing
 	else about the caller. What comes back is a draft for the rep, never an order.
+
+	The second guest method in the app beside `auth.login`, and held the same way: twenty asks an
+	hour from one address, a few open drafts per link (`showcase.MAX_OPEN_ASKS`), and nothing the
+	visitor sends - not even malformed JSON - comes back as anything but a sentence.
 	"""
-	return showcase_service.self_order(
-		(token or "").strip(), frappe.parse_json(lines or "[]"), note)
+	try:
+		parsed = frappe.parse_json(lines or "[]")
+	except Exception:
+		parsed = None
+	if not isinstance(parsed, list):
+		return {"ok": False, "message": frappe._("Choose how much of something you would like.")}
+
+	return showcase_service.self_order((token or "").strip(), parsed, note)

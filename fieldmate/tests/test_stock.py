@@ -34,6 +34,45 @@ class StockFixture(OrderFixture):
 		        "conversion_factor": factor}
 
 
+class TestWhoseCountItIs(StockFixture):
+	"""M3, Phase 10 security pass. A count has no territory of its own, so nothing held a rep to
+	their shops or their visits."""
+
+	def bare_visit(self, field_user, outlet):
+		"""A visit row with only what the check reads. Checking in for real needs a whole day,
+		a device and a geo-fence, none of which this is about."""
+		doc = frappe.new_doc("FieldMate Visit")
+		doc.name = self.uid("VIS")
+		doc.field_user = field_user
+		doc.outlet = outlet
+		doc.visit_date = today()
+		doc.db_insert()
+		self.track("FieldMate Visit", doc.name)
+		return doc.name
+
+	def test_my_count_on_my_visit_saves(self):
+		visit = self.bare_visit(self.rep.name, self.outlet.name)
+		self.assertTrue(self.count([self.line(qty=4)], visit=visit)["name"])
+
+	def test_a_shop_outside_my_territory_is_refused(self):
+		far = self.make_outlet(approval_status="Approved")
+		with self.assertRaises(frappe.PermissionError):
+			self.count([self.line(qty=4)], outlet=far.name)
+		self.assertFalse(frappe.db.exists("FieldMate Retailer Stock", {"outlet": far.name}))
+
+	def test_a_colleagues_visit_is_refused(self):
+		colleague = self.make_field_user(territory=self.rep.territory)
+		visit = self.bare_visit(colleague.name, self.outlet.name)
+		with self.assertRaises(frappe.PermissionError):
+			self.count([self.line(qty=4)], visit=visit)
+
+	def test_my_visit_at_another_shop_is_refused(self):
+		other = self.make_outlet(territory=self.rep.territory, approval_status="Approved")
+		visit = self.bare_visit(self.rep.name, other.name)
+		with self.assertRaises(frappe.PermissionError):
+			self.count([self.line(qty=4)], visit=visit)
+
+
 class TestAShopCount(StockFixture):
 	def test_a_zero_count_is_not_the_same_as_an_uncounted_line(self):
 		"""The reason `is_counted` exists at all.

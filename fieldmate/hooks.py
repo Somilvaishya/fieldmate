@@ -161,7 +161,19 @@ permission_query_conditions = {
 	# Where a person was all day. The most personal row the app keeps, and the one the Field Rep
 	# role could read for every colleague until this line existed.
 	"FieldMate Location Trail": "fieldmate.services.field_user.location_trail_query",
+	# Phase 10. The rest of what is personal - the day and its selfie, the shops walked into, the
+	# phone carried. A rep sees their own, a manager their team, the Sales Head everybody.
+	"FieldMate Day": "fieldmate.services.field_user.day_query",
+	"FieldMate Visit": "fieldmate.services.field_user.visit_query",
+	"FieldMate Device Registry": "fieldmate.services.field_user.device_query",
+	# Which shops a rep walks, on which day. A rep read every colleague's plan, a manager every
+	# team's (Phase 10).
+	"FieldMate Journey Plan": "fieldmate.services.field_user.journey_plan_query",
 }
+
+# A rep's territory is a Territory User Permission, and a user with none is not filtered at all.
+# So a Field Rep whose record is inactive or missing does not get a session - by any login path.
+on_login = "fieldmate.services.field_user.refuse_a_rep_without_an_active_record"
 
 has_permission = {
 	"FieldMate Order": "fieldmate.services.portal.order_permission",
@@ -172,7 +184,11 @@ has_permission = {
 	"FieldMate Expense Claim": "fieldmate.services.field_user.own_row_permission",
 	"FieldMate KPI Snapshot": "fieldmate.services.field_user.own_row_permission",
 	# The query condition scopes a list; this one refuses a trail opened by name directly.
-	"FieldMate Location Trail": "fieldmate.services.field_user.own_row_permission",
+	"FieldMate Location Trail": "fieldmate.services.field_user.team_row_permission",
+	"FieldMate Day": "fieldmate.services.field_user.team_row_permission",
+	"FieldMate Visit": "fieldmate.services.field_user.team_row_permission",
+	"FieldMate Device Registry": "fieldmate.services.field_user.device_permission",
+	"FieldMate Journey Plan": "fieldmate.services.field_user.team_row_permission",
 }
 
 # DocType Class

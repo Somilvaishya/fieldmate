@@ -4,7 +4,11 @@
 
 - Frappe session auth, plus **device binding** via `FieldMate Device Registry`. A session is tied to a
   registered device; an unrecognised device must re-register.
-- `allow_guest=True` is forbidden on every method except `fieldmate.api.auth.login`.
+- `allow_guest=True` is forbidden on every method except `fieldmate.api.auth.login` and
+  `fieldmate.www.showcase.ask` (a party asking off a shared catalogue link). Both are rate-limited
+  per IP. `ask` reads nothing but a token, holds at most `MAX_OPEN_ASKS` unread drafts per link,
+  bounds lines, quantities and the note, and runs as the rep who sent the link - never as
+  Administrator.
 - The PWA stores its token in session storage, never in IndexedDB alongside mirrored data.
 - Device deregistration must invalidate the session — a lost phone is a real scenario with a real
   territory's outlet data and customer contacts on it.
@@ -15,6 +19,17 @@
   parameter, never trusted from the client.
 - Row-level access uses Territory-based `User Permission`, generated from the field user record —
   no custom permission code.
+- **A Field Rep with no Active Field User gets no session** (`on_login` hook). With no Territory
+  permission a user is not filtered at all, so an inactive or unrecorded rep would otherwise read
+  every shop. A portal login with no active mapping is a depot of nobody, not "no depot".
+- **Managers see their own reporting line.** Area and Regional Managers: their team and
+  themselves (`field_user.team_scope`). Sales Head, FieldMate Admin and System Manager: the
+  company. This covers decisions (approvals, deposits, expenses, plans) and personal rows
+  (Location Trail, Day, Visit, Device Registry, Journey Plan) via `permission_query_conditions`
+  and `has_permission`. Numbers (targets, KPIs) stay readable to every manager.
+- A rep names only their own parties: shops through `catalogue.readable_outlet`, parties we bill
+  through `party.assert_reachable`. Enforced on the document controllers too, because offline
+  records arrive through `sync.push` and never meet a service.
 - Role matrix is in `fieldmate` skill → `references/data-model.md`. The hard rule: **no field role gets
   create or write on any accounting DocType.**
 - Distributors see only their own orders and claims. Verified by attempting to fetch another

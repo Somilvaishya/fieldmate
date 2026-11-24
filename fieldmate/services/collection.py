@@ -59,6 +59,11 @@ def outstanding_for(outlet, field_user: str | None = None) -> dict:
 	)
 	if not doc:
 		frappe.throw(frappe._("That shop no longer exists."))
+	# Read straight off the table, so nothing held a rep to their territory: any shop's bills
+	# and ageing were one guessed name away (Phase 10 security pass).
+	from fieldmate.services import catalogue as catalogue_service
+
+	catalogue_service.readable_outlet(doc.name)
 
 	bills = open_bills_for(doc.name)
 	today = getdate(nowdate())
@@ -712,6 +717,19 @@ def declare_deposit(payload: dict, field_user: str | None = None) -> dict:
 	return summarise_deposit(frappe.get_doc("FieldMate Collection Deposit", doc.name))
 
 
+def assert_may_settle(doc) -> None:
+	"""Confirming a deposit and bouncing a collection both move ERPNext's ledger. Who may?
+
+	Somebody holding `write` on this very document - which no Field Rep does; their `submit` is
+	`if_owner` and is how they *declare* - and, below the company-wide roles, only for their own
+	team. Both used to be checked against the DocType alone, so an Area Manager could post or
+	cancel Payment Entries for any rep in the company, and the Desk button asked for `submit`,
+	which a rep holds on their own deposit (Phase 10 security pass).
+	"""
+	frappe.has_permission(doc.doctype, "write", doc=doc, throw=True)
+	field_user_service.assert_in_team(doc.field_user)
+
+
 def confirm_deposit(name: str, confirmed_by: str | None = None) -> dict:
 	"""Somebody at our end confirms the money arrived. **This is where a Payment Entry appears.**
 
@@ -723,6 +741,7 @@ def confirm_deposit(name: str, confirmed_by: str | None = None) -> dict:
 	is a declaration, not a control.
 	"""
 	doc = frappe.get_doc("FieldMate Collection Deposit", name)
+	assert_may_settle(doc)
 	confirmed_by = confirmed_by or frappe.session.user
 
 	if doc.status == "Confirmed":
@@ -895,6 +914,7 @@ def bounce(collection: str, reason: str | None = None) -> dict:
 	than they were.
 	"""
 	doc = frappe.get_doc("FieldMate Collection", collection)
+	assert_may_settle(doc)
 	if doc.status == "Bounced":
 		return summarise(doc)
 	if doc.docstatus != 1:

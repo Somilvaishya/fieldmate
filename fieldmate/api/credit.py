@@ -16,8 +16,10 @@ from __future__ import annotations
 import frappe
 
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok
+from fieldmate.services import catalogue as catalogue_service
 from fieldmate.services import credit as credit_service
 from fieldmate.services import field_user as field_user_service
+from fieldmate.services import party as party_service
 
 
 def _me() -> str:
@@ -50,5 +52,12 @@ def position(party: str | None = None, party_type: str | None = None):
 		# Named plainly. The screen that calls this is about to quote a credit figure, and the
 		# one thing it must not do is draw a blank as though it were a zero.
 		raise FieldMateError(Err.BAD_REQUEST, "That party is not on this site any more.")
+
+	# Somebody's credit limit and what they owe are not for every rep in the company. The same
+	# two checks as everywhere else a rep names a party (Phase 10 security pass).
+	if kind == "Customer":
+		party_service.assert_reachable(party)
+	else:
+		catalogue_service.readable_outlet(party)
 
 	return ok({"credit": credit_service.reading(party, _me(), kind)})

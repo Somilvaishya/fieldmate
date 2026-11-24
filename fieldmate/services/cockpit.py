@@ -40,16 +40,21 @@ def _state_of(booking: dict, held: bool, note: str | None, invoice: str | None) 
 	return "Booked"
 
 
-def _rows(season: str) -> list[dict]:
+def _rows(season: str, field_users: list[str] | None = None) -> list[dict]:
 	"""Every booking of the season with where it has got to and what it is worth.
 
 	The one place that walks the documents. Both views below are built from this, so they cannot
 	disagree about a booking the way two queries would.
+
+	`field_users` narrows it to a manager's team (Phase 10); None is the whole season.
 	"""
+	filters = {"season": season, "docstatus": 1,
+	           "order_status": ["not in", ["Cancelled", "Rejected"]]}
+	if field_users is not None:
+		filters["field_user"] = ["in", field_users or ["__nobody__"]]
 	bookings = frappe.get_all(
 		"FieldMate Order",
-		filters={"season": season, "docstatus": 1,
-		         "order_status": ["not in", ["Cancelled", "Rejected"]]},
+		filters=filters,
 		fields=["name", "customer", "order_date", "order_status", "sales_order",
 		        "net_total", "tax_total", "grand_total"],
 		order_by="order_date asc, creation asc",
@@ -216,7 +221,7 @@ def by_sku(season: str, rows: list[dict] | None = None) -> list[dict]:
 	return sorted(items.values(), key=lambda i: (-i["short"], i["item_code"]))
 
 
-def summary(season: str) -> dict:
+def summary(season: str, field_users: list[str] | None = None) -> dict:
 	"""The whole cockpit in one call, so a page makes one request rather than four."""
 	doc = frappe.db.get_value(
 		"FieldMate Season", season,
@@ -230,7 +235,7 @@ def summary(season: str) -> dict:
 	# One walk, handed to all three views. Each of them used to call `_rows` itself, so opening
 	# the cockpit repeated the whole thing four times - and `_rows` asks the stock ledger and the
 	# dispatch keys once per booking.
-	rows = _rows(season)
+	rows = _rows(season, field_users)
 	value = flt(sum(row["booked_value"] for row in rows), 2)
 	paid = flt(sum(row["paid"] for row in rows), 2)
 
@@ -280,7 +285,7 @@ def seasons(company: str | None = None) -> list[dict]:
 	return rows
 
 
-def overdue_payments(on=None) -> list[dict]:
+def overdue_payments(on=None, field_users: list[str] | None = None) -> list[dict]:
 	"""Bookings whose payment schedule has a date in the past and money still owing.
 
 	Read off the **Sales Order's** payment schedule, which ERPNext built from the season's
@@ -291,10 +296,13 @@ def overdue_payments(on=None) -> list[dict]:
 	"""
 	on = getdate(on or nowdate())
 
+	filters = {"order_kind": "Booking", "docstatus": 1, "sales_order": ["is", "set"],
+	           "order_status": ["not in", ["Cancelled", "Rejected"]]}
+	if field_users is not None:
+		filters["field_user"] = ["in", field_users or ["__nobody__"]]
 	bookings = frappe.get_all(
 		"FieldMate Order",
-		filters={"order_kind": "Booking", "docstatus": 1, "sales_order": ["is", "set"],
-		         "order_status": ["not in", ["Cancelled", "Rejected"]]},
+		filters=filters,
 		fields=["name", "customer", "season", "field_user", "sales_order", "grand_total"],
 	)
 	if not bookings:

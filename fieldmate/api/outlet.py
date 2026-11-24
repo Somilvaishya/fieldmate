@@ -5,6 +5,7 @@ from __future__ import annotations
 import frappe
 
 from fieldmate.api._base import Err, FieldMateError, endpoint, ok, parse_json
+from fieldmate.services import field_user as field_user_service
 from fieldmate.services import importer as importer_service
 from fieldmate.services import outlet as outlet_service
 from fieldmate.services import paging
@@ -87,8 +88,14 @@ def import_template(**kwargs):
 @frappe.whitelist(methods=["POST"])
 @endpoint()
 def bulk_import(rows: str | None = None, dry_run: int = 1, **kwargs):
-	"""Validate a file and optionally write it. Defaults to a dry run on purpose."""
-	if not frappe.has_permission("FieldMate Outlet", "create"):
+	"""Validate a file and optionally write it. Defaults to a dry run on purpose.
+
+	The company-wide roles only. An import writes shops **already approved**, in whatever
+	territory the file names, past the territory permission - so a Field Rep, who holds `create`
+	on Outlet to propose one shop for approval, could otherwise approve a thousand of their own
+	anywhere (Phase 10 security pass).
+	"""
+	if not set(frappe.get_roles()) & set(field_user_service.COMPANY_WIDE_ROLES):
 		raise FieldMateError(Err.PERMISSION_DENIED, "You cannot import outlets.")
 
 	parsed = parse_json(rows, "rows") or []

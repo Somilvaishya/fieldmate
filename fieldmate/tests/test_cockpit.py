@@ -439,3 +439,53 @@ class TestTheCockpitWalksTheBookingsOnce(CockpitFixture):
 		rows = cockpit_service._rows(self.season)
 		for view in (cockpit_service.by_state, cockpit_service.by_party, cockpit_service.by_sku):
 			self.assertEqual(view(self.season), view(self.season, rows), view.__name__)
+
+
+class TestWhoseSeasonItIs(CockpitFixture):
+	"""M9, Phase 10 security pass. An Area or Regional Manager reads their own team's bookings
+	and debts; the Sales Head, the office and the dispatch planner read the whole season."""
+
+	overdue_booking = TestWhoIsLate.overdue_booking
+
+	def area_manager(self, over_the_rep: bool):
+		manager = self.make_field_user(
+			user=self.make_user(role="FieldMate Area Manager"), designation="Area Manager",
+			territory=self.rep.territory)
+		if over_the_rep:
+			self.rep.db_set("reports_to", manager.name)
+		return manager.user
+
+	def as_user(self, user, fn, *args, **kwargs):
+		frappe.set_user(user)
+		try:
+			return fn(*args, **kwargs)
+		finally:
+			frappe.set_user("Administrator")
+
+	def page(self):
+		from fieldmate.fieldmate.page.fieldmate_season_cockpit import fieldmate_season_cockpit
+
+		return fieldmate_season_cockpit
+
+	def test_my_teams_booking_is_in_my_cockpit(self):
+		self.book()
+		summary = self.as_user(self.area_manager(True), self.page().summary, self.season)
+		self.assertEqual(summary["bookings"], 1)
+
+	def test_another_teams_booking_is_not(self):
+		self.book()
+		summary = self.as_user(self.area_manager(False), self.page().summary, self.season)
+		self.assertEqual(summary["bookings"], 0)
+		self.assertEqual(summary["value"], 0)
+
+	def test_the_sales_head_sees_the_whole_season(self):
+		self.book()
+		head = self.make_user(role="FieldMate Sales Head")
+		self.assertEqual(self.as_user(head, self.page().summary, self.season)["bookings"], 1)
+
+	def test_another_teams_debt_is_not_on_my_overdue_list(self):
+		name = self.overdue_booking()
+		mine = self.as_user(self.area_manager(True), self.page().overdue, self.season)
+		theirs = self.as_user(self.area_manager(False), self.page().overdue, self.season)
+		self.assertIn(name, [row["order"] for row in mine])
+		self.assertNotIn(name, [row["order"] for row in theirs])

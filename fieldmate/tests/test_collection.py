@@ -214,11 +214,53 @@ class TestDepositing(CollectionFixture):
 
 		frappe.set_user(self.rep.user)
 		try:
-			with self.assertRaises(frappe.ValidationError) as ctx:
+			# Refused on permission before it gets as far as the name: a rep holds no `write` on
+			# a deposit, and confirming needs it (Phase 10).
+			with self.assertRaises(frappe.PermissionError):
 				collection_service.confirm_deposit(deposit["name"])
-			self.assertIn("declared it", str(ctx.exception))
 		finally:
 			frappe.set_user("Administrator")
+
+		# Somebody who may confirm, but declared it themselves, is still refused by name.
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			collection_service.confirm_deposit(deposit["name"], confirmed_by=self.rep.user)
+		self.assertIn("declared it", str(ctx.exception))
+
+	def test_a_rep_cannot_declare_in_a_colleagues_name(self):
+		"""Phase 10. The "not the declarer" check reads this field, so a rep who could set it to
+		a colleague could confirm their own money."""
+		colleague = self.make_field_user(territory=self.rep.territory)
+		collection = self.collect(party_type="Distributor", amount=3000)
+		deposit = frappe.get_doc({
+			"doctype": "FieldMate Collection Deposit", "field_user": colleague.name,
+			"deposit_date": today(), "channel": "Bank Branch",
+			"lines": [{"collection": collection["name"]}],
+		})
+		with self.assertRaises(frappe.PermissionError):
+			self.as_rep(deposit.insert)
+
+	def test_a_colleagues_collection_cannot_go_into_my_deposit(self):
+		colleague = self.make_field_user(territory=self.rep.territory)
+		theirs = self.collect(party_type="Outlet", amount=700)
+		frappe.db.set_value("FieldMate Collection", theirs["name"], "field_user", colleague.name)
+
+		with self.assertRaises(frappe.PermissionError):
+			self.declare(theirs)
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Collection", theirs["name"], "status"), "Collected")
+
+	def test_a_manager_outside_the_team_cannot_confirm(self):
+		"""Phase 10. Confirming posts a Payment Entry; it used to be open to every Area Manager
+		in the company."""
+		deposit = self.declare(self.collect(party_type="Distributor", amount=3000))
+		frappe.set_user(self.manager())
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				collection_service.confirm_deposit(deposit["name"])
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual(
+			frappe.db.get_value("FieldMate Collection Deposit", deposit["name"], "status"), "Declared")
 
 	def test_confirming_posts_only_the_distributors_money(self):
 		shop = self.collect(party_type="Outlet", amount=1000)
